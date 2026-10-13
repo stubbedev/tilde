@@ -2,7 +2,10 @@
 // renderers implement.
 package render
 
-import "image"
+import (
+	"image"
+	"math"
+)
 
 type Transform uint8
 
@@ -61,6 +64,33 @@ func (t Transform) Point(p, size image.Point) image.Point {
 
 func (t Transform) Rect(r image.Rectangle, size image.Point) image.Rectangle {
 	return image.Rectangle{Min: t.Point(r.Min, size), Max: t.Point(r.Max, size)}.Canon()
+}
+
+func (t Transform) fpoint(x, y float64, size image.Point) (float64, float64) {
+	w, h := float64(size.X), float64(size.Y)
+	switch t {
+	case Rotate90:
+		return y, w - x
+	case Rotate180:
+		return w - x, h - y
+	case Rotate270:
+		return h - y, x
+	case Flipped:
+		return w - x, y
+	case Flipped90:
+		return y, x
+	case Flipped180:
+		return x, h - y
+	case Flipped270:
+		return h - y, w - x
+	}
+	return x, y
+}
+
+func (t Transform) FRect(r FRect, size image.Point) FRect {
+	x0, y0 := t.fpoint(r.X, r.Y, size)
+	x1, y1 := t.fpoint(r.X+r.W, r.Y+r.H, size)
+	return FRect{X: min(x0, x1), Y: min(y0, y1), W: math.Abs(x1 - x0), H: math.Abs(y1 - y0)}
 }
 
 type Format uint8

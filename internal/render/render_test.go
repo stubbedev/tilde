@@ -60,3 +60,15 @@ func TestInvertUndoesTheTransform(t *testing.T) {
 		}
 	}
 }
+
+func TestFRectAgreesWithRect(t *testing.T) {
+	size := image.Pt(7, 4)
+	r := image.Rect(1, 2, 3, 4)
+	for _, tr := range transforms {
+		got := tr.FRect(render.FRect{X: 1, Y: 2, W: 2, H: 2}, size)
+		want := tr.Rect(r, size)
+		if got != (render.FRect{X: float64(want.Min.X), Y: float64(want.Min.Y), W: float64(want.Dx()), H: float64(want.Dy())}) {
+			t.Errorf("transform %d: FRect %+v, Rect %v", tr, got, want)
+		}
+	}
+}
