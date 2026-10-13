@@ -20,15 +20,17 @@ import (
 )
 
 type commit struct {
-	s      *Surface
-	size   image.Point
-	damage region.Region
-	offset image.Point
-	scale  int32
-	opaque region.Region
-	input  region.Region
-	stack  []*Surface
-	subPos image.Point
+	s            *Surface
+	attached     bool
+	bufferDamage region.Region
+	size         image.Point
+	damage       region.Region
+	offset       image.Point
+	scale        int32
+	opaque       region.Region
+	input        region.Region
+	stack        []*Surface
+	subPos       image.Point
 }
 
 type recorder struct {
@@ -37,7 +39,7 @@ type recorder struct {
 }
 
 func (r *recorder) Committed(s *Surface) error {
-	c := commit{s: s, size: s.Size(), damage: s.Damage(), offset: s.Offset(), scale: s.Scale(), opaque: s.Opaque(), input: s.Input(), stack: s.Stack()}
+	c := commit{s: s, attached: s.Attached(), bufferDamage: s.BufferDamage(), size: s.Size(), damage: s.Damage(), offset: s.Offset(), scale: s.Scale(), opaque: s.Opaque(), input: s.Input(), stack: s.Stack()}
 	if s.Subsurface() != nil {
 		c.subPos = s.Subsurface().Position()
 	}
@@ -281,6 +283,18 @@ func TestBufferDamageMapsToSurfaceCoordinates(t *testing.T) {
 	want = image.Rect(want.Min.X/2, want.Min.Y/2, (want.Max.X+1)/2, (want.Max.Y+1)/2)
 	if got := c.damage.Bounds(); got != want {
 		t.Fatalf("damage %v, want %v", got, want)
+	}
+	if got := c.bufferDamage.Bounds(); got != image.Rect(0, 0, 4, 2) {
+		t.Fatalf("buffer damage %v, want the damaged buffer rect back", got)
+	}
+	must(t, s.Damage(0, 0, 1, 1), s.Commit())
+	e.roundtrip()
+	surfaceRect := image.Rect(0, 0, 2, 2)
+	if got, want := e.last(s).bufferDamage.Bounds(), render.Rotate90.Rect(surfaceRect, image.Pt(20, 40)); got != want {
+		t.Fatalf("surface damage maps to buffer damage %v, want %v", got, want)
+	}
+	if e.last(s).attached {
+		t.Fatal("a commit without attach reports an attached buffer")
 	}
 }
 

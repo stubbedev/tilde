@@ -174,6 +174,8 @@ type Surface struct {
 	cached       bool
 	current      state
 	damage       region.Region
+	bufferDamage region.Region
+	attached     bool
 	offset       image.Point
 	role         Role
 	roleName     string
@@ -221,6 +223,14 @@ func (s *Surface) Size() image.Point {
 
 func (s *Surface) Damage() region.Region {
 	return s.damage
+}
+
+func (s *Surface) BufferDamage() region.Region {
+	return s.bufferDamage
+}
+
+func (s *Surface) Attached() bool {
+	return s.attached
 }
 
 func (s *Surface) Offset() image.Point {
@@ -328,7 +338,8 @@ func (s *Surface) applyCache() error {
 	}
 	s.cached = false
 	st := &s.cache
-	s.damage = s.surfaceDamage(st)
+	s.damage, s.bufferDamage = s.mapDamage(st)
+	s.attached = st.set&fieldBuffer != 0
 	s.offset = image.Point{}
 	if st.set&fieldOffset != 0 {
 		s.offset = st.offset
@@ -360,11 +371,10 @@ func (s *Surface) applyCache() error {
 	return nil
 }
 
-func (s *Surface) surfaceDamage(st *state) region.Region {
-	damage := st.damage
-	buffer, scale, transform := s.current.buffer, s.current.scale, s.current.transform
+func (s *Surface) mapDamage(st *state) (surface, buffer region.Region) {
+	b, scale, transform := s.current.buffer, s.current.scale, s.current.transform
 	if st.set&fieldBuffer != 0 {
-		buffer = st.buffer
+		b = st.buffer
 	}
 	if st.set&fieldScale != 0 {
 		scale = st.scale
@@ -372,14 +382,21 @@ func (s *Surface) surfaceDamage(st *state) region.Region {
 	if st.set&fieldTransform != 0 {
 		transform = st.transform
 	}
-	if buffer == nil || st.bufferDamage.Empty() {
-		return damage
+	if b == nil {
+		return st.damage, region.Region{}
 	}
-	size := buffer.Size()
-	return damage.Union(st.bufferDamage.Map(func(r image.Rectangle) image.Rectangle {
-		r = transform.Invert().Rect(r.Intersect(image.Rectangle{Max: size}), size)
-		return image.Rect(r.Min.X/int(scale), r.Min.Y/int(scale), ceilDiv(r.Max.X, int(scale)), ceilDiv(r.Max.Y, int(scale)))
-	}))
+	size := b.Size()
+	bounds := image.Rectangle{Max: size}
+	k := int(scale)
+	toSurface := func(r image.Rectangle) image.Rectangle {
+		r = transform.Invert().Rect(r.Intersect(bounds), size)
+		return image.Rect(r.Min.X/k, r.Min.Y/k, ceilDiv(r.Max.X, k), ceilDiv(r.Max.Y, k))
+	}
+	toBuffer := func(r image.Rectangle) image.Rectangle {
+		r = image.Rectangle{Min: r.Min.Mul(k), Max: r.Max.Mul(k)}
+		return transform.Rect(r, transform.Invert().Size(size)).Intersect(bounds)
+	}
+	return st.damage.Union(st.bufferDamage.Map(toSurface)), st.bufferDamage.Intersect(bounds).Union(st.damage.Map(toBuffer))
 }
 
 func ceilDiv(a, b int) int {
