@@ -76,6 +76,13 @@ func (c *Client) runHooks(id wire.ObjectID) {
 	}
 }
 
+func (c *Client) Sent(err error) error {
+	if err != nil && c.conn.Err() != nil {
+		return nil
+	}
+	return err
+}
+
 func (c *Client) Creds() unix.Ucred {
 	return c.creds
 }
