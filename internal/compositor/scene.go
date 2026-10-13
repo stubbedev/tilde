@@ -4,22 +4,28 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"slices"
 
 	"github.com/stubbedev/tilde/internal/backend"
+	"github.com/stubbedev/tilde/internal/output"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/surface"
 	"github.com/stubbedev/tilde/internal/wire"
 )
 
-func (c *Compositor) Frame(o backend.Output) error {
-	if err := c.render(o); err != nil {
-		return fmt.Errorf("compositor: frame on %s: %w", o.Name(), err)
+func (c *Compositor) Frame(b backend.Output) error {
+	o := c.output(b)
+	if o == nil {
+		return fmt.Errorf("compositor: frame on unknown output %s", b.Name())
 	}
-	return nil
+	if err := c.render(o); err != nil {
+		return fmt.Errorf("compositor: frame on %s: %w", b.Name(), err)
+	}
+	return c.updateEntered(o)
 }
 
-func (c *Compositor) render(o backend.Output) error {
-	r, target, err := o.BeginFrame()
+func (c *Compositor) render(o *output.Output) error {
+	r, target, err := o.Backend().BeginFrame()
 	if err != nil {
 		return err
 	}
@@ -36,20 +42,20 @@ func (c *Compositor) render(o backend.Output) error {
 			continue
 		}
 		origin := w.placement().Min.Sub(w.toplevel.Geometry().Min)
-		shown = c.drawTree(pass, w.toplevel.Surface(), origin, shown)
+		shown = c.drawTree(pass, o, w.toplevel.Surface(), origin, shown)
 	}
 	c.shown[o] = shown
 	if err := pass.End(); err != nil {
 		return err
 	}
-	return o.Present(damage)
+	return o.Backend().Present(damage)
 }
 
-func (c *Compositor) drawTree(pass render.Pass, s *surface.Surface, at image.Point, shown []*surface.Surface) []*surface.Surface {
+func (c *Compositor) drawTree(pass render.Pass, o *output.Output, s *surface.Surface, at image.Point, shown []*surface.Surface) []*surface.Surface {
 	for _, member := range s.Stack() {
 		if member != s {
 			if sub := member.Subsurface(); sub != nil {
-				shown = c.drawTree(pass, member, at.Add(sub.Position()), shown)
+				shown = c.drawTree(pass, o, member, at.Add(sub.Position()), shown)
 			}
 			continue
 		}
@@ -57,15 +63,49 @@ func (c *Compositor) drawTree(pass render.Pass, s *surface.Surface, at image.Poi
 		if tex == nil {
 			continue
 		}
-		size := tex.Size()
-		dst := image.Rectangle{Min: at, Max: at.Add(s.Size())}
-		pass.DrawTexture(tex, render.FRect{W: float64(size.X), H: float64(size.Y)}, dst, s.Transform().Invert(), 1)
+		logical := image.Rectangle{Min: at, Max: at.Add(s.Size())}.Sub(o.Position())
+		pass.DrawTexture(tex, s.BufferSource(), o.Scale().Rect(logical), s.Transform().Invert(), 1)
 		shown = append(shown, s)
 	}
 	return shown
 }
 
-func (c *Compositor) Presented(o backend.Output, p backend.Presentation) error {
+func (c *Compositor) enteredOf(s *surface.Surface) *entered {
+	for _, e := range c.entered {
+		if e.s == s {
+			return e
+		}
+	}
+	e := &entered{s: s}
+	c.entered = append(c.entered, e)
+	return e
+}
+
+func (c *Compositor) updateEntered(o *output.Output) error {
+	var errs []error
+	shown := c.shown[o]
+	for _, s := range shown {
+		e := c.enteredOf(s)
+		if slices.Contains(e.outputs, o) {
+			continue
+		}
+		e.outputs = append(e.outputs, o)
+		errs = append(errs, s.Client().Sent(s.Enter(o.Resources(s.Client()))), s.Client().Sent(s.SetPreferredScale(uint32(o.Scale()))))
+	}
+	for _, e := range c.entered {
+		if slices.Contains(e.outputs, o) && !slices.Contains(shown, e.s) {
+			e.outputs = slices.DeleteFunc(e.outputs, func(x *output.Output) bool { return x == o })
+			errs = append(errs, e.s.Client().Sent(e.s.Leave(o.Resources(e.s.Client()))))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (c *Compositor) Presented(b backend.Output, p backend.Presentation) error {
+	o := c.output(b)
+	if o == nil {
+		return nil
+	}
 	var errs []error
 	for _, s := range c.shown[o] {
 		errs = append(errs, s.Client().Sent(s.FrameDone(wire.Millis(p.Time))))

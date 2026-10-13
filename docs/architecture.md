@@ -77,8 +77,9 @@ Everything lives under `internal/` except the commands.
 | `render/soft` | The CPU renderer, for headless and golden tests (#7) |
 | `render/gles` | The GLES2 renderer (#34) |
 | `gpu` | purego bindings for EGL, GLES2 and GBM (#33) |
-| `surface` | `wl_compositor`, `wl_surface`, `wl_region`, `wl_subcompositor`: double-buffered state, subsurface trees, roles (#11) |
+| `surface` | `wl_compositor`, `wl_surface`, `wl_region`, `wl_subcompositor`, `wp_viewporter`, `wp_fractional_scale_v1`: double-buffered state, subsurface trees, roles (#11, #19) |
 | `region` | Pixel regions as disjoint rectangles, for damage and input and opaque regions |
+| `output` | `wl_output` and `zxdg_output_v1`: each output's mode, logical position and scale in 120ths, with rounding that keeps logical edges adjacent in device pixels (#19) |
 | `shm` | `wl_shm` pools and buffers, read fault-safely when a client truncates its pool (#12) |
 | `seat` | `wl_seat`, keyboard, pointer and touch (#13, #14) |
 | `xkb` | Keymap compilation, sealed keymap fds and modifier state through libxkbcommon (#13) |

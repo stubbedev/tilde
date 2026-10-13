@@ -4,7 +4,7 @@ import (
 	"image"
 	"slices"
 
-	"github.com/stubbedev/tilde/internal/backend"
+	"github.com/stubbedev/tilde/internal/output"
 	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/shell"
@@ -12,17 +12,17 @@ import (
 
 type window struct {
 	toplevel *shell.Toplevel
-	output   backend.Output
+	output   *output.Output
 }
 
 func (w *window) placement() image.Rectangle {
 	if w.output == nil {
 		return image.Rectangle{}
 	}
-	return image.Rectangle{Max: w.output.State().Mode.Size}
+	return w.output.Logical()
 }
 
-func (c *Compositor) firstOutput() backend.Output {
+func (c *Compositor) firstOutput() *output.Output {
 	if len(c.outputs) == 0 {
 		return nil
 	}
@@ -37,11 +37,14 @@ func (c *Compositor) Toplevels() []*shell.Toplevel {
 	return out
 }
 
-func (c *Compositor) configure(t *shell.Toplevel, o backend.Output, activated bool) error {
+func (c *Compositor) configure(t *shell.Toplevel, o *output.Output, activated bool) error {
 	var s shell.State
 	if o != nil {
-		s.Size = o.State().Mode.Size
+		s.Size = o.LogicalSize()
 		s.Bounds = s.Size
+		if err := t.Surface().Client().Sent(t.Surface().SetPreferredScale(uint32(o.Scale()))); err != nil {
+			return err
+		}
 	}
 	if activated {
 		s.States = []shell.ToplevelState{sxdg.XdgToplevelStateActivated}
@@ -98,7 +101,7 @@ func (c *Compositor) ToplevelUnmapped(t *shell.Toplevel) error {
 	return c.scheduleAll()
 }
 
-func (c *Compositor) adoptWindows(o backend.Output) error {
+func (c *Compositor) adoptWindows(o *output.Output) error {
 	for _, w := range c.windows {
 		if w.output == nil {
 			w.output = o
@@ -110,7 +113,7 @@ func (c *Compositor) adoptWindows(o backend.Output) error {
 	return nil
 }
 
-func (c *Compositor) refit(o backend.Output) error {
+func (c *Compositor) refit(o *output.Output) error {
 	for _, w := range c.windows {
 		if w.output == o {
 			if err := c.configure(w.toplevel, o, c.seat.Focus() == w.toplevel.Surface()); err != nil {

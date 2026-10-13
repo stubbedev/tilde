@@ -44,7 +44,7 @@ func TestWaylandInfoConnects(t *testing.T) {
 	if trace := h.Trace(); !strings.Contains(trace, "wl_display@1.get_registry(new id wl_registry@2)") {
 		t.Fatalf("wayland-info never reached the compositor:\n%s", trace)
 	}
-	for _, global := range []string{"'wl_compositor'", "'wl_subcompositor'", "'wl_shm'", "'wl_seat'", "'xdg_wm_base'"} {
+	for _, global := range []string{"'wl_compositor'", "'wl_subcompositor'", "'wl_shm'", "'wl_seat'", "'xdg_wm_base'", "'wl_output'", "'zxdg_output_manager_v1'", "'wp_viewporter'", "'wp_fractional_scale_manager_v1'"} {
 		if !strings.Contains(out, global) {
 			t.Errorf("wayland-info does not list %s:\n%s", global, out)
 		}
@@ -106,10 +106,7 @@ func TestSurfaceTreeIsComposited(t *testing.T) {
 	h := Start(t, small)
 	c := testclient.Connect(t, h.Socket())
 	w := c.Window("tree", quadrants)
-	child, err := c.Compositor.CreateSurface(struct{ cw.WlSurfaceHandler }{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	child := c.Surface()
 	sub, err := c.Subcompositor.GetSubsurface(child, w.Surface)
 	if err != nil {
 		t.Fatal(err)
@@ -142,4 +139,59 @@ func TestSurfaceTreeIsComposited(t *testing.T) {
 		t.Fatalf("pixel below the subsurface's middle is %v: buffer_transform 90 must put the buffer's left half on top", got)
 	}
 	golden.Assert(t, "tree", h.Snapshot(0))
+}
+
+var scaled = backend.Mode{Size: image.Pt(240, 150), RefreshMHz: 60000, Preferred: true}
+
+func startScaled(t *testing.T) *Harness {
+	h := Start(t, scaled)
+	h.Do(func(b *headless.Backend, c *compositor.Compositor) error {
+		return c.SetOutputScale(b.Outputs()[0], 180)
+	})
+	return h
+}
+
+func checker(pix []byte, stride int, size image.Point, _ int) {
+	for y := range size.Y {
+		for x := range size.X {
+			v := byte(0)
+			if (x+y)%2 == 0 {
+				v = 0xff
+			}
+			copy(pix[y*stride+x*4:], []byte{v, byte(x), byte(y), 0xff})
+		}
+	}
+}
+
+func TestFractionalScaleRendersCrisp(t *testing.T) {
+	h := startScaled(t)
+	c := testclient.Connect(t, h.Socket())
+	w := c.ScaledWindow("crisp", testclient.FractionalScale, checker)
+	c.DispatchUntil("the window to map and enter the output", func() bool { return w.Mapped() && w.Entered == 1 })
+	if w.Preferred120 != 180 || w.Logical != image.Pt(160, 100) || w.Size != scaled.Size {
+		t.Fatalf("preferred %d, logical %v, buffer %v; want 180, 160x100 and a 240x150 buffer", w.Preferred120, w.Logical, w.Size)
+	}
+	want := soft.NewBuffer(scaled.Size.X, scaled.Size.Y)
+	checker(want.Pix, want.Stride, scaled.Size, 0)
+	h.Eventually("the buffer pixel for pixel on the output", func(b *headless.Backend, _ *compositor.Compositor) bool {
+		got := b.Outputs()[0].Snapshot()
+		for i := range got.Pix {
+			if got.Pix[i] != want.Pix[i] {
+				return false
+			}
+		}
+		return true
+	})
+}
+
+func TestIntegerScaleIsScaledOnce(t *testing.T) {
+	h := startScaled(t)
+	c := testclient.Connect(t, h.Socket())
+	w := c.ScaledWindow("integer", testclient.IntegerScale, quadrants)
+	c.DispatchUntil("the window to map", w.Mapped)
+	if w.BufferScale != 2 || w.Size != image.Pt(320, 200) {
+		t.Fatalf("buffer scale %d, buffer %v; want 2 and 320x200 for a 160x100 window on a 1.5 output", w.BufferScale, w.Size)
+	}
+	h.Eventually("the window on the output", showing(scaled.Size.X-2, scaled.Size.Y-2, [3]byte{0xff, 0xff, 0}))
+	golden.Assert(t, "scaled", h.Snapshot(0))
 }

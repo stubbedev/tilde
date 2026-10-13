@@ -5,10 +5,12 @@ package compositor
 import (
 	"errors"
 	"fmt"
+	"image"
 	"slices"
 
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/loop"
+	"github.com/stubbedev/tilde/internal/output"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/seat"
 	"github.com/stubbedev/tilde/internal/server"
@@ -29,7 +31,8 @@ func DefaultConfig(keymap *xkb.Keymap) Config {
 }
 
 type Compositor struct {
-	outputs  []backend.Output
+	outputs  []*output.Output
+	layout   *output.Manager
 	renderer render.Renderer
 	surfaces *surface.Manager
 	shm      *shm.Manager
@@ -37,12 +40,25 @@ type Compositor struct {
 	shell    *shell.Shell
 	textures map[*surface.Surface]*texture
 	windows  []*window
-	shown    map[backend.Output][]*surface.Surface
+	shown    map[*output.Output][]*surface.Surface
+	entered  []*entered
+}
+
+type entered struct {
+	s       *surface.Surface
+	outputs []*output.Output
 }
 
 func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (*Compositor, error) {
-	c := &Compositor{renderer: b.Renderer(), textures: map[*surface.Surface]*texture{}, shown: map[backend.Output][]*surface.Surface{}}
+	c := &Compositor{
+		renderer: b.Renderer(),
+		textures: map[*surface.Surface]*texture{},
+		shown:    map[*output.Output][]*surface.Surface{},
+	}
 	var err error
+	if c.layout, err = output.New(display); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
 	if c.surfaces, err = surface.New(display, c); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
@@ -70,53 +86,105 @@ func (c *Compositor) Seat() *seat.Seat {
 	return c.seat
 }
 
-func (c *Compositor) Outputs() []backend.Output {
+func (c *Compositor) Outputs() []*output.Output {
 	return slices.Clone(c.outputs)
 }
 
 func (c *Compositor) scheduleAll() error {
 	var errs []error
 	for _, o := range c.outputs {
-		if err := o.ScheduleFrame(); err != nil {
-			errs = append(errs, fmt.Errorf("compositor: schedule a frame on %s: %w", o.Name(), err))
-		}
+		errs = append(errs, c.schedule(o))
 	}
 	return errors.Join(errs...)
 }
 
-func (c *Compositor) OutputAdded(o backend.Output) error {
-	c.outputs = append(c.outputs, o)
-	if err := c.adoptWindows(o); err != nil {
-		return err
-	}
-	if err := o.ScheduleFrame(); err != nil {
-		return fmt.Errorf("compositor: first frame on %s: %w", o.Name(), err)
+func (c *Compositor) schedule(o *output.Output) error {
+	if err := o.Backend().ScheduleFrame(); err != nil {
+		return fmt.Errorf("compositor: schedule a frame on %s: %w", o.Backend().Name(), err)
 	}
 	return nil
 }
 
-func (c *Compositor) OutputRemoved(o backend.Output) error {
-	c.outputs = slices.DeleteFunc(c.outputs, func(x backend.Output) bool { return x == o })
+func (c *Compositor) relayout() error {
+	x := 0
+	var errs []error
+	for _, o := range c.outputs {
+		if o.Position() != image.Pt(x, 0) {
+			errs = append(errs, o.Update(image.Pt(x, 0), o.Scale()))
+		}
+		x += o.LogicalSize().X
+	}
+	return errors.Join(errs...)
+}
+
+func (c *Compositor) output(b backend.Output) *output.Output {
+	for _, o := range c.outputs {
+		if o.Backend() == b {
+			return o
+		}
+	}
+	return nil
+}
+
+func (c *Compositor) OutputAdded(b backend.Output) error {
+	x := 0
+	for _, o := range c.outputs {
+		x = max(x, o.Logical().Max.X)
+	}
+	o, err := c.layout.Add(b, image.Pt(x, 0), output.Unit)
+	if err != nil {
+		return err
+	}
+	c.outputs = append(c.outputs, o)
+	if err := c.adoptWindows(o); err != nil {
+		return err
+	}
+	return c.schedule(o)
+}
+
+func (c *Compositor) OutputRemoved(b backend.Output) error {
+	o := c.output(b)
+	if o == nil {
+		return fmt.Errorf("compositor: removal of unknown output %s", b.Name())
+	}
+	c.outputs = slices.DeleteFunc(c.outputs, func(x *output.Output) bool { return x == o })
 	delete(c.shown, o)
+	errs := []error{o.Remove()}
+	for _, e := range c.entered {
+		if slices.Contains(e.outputs, o) {
+			errs = append(errs, e.s.Client().Sent(e.s.Leave(o.Resources(e.s.Client()))))
+			e.outputs = slices.DeleteFunc(e.outputs, func(x *output.Output) bool { return x == o })
+		}
+	}
 	for _, w := range c.windows {
 		if w.output == o {
 			w.output = nil
 		}
 	}
-	if len(c.outputs) == 0 {
-		return nil
+	errs = append(errs, c.relayout())
+	if len(c.outputs) > 0 {
+		errs = append(errs, c.adoptWindows(c.outputs[0]))
 	}
-	return c.adoptWindows(c.outputs[0])
+	return errors.Join(errs...)
 }
 
-func (c *Compositor) OutputChanged(o backend.Output) error {
-	if err := c.refit(o); err != nil {
+func (c *Compositor) OutputChanged(b backend.Output) error {
+	o := c.output(b)
+	if o == nil {
+		return fmt.Errorf("compositor: change of unknown output %s", b.Name())
+	}
+	return errors.Join(o.Changed(), c.relayout(), c.refit(o), c.schedule(o))
+}
+
+func (c *Compositor) SetOutputScale(b backend.Output, scale output.Scale) error {
+	o := c.output(b)
+	if o == nil {
+		return fmt.Errorf("compositor: scale for unknown output %s", b.Name())
+	}
+	if err := o.Update(o.Position(), scale); err != nil {
 		return err
 	}
-	if err := o.ScheduleFrame(); err != nil {
-		return fmt.Errorf("compositor: frame after %s changed: %w", o.Name(), err)
-	}
-	return nil
+	return errors.Join(c.relayout(), c.refit(o), c.schedule(o))
 }
 
 func (c *Compositor) DeviceAdded(d backend.Device) error {

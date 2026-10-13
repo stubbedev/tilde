@@ -12,6 +12,8 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	cfs "github.com/stubbedev/tilde/internal/protocol/client/fractionalscale"
+	cvp "github.com/stubbedev/tilde/internal/protocol/client/viewporter"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	cxdg "github.com/stubbedev/tilde/internal/protocol/client/xdgshell"
 	"github.com/stubbedev/tilde/internal/wlclient"
@@ -26,16 +28,27 @@ type Client struct {
 	Subcompositor *cw.WlSubcompositor
 	Shm           *cw.WlShm
 	WM            *cxdg.XdgWmBase
+	Viewporter    *cvp.WpViewporter
+	Fractional    *cfs.WpFractionalScaleManagerV1
+	Outputs       []*cw.WlOutput
 }
 
-type registry map[string]uint32
+type global struct{ name, version uint32 }
 
-func (r registry) Global(_ *cw.WlRegistry, name uint32, iface string, _ uint32) error {
-	r[iface] = name
+type registry struct {
+	byName  map[string]global
+	outputs []uint32
+}
+
+func (r *registry) Global(_ *cw.WlRegistry, name uint32, iface string, version uint32) error {
+	if iface == "wl_output" {
+		r.outputs = append(r.outputs, name)
+	}
+	r.byName[iface] = global{name, version}
 	return nil
 }
 
-func (r registry) GlobalRemove(*cw.WlRegistry, uint32) error { return nil }
+func (r *registry) GlobalRemove(*cw.WlRegistry, uint32) error { return nil }
 
 type shmEvents struct{}
 
@@ -53,10 +66,13 @@ func Connect(t testing.TB, socket string) *Client {
 	}
 	t.Cleanup(func() { _ = d.Close() })
 	c := &Client{t: t, Display: d}
-	globals := registry{}
-	reg, err := d.WlDisplay().GetRegistry(globals)
+	reg, err := d.WlDisplay().GetRegistry(&registry{byName: map[string]global{}})
 	c.must(err)
 	c.must(d.Roundtrip())
+	globals, ok := reg.Handler().(*registry)
+	if !ok {
+		t.Fatalf("testclient: registry handler is %T", reg.Handler())
+	}
 	c.Compositor, err = cw.NewWlCompositor(d, 6)
 	c.must(err)
 	c.Subcompositor, err = cw.NewWlSubcompositor(d, 1)
@@ -65,15 +81,38 @@ func Connect(t testing.TB, socket string) *Client {
 	c.must(err)
 	c.WM, err = cxdg.NewXdgWmBase(d, 6, wmEvents{})
 	c.must(err)
+	c.Viewporter, err = cvp.NewWpViewporter(d, 1)
+	c.must(err)
+	c.Fractional, err = cfs.NewWpFractionalScaleManagerV1(d, 1)
+	c.must(err)
 	c.must(errors.Join(
-		reg.Bind(globals["wl_compositor"], c.Compositor),
-		reg.Bind(globals["wl_subcompositor"], c.Subcompositor),
-		reg.Bind(globals["wl_shm"], c.Shm),
-		reg.Bind(globals["xdg_wm_base"], c.WM),
+		reg.Bind(globals.byName["wl_compositor"].name, c.Compositor),
+		reg.Bind(globals.byName["wl_subcompositor"].name, c.Subcompositor),
+		reg.Bind(globals.byName["wl_shm"].name, c.Shm),
+		reg.Bind(globals.byName["xdg_wm_base"].name, c.WM),
+		reg.Bind(globals.byName["wp_viewporter"].name, c.Viewporter),
+		reg.Bind(globals.byName["wp_fractional_scale_manager_v1"].name, c.Fractional),
 	))
+	for _, name := range globals.outputs {
+		o, err := cw.NewWlOutput(d, 4, outputEvents{})
+		c.must(err)
+		c.must(reg.Bind(name, o))
+		c.Outputs = append(c.Outputs, o)
+	}
 	c.must(d.Roundtrip())
 	return c
 }
+
+type outputEvents struct{}
+
+func (outputEvents) Geometry(*cw.WlOutput, int32, int32, int32, int32, cw.WlOutputSubpixel, string, string, cw.WlOutputTransform) error {
+	return nil
+}
+func (outputEvents) Mode(*cw.WlOutput, cw.WlOutputMode, int32, int32, int32) error { return nil }
+func (outputEvents) Done(*cw.WlOutput) error                                       { return nil }
+func (outputEvents) Scale(*cw.WlOutput, int32) error                               { return nil }
+func (outputEvents) Name(*cw.WlOutput, string) error                               { return nil }
+func (outputEvents) Description(*cw.WlOutput, string) error                        { return nil }
 
 func (c *Client) must(err error) {
 	c.t.Helper()
@@ -156,26 +195,51 @@ func (c *Client) buffers(size image.Point, n int) []*buffer {
 	return out
 }
 
+type Scaling uint8
+
+const (
+	Unscaled Scaling = iota
+	IntegerScale
+	FractionalScale
+)
+
 type Window struct {
-	c          *Client
-	Surface    *cw.WlSurface
-	XdgSurface *cxdg.XdgSurface
-	Toplevel   *cxdg.XdgToplevel
-	paint      Painter
-	pending    image.Point
-	Size       image.Point
-	Frames     int
-	Closed     bool
-	buffers    []*buffer
-	drawn      int
+	c            *Client
+	Surface      *cw.WlSurface
+	XdgSurface   *cxdg.XdgSurface
+	Toplevel     *cxdg.XdgToplevel
+	paint        Painter
+	scaling      Scaling
+	viewport     *cvp.WpViewport
+	pending      image.Point
+	Logical      image.Point
+	Size         image.Point
+	BufferScale  int32
+	Preferred120 uint32
+	Entered      int
+	Frames       int
+	Closed       bool
+	buffers      []*buffer
+	drawn        int
 }
 
 func (c *Client) Window(title string, paint Painter) *Window {
 	c.t.Helper()
-	w := &Window{c: c, paint: paint}
+	return c.ScaledWindow(title, Unscaled, paint)
+}
+
+func (c *Client) ScaledWindow(title string, scaling Scaling, paint Painter) *Window {
+	c.t.Helper()
+	w := &Window{c: c, paint: paint, scaling: scaling, BufferScale: 1, Preferred120: 120}
 	var err error
-	w.Surface, err = c.Compositor.CreateSurface(surfaceEvents{})
+	w.Surface, err = c.Compositor.CreateSurface(surfaceEvents{w})
 	c.must(err)
+	if scaling == FractionalScale {
+		w.viewport, err = c.Viewporter.GetViewport(w.Surface)
+		c.must(err)
+		_, err = c.Fractional.GetFractionalScale(fractionalEvents{w}, w.Surface)
+		c.must(err)
+	}
 	w.XdgSurface, err = c.WM.GetXdgSurface(xdgSurfaceEvents{w}, w.Surface)
 	c.must(err)
 	w.Toplevel, err = w.XdgSurface.GetToplevel(toplevelEvents{w})
@@ -212,15 +276,50 @@ func (w *Window) draw() error {
 	)
 }
 
-type surfaceEvents struct{}
+type quietSurface struct{}
 
-func (surfaceEvents) Enter(*cw.WlSurface, *cw.WlOutput) error { return nil }
+func (quietSurface) Enter(*cw.WlSurface, *cw.WlOutput) error { return nil }
 
-func (surfaceEvents) Leave(*cw.WlSurface, *cw.WlOutput) error { return nil }
+func (quietSurface) Leave(*cw.WlSurface, *cw.WlOutput) error { return nil }
 
-func (surfaceEvents) PreferredBufferScale(*cw.WlSurface, int32) error { return nil }
+func (quietSurface) PreferredBufferScale(*cw.WlSurface, int32) error { return nil }
+
+func (quietSurface) PreferredBufferTransform(*cw.WlSurface, cw.WlOutputTransform) error { return nil }
+
+func (c *Client) Surface() *cw.WlSurface {
+	c.t.Helper()
+	s, err := c.Compositor.CreateSurface(quietSurface{})
+	c.must(err)
+	return s
+}
+
+type surfaceEvents struct{ w *Window }
+
+func (e surfaceEvents) Enter(*cw.WlSurface, *cw.WlOutput) error {
+	e.w.Entered++
+	return nil
+}
+
+func (e surfaceEvents) Leave(*cw.WlSurface, *cw.WlOutput) error {
+	e.w.Entered--
+	return nil
+}
+
+func (e surfaceEvents) PreferredBufferScale(_ *cw.WlSurface, factor int32) error {
+	if e.w.scaling == IntegerScale {
+		e.w.BufferScale = factor
+	}
+	return nil
+}
 
 func (surfaceEvents) PreferredBufferTransform(*cw.WlSurface, cw.WlOutputTransform) error { return nil }
+
+type fractionalEvents struct{ w *Window }
+
+func (e fractionalEvents) PreferredScale(_ *cfs.WpFractionalScaleV1, scale uint32) error {
+	e.w.Preferred120 = scale
+	return nil
+}
 
 type xdgSurfaceEvents struct{ w *Window }
 
@@ -229,9 +328,22 @@ func (e xdgSurfaceEvents) Configure(xs *cxdg.XdgSurface, serial uint32) error {
 	if err := xs.AckConfigure(serial); err != nil {
 		return err
 	}
-	size := w.pending
-	if size.X == 0 || size.Y == 0 {
-		size = defaultSize
+	logical := w.pending
+	if logical.X == 0 || logical.Y == 0 {
+		logical = defaultSize
+	}
+	w.Logical = logical
+	size := logical.Mul(int(w.BufferScale))
+	if w.scaling == FractionalScale {
+		size = image.Pt((logical.X*int(w.Preferred120)+60)/120, (logical.Y*int(w.Preferred120)+60)/120)
+		if err := w.viewport.SetDestination(int32(logical.X), int32(logical.Y)); err != nil { //nolint:gosec // test sizes are small
+			return err
+		}
+	}
+	if w.BufferScale != 1 {
+		if err := w.Surface.SetBufferScale(w.BufferScale); err != nil {
+			return err
+		}
 	}
 	if size != w.Size || w.buffers == nil {
 		w.Size = size
