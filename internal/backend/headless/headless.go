@@ -143,6 +143,7 @@ type Output struct {
 	inFrame        bool
 	lastVblank     time.Duration
 	seq            uint64
+	presents       uint64
 	removed        bool
 }
 
@@ -211,7 +212,12 @@ func (o *Output) Present(render.Region) error {
 	}
 	o.inFrame = false
 	o.presentPending = true
+	o.presents++
 	return o.arm()
+}
+
+func (o *Output) Presents() uint64 {
+	return o.presents
 }
 
 func (o *Output) Snapshot() *soft.Buffer {

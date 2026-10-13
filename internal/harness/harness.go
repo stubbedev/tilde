@@ -144,6 +144,24 @@ func (h *Harness) Eventually(what string, cond func(b *headless.Backend, c *comp
 	}
 }
 
+func (h *Harness) Rendered(i int) *soft.Buffer {
+	h.t.Helper()
+	var o *headless.Output
+	var before uint64
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+		outputs := b.Outputs()
+		if i >= len(outputs) {
+			return fmt.Errorf("harness: no output %d of %d", i, len(outputs))
+		}
+		o, before = outputs[i], outputs[i].Presents()
+		return o.ScheduleFrame()
+	})
+	h.Eventually(fmt.Sprintf("a new frame on output %d", i), func(*headless.Backend, *compositor.Compositor) bool {
+		return o.Presents() > before
+	})
+	return h.Snapshot(i)
+}
+
 func (h *Harness) Snapshot(i int) *soft.Buffer {
 	h.t.Helper()
 	var snap *soft.Buffer
