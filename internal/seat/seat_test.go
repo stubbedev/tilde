@@ -69,7 +69,7 @@ func setup(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	e.surf.seat = e.seat
-	if err := e.seat.AddKeyboard(); err != nil {
+	if err := e.seat.AddDevice(sw.WlSeatCapabilityKeyboard); err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)
@@ -334,10 +334,10 @@ func TestCapabilitiesFollowDevices(t *testing.T) {
 	e := setup(t)
 	c := e.connect()
 	e.on(func() {
-		if err := e.seat.RemoveKeyboard(); err != nil {
+		if err := e.seat.RemoveDevice(sw.WlSeatCapabilityKeyboard); err != nil {
 			t.Error(err)
 		}
-		if err := e.seat.RemoveKeyboard(); err == nil {
+		if err := e.seat.RemoveDevice(sw.WlSeatCapabilityKeyboard); err == nil {
 			t.Error("removing a keyboard that was never added succeeded")
 		}
 	})

@@ -31,6 +31,8 @@ type Client struct {
 	Viewporter    *cvp.WpViewporter
 	Fractional    *cfs.WpFractionalScaleManagerV1
 	Outputs       []*cw.WlOutput
+	registry      *cw.WlRegistry
+	globals       *registry
 }
 
 type global struct{ name, version uint32 }
@@ -73,6 +75,7 @@ func Connect(t testing.TB, socket string) *Client {
 	if !ok {
 		t.Fatalf("testclient: registry handler is %T", reg.Handler())
 	}
+	c.registry, c.globals = reg, globals
 	c.Compositor, err = cw.NewWlCompositor(d, 6)
 	c.must(err)
 	c.Subcompositor, err = cw.NewWlSubcompositor(d, 1)
@@ -372,4 +375,8 @@ type frameEvents struct{ w *Window }
 func (e frameEvents) Done(*cw.WlCallback, uint32) error {
 	e.w.Frames++
 	return e.w.draw()
+}
+
+func closeFD(fd int) error {
+	return unix.Close(fd)
 }

@@ -1,6 +1,7 @@
 package compositor
 
 import (
+	"errors"
 	"image"
 	"slices"
 
@@ -84,7 +85,7 @@ func (c *Compositor) ToplevelMapped(t *shell.Toplevel) error {
 	if err := c.focus(w); err != nil {
 		return err
 	}
-	return c.scheduleAll()
+	return errors.Join(c.refreshPointer(), c.scheduleAll())
 }
 
 func (c *Compositor) ToplevelUnmapped(t *shell.Toplevel) error {
@@ -98,7 +99,7 @@ func (c *Compositor) ToplevelUnmapped(t *shell.Toplevel) error {
 			return err
 		}
 	}
-	return c.scheduleAll()
+	return errors.Join(c.refreshPointer(), c.scheduleAll())
 }
 
 func (c *Compositor) adoptWindows(o *output.Output) error {

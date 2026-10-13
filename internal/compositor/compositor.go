@@ -42,6 +42,8 @@ type Compositor struct {
 	windows  []*window
 	shown    map[*output.Output][]*surface.Surface
 	entered  []*entered
+	cursor   point
+	touches  map[int32]*output.Output
 }
 
 type entered struct {
@@ -54,6 +56,7 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		renderer: b.Renderer(),
 		textures: map[*surface.Surface]*texture{},
 		shown:    map[*output.Output][]*surface.Surface{},
+		touches:  map[int32]*output.Output{},
 	}
 	var err error
 	if c.layout, err = output.New(display); err != nil {
@@ -136,6 +139,10 @@ func (c *Compositor) OutputAdded(b backend.Output) error {
 		return err
 	}
 	c.outputs = append(c.outputs, o)
+	if len(c.outputs) == 1 {
+		center := o.Logical().Min.Add(o.LogicalSize().Div(2))
+		c.cursor = point{float64(center.X), float64(center.Y)}
+	}
 	if err := c.adoptWindows(o); err != nil {
 		return err
 	}
@@ -185,25 +192,4 @@ func (c *Compositor) SetOutputScale(b backend.Output, scale output.Scale) error 
 		return err
 	}
 	return errors.Join(c.relayout(), c.refit(o), c.schedule(o))
-}
-
-func (c *Compositor) DeviceAdded(d backend.Device) error {
-	if d.Capabilities().Has(backend.Keyboard) {
-		return c.seat.AddKeyboard()
-	}
-	return nil
-}
-
-func (c *Compositor) DeviceRemoved(d backend.Device) error {
-	if d.Capabilities().Has(backend.Keyboard) {
-		return c.seat.RemoveKeyboard()
-	}
-	return nil
-}
-
-func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
-	if k, ok := e.(backend.Key); ok {
-		return c.seat.Key(k.Code, k.Pressed, k.Time)
-	}
-	return nil
 }
