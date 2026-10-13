@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 )
 
 type ObjectID uint32
@@ -66,6 +67,10 @@ func (e *MessageError) Error() string {
 
 func (e *MessageError) Unwrap() error {
 	return e.Err
+}
+
+func Millis(t time.Duration) uint32 {
+	return uint32(t.Milliseconds())
 }
 
 func pad(n int) int {

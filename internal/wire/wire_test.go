@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"testing/quick"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -223,6 +224,15 @@ func TestFixedFromFloat(t *testing.T) {
 	}
 	if err := quick.Check(property, nil); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestMillisWrapsLikeWaylandTimestamps(t *testing.T) {
+	if got := Millis(1500 * time.Microsecond); got != 1 {
+		t.Fatalf("Millis(1.5ms) = %d", got)
+	}
+	if got := Millis(time.Duration(math.MaxUint32+5) * time.Millisecond); got != 4 {
+		t.Fatalf("Millis past 2^32 ms = %d, want the wrapped 4", got)
 	}
 }
 
