@@ -81,7 +81,8 @@ Everything lives under `internal/` except the commands.
 | `region` | Pixel regions as disjoint rectangles, for damage and input and opaque regions |
 | `output` | `wl_output` and `zxdg_output_v1`: each output's mode, logical position and scale in 120ths, with rounding that keeps logical edges adjacent in device pixels (#19) |
 | `shm` | `wl_shm` pools and buffers, read fault-safely when a client truncates its pool (#12) |
-| `seat` | `wl_seat`, keyboard, pointer and touch (#13, #14) |
+| `seat` | `wl_seat`, keyboard, pointer and touch, `wp_cursor_shape_v1` (#13, #14) |
+| `xcursor` | Xcursor files and theme lookup through `XCURSOR_PATH` and `Inherits`, and the built-in arrow (#14) |
 | `xkb` | Keymap compilation, sealed keymap fds and modifier state through libxkbcommon (#13) |
 | `shell` | xdg-shell and layer-shell glue between clients and `wm` (#15, #48) |
 | `wm` | The pure core and the dispatcher (#21, #66) |
