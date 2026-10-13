@@ -21,6 +21,8 @@ const (
 
 	DefaultRepeatRate  = 50
 	DefaultRepeatDelay = 300
+
+	recentPresses = 16
 )
 
 type Config struct {
@@ -35,6 +37,8 @@ type clientResources struct {
 	keyboards []*sw.WlKeyboard
 	pointers  []*sw.WlPointer
 	touches   []*sw.WlTouch
+	presses   [recentPresses]uint32
+	pressed   int
 }
 
 type Listener interface {
@@ -95,6 +99,20 @@ func (s *Seat) resources(c *server.Client) *clientResources {
 	r := &clientResources{client: c}
 	s.clients = append(s.clients, r)
 	return r
+}
+
+func (s *Seat) eventSerial(c *server.Client, press bool) uint32 {
+	serial := s.display.NextSerial()
+	if r := s.lookup(c); press && r != nil {
+		r.presses[r.pressed%recentPresses] = serial
+		r.pressed++
+	}
+	return serial
+}
+
+func (s *Seat) PressSerial(c *server.Client, serial uint32) bool {
+	r := s.lookup(c)
+	return r != nil && serial != 0 && slices.Contains(r.presses[:], serial)
 }
 
 func (s *Seat) forget(r *clientResources) {

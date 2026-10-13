@@ -84,7 +84,7 @@ Everything lives under `internal/` except the commands.
 | `seat` | `wl_seat`, keyboard, pointer and touch, `wp_cursor_shape_v1` (#13, #14) |
 | `xcursor` | Xcursor files and theme lookup through `XCURSOR_PATH` and `Inherits`, and the built-in arrow (#14) |
 | `xkb` | Keymap compilation, sealed keymap fds and modifier state through libxkbcommon (#13) |
-| `shell` | xdg-shell and layer-shell glue between clients and `wm` (#15, #48) |
+| `shell` | xdg-shell and layer-shell glue between clients and `wm`: toplevels, popups placed by their positioner, explicit popup grabs (#15, #16, #48) |
 | `wm` | The pure core and the dispatcher (#21, #66) |
 | `xwm` | The X11 window manager for XWayland (#45) |
 | `config` | The typed config, its validation and reload (#30) |

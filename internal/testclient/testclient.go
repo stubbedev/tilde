@@ -216,6 +216,10 @@ type Window struct {
 	Surface      *cw.WlSurface
 	XdgSurface   *cxdg.XdgSurface
 	Toplevel     *cxdg.XdgToplevel
+	Popup        *cxdg.XdgPopup
+	Placed       image.Rectangle
+	Dismissed    bool
+	destroyed    bool
 	paint        Painter
 	scaling      Scaling
 	viewport     *cvp.WpViewport
@@ -256,11 +260,71 @@ func (c *Client) ScaledWindow(title string, scaling Scaling, paint Painter) *Win
 	return w
 }
 
+type Placement struct {
+	Size       image.Point
+	Anchor     image.Rectangle
+	Edge       cxdg.XdgPositionerAnchor
+	Gravity    cxdg.XdgPositionerGravity
+	Adjustment cxdg.XdgPositionerConstraintAdjustment
+}
+
+func (c *Client) Positioner(p Placement) *cxdg.XdgPositioner {
+	c.t.Helper()
+	pos, err := c.WM.CreatePositioner()
+	c.must(err)
+	c.must(errors.Join(
+		pos.SetSize(int32(p.Size.X), int32(p.Size.Y)),                                                               //nolint:gosec // test sizes are small
+		pos.SetAnchorRect(int32(p.Anchor.Min.X), int32(p.Anchor.Min.Y), int32(p.Anchor.Dx()), int32(p.Anchor.Dy())), //nolint:gosec // test sizes are small
+		pos.SetAnchor(p.Edge),
+		pos.SetGravity(p.Gravity),
+		pos.SetConstraintAdjustment(p.Adjustment),
+	))
+	return pos
+}
+
+type Grab struct {
+	Seat   *cw.WlSeat
+	Serial uint32
+}
+
+func (c *Client) Popup(parent *Window, p Placement, grab *Grab, paint Painter) *Window {
+	c.t.Helper()
+	w := &Window{c: c, paint: paint, BufferScale: 1, Preferred120: 120}
+	var err error
+	w.Surface, err = c.Compositor.CreateSurface(surfaceEvents{w})
+	c.must(err)
+	w.XdgSurface, err = c.WM.GetXdgSurface(xdgSurfaceEvents{w}, w.Surface)
+	c.must(err)
+	pos := c.Positioner(p)
+	w.Popup, err = w.XdgSurface.GetPopup(popupEvents{w}, parent.XdgSurface, pos)
+	c.must(err)
+	c.must(pos.Destroy())
+	if grab != nil {
+		c.must(w.Popup.Grab(grab.Seat, grab.Serial))
+	}
+	c.must(w.Surface.Commit())
+	return w
+}
+
+func (w *Window) Destroy() error {
+	w.destroyed = true
+	var role error
+	if w.Popup != nil {
+		role = w.Popup.Destroy()
+	} else {
+		role = w.Toplevel.Destroy()
+	}
+	return errors.Join(role, w.XdgSurface.Destroy(), w.Surface.Destroy())
+}
+
 func (w *Window) Mapped() bool {
 	return w.drawn > 0
 }
 
 func (w *Window) draw() error {
+	if w.destroyed {
+		return nil
+	}
 	var b *buffer
 	for _, candidate := range w.buffers {
 		if !candidate.busy {
@@ -374,6 +438,21 @@ func (e toplevelEvents) Close(*cxdg.XdgToplevel) error {
 
 func (toplevelEvents) ConfigureBounds(*cxdg.XdgToplevel, int32, int32) error { return nil }
 func (toplevelEvents) WmCapabilities(*cxdg.XdgToplevel, []byte) error        { return nil }
+
+type popupEvents struct{ w *Window }
+
+func (e popupEvents) Configure(_ *cxdg.XdgPopup, x, y, width, height int32) error {
+	e.w.pending = image.Pt(int(width), int(height))
+	e.w.Placed = image.Rect(int(x), int(y), int(x+width), int(y+height))
+	return nil
+}
+
+func (e popupEvents) PopupDone(*cxdg.XdgPopup) error {
+	e.w.Dismissed = true
+	return nil
+}
+
+func (popupEvents) Repositioned(*cxdg.XdgPopup, uint32) error { return nil }
 
 type frameEvents struct{ w *Window }
 

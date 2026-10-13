@@ -66,6 +66,11 @@ type Listener interface {
 	ToplevelChanged(t *Toplevel, c Change) error
 	ToplevelRequest(t *Toplevel, r Request) error
 	ClientResponsive(c *server.Client, responsive bool) error
+	PopupConstraint(root *Toplevel) image.Rectangle
+	PopupMapped(p *Popup) error
+	PopupUnmapped(p *Popup) error
+	PressSerial(c *server.Client, serial uint32) bool
+	GrabChanged() error
 }
 
 type Shell struct {
@@ -74,6 +79,7 @@ type Shell struct {
 	listener    Listener
 	subRoles    map[*surface.Surface]string
 	pingTimeout time.Duration
+	grab        []*Popup
 }
 
 func New(d *server.Display, l *loop.Loop, listener Listener) (*Shell, error) {
@@ -114,10 +120,6 @@ func (b *wmBase) Destroy(obj *sxdg.XdgWmBase) error {
 		return obj.ProtocolError(sxdg.XdgWmBaseErrorDefunctSurfaces, fmt.Sprintf("%d xdg_surfaces still exist", len(b.surfaces)))
 	}
 	return nil
-}
-
-func (b *wmBase) CreatePositioner(*sxdg.XdgWmBase, *sxdg.XdgPositioner) (sxdg.XdgPositionerHandler, error) {
-	return nil, errors.New("shell: xdg_positioner arrives with popups (#16)")
 }
 
 func (b *wmBase) Pong(_ *sxdg.XdgWmBase, serial uint32) error {
@@ -182,18 +184,61 @@ func (b *wmBase) GetXdgSurface(obj *sxdg.XdgWmBase, res *sxdg.XdgSurface, wl *sw
 	return xs, nil
 }
 
-type configure struct {
+type queued[T any] struct {
 	serial uint32
-	state  State
+	state  T
+}
+
+type configures[T any] struct {
+	pending []queued[T]
+	acked   *T
+}
+
+func (q *configures[T]) push(serial uint32, state T) {
+	q.pending = append(q.pending, queued[T]{serial, state})
+}
+
+func (q *configures[T]) ack(serial uint32) bool {
+	i := slices.IndexFunc(q.pending, func(c queued[T]) bool { return c.serial == serial })
+	if i < 0 {
+		return false
+	}
+	state := q.pending[i].state
+	q.acked = &state
+	q.pending = slices.Delete(q.pending, 0, i+1)
+	return true
+}
+
+func (q *configures[T]) take() (T, bool) {
+	if q.acked == nil {
+		var zero T
+		return zero, false
+	}
+	state := *q.acked
+	q.acked = nil
+	return state, true
+}
+
+func (q *configures[T]) reset() {
+	q.pending, q.acked = nil, nil
+}
+
+type roleObject interface {
+	ack(serial uint32) bool
+	applyPending() error
+	initialCommit() error
+	mapped() error
+	unmapped() error
+	committed() error
+	inert() bool
 }
 
 type XdgSurface struct {
 	base            *wmBase
 	resource        *sxdg.XdgSurface
 	surface         *surface.Surface
-	toplevel        *Toplevel
-	pending         []configure
-	acked           *configure
+	role            roleObject
+	popups          []*Popup
 	configured      bool
 	initialSent     bool
 	mapped          bool
@@ -207,15 +252,32 @@ func (xs *XdgSurface) RoleName() string {
 }
 
 func (xs *XdgSurface) Destroy(obj *sxdg.XdgSurface) error {
-	if xs.toplevel != nil {
-		return obj.ProtocolError(sxdg.XdgSurfaceErrorDefunctRoleObject, "the xdg_toplevel must be destroyed first")
+	if xs.role != nil {
+		return obj.ProtocolError(sxdg.XdgSurfaceErrorDefunctRoleObject, "the role object must be destroyed first")
 	}
 	return nil
 }
 
+func (xs *XdgSurface) sendConfigure() (uint32, error) {
+	serial := xs.base.shell.display.NextSerial()
+	return serial, xs.base.client.Sent(xs.resource.SendConfigure(serial))
+}
+
+func (xs *XdgSurface) dismissPopups() error {
+	var errs []error
+	for _, p := range slices.Backward(xs.popups) {
+		errs = append(errs, p.dismiss())
+	}
+	return errors.Join(errs...)
+}
+
+func (xs *XdgSurface) Popups() []*Popup {
+	return slices.Clone(xs.popups)
+}
+
 func (xs *XdgSurface) setSubRole(obj *sxdg.XdgSurface, role string) error {
 	sh := xs.base.shell
-	if xs.toplevel != nil {
+	if xs.role != nil {
 		return obj.ProtocolError(sxdg.XdgSurfaceErrorAlreadyConstructed, "the xdg_surface already has a role object")
 	}
 	if prev, ok := sh.subRoles[xs.surface]; ok && prev != role {
@@ -230,8 +292,8 @@ func (xs *XdgSurface) GetToplevel(obj *sxdg.XdgSurface, res *sxdg.XdgToplevel) (
 		return nil, err
 	}
 	t := &Toplevel{xs: xs, resource: res}
-	xs.toplevel = t
-	xs.base.client.OnDestroy(res, t.destroy)
+	xs.role = t
+	xs.base.client.OnDestroy(res, func() { _ = t.destroy() })
 	if res.Base().Version() >= 5 {
 		caps := binary.NativeEndian.AppendUint32(nil, uint32(sxdg.XdgToplevelWmCapabilitiesFullscreen))
 		caps = binary.NativeEndian.AppendUint32(caps, uint32(sxdg.XdgToplevelWmCapabilitiesMaximize))
@@ -240,10 +302,6 @@ func (xs *XdgSurface) GetToplevel(obj *sxdg.XdgSurface, res *sxdg.XdgToplevel) (
 		}
 	}
 	return t, nil
-}
-
-func (xs *XdgSurface) GetPopup(*sxdg.XdgSurface, *sxdg.XdgPopup, *sxdg.XdgSurface, *sxdg.XdgPositioner) (sxdg.XdgPopupHandler, error) {
-	return nil, errors.New("shell: xdg_popup arrives with #16")
 }
 
 func (xs *XdgSurface) SetWindowGeometry(obj *sxdg.XdgSurface, x, y, w, h int32) error {
@@ -256,13 +314,12 @@ func (xs *XdgSurface) SetWindowGeometry(obj *sxdg.XdgSurface, x, y, w, h int32) 
 }
 
 func (xs *XdgSurface) AckConfigure(obj *sxdg.XdgSurface, serial uint32) error {
-	i := slices.IndexFunc(xs.pending, func(c configure) bool { return c.serial == serial })
-	if i < 0 {
+	if xs.role == nil {
+		return obj.ProtocolError(sxdg.XdgSurfaceErrorNotConstructed, "the xdg_surface has no role object")
+	}
+	if !xs.role.ack(serial) {
 		return obj.ProtocolError(sxdg.XdgSurfaceErrorInvalidSerial, fmt.Sprintf("serial %d was never sent or is already acked", serial))
 	}
-	c := xs.pending[i]
-	xs.acked = &c
-	xs.pending = slices.Delete(xs.pending, 0, i+1)
 	xs.configured = true
 	return nil
 }
@@ -282,14 +339,17 @@ func (xs *XdgSurface) Geometry() image.Rectangle {
 }
 
 func (xs *XdgSurface) Committed(s *surface.Surface) error {
-	t := xs.toplevel
-	if t == nil {
+	r := xs.role
+	if r == nil {
 		return xs.resource.ProtocolError(sxdg.XdgSurfaceErrorNotConstructed, "the xdg_surface has no role object")
+	}
+	if r.inert() {
+		return nil
 	}
 	if xs.geometrySet {
 		xs.geometry = xs.pendingGeometry
 	}
-	if err := t.applyPending(); err != nil {
+	if err := r.applyPending(); err != nil {
 		return err
 	}
 	if s.Buffer() != nil && !xs.configured {
@@ -298,30 +358,22 @@ func (xs *XdgSurface) Committed(s *surface.Surface) error {
 	if !xs.geometrySet {
 		xs.geometry = treeBounds(s, image.Point{})
 	}
-	if xs.acked != nil {
-		t.current = xs.acked.state
-		xs.acked = nil
-	}
-	l := xs.base.shell.listener
 	switch {
 	case !xs.initialSent:
 		xs.initialSent = true
-		if err := l.ToplevelInitialCommit(t); err != nil {
-			return err
-		}
-		if len(xs.pending) == 0 {
-			_, err := t.Configure(t.requested)
-			return err
-		}
-		return nil
+		return r.initialCommit()
 	case s.Buffer() == nil && xs.mapped:
-		xs.mapped, xs.configured, xs.initialSent = false, false, false
-		return l.ToplevelUnmapped(t)
+		return xs.unmap()
 	case s.Buffer() != nil && !xs.mapped:
 		xs.mapped = true
-		return l.ToplevelMapped(t)
+		return r.mapped()
 	case xs.mapped:
-		return l.ToplevelCommitted(t)
+		return r.committed()
 	}
 	return nil
+}
+
+func (xs *XdgSurface) unmap() error {
+	xs.mapped, xs.configured, xs.initialSent = false, false, false
+	return errors.Join(xs.dismissPopups(), xs.role.unmapped())
 }

@@ -27,10 +27,13 @@ import (
 )
 
 type recorder struct {
-	log       []string
-	toplevels []*Toplevel
-	initial   func(t *Toplevel) error
-	requests  []Request
+	log        []string
+	toplevels  []*Toplevel
+	popups     []*Popup
+	initial    func(t *Toplevel) error
+	requests   []Request
+	constraint image.Rectangle
+	press      uint32
 }
 
 func (r *recorder) note(format string, args ...any) error {
@@ -65,6 +68,21 @@ func (r *recorder) ToplevelRequest(_ *Toplevel, req Request) error {
 func (r *recorder) ClientResponsive(_ *server.Client, responsive bool) error {
 	return r.note("responsive %t", responsive)
 }
+
+func (r *recorder) PopupConstraint(*Toplevel) image.Rectangle { return r.constraint }
+
+func (r *recorder) PopupMapped(p *Popup) error {
+	r.popups = append(r.popups, p)
+	return r.note("popup mapped")
+}
+
+func (r *recorder) PopupUnmapped(*Popup) error { return r.note("popup unmapped") }
+
+func (r *recorder) PressSerial(_ *server.Client, serial uint32) bool {
+	return r.press != 0 && serial == r.press
+}
+
+func (r *recorder) GrabChanged() error { return r.note("grab changed") }
 
 type noSurfaces struct{}
 

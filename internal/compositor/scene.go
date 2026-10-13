@@ -44,6 +44,13 @@ func (c *Compositor) render(o *output.Output) error {
 		origin := w.placement().Min.Sub(w.toplevel.Geometry().Min)
 		shown = c.drawTree(pass, o, w.toplevel.Surface(), origin, shown)
 	}
+	for _, w := range c.windows {
+		for _, p := range c.popups(w) {
+			if p.bounds().Overlaps(o.Logical()) {
+				shown = c.drawTree(pass, o, p.popup.Surface(), p.origin, shown)
+			}
+		}
+	}
 	shown, err = c.drawCursor(pass, o, shown)
 	if err != nil {
 		return err

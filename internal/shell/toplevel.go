@@ -38,6 +38,7 @@ type Toplevel struct {
 	maxSet     bool
 	requested  State
 	current    State
+	configures configures[State]
 	destroyed  bool
 }
 
@@ -111,12 +112,19 @@ func (t *Toplevel) Configure(s State) (uint32, error) {
 	if err := c.Sent(t.resource.SendConfigure(width, height, states)); err != nil {
 		return 0, err
 	}
-	serial := t.xs.base.shell.display.NextSerial()
-	if err := c.Sent(t.xs.resource.SendConfigure(serial)); err != nil {
+	serial, err := t.xs.sendConfigure()
+	if err != nil {
 		return 0, err
 	}
-	t.xs.pending = append(t.xs.pending, configure{serial: serial, state: s})
+	t.configures.push(serial, s)
 	return serial, nil
+}
+
+func wirePoint(p image.Point) (int32, int32, error) {
+	if p.X < math.MinInt32 || p.Y < math.MinInt32 || p.X > math.MaxInt32 || p.Y > math.MaxInt32 {
+		return 0, 0, fmt.Errorf("shell: point %v does not fit the protocol", p)
+	}
+	return int32(p.X), int32(p.Y), nil
 }
 
 func wireSize(p image.Point) (int32, int32, error) {
@@ -146,22 +154,63 @@ func (t *Toplevel) applyPending() error {
 		return t.resource.ProtocolError(sxdg.XdgToplevelErrorInvalidSize, fmt.Sprintf("minimum size %v exceeds maximum size %v", minSize, maxSize))
 	}
 	t.min, t.max, t.minSet, t.maxSet = minSize, maxSize, false, false
+	if s, ok := t.configures.take(); ok {
+		t.current = s
+	}
 	return nil
 }
 
-func (t *Toplevel) destroy() {
+func (t *Toplevel) ack(serial uint32) bool {
+	return t.configures.ack(serial)
+}
+
+func (t *Toplevel) initialCommit() error {
+	if err := t.xs.base.shell.listener.ToplevelInitialCommit(t); err != nil {
+		return err
+	}
+	if len(t.configures.pending) == 0 {
+		_, err := t.Configure(t.requested)
+		return err
+	}
+	return nil
+}
+
+func (t *Toplevel) mapped() error {
+	return t.xs.base.shell.listener.ToplevelMapped(t)
+}
+
+func (t *Toplevel) unmapped() error {
+	t.configures.reset()
+	return t.xs.base.shell.listener.ToplevelUnmapped(t)
+}
+
+func (t *Toplevel) committed() error {
+	return t.xs.base.shell.listener.ToplevelCommitted(t)
+}
+
+func (t *Toplevel) inert() bool {
+	return false
+}
+
+func (t *Toplevel) Popups() []*Popup {
+	return t.xs.Popups()
+}
+
+func (t *Toplevel) destroy() error {
 	t.destroyed = true
 	xs := t.xs
+	var errs []error
 	if xs.mapped {
-		xs.mapped = false
-		_ = xs.base.shell.listener.ToplevelUnmapped(t)
+		errs = append(errs, xs.unmap())
 	}
-	xs.toplevel, xs.configured, xs.initialSent, xs.pending, xs.acked = nil, false, false, nil, nil
+	errs = append(errs, xs.dismissPopups())
+	xs.role, xs.configured, xs.initialSent = nil, false, false
 	for _, other := range xs.base.surfaces {
-		if other.toplevel != nil && other.toplevel.parent == t {
-			other.toplevel.parent = t.parent
+		if o, ok := other.role.(*Toplevel); ok && o.parent == t {
+			o.parent = t.parent
 		}
 	}
+	return errors.Join(errs...)
 }
 
 func (t *Toplevel) Destroy(*sxdg.XdgToplevel) error {

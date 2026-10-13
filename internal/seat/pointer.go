@@ -121,9 +121,13 @@ func (s *Seat) PointerButton(at time.Duration, button uint32, pressed bool) erro
 		state = sw.WlPointerButtonStatePressed
 	}
 	c, pointers := s.focusPointers()
+	if c == nil {
+		return nil
+	}
+	serial := s.eventSerial(c, pressed)
 	var errs []error
 	for _, ptr := range pointers {
-		errs = append(errs, c.Sent(ptr.SendButton(s.display.NextSerial(), wire.Millis(at), button, state)))
+		errs = append(errs, c.Sent(ptr.SendButton(serial, wire.Millis(at), button, state)))
 	}
 	return errors.Join(errs...)
 }

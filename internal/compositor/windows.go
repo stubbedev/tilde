@@ -9,6 +9,7 @@ import (
 	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/shell"
+	"github.com/stubbedev/tilde/internal/surface"
 )
 
 type window struct {
@@ -59,24 +60,32 @@ func (c *Compositor) ToplevelInitialCommit(t *shell.Toplevel) error {
 }
 
 func (c *Compositor) focus(target *window) error {
-	if prev := c.seat.Focus(); prev != nil {
-		for _, w := range c.windows {
-			if w.toplevel.Surface() == prev && w != target {
-				if err := c.configure(w.toplevel, w.output, false); err != nil {
-					return err
-				}
-			}
+	if prev := c.active; prev != nil && prev != target {
+		if err := c.configure(prev.toplevel, prev.output, false); err != nil {
+			return err
 		}
 	}
-	if target == nil {
-		return c.seat.SetKeyboardFocus(nil)
-	}
-	if !target.toplevel.Requested().Has(sxdg.XdgToplevelStateActivated) {
+	c.active = target
+	if target != nil && !target.toplevel.Requested().Has(sxdg.XdgToplevelStateActivated) {
 		if err := c.configure(target.toplevel, target.output, true); err != nil {
 			return err
 		}
 	}
-	return c.seat.SetKeyboardFocus(target.toplevel.Surface())
+	return c.refocus()
+}
+
+func (c *Compositor) keyboardTarget() *surface.Surface {
+	if top := c.grabTop(); top != nil {
+		return top
+	}
+	if c.active == nil {
+		return nil
+	}
+	return c.active.toplevel.Surface()
+}
+
+func (c *Compositor) refocus() error {
+	return c.seat.SetKeyboardFocus(c.keyboardTarget())
 }
 
 func (c *Compositor) ToplevelMapped(t *shell.Toplevel) error {
@@ -90,7 +99,8 @@ func (c *Compositor) ToplevelMapped(t *shell.Toplevel) error {
 
 func (c *Compositor) ToplevelUnmapped(t *shell.Toplevel) error {
 	c.windows = slices.DeleteFunc(c.windows, func(w *window) bool { return w.toplevel == t })
-	if c.seat.Focus() == t.Surface() {
+	if c.active != nil && c.active.toplevel == t {
+		c.active = nil
 		var next *window
 		if n := len(c.windows); n > 0 {
 			next = c.windows[n-1]
@@ -106,7 +116,7 @@ func (c *Compositor) adoptWindows(o *output.Output) error {
 	for _, w := range c.windows {
 		if w.output == nil {
 			w.output = o
-			if err := c.configure(w.toplevel, o, c.seat.Focus() == w.toplevel.Surface()); err != nil {
+			if err := errors.Join(c.configure(w.toplevel, o, c.active == w), c.reconstrain(w)); err != nil {
 				return err
 			}
 		}
@@ -117,7 +127,7 @@ func (c *Compositor) adoptWindows(o *output.Output) error {
 func (c *Compositor) refit(o *output.Output) error {
 	for _, w := range c.windows {
 		if w.output == o {
-			if err := c.configure(w.toplevel, o, c.seat.Focus() == w.toplevel.Surface()); err != nil {
+			if err := errors.Join(c.configure(w.toplevel, o, c.active == w), c.reconstrain(w)); err != nil {
 				return err
 			}
 		}

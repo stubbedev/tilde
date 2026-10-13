@@ -84,6 +84,14 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 		c.cursor = p
 		return c.pointerMoved(e.Time)
 	case backend.PointerButton:
+		if i := slices.Index(c.consumed, e.Button); !e.Pressed && i >= 0 {
+			c.consumed = slices.Delete(c.consumed, i, i+1)
+			return nil
+		}
+		if e.Pressed && !c.seat.PointerGrabbed() && c.outsideGrab(c.seat.PointerFocus()) {
+			c.consumed = append(c.consumed, e.Button)
+			return c.shell.DismissGrab()
+		}
 		return c.seat.PointerButton(e.Time, e.Button, e.Pressed)
 	case backend.PointerAxis:
 		a := seat.Axis{Orientation: sw.WlPointerAxisVerticalScroll, Source: sw.WlPointerAxisSource(e.Source), Value: e.Value, Value120: e.Value120}
@@ -99,6 +107,9 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 			return nil
 		}
 		s, local, _ := c.surfaceAt(p)
+		if c.outsideGrab(s) {
+			return c.shell.DismissGrab()
+		}
 		if s == nil {
 			return nil
 		}
@@ -136,24 +147,32 @@ func (c *Compositor) pointerMoved(at time.Duration) error {
 			return c.seat.PointerMotion(at, local.X, local.Y)
 		}
 	}
-	s, local, w := c.surfaceAt(c.cursor)
+	s, local, w := c.pointerTarget()
 	var err error
 	if s != c.seat.PointerFocus() {
 		err = c.seat.SetPointerFocus(s, local.X, local.Y)
 	} else if s != nil {
 		err = c.seat.PointerMotion(at, local.X, local.Y)
 	}
-	if w != nil && c.seat.Focus() != w.toplevel.Surface() {
+	if w != nil && c.grabClient() == nil && (c.active != w || c.seat.Focus() != w.toplevel.Surface()) {
 		err = errors.Join(err, c.focus(w))
 	}
 	return errors.Join(err, c.scheduleAll())
+}
+
+func (c *Compositor) pointerTarget() (*surface.Surface, point, *window) {
+	s, local, w := c.surfaceAt(c.cursor)
+	if s != nil && c.outsideGrab(s) {
+		return nil, point{}, nil
+	}
+	return s, local, w
 }
 
 func (c *Compositor) refreshPointer() error {
 	if c.seat.PointerGrabbed() {
 		return nil
 	}
-	s, local, _ := c.surfaceAt(c.cursor)
+	s, local, _ := c.pointerTarget()
 	if s == c.seat.PointerFocus() {
 		return nil
 	}
@@ -161,6 +180,13 @@ func (c *Compositor) refreshPointer() error {
 }
 
 func (c *Compositor) surfaceAt(p point) (*surface.Surface, point, *window) {
+	for _, w := range slices.Backward(c.windows) {
+		for _, pp := range slices.Backward(c.popups(w)) {
+			if s, local := hitTree(pp.popup.Surface(), pp.origin, p); s != nil {
+				return s, local, w
+			}
+		}
+	}
 	for _, w := range slices.Backward(c.windows) {
 		if w.output == nil {
 			continue
@@ -195,6 +221,11 @@ func (c *Compositor) originOf(target *surface.Surface) (image.Point, bool) {
 	for _, w := range c.windows {
 		if origin, ok := treeOrigin(w.toplevel.Surface(), w.placement().Min.Sub(w.toplevel.Geometry().Min), target); ok {
 			return origin, true
+		}
+		for _, pp := range c.popups(w) {
+			if origin, ok := treeOrigin(pp.popup.Surface(), pp.origin, target); ok {
+				return origin, true
+			}
 		}
 	}
 	return image.Point{}, false

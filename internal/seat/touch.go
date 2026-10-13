@@ -47,9 +47,10 @@ func (s *Seat) TouchDown(at time.Duration, id int32, target *surface.Surface, x,
 	}
 	s.touch.points = append(s.touch.points, touchPoint{id: id, surface: target})
 	c, touches := s.touchesOf(target)
+	serial := s.eventSerial(c, true)
 	var errs []error
 	for _, t := range touches {
-		errs = append(errs, c.Sent(t.SendDown(s.display.NextSerial(), wire.Millis(at), target.Resource(), id, wire.FixedFromFloat(x), wire.FixedFromFloat(y))))
+		errs = append(errs, c.Sent(t.SendDown(serial, wire.Millis(at), target.Resource(), id, wire.FixedFromFloat(x), wire.FixedFromFloat(y))))
 	}
 	return errors.Join(errs...)
 }

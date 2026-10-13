@@ -11,6 +11,7 @@ type Input struct {
 	Log      []string
 	Surfaces map[wire.ObjectID]string
 	Serial   uint32
+	Press    uint32
 	Pointer  *cw.WlPointer
 }
 
@@ -81,7 +82,10 @@ func (e pointerEvents) Motion(_ *cw.WlPointer, _ uint32, x, y wire.Fixed) error 
 	return e.in.note("motion %g,%g", x.Float(), y.Float())
 }
 
-func (e pointerEvents) Button(_ *cw.WlPointer, _, _, button uint32, state cw.WlPointerButtonState) error {
+func (e pointerEvents) Button(_ *cw.WlPointer, serial, _, button uint32, state cw.WlPointerButtonState) error {
+	if state == cw.WlPointerButtonStatePressed {
+		e.in.Press = serial
+	}
 	return e.in.note("button %d %d", button, state)
 }
 
@@ -117,7 +121,8 @@ func (e pointerEvents) Warp(*cw.WlPointer, wire.Fixed, wire.Fixed) error { retur
 
 type touchEvents struct{ in *Input }
 
-func (e touchEvents) Down(_ *cw.WlTouch, _, _ uint32, s *cw.WlSurface, id int32, x, y wire.Fixed) error {
+func (e touchEvents) Down(_ *cw.WlTouch, serial, _ uint32, s *cw.WlSurface, id int32, x, y wire.Fixed) error {
+	e.in.Press = serial
 	return e.in.note("down %d %s %g,%g", id, e.in.name(s), x.Float(), y.Float())
 }
 
@@ -149,7 +154,10 @@ func (e keyboardEvents) Leave(_ *cw.WlKeyboard, _ uint32, s *cw.WlSurface) error
 	return e.in.note("kb_leave %s", e.in.name(s))
 }
 
-func (e keyboardEvents) Key(_ *cw.WlKeyboard, _, _, key uint32, state cw.WlKeyboardKeyState) error {
+func (e keyboardEvents) Key(_ *cw.WlKeyboard, serial, _, key uint32, state cw.WlKeyboardKeyState) error {
+	if state == cw.WlKeyboardKeyStatePressed {
+		e.in.Press = serial
+	}
 	return e.in.note("key %d %d", key, state)
 }
 

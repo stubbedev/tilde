@@ -89,9 +89,10 @@ func (s *Seat) Key(code uint32, pressed bool, at time.Duration) error {
 		state = sw.WlKeyboardKeyStatePressed
 	}
 	ms := wire.Millis(at)
+	serial := s.eventSerial(c, pressed)
 	var errs []error
 	for _, kb := range r.keyboards {
-		errs = append(errs, c.Sent(kb.SendKey(s.display.NextSerial(), ms, code, state)))
+		errs = append(errs, c.Sent(kb.SendKey(serial, ms, code, state)))
 		if modsChanged {
 			errs = append(errs, s.sendModifiers(c, kb))
 		}

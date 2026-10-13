@@ -52,6 +52,8 @@ type Compositor struct {
 	shell    *shell.Shell
 	textures map[*surface.Surface]*texture
 	windows  []*window
+	active   *window
+	consumed []uint32
 	shown    map[*output.Output][]*surface.Surface
 	entered  []*entered
 	cursor   point
