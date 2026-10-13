@@ -1,6 +1,7 @@
 package headless
 
 import (
+	"errors"
 	"image"
 	"slices"
 	"strings"
@@ -21,28 +22,35 @@ type recorder struct {
 	presented []backend.Presentation
 	inputs    []backend.Event
 	onFrame   func(backend.Output)
+	err       error
 }
 
-func (r *recorder) OutputAdded(o backend.Output)   { r.log = append(r.log, "output+ "+o.Name()) }
-func (r *recorder) OutputRemoved(o backend.Output) { r.log = append(r.log, "output- "+o.Name()) }
-func (r *recorder) DeviceAdded(d backend.Device)   { r.log = append(r.log, "device+ "+d.Name()) }
-func (r *recorder) DeviceRemoved(d backend.Device) { r.log = append(r.log, "device- "+d.Name()) }
+func (r *recorder) note(s string) error {
+	r.log = append(r.log, s)
+	return nil
+}
 
-func (r *recorder) Frame(o backend.Output) {
+func (r *recorder) OutputAdded(o backend.Output) error   { return r.note("output+ " + o.Name()) }
+func (r *recorder) OutputRemoved(o backend.Output) error { return r.note("output- " + o.Name()) }
+func (r *recorder) DeviceAdded(d backend.Device) error   { return r.note("device+ " + d.Name()) }
+func (r *recorder) DeviceRemoved(d backend.Device) error { return r.note("device- " + d.Name()) }
+
+func (r *recorder) Frame(o backend.Output) error {
 	r.log = append(r.log, "frame "+o.Name())
 	if r.onFrame != nil {
 		r.onFrame(o)
 	}
+	return r.err
 }
 
-func (r *recorder) Presented(o backend.Output, p backend.Presentation) {
-	r.log = append(r.log, "presented "+o.Name())
+func (r *recorder) Presented(o backend.Output, p backend.Presentation) error {
 	r.presented = append(r.presented, p)
+	return r.note("presented " + o.Name())
 }
 
-func (r *recorder) Input(d backend.Device, e backend.Event) {
-	r.log = append(r.log, "input "+d.Name())
+func (r *recorder) Input(d backend.Device, e backend.Event) error {
 	r.inputs = append(r.inputs, e)
+	return r.note("input " + d.Name())
 }
 
 func setup(t *testing.T) (*loop.Loop, *Backend, *recorder) {
@@ -213,6 +221,28 @@ func TestCommitResizesAndDisables(t *testing.T) {
 	}
 }
 
+func TestHandlerErrorsStopTheLoop(t *testing.T) {
+	l, b, r := setup(t)
+	if err := b.Start(r); err != nil {
+		t.Fatal(err)
+	}
+	o, err := b.AddOutput(mode100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	boom := errors.New("boom")
+	r.onFrame = func(backend.Output) { r.err = boom }
+	if err := o.ScheduleFrame(); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Run(); !errors.Is(err, boom) {
+		t.Fatalf("Run = %v, want the frame handler's error", err)
+	}
+	if err := New(l).Keyboard().Key(1, true); err == nil {
+		t.Fatal("input before Start was accepted")
+	}
+}
+
 func TestOutputValidationAndRemoval(t *testing.T) {
 	_, b, r := setup(t)
 	if err := b.Start(r); err != nil {
@@ -251,17 +281,23 @@ func TestInputInjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.Keyboard().Key(30, true)
-	b.Pointer().Move(1.5, -2)
-	b.Pointer().MoveTo(o, 0.25, 0.75)
-	b.Pointer().Button(272, true)
-	b.Pointer().Axis(backend.Vertical, backend.Wheel, 15, 120)
-	b.Pointer().Frame()
-	b.Touch().Down(3, o, 0.5, 0.5)
-	b.Touch().Motion(3, 0.6, 0.5)
-	b.Touch().Up(3)
-	b.Touch().Cancel(4)
-	b.Touch().Frame()
+	for _, err := range []error{
+		b.Keyboard().Key(30, true),
+		b.Pointer().Move(1.5, -2),
+		b.Pointer().MoveTo(o, 0.25, 0.75),
+		b.Pointer().Button(272, true),
+		b.Pointer().Axis(backend.Vertical, backend.Wheel, 15, 120),
+		b.Pointer().Frame(),
+		b.Touch().Down(3, o, 0.5, 0.5),
+		b.Touch().Motion(3, 0.6, 0.5),
+		b.Touch().Up(3),
+		b.Touch().Cancel(4),
+		b.Touch().Frame(),
+	} {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	got := r.inputs
 	if len(got) != 11 {
 		t.Fatalf("%d input events, want 11", len(got))

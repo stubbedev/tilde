@@ -41,10 +41,14 @@ func (b *Backend) Start(h backend.Handler) error {
 	}
 	b.handler = h
 	for _, d := range b.devices() {
-		h.DeviceAdded(d)
+		if err := h.DeviceAdded(d); err != nil {
+			return err
+		}
 	}
 	for _, o := range b.outputs {
-		h.OutputAdded(o)
+		if err := h.OutputAdded(o); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -64,7 +68,7 @@ func (b *Backend) Close() error {
 	}
 	if b.handler != nil {
 		for _, d := range b.devices() {
-			b.handler.DeviceRemoved(d)
+			errs = append(errs, b.handler.DeviceRemoved(d))
 		}
 	}
 	return errors.Join(errs...)
@@ -101,7 +105,9 @@ func (b *Backend) AddOutput(modes ...backend.Mode) (*Output, error) {
 	}
 	b.outputs = append(b.outputs, o)
 	if b.handler != nil {
-		b.handler.OutputAdded(o)
+		if err := b.handler.OutputAdded(o); err != nil {
+			return nil, err
+		}
 	}
 	return o, nil
 }
@@ -113,10 +119,11 @@ func (b *Backend) RemoveOutput(o *Output) error {
 	}
 	b.outputs = slices.Delete(b.outputs, i, i+1)
 	o.removed = true
+	var errs []error
 	if b.handler != nil {
-		b.handler.OutputRemoved(o)
+		errs = append(errs, b.handler.OutputRemoved(o))
 	}
-	return o.timer.Remove()
+	return errors.Join(append(errs, o.timer.Remove())...)
 }
 
 type Output struct {
@@ -229,17 +236,18 @@ func (o *Output) vblank() error {
 	o.lastVblank = now
 	o.seq++
 	h := o.backend.handler
+	if h == nil {
+		return nil
+	}
 	if o.presentPending {
 		o.presentPending = false
-		if h != nil {
-			h.Presented(o, backend.Presentation{Time: now, Refresh: o.state.Mode.Interval(), Seq: o.seq})
+		if err := h.Presented(o, backend.Presentation{Time: now, Refresh: o.state.Mode.Interval(), Seq: o.seq}); err != nil {
+			return err
 		}
 	}
 	if o.frameRequested {
 		o.frameRequested = false
-		if h != nil {
-			h.Frame(o)
-		}
+		return h.Frame(o)
 	}
 	return nil
 }
@@ -258,10 +266,11 @@ func (d *device) Capabilities() backend.Capability {
 	return d.caps
 }
 
-func (b *Backend) emit(d backend.Device, e backend.Event) {
-	if b.handler != nil {
-		b.handler.Input(d, e)
+func (b *Backend) emit(d backend.Device, e backend.Event) error {
+	if b.handler == nil {
+		return errors.New("headless: input injected before Start")
 	}
+	return b.handler.Input(d, e)
 }
 
 func now() time.Duration {
@@ -274,8 +283,8 @@ func (b *Backend) Keyboard() *Keyboard {
 	return b.keyboard
 }
 
-func (k *Keyboard) Key(code uint32, pressed bool) {
-	k.backend.emit(k, backend.Key{Time: now(), Code: code, Pressed: pressed})
+func (k *Keyboard) Key(code uint32, pressed bool) error {
+	return k.backend.emit(k, backend.Key{Time: now(), Code: code, Pressed: pressed})
 }
 
 type Pointer struct{ device }
@@ -284,24 +293,24 @@ func (b *Backend) Pointer() *Pointer {
 	return b.pointer
 }
 
-func (p *Pointer) Move(dx, dy float64) {
-	p.backend.emit(p, backend.PointerMotion{Time: now(), DX: dx, DY: dy, UnaccelDX: dx, UnaccelDY: dy})
+func (p *Pointer) Move(dx, dy float64) error {
+	return p.backend.emit(p, backend.PointerMotion{Time: now(), DX: dx, DY: dy, UnaccelDX: dx, UnaccelDY: dy})
 }
 
-func (p *Pointer) MoveTo(o *Output, x, y float64) {
-	p.backend.emit(p, backend.PointerMotionAbsolute{Time: now(), Output: o, X: x, Y: y})
+func (p *Pointer) MoveTo(o *Output, x, y float64) error {
+	return p.backend.emit(p, backend.PointerMotionAbsolute{Time: now(), Output: o, X: x, Y: y})
 }
 
-func (p *Pointer) Button(button uint32, pressed bool) {
-	p.backend.emit(p, backend.PointerButton{Time: now(), Button: button, Pressed: pressed})
+func (p *Pointer) Button(button uint32, pressed bool) error {
+	return p.backend.emit(p, backend.PointerButton{Time: now(), Button: button, Pressed: pressed})
 }
 
-func (p *Pointer) Axis(orientation backend.Orientation, source backend.AxisSource, value float64, value120 int32) {
-	p.backend.emit(p, backend.PointerAxis{Time: now(), Orientation: orientation, Source: source, Value: value, Value120: value120})
+func (p *Pointer) Axis(orientation backend.Orientation, source backend.AxisSource, value float64, value120 int32) error {
+	return p.backend.emit(p, backend.PointerAxis{Time: now(), Orientation: orientation, Source: source, Value: value, Value120: value120})
 }
 
-func (p *Pointer) Frame() {
-	p.backend.emit(p, backend.PointerFrame{Time: now()})
+func (p *Pointer) Frame() error {
+	return p.backend.emit(p, backend.PointerFrame{Time: now()})
 }
 
 type Touch struct{ device }
@@ -310,22 +319,22 @@ func (b *Backend) Touch() *Touch {
 	return b.touch
 }
 
-func (t *Touch) Down(id int32, o *Output, x, y float64) {
-	t.backend.emit(t, backend.TouchDown{Time: now(), ID: id, Output: o, X: x, Y: y})
+func (t *Touch) Down(id int32, o *Output, x, y float64) error {
+	return t.backend.emit(t, backend.TouchDown{Time: now(), ID: id, Output: o, X: x, Y: y})
 }
 
-func (t *Touch) Motion(id int32, x, y float64) {
-	t.backend.emit(t, backend.TouchMotion{Time: now(), ID: id, X: x, Y: y})
+func (t *Touch) Motion(id int32, x, y float64) error {
+	return t.backend.emit(t, backend.TouchMotion{Time: now(), ID: id, X: x, Y: y})
 }
 
-func (t *Touch) Up(id int32) {
-	t.backend.emit(t, backend.TouchUp{Time: now(), ID: id})
+func (t *Touch) Up(id int32) error {
+	return t.backend.emit(t, backend.TouchUp{Time: now(), ID: id})
 }
 
-func (t *Touch) Cancel(id int32) {
-	t.backend.emit(t, backend.TouchCancel{Time: now(), ID: id})
+func (t *Touch) Cancel(id int32) error {
+	return t.backend.emit(t, backend.TouchCancel{Time: now(), ID: id})
 }
 
-func (t *Touch) Frame() {
-	t.backend.emit(t, backend.TouchFrame{Time: now()})
+func (t *Touch) Frame() error {
+	return t.backend.emit(t, backend.TouchFrame{Time: now()})
 }

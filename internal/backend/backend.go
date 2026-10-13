@@ -26,13 +26,13 @@ type Backend interface {
 }
 
 type Handler interface {
-	OutputAdded(o Output)
-	OutputRemoved(o Output)
-	Frame(o Output)
-	Presented(o Output, p Presentation)
-	DeviceAdded(d Device)
-	DeviceRemoved(d Device)
-	Input(d Device, e Event)
+	OutputAdded(o Output) error
+	OutputRemoved(o Output) error
+	Frame(o Output) error
+	Presented(o Output, p Presentation) error
+	DeviceAdded(d Device) error
+	DeviceRemoved(d Device) error
+	Input(d Device, e Event) error
 }
 
 type Mode struct {
