@@ -39,6 +39,7 @@ type pointerState struct {
 	enterSerial uint32
 	buttons     []uint32
 	cursor      Cursor
+	framed      []*server.Client
 }
 
 func (s *Seat) HasPointer() bool {
@@ -80,6 +81,9 @@ func (s *Seat) SetPointerFocus(target *surface.Surface, x, y float64) error {
 	if c, pointers := s.focusPointers(); c != nil {
 		for _, ptr := range pointers {
 			errs = append(errs, c.Sent(ptr.SendLeave(s.display.NextSerial(), p.focus.Resource())))
+		}
+		if !slices.Contains(p.framed, c) {
+			p.framed = append(p.framed, c)
 		}
 	}
 	p.focus, p.buttons = target, nil
@@ -165,13 +169,24 @@ func (s *Seat) sendAxis(ptr *sw.WlPointer, at time.Duration, a Axis) error {
 }
 
 func (s *Seat) PointerFrame() error {
-	c, pointers := s.focusPointers()
+	p := &s.pointer
+	if p.focus != nil && !slices.Contains(p.framed, p.focus.Client()) {
+		p.framed = append(p.framed, p.focus.Client())
+	}
 	var errs []error
-	for _, ptr := range pointers {
-		if ptr.Base().Version() >= 5 {
-			errs = append(errs, c.Sent(ptr.SendFrame()))
+	for _, c := range p.framed {
+		r := s.lookup(c)
+		if r == nil {
+			continue
+		}
+		for _, ptr := range r.pointers {
+			if ptr.Base().Version() >= 5 {
+				errs = append(errs, c.Sent(ptr.SendFrame()))
+			}
 		}
 	}
+	clear(p.framed)
+	p.framed = p.framed[:0]
 	return errors.Join(errs...)
 }
 

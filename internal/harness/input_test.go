@@ -60,6 +60,13 @@ func (r *inputRig) moveTo(x, y float64) {
 	})
 }
 
+func (r *inputRig) moveOn(output int, x, y float64) {
+	r.h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+		o := b.Outputs()[output]
+		return errors.Join(b.Pointer().MoveTo(o, x/160, y/100), b.Pointer().Frame())
+	})
+}
+
 func TestPointerEntersMovesClicksAndScrolls(t *testing.T) {
 	r := startInput(t)
 	r.expect("kb_enter win", "enter win 80,50", "frame")
@@ -160,4 +167,17 @@ func TestTouchGoesToTheSurfaceUnderThePoint(t *testing.T) {
 		return errors.Join(b.Touch().Up(1), b.Touch().Frame(), b.Touch().Cancel(2))
 	})
 	r.expect("up 1", "touch_frame", "cancel")
+}
+
+func TestLeavingToTheDesktopEndsThePointerFrame(t *testing.T) {
+	h := Start(t, small, small)
+	c := testclient.Connect(t, h.Socket())
+	_, in := c.Seat()
+	w := c.Window("win", quadrants)
+	in.Name(w.Surface, "win")
+	c.DispatchUntil("the window to map", w.Mapped)
+	r := &inputRig{t: t, h: h, c: c, in: in, w: w}
+	r.expect("kb_enter win", "enter win 80,50", "frame")
+	r.moveOn(1, 10, 10)
+	r.expect("leave win", "frame")
 }
