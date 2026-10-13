@@ -70,6 +70,8 @@ Everything lives under `internal/` except the commands.
 | `render/soft` | The CPU renderer, for headless and golden tests (#7) |
 | `render/gles` | The GLES2 renderer (#34) |
 | `gpu` | purego bindings for EGL, GLES2 and GBM (#33) |
+| `surface` | `wl_compositor`, `wl_surface`, `wl_region`, `wl_subcompositor`: double-buffered state, subsurface trees, roles (#11) |
+| `region` | Pixel regions as disjoint rectangles, for damage and input and opaque regions |
 | `seat` | `wl_seat`, keyboard, pointer and touch (#13, #14) |
 | `xkb` | Keymap compilation and state (#13) |
 | `shell` | xdg-shell and layer-shell glue between clients and `wm` (#15, #48) |

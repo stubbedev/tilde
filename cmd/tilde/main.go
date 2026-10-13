@@ -105,7 +105,7 @@ func run() (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, display.Close()) }()
-	if _, err := compositor.New(b); err != nil {
+	if _, err := compositor.New(display, b); err != nil {
 		return err
 	}
 	if err := os.Setenv("WAYLAND_DISPLAY", display.Name()); err != nil {

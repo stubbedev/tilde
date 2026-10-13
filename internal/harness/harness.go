@@ -56,7 +56,7 @@ func Start(t *testing.T, modes ...backend.Mode) *Harness {
 			t.Fatalf("harness: %v", err)
 		}
 	}
-	if h.compositor, err = compositor.New(h.backend); err != nil {
+	if h.compositor, err = compositor.New(h.display, h.backend); err != nil {
 		t.Fatalf("harness: %v", err)
 	}
 	go func() { h.done <- h.loop.Run() }()

@@ -9,16 +9,23 @@ import (
 
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/render"
+	"github.com/stubbedev/tilde/internal/server"
+	"github.com/stubbedev/tilde/internal/surface"
 )
 
 var Background = render.Color{R: 0x1e, G: 0x1e, B: 0x2e, A: 0xff}
 
 type Compositor struct {
-	outputs []backend.Output
+	outputs  []backend.Output
+	surfaces *surface.Manager
 }
 
-func New(b backend.Backend) (*Compositor, error) {
+func New(display *server.Display, b backend.Backend) (*Compositor, error) {
 	c := &Compositor{}
+	var err error
+	if c.surfaces, err = surface.New(display, c); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
 	if err := b.Start(c); err != nil {
 		return nil, fmt.Errorf("compositor: start backend: %w", err)
 	}
@@ -83,3 +90,7 @@ func (c *Compositor) DeviceAdded(backend.Device) error { return nil }
 func (c *Compositor) DeviceRemoved(backend.Device) error { return nil }
 
 func (c *Compositor) Input(backend.Device, backend.Event) error { return nil }
+
+func (c *Compositor) Committed(*surface.Surface) error { return nil }
+
+func (c *Compositor) Destroyed(*surface.Surface) {}

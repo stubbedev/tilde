@@ -21,6 +21,7 @@ import (
 	"github.com/stubbedev/tilde/internal/harness"
 	"github.com/stubbedev/tilde/internal/loop"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
+	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/wire"
 )
 
@@ -136,7 +137,17 @@ func TestNestedInSway(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer b.Close()
-	if _, err := compositor.New(b); err != nil {
+	runtime, err := os.MkdirTemp("", "tilde-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(runtime)
+	display, err := server.New(l, server.Options{RuntimeDir: runtime})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer display.Close()
+	if _, err := compositor.New(display, b); err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)
