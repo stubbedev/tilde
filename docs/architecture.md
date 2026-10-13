@@ -72,6 +72,7 @@ Everything lives under `internal/` except the commands.
 | `gpu` | purego bindings for EGL, GLES2 and GBM (#33) |
 | `surface` | `wl_compositor`, `wl_surface`, `wl_region`, `wl_subcompositor`: double-buffered state, subsurface trees, roles (#11) |
 | `region` | Pixel regions as disjoint rectangles, for damage and input and opaque regions |
+| `shm` | `wl_shm` pools and buffers, read fault-safely when a client truncates its pool (#12) |
 | `seat` | `wl_seat`, keyboard, pointer and touch (#13, #14) |
 | `xkb` | Keymap compilation and state (#13) |
 | `shell` | xdg-shell and layer-shell glue between clients and `wm` (#15, #48) |
