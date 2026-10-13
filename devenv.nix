@@ -14,6 +14,8 @@
     git
     gh
     wayland-utils
+    sway
+    grim
   ];
 
   enterTest = ''

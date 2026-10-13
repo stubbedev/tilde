@@ -13,3 +13,22 @@ func TestParseDebug(t *testing.T) {
 		t.Fatal("unknown category accepted")
 	}
 }
+
+func TestChooseBackend(t *testing.T) {
+	cases := []struct {
+		requested, display, want string
+	}{
+		{"", "wayland-1", "nested"},
+		{"", "", "headless"},
+		{"headless", "wayland-1", "headless"},
+		{"nested", "", "nested"},
+	}
+	for _, c := range cases {
+		if got, err := chooseBackend(c.requested, c.display); err != nil || got != c.want {
+			t.Errorf("chooseBackend(%q, %q) = %q, %v; want %q", c.requested, c.display, got, err, c.want)
+		}
+	}
+	if _, err := chooseBackend("drm", ""); err == nil {
+		t.Error("an unknown backend was accepted")
+	}
+}

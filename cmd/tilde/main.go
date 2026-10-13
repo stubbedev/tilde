@@ -13,9 +13,11 @@ import (
 
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/backend/headless"
+	"github.com/stubbedev/tilde/internal/backend/nested"
 	"github.com/stubbedev/tilde/internal/compositor"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/server"
+	"github.com/stubbedev/tilde/internal/wlclient"
 )
 
 func main() {
@@ -45,11 +47,40 @@ func parseDebug(s string) (debug, error) {
 
 var headlessMode = backend.Mode{Size: image.Pt(1920, 1080), RefreshMHz: 60000, Preferred: true}
 
+func chooseBackend(requested, waylandDisplay string) (string, error) {
+	switch requested {
+	case "":
+		if waylandDisplay != "" {
+			return "nested", nil
+		}
+		return "headless", nil
+	case "nested", "headless":
+		return requested, nil
+	}
+	return "", fmt.Errorf("unknown backend %q (available: nested, headless)", requested)
+}
+
+func openBackend(name string, l *loop.Loop) (backend.Backend, error) {
+	if name == "nested" {
+		host, err := wlclient.SocketPath(os.Getenv)
+		if err != nil {
+			return nil, err
+		}
+		return nested.New(l, host)
+	}
+	b := headless.New(l)
+	if _, err := b.AddOutput(headlessMode); err != nil {
+		return nil, errors.Join(err, b.Close())
+	}
+	return b, nil
+}
+
 func run() (err error) {
-	backendName := flag.String("backend", "headless", "output and input backend: headless")
+	requested := flag.String("backend", "", "output and input backend: nested or headless (default: nested when WAYLAND_DISPLAY is set, else headless)")
 	flag.Parse()
-	if *backendName != "headless" {
-		return fmt.Errorf("unknown backend %q (available: headless)", *backendName)
+	backendName, err := chooseBackend(*requested, os.Getenv("WAYLAND_DISPLAY"))
+	if err != nil {
+		return err
 	}
 	dbg, err := parseDebug(os.Getenv("TILDE_DEBUG"))
 	if err != nil {
@@ -64,16 +95,16 @@ func run() (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, l.Close()) }()
+	b, err := openBackend(backendName, l)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, b.Close()) }()
 	display, err := server.New(l, server.Options{RuntimeDir: os.Getenv("XDG_RUNTIME_DIR"), Trace: trace})
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, display.Close()) }()
-	b := headless.New(l)
-	defer func() { err = errors.Join(err, b.Close()) }()
-	if _, err := b.AddOutput(headlessMode); err != nil {
-		return err
-	}
 	if _, err := compositor.New(b); err != nil {
 		return err
 	}
@@ -86,6 +117,9 @@ func run() (err error) {
 	}, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "tilde: listening on %s\n", display.Name())
-	return l.Run()
+	fmt.Fprintf(os.Stderr, "tilde: listening on %s with the %s backend\n", display.Name(), backendName)
+	if err := l.Run(); !errors.Is(err, nested.ErrClosed) {
+		return err
+	}
+	return nil
 }

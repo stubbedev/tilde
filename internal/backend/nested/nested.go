@@ -1,0 +1,548 @@
+// Package nested runs tilde as a client of a host Wayland compositor: each
+// output is a host window and the host seat is tilde's input.
+package nested
+
+import (
+	"errors"
+	"fmt"
+	"image"
+	"math"
+	"slices"
+
+	"golang.org/x/sys/unix"
+
+	"github.com/stubbedev/tilde/internal/backend"
+	"github.com/stubbedev/tilde/internal/loop"
+	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
+	xdg "github.com/stubbedev/tilde/internal/protocol/client/xdgshell"
+	"github.com/stubbedev/tilde/internal/render"
+	"github.com/stubbedev/tilde/internal/render/soft"
+	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/tilde/internal/wlclient"
+)
+
+var ErrClosed = errors.New("nested: the last host window was closed")
+
+var defaultSize = image.Pt(1280, 720)
+
+const nominalRefreshMHz = 60000
+
+type Backend struct {
+	loop       *loop.Loop
+	host       *wlclient.Display
+	source     *loop.Source
+	writable   bool
+	renderer   *soft.Renderer
+	handler    backend.Handler
+	compositor *cw.WlCompositor
+	shm        *cw.WlShm
+	wmBase     *xdg.XdgWmBase
+	seat       *cw.WlSeat
+	outputs    []*Output
+	next       int
+	keyboard   *Keyboard
+	pointer    *Pointer
+	touch      *Touch
+	closed     bool
+}
+
+type global struct {
+	name    uint32
+	version uint32
+}
+
+type registry map[string]global
+
+func (r registry) Global(_ *cw.WlRegistry, name uint32, iface string, version uint32) error {
+	r[iface] = global{name, version}
+	return nil
+}
+
+func (r registry) GlobalRemove(*cw.WlRegistry, uint32) error { return nil }
+
+func New(l *loop.Loop, socket string) (b *Backend, err error) {
+	host, err := wlclient.Connect(socket)
+	if err != nil {
+		return nil, fmt.Errorf("nested: %w", err)
+	}
+	b = &Backend{loop: l, host: host, renderer: soft.New()}
+	defer func() {
+		if err != nil {
+			_ = host.Close()
+		}
+	}()
+	globals := registry{}
+	reg, err := host.WlDisplay().GetRegistry(globals)
+	if err != nil {
+		return nil, err
+	}
+	if err := host.Roundtrip(); err != nil {
+		return nil, fmt.Errorf("nested: list host globals: %w", err)
+	}
+	bind := func(iface *wire.Interface, minVersion uint32, create func(version uint32) (wire.Resource, error)) error {
+		g, ok := globals[iface.Name]
+		if !ok || g.version < minVersion {
+			return fmt.Errorf("nested: host lacks %s version %d", iface.Name, minVersion)
+		}
+		r, err := create(min(g.version, iface.Version))
+		if err != nil {
+			return err
+		}
+		return reg.Bind(g.name, r)
+	}
+	if err := bind(cw.WlCompositorInterface, 4, func(v uint32) (wire.Resource, error) {
+		b.compositor, err = cw.NewWlCompositor(host, v)
+		return b.compositor, err
+	}); err != nil {
+		return nil, err
+	}
+	if err := bind(cw.WlShmInterface, 1, func(v uint32) (wire.Resource, error) {
+		b.shm, err = cw.NewWlShm(host, v, shmEvents{})
+		return b.shm, err
+	}); err != nil {
+		return nil, err
+	}
+	if err := bind(xdg.XdgWmBaseInterface, 1, func(v uint32) (wire.Resource, error) {
+		b.wmBase, err = xdg.NewXdgWmBase(host, v, wmBaseEvents{})
+		return b.wmBase, err
+	}); err != nil {
+		return nil, err
+	}
+	if _, ok := globals[cw.WlSeatInterface.Name]; ok {
+		if err := bind(cw.WlSeatInterface, 1, func(v uint32) (wire.Resource, error) {
+			b.seat, err = cw.NewWlSeat(host, v, seatEvents{b})
+			return b.seat, err
+		}); err != nil {
+			return nil, err
+		}
+	}
+	if err := host.Roundtrip(); err != nil {
+		return nil, fmt.Errorf("nested: bind host globals: %w", err)
+	}
+	if b.source, err = l.AddFD(host.Conn().FD(), loop.Readable, b.readHost); err != nil {
+		return nil, err
+	}
+	l.BeforeWait(b.flush)
+	return b, nil
+}
+
+func (b *Backend) readHost(ev loop.Events) error {
+	if ev&loop.Writable != 0 {
+		if err := b.flush(); err != nil {
+			return err
+		}
+	}
+	if ev&loop.Readable != 0 {
+		if err := b.host.ReadEvents(); err != nil {
+			if errors.Is(err, ErrClosed) {
+				return err
+			}
+			return fmt.Errorf("nested: host connection: %w", err)
+		}
+	}
+	if ev&(loop.Hangup|loop.Error) != 0 {
+		return errors.New("nested: host connection hung up")
+	}
+	return nil
+}
+
+func (b *Backend) flush() error {
+	if b.closed {
+		return nil
+	}
+	if err := b.host.Conn().Err(); err != nil {
+		return fmt.Errorf("nested: write to host: %w", err)
+	}
+	err := b.host.Conn().Flush()
+	switch {
+	case errors.Is(err, wire.ErrWouldBlock):
+		if !b.writable {
+			b.writable = true
+			return b.source.Modify(loop.Readable | loop.Writable)
+		}
+		return nil
+	case err != nil:
+		return fmt.Errorf("nested: flush to host: %w", err)
+	}
+	if b.writable {
+		b.writable = false
+		return b.source.Modify(loop.Readable)
+	}
+	return nil
+}
+
+func (b *Backend) Start(h backend.Handler) error {
+	if b.handler != nil {
+		return errors.New("nested: already started")
+	}
+	b.handler = h
+	for _, d := range b.devices() {
+		if err := h.DeviceAdded(d); err != nil {
+			return err
+		}
+	}
+	_, err := b.AddOutput()
+	return err
+}
+
+func (b *Backend) devices() []backend.Device {
+	var out []backend.Device
+	if b.keyboard != nil {
+		out = append(out, b.keyboard)
+	}
+	if b.pointer != nil {
+		out = append(out, b.pointer)
+	}
+	if b.touch != nil {
+		out = append(out, b.touch)
+	}
+	return out
+}
+
+func (b *Backend) Close() error {
+	if b.closed {
+		return nil
+	}
+	var errs []error
+	for len(b.outputs) > 0 {
+		errs = append(errs, b.outputs[0].destroy())
+	}
+	if b.handler != nil {
+		for _, d := range b.devices() {
+			errs = append(errs, b.handler.DeviceRemoved(d))
+		}
+	}
+	b.closed = true
+	errs = append(errs, b.source.Remove(), b.host.Close())
+	return errors.Join(errs...)
+}
+
+func (b *Backend) Outputs() []*Output {
+	return slices.Clone(b.outputs)
+}
+
+func (b *Backend) AddOutput() (*Output, error) {
+	b.next++
+	o := &Output{backend: b, name: fmt.Sprintf("NESTED-%d", b.next)}
+	var err error
+	if o.surface, err = b.compositor.CreateSurface(surfaceEvents{}); err != nil {
+		return nil, err
+	}
+	if o.xdgSurface, err = b.wmBase.GetXdgSurface(xdgSurfaceEvents{o}, o.surface); err != nil {
+		return nil, err
+	}
+	if o.toplevel, err = o.xdgSurface.GetToplevel(toplevelEvents{o}); err != nil {
+		return nil, err
+	}
+	if err := errors.Join(o.toplevel.SetTitle("tilde "+o.name), o.toplevel.SetAppID("tilde"), o.surface.Commit()); err != nil {
+		return nil, err
+	}
+	b.outputs = append(b.outputs, o)
+	return o, nil
+}
+
+func (b *Backend) outputFor(s *cw.WlSurface) *Output {
+	for _, o := range b.outputs {
+		if o.surface == s {
+			return o
+		}
+	}
+	return nil
+}
+
+type shmBuffer struct {
+	wl     *cw.WlBuffer
+	target *soft.Buffer
+	busy   bool
+}
+
+type Output struct {
+	backend         *Backend
+	name            string
+	surface         *cw.WlSurface
+	xdgSurface      *xdg.XdgSurface
+	toplevel        *xdg.XdgToplevel
+	pending         image.Point
+	size            image.Point
+	configured      bool
+	mapping         []byte
+	buffers         [2]*shmBuffer
+	drawing         *shmBuffer
+	frameRequested  bool
+	idleQueued      bool
+	callbackPending bool
+	presentPending  bool
+	seq             uint64
+}
+
+func (o *Output) Name() string {
+	return o.name
+}
+
+func (o *Output) Description() string {
+	return "Nested output " + o.name
+}
+
+func (o *Output) PhysicalSize() image.Point {
+	return image.Point{}
+}
+
+func (o *Output) mode() backend.Mode {
+	return backend.Mode{Size: o.size, RefreshMHz: nominalRefreshMHz, Preferred: true}
+}
+
+func (o *Output) Modes() []backend.Mode {
+	return []backend.Mode{o.mode()}
+}
+
+func (o *Output) State() backend.OutputState {
+	return backend.OutputState{Enabled: o.configured, Mode: o.mode()}
+}
+
+func (o *Output) Commit(s backend.OutputState) error {
+	if s != o.State() {
+		return fmt.Errorf("nested: %s follows its host window; it cannot be set to %+v", o.name, s)
+	}
+	return nil
+}
+
+func (o *Output) configure(serial uint32) error {
+	if err := o.xdgSurface.AckConfigure(serial); err != nil {
+		return err
+	}
+	size := o.pending
+	if size.X <= 0 || size.Y <= 0 {
+		size = o.size
+	}
+	if size.X <= 0 || size.Y <= 0 {
+		size = defaultSize
+	}
+	if o.configured && size == o.size {
+		return nil
+	}
+	if err := o.resize(size); err != nil {
+		return err
+	}
+	if !o.configured {
+		o.configured = true
+		return o.backend.handler.OutputAdded(o)
+	}
+	return o.backend.handler.OutputChanged(o)
+}
+
+func (o *Output) resize(size image.Point) error {
+	if err := o.releaseBuffers(); err != nil {
+		return err
+	}
+	stride := size.X * 4
+	frame := stride * size.Y
+	if size.X > math.MaxInt16 || size.Y > math.MaxInt16 || 2*frame > math.MaxInt32 {
+		return fmt.Errorf("nested: host window %v is too large for shm buffers", size)
+	}
+	fd, err := unix.MemfdCreate("tilde-nested", unix.MFD_CLOEXEC)
+	if err != nil {
+		return fmt.Errorf("nested: memfd_create: %w", err)
+	}
+	defer func() { _ = unix.Close(fd) }()
+	if err := unix.Ftruncate(fd, int64(2*frame)); err != nil {
+		return fmt.Errorf("nested: size the %s buffers to %d bytes: %w", o.name, 2*frame, err)
+	}
+	if o.mapping, err = unix.Mmap(fd, 0, 2*frame, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED); err != nil {
+		return fmt.Errorf("nested: map the %s buffers: %w", o.name, err)
+	}
+	pool, err := o.backend.shm.CreatePool(fd, int32(2*frame)) //nolint:gosec // bounded by the size check above
+	if err != nil {
+		return err
+	}
+	for i := range o.buffers {
+		buf := &shmBuffer{target: &soft.Buffer{Pix: o.mapping[i*frame : (i+1)*frame], Stride: stride, W: size.X, H: size.Y}}
+		if buf.wl, err = pool.CreateBuffer(bufferEvents{o, buf}, int32(i*frame), int32(size.X), int32(size.Y), int32(stride), cw.WlShmFormatXrgb8888); err != nil { //nolint:gosec // bounded by the size check above
+			return err
+		}
+		o.buffers[i] = buf
+	}
+	o.size = size
+	return pool.Destroy()
+}
+
+func (o *Output) releaseBuffers() error {
+	var errs []error
+	for i, buf := range o.buffers {
+		if buf != nil {
+			errs = append(errs, buf.wl.Destroy())
+			o.buffers[i] = nil
+		}
+	}
+	o.drawing = nil
+	if o.mapping != nil {
+		errs = append(errs, unix.Munmap(o.mapping))
+		o.mapping = nil
+	}
+	return errors.Join(errs...)
+}
+
+func (o *Output) freeBuffer() *shmBuffer {
+	for _, buf := range o.buffers {
+		if buf != nil && !buf.busy {
+			return buf
+		}
+	}
+	return nil
+}
+
+func (o *Output) ScheduleFrame() error {
+	if !o.configured {
+		return nil
+	}
+	o.frameRequested = true
+	o.maybeFrame()
+	return nil
+}
+
+func (o *Output) maybeFrame() {
+	if !o.frameRequested || o.callbackPending || o.idleQueued || o.drawing != nil || o.freeBuffer() == nil {
+		return
+	}
+	o.idleQueued = true
+	o.backend.loop.Idle(func() error {
+		o.idleQueued = false
+		if !o.frameRequested || !o.configured || o.callbackPending || o.freeBuffer() == nil {
+			return nil
+		}
+		o.frameRequested = false
+		return o.backend.handler.Frame(o)
+	})
+}
+
+func (o *Output) BeginFrame() (render.Renderer, render.Target, error) {
+	switch {
+	case !o.configured:
+		return nil, nil, fmt.Errorf("nested: frame on %s before the host configured it", o.name)
+	case o.drawing != nil:
+		return nil, nil, fmt.Errorf("nested: %s already has a frame in progress", o.name)
+	}
+	buf := o.freeBuffer()
+	if buf == nil {
+		return nil, nil, fmt.Errorf("nested: the host holds every buffer of %s", o.name)
+	}
+	o.drawing = buf
+	return o.backend.renderer, buf.target, nil
+}
+
+func (o *Output) Present(damage render.Region) error {
+	buf := o.drawing
+	if buf == nil {
+		return fmt.Errorf("nested: present on %s without BeginFrame", o.name)
+	}
+	o.drawing = nil
+	if err := o.surface.Attach(buf.wl, 0, 0); err != nil {
+		return err
+	}
+	bounds := image.Rectangle{Max: o.size}
+	for _, r := range damage {
+		r = r.Intersect(bounds)
+		if err := o.surface.DamageBuffer(int32(r.Min.X), int32(r.Min.Y), int32(r.Dx()), int32(r.Dy())); err != nil { //nolint:gosec // clipped to the output, whose size fits int16
+			return err
+		}
+	}
+	if _, err := o.surface.Frame(callbackEvents{o}); err != nil {
+		return err
+	}
+	if err := o.surface.Commit(); err != nil {
+		return err
+	}
+	buf.busy = true
+	o.callbackPending = true
+	o.presentPending = true
+	return nil
+}
+
+func (o *Output) frameDone() error {
+	o.callbackPending = false
+	if o.presentPending {
+		o.presentPending = false
+		o.seq++
+		if err := o.backend.handler.Presented(o, backend.Presentation{Time: backend.Now(), Seq: o.seq}); err != nil {
+			return err
+		}
+	}
+	o.maybeFrame()
+	return nil
+}
+
+func (o *Output) destroy() error {
+	b := o.backend
+	i := slices.Index(b.outputs, o)
+	if i < 0 {
+		return nil
+	}
+	b.outputs = slices.Delete(b.outputs, i, i+1)
+	errs := []error{o.releaseBuffers(), o.toplevel.Destroy(), o.xdgSurface.Destroy(), o.surface.Destroy()}
+	if o.configured {
+		o.configured = false
+		errs = append(errs, b.handler.OutputRemoved(o))
+	}
+	return errors.Join(errs...)
+}
+
+type shmEvents struct{}
+
+func (shmEvents) Format(*cw.WlShm, cw.WlShmFormat) error { return nil }
+
+type wmBaseEvents struct{}
+
+func (wmBaseEvents) Ping(wm *xdg.XdgWmBase, serial uint32) error { return wm.Pong(serial) }
+
+type surfaceEvents struct{}
+
+func (surfaceEvents) Enter(*cw.WlSurface, *cw.WlOutput) error { return nil }
+
+func (surfaceEvents) Leave(*cw.WlSurface, *cw.WlOutput) error { return nil }
+
+func (surfaceEvents) PreferredBufferScale(*cw.WlSurface, int32) error { return nil }
+
+func (surfaceEvents) PreferredBufferTransform(*cw.WlSurface, cw.WlOutputTransform) error { return nil }
+
+type xdgSurfaceEvents struct{ o *Output }
+
+func (e xdgSurfaceEvents) Configure(_ *xdg.XdgSurface, serial uint32) error {
+	return e.o.configure(serial)
+}
+
+type toplevelEvents struct{ o *Output }
+
+func (e toplevelEvents) Configure(_ *xdg.XdgToplevel, width, height int32, _ []byte) error {
+	e.o.pending = image.Pt(int(width), int(height))
+	return nil
+}
+
+func (e toplevelEvents) Close(*xdg.XdgToplevel) error {
+	b := e.o.backend
+	if err := e.o.destroy(); err != nil {
+		return err
+	}
+	if len(b.outputs) == 0 {
+		return ErrClosed
+	}
+	return nil
+}
+
+func (toplevelEvents) ConfigureBounds(*xdg.XdgToplevel, int32, int32) error { return nil }
+func (toplevelEvents) WmCapabilities(*xdg.XdgToplevel, []byte) error        { return nil }
+
+type bufferEvents struct {
+	o   *Output
+	buf *shmBuffer
+}
+
+func (e bufferEvents) Release(*cw.WlBuffer) error {
+	e.buf.busy = false
+	e.o.maybeFrame()
+	return nil
+}
+
+type callbackEvents struct{ o *Output }
+
+func (e callbackEvents) Done(*cw.WlCallback, uint32) error {
+	return e.o.frameDone()
+}

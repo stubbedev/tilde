@@ -12,7 +12,7 @@ gates: fmt-check check vuln headless
 # drives real clients against it. TILDE_HEADLESS=1 turns a missing client into
 # a failure instead of a skip.
 headless:
-    TILDE_HEADLESS=1 go test -count=1 ./internal/harness/...
+    TILDE_HEADLESS=1 go test -count=1 ./internal/harness/... ./internal/backend/nested/...
 
 # Run every release gate in order: vet, lint, test, build.
 check: vet lint test build
