@@ -22,8 +22,8 @@ the config, VR, HDR.
 
 ## Pure Go
 
-No cgo. The few C libraries with no reasonable alternative (EGL, GLES2, GBM
-and libinput) are loaded at runtime with
+No cgo. The few C libraries with no reasonable alternative (EGL, GLES2, GBM,
+libinput and libxkbcommon) are loaded at runtime with
 [purego](https://github.com/ebitengine/purego); everything else is Go. See
 [`docs/architecture.md`](docs/architecture.md).
 

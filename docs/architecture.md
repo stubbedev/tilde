@@ -14,15 +14,22 @@ reasonable Go alternative exists, and then it is loaded at runtime with
 | --- | --- |
 | EGL, GLES2, GBM | `libEGL`, `libGLESv2`, `libgbm` through purego (#33) |
 | Input devices | `libinput` through purego (#42) |
+| Keymaps and keyboard state | `libxkbcommon` through purego (#13) |
 | Wayland wire protocol | in-repo codec and scanner (#3, #4) |
 | DRM/KMS ioctls, epoll, timerfd, signalfd, memfd | [`golang.org/x/sys/unix`](https://pkg.go.dev/golang.org/x/sys/unix) |
 | logind | [`github.com/godbus/dbus/v5`](https://github.com/godbus/dbus) |
 | udev | netlink, read directly (#39) |
-| Keymaps | [`github.com/unxed/xkb-go`](https://github.com/unxed/xkb-go) |
 | X11 window manager | [`github.com/jezek/xgb`](https://github.com/jezek/xgb) (#45) |
 | Text | [`github.com/go-text/typesetting`](https://github.com/go-text/typesetting), through gelm's `render` |
 
 Adding a purego library, or a dependency to this table, is a decision issue.
+
+libxkbcommon replaced xkb-go (#13): xkb-go's RMLVO compiler drops the
+compatibility section, so no key sets a modifier, and serializes keys
+with several groups in a form libxkbcommon refuses to parse. Clients read
+keymaps with libxkbcommon anyway, so the compositor compiles and serves
+them with it too. The purego libraries' paths are baked in at build time
+by the Nix package; `TILDE_LIBXKBCOMMON` overrides libxkbcommon's.
 
 ## Threading
 
@@ -74,7 +81,7 @@ Everything lives under `internal/` except the commands.
 | `region` | Pixel regions as disjoint rectangles, for damage and input and opaque regions |
 | `shm` | `wl_shm` pools and buffers, read fault-safely when a client truncates its pool (#12) |
 | `seat` | `wl_seat`, keyboard, pointer and touch (#13, #14) |
-| `xkb` | Keymap compilation and state (#13) |
+| `xkb` | Keymap compilation, sealed keymap fds and modifier state through libxkbcommon (#13) |
 | `shell` | xdg-shell and layer-shell glue between clients and `wm` (#15, #48) |
 | `wm` | The pure core and the dispatcher (#21, #66) |
 | `xwm` | The X11 window manager for XWayland (#45) |

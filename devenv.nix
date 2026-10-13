@@ -2,6 +2,7 @@
   env = {
     CGO_ENABLED = "0";
     GOTOOLCHAIN = "local";
+    TILDE_LIBXKBCOMMON = "${pkgs.libxkbcommon}/lib/libxkbcommon.so.0";
   };
 
   packages = with pkgs; [
@@ -16,6 +17,7 @@
     wayland-utils
     sway
     grim
+    libxkbcommon
   ];
 
   enterTest = ''
