@@ -151,6 +151,10 @@ func (h *Harness) Snapshot(i int) *soft.Buffer {
 	return snap
 }
 
+func (h *Harness) Socket() string {
+	return filepath.Join(h.RuntimeDir, h.display.Name())
+}
+
 func (h *Harness) Trace() string {
 	return h.trace.String()
 }

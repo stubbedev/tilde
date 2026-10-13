@@ -61,7 +61,7 @@ Everything lives under `internal/` except the commands.
 | Package | Owns |
 | --- | --- |
 | `cmd/tilde` | The compositor binary: builds the loop, server and backend, and runs them |
-| `compositor` | Connects backend events to the server and draws each output's frames; `cmd/tilde` and the harness both build on it |
+| `compositor` | Connects backend events to the server, places windows and draws each output's frames; `cmd/tilde` and the harness both build on it |
 | `cmd/tildectl` | The IPC client (#31) |
 | `wire` | The message codec and fd passing (#3), and the object runtime generated bindings build on (#4) |
 | `scanner` | Generates `protocol/{server,client}/...` from the XML pinned in `protocol/protocols.json` (#4) |
@@ -89,6 +89,8 @@ Everything lives under `internal/` except the commands.
 | `ipc` | The IPC socket and event stream (#31) |
 | `session` | logind, udev and libinput: device access, hotplug and VT switching (#38, #39, #42) |
 | `harness` | The compositor-in-the-loop harness (#10) |
+| `testclient` | A scripted Wayland client that maps toplevels and animates shm frames, for integration tests |
+| `testenv` | Whether a test skips or fails when a dev-shell tool or library is missing |
 | `golden` | Golden-image comparison for software-rendered frames |
 
 Dependencies point inward: `wm` imports nothing from tilde; `wire` and

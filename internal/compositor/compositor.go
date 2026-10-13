@@ -3,8 +3,8 @@
 package compositor
 
 import (
+	"errors"
 	"fmt"
-	"image"
 	"slices"
 
 	"github.com/stubbedev/tilde/internal/backend"
@@ -29,23 +29,19 @@ func DefaultConfig(keymap *xkb.Keymap) Config {
 }
 
 type Compositor struct {
-	outputs   []backend.Output
-	renderer  render.Renderer
-	surfaces  *surface.Manager
-	shm       *shm.Manager
-	seat      *seat.Seat
-	shell     *shell.Shell
-	textures  map[*surface.Surface]*texture
-	toplevels []*shell.Toplevel
-}
-
-type texture struct {
-	tex    render.Texture
-	format render.Format
+	outputs  []backend.Output
+	renderer render.Renderer
+	surfaces *surface.Manager
+	shm      *shm.Manager
+	seat     *seat.Seat
+	shell    *shell.Shell
+	textures map[*surface.Surface]*texture
+	windows  []*window
+	shown    map[backend.Output][]*surface.Surface
 }
 
 func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (*Compositor, error) {
-	c := &Compositor{renderer: b.Renderer(), textures: map[*surface.Surface]*texture{}}
+	c := &Compositor{renderer: b.Renderer(), textures: map[*surface.Surface]*texture{}, shown: map[backend.Output][]*surface.Surface{}}
 	var err error
 	if c.surfaces, err = surface.New(display, c); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
@@ -66,12 +62,33 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 	return c, nil
 }
 
+func (c *Compositor) Close() {
+	c.seat.Close()
+}
+
+func (c *Compositor) Seat() *seat.Seat {
+	return c.seat
+}
+
 func (c *Compositor) Outputs() []backend.Output {
 	return slices.Clone(c.outputs)
 }
 
+func (c *Compositor) scheduleAll() error {
+	var errs []error
+	for _, o := range c.outputs {
+		if err := o.ScheduleFrame(); err != nil {
+			errs = append(errs, fmt.Errorf("compositor: schedule a frame on %s: %w", o.Name(), err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
 func (c *Compositor) OutputAdded(o backend.Output) error {
 	c.outputs = append(c.outputs, o)
+	if err := c.adoptWindows(o); err != nil {
+		return err
+	}
 	if err := o.ScheduleFrame(); err != nil {
 		return fmt.Errorf("compositor: first frame on %s: %w", o.Name(), err)
 	}
@@ -79,52 +96,27 @@ func (c *Compositor) OutputAdded(o backend.Output) error {
 }
 
 func (c *Compositor) OutputRemoved(o backend.Output) error {
-	if i := slices.Index(c.outputs, o); i >= 0 {
-		c.outputs = slices.Delete(c.outputs, i, i+1)
+	c.outputs = slices.DeleteFunc(c.outputs, func(x backend.Output) bool { return x == o })
+	delete(c.shown, o)
+	for _, w := range c.windows {
+		if w.output == o {
+			w.output = nil
+		}
 	}
-	return nil
+	if len(c.outputs) == 0 {
+		return nil
+	}
+	return c.adoptWindows(c.outputs[0])
 }
 
 func (c *Compositor) OutputChanged(o backend.Output) error {
+	if err := c.refit(o); err != nil {
+		return err
+	}
 	if err := o.ScheduleFrame(); err != nil {
 		return fmt.Errorf("compositor: frame after %s changed: %w", o.Name(), err)
 	}
 	return nil
-}
-
-func (c *Compositor) Frame(o backend.Output) error {
-	if err := c.render(o); err != nil {
-		return fmt.Errorf("compositor: frame on %s: %w", o.Name(), err)
-	}
-	return nil
-}
-
-func (c *Compositor) render(o backend.Output) error {
-	r, target, err := o.BeginFrame()
-	if err != nil {
-		return err
-	}
-	whole := image.Rectangle{Max: target.Size()}
-	damage := render.Region{whole}
-	pass, err := r.Begin(target, damage)
-	if err != nil {
-		return err
-	}
-	pass.FillRect(whole, Background)
-	if err := pass.End(); err != nil {
-		return err
-	}
-	return o.Present(damage)
-}
-
-func (c *Compositor) Presented(backend.Output, backend.Presentation) error { return nil }
-
-func (c *Compositor) Close() {
-	c.seat.Close()
-}
-
-func (c *Compositor) Seat() *seat.Seat {
-	return c.seat
 }
 
 func (c *Compositor) DeviceAdded(d backend.Device) error {
@@ -147,86 +139,3 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 	}
 	return nil
 }
-
-func (c *Compositor) Committed(s *surface.Surface) error {
-	if !s.Attached() {
-		return nil
-	}
-	switch b := s.Buffer().(type) {
-	case nil:
-		c.dropTexture(s)
-		return nil
-	case *shm.Buffer:
-		if err := c.upload(s, b); err != nil {
-			return err
-		}
-		return b.Release()
-	default:
-		return fmt.Errorf("compositor: no upload path for buffers of type %T", b)
-	}
-}
-
-func (c *Compositor) upload(s *surface.Surface, b *shm.Buffer) error {
-	t := c.textures[s]
-	return b.Read(func(data []byte, stride int) error {
-		if t != nil && t.format == b.Format() && t.tex.Size() == b.Size() {
-			return t.tex.Update(stride, data, s.BufferDamage().Rects())
-		}
-		tex, err := c.renderer.NewTexture(b.Format(), b.Size(), stride, data)
-		if err != nil {
-			return fmt.Errorf("compositor: upload wl_surface@%d: %w", s.Resource().Base().ID(), err)
-		}
-		c.dropTexture(s)
-		c.textures[s] = &texture{tex: tex, format: b.Format()}
-		return nil
-	})
-}
-
-func (c *Compositor) dropTexture(s *surface.Surface) {
-	if t, ok := c.textures[s]; ok {
-		t.tex.Destroy()
-		delete(c.textures, s)
-	}
-}
-
-func (c *Compositor) Texture(s *surface.Surface) render.Texture {
-	if t, ok := c.textures[s]; ok {
-		return t.tex
-	}
-	return nil
-}
-
-func (c *Compositor) Destroyed(s *surface.Surface) {
-	c.seat.SurfaceDestroyed(s)
-	c.dropTexture(s)
-}
-
-func (c *Compositor) Toplevels() []*shell.Toplevel {
-	return slices.Clone(c.toplevels)
-}
-
-func (c *Compositor) ToplevelInitialCommit(*shell.Toplevel) error { return nil }
-
-func (c *Compositor) ToplevelMapped(t *shell.Toplevel) error {
-	c.toplevels = append(c.toplevels, t)
-	return c.seat.SetKeyboardFocus(t.Surface())
-}
-
-func (c *Compositor) ToplevelUnmapped(t *shell.Toplevel) error {
-	c.toplevels = slices.DeleteFunc(c.toplevels, func(x *shell.Toplevel) bool { return x == t })
-	if c.seat.Focus() != t.Surface() {
-		return nil
-	}
-	if n := len(c.toplevels); n > 0 {
-		return c.seat.SetKeyboardFocus(c.toplevels[n-1].Surface())
-	}
-	return c.seat.SetKeyboardFocus(nil)
-}
-
-func (c *Compositor) ToplevelCommitted(*shell.Toplevel) error { return nil }
-
-func (c *Compositor) ToplevelChanged(*shell.Toplevel, shell.Change) error { return nil }
-
-func (c *Compositor) ToplevelRequest(*shell.Toplevel, shell.Request) error { return nil }
-
-func (c *Compositor) ClientResponsive(*server.Client, bool) error { return nil }
