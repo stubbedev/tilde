@@ -229,7 +229,8 @@ func TestPointerEventsAreNormalisedToTheOutput(t *testing.T) {
 	p := pointerEvents{&Pointer{backend: b, value120: map[cw.WlPointerAxis]int32{}}}
 	for _, err := range []error{
 		p.Motion(nil, 0, fixed(10), fixed(10)),
-		p.Enter(nil, 0, o.surface, fixed(50), fixed(25)),
+		func() error { p.output = o; return nil }(),
+		p.Motion(nil, 0, fixed(50), fixed(25)),
 		p.Button(nil, 0, 0, 272, cw.WlPointerButtonStatePressed),
 		p.AxisSource(nil, cw.WlPointerAxisSourceFinger),
 		p.AxisValue120(nil, cw.WlPointerAxisVerticalScroll, 120),
@@ -247,7 +248,7 @@ func TestPointerEventsAreNormalisedToTheOutput(t *testing.T) {
 		t.Fatalf("events = %#v, want motion, button, axis, frame, axis", r.events)
 	}
 	if m := r.events[0].(backend.PointerMotionAbsolute); m.Output != o || m.X != 0.25 || m.Y != 0.25 {
-		t.Errorf("enter = %+v, want (0.25, 0.25) on the output", m)
+		t.Errorf("motion = %+v, want (0.25, 0.25) on the output", m)
 	}
 	if bt := r.events[1].(backend.PointerButton); bt.Button != 272 || !bt.Pressed {
 		t.Errorf("button = %+v", bt)

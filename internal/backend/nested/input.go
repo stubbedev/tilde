@@ -191,8 +191,11 @@ func (p pointerEvents) motion(x, y wire.Fixed) error {
 	return p.backend.emit(p.Pointer, backend.PointerMotionAbsolute{Time: backend.Now(), Output: o, X: x.Float() / float64(o.size.X), Y: y.Float() / float64(o.size.Y)})
 }
 
-func (p pointerEvents) Enter(_ *cw.WlPointer, _ uint32, surface *cw.WlSurface, x, y wire.Fixed) error {
+func (p pointerEvents) Enter(wl *cw.WlPointer, serial uint32, surface *cw.WlSurface, x, y wire.Fixed) error {
 	p.output = p.backend.outputFor(surface)
+	if err := wl.SetCursor(serial, nil, 0, 0); err != nil {
+		return fmt.Errorf("nested: hide the host cursor: %w", err)
+	}
 	return p.motion(x, y)
 }
 
