@@ -185,6 +185,10 @@ func (b *Backend) Start(h backend.Handler) error {
 	return err
 }
 
+func (b *Backend) Renderer() render.Renderer {
+	return b.renderer
+}
+
 func (b *Backend) devices() []backend.Device {
 	var out []backend.Device
 	if b.keyboard != nil {

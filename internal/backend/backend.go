@@ -22,6 +22,7 @@ func Now() time.Duration {
 
 type Backend interface {
 	Start(h Handler) error
+	Renderer() render.Renderer
 	Close() error
 }
 

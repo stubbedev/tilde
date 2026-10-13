@@ -53,6 +53,10 @@ func (b *Backend) Start(h backend.Handler) error {
 	return nil
 }
 
+func (b *Backend) Renderer() render.Renderer {
+	return b.renderer
+}
+
 func (b *Backend) devices() []backend.Device {
 	return []backend.Device{b.keyboard, b.pointer, b.touch}
 }
