@@ -86,10 +86,12 @@ type Target interface {
 
 type Texture interface {
 	Size() image.Point
+	Update(stride int, data []byte, damage Region) error
 	Destroy()
 }
 
 type Renderer interface {
+	Formats() []Format
 	NewTexture(format Format, size image.Point, stride int, data []byte) (Texture, error)
 	Begin(target Target, damage Region) (Pass, error)
 }

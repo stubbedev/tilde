@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	"math"
+	"slices"
 
 	"github.com/stubbedev/tilde/internal/render"
 )
@@ -40,6 +41,36 @@ func (t *texture) Size() image.Point {
 	return t.size
 }
 
+func fits(size image.Point, stride int, data []byte) error {
+	if size.X <= 0 || size.Y <= 0 || stride < size.X*4 || len(data) < stride*(size.Y-1)+size.X*4 {
+		return fmt.Errorf("soft: %v pixels with stride %d do not fit %d bytes", size, stride, len(data))
+	}
+	return nil
+}
+
+func (t *texture) Update(stride int, data []byte, damage render.Region) error {
+	if t.pix == nil {
+		return errors.New("soft: update of a destroyed texture")
+	}
+	if err := fits(t.size, stride, data); err != nil {
+		return err
+	}
+	bounds := image.Rectangle{Max: t.size}
+	for _, r := range damage {
+		r = r.Intersect(bounds)
+		for y := r.Min.Y; y < r.Max.Y; y++ {
+			row := t.pix[y*t.stride+r.Min.X*4 : y*t.stride+r.Max.X*4]
+			copy(row, data[y*stride+r.Min.X*4:])
+			if t.opaque {
+				for i := 3; i < len(row); i += 4 {
+					row[i] = 0xff
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func (t *texture) Destroy() {
 	t.pix = nil
 }
@@ -54,23 +85,20 @@ func New() *Renderer {
 	return r
 }
 
+func (r *Renderer) Formats() []render.Format {
+	return []render.Format{render.ARGB8888, render.XRGB8888}
+}
+
 func (r *Renderer) NewTexture(format render.Format, size image.Point, stride int, data []byte) (render.Texture, error) {
-	if size.X <= 0 || size.Y <= 0 || stride < size.X*4 || len(data) < stride*(size.Y-1)+size.X*4 {
-		return nil, fmt.Errorf("soft: texture %v with stride %d does not fit %d bytes", size, stride, len(data))
-	}
-	t := &texture{owner: r, pix: make([]byte, size.X*size.Y*4), stride: size.X * 4, size: size}
-	for y := range size.Y {
-		copy(t.pix[y*t.stride:(y+1)*t.stride], data[y*stride:])
-	}
-	switch format {
-	case render.ARGB8888:
-	case render.XRGB8888:
-		t.opaque = true
-		for i := 3; i < len(t.pix); i += 4 {
-			t.pix[i] = 0xff
-		}
-	default:
+	if !slices.Contains(r.Formats(), format) {
 		return nil, fmt.Errorf("soft: unsupported texture format %d", format)
+	}
+	if err := fits(size, stride, data); err != nil {
+		return nil, err
+	}
+	t := &texture{owner: r, pix: make([]byte, size.X*size.Y*4), stride: size.X * 4, size: size, opaque: format == render.XRGB8888}
+	if err := t.Update(stride, data, render.Region{image.Rectangle{Max: size}}); err != nil {
+		return nil, err
 	}
 	return t, nil
 }

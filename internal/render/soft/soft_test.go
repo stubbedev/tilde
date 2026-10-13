@@ -129,6 +129,29 @@ func TestTextureAlphaAndFormats(t *testing.T) {
 	}
 }
 
+func TestTextureUpdateCopiesOnlyDamage(t *testing.T) {
+	r := soft.New()
+	tex := newTex(t, r, render.XRGB8888, 2, 1, red, red)
+	fresh := []byte{0xff, 0, 0, 0, 0xff, 0, 0, 0}
+	if err := tex.Update(8, fresh, render.Region{image.Rect(1, 0, 2, 1)}); err != nil {
+		t.Fatal(err)
+	}
+	b := soft.NewBuffer(2, 1)
+	frame(t, r, b, full(b), func(p render.Pass) {
+		p.DrawTexture(tex, render.FRect{W: 2, H: 1}, bounds(b), render.Normal, 1)
+	})
+	if got := [2][4]byte{at(b, 0, 0), at(b, 1, 0)}; got != [2][4]byte{red, blue} {
+		t.Fatalf("pixels %v: only the damaged pixel should change, and XRGB stays opaque", got)
+	}
+	if err := tex.Update(4, fresh, nil); err == nil {
+		t.Fatal("an update with a short stride was accepted")
+	}
+	tex.Destroy()
+	if err := tex.Update(8, fresh, nil); err == nil {
+		t.Fatal("an update of a destroyed texture was accepted")
+	}
+}
+
 func TestInvalidDrawsFailAtEnd(t *testing.T) {
 	r := soft.New()
 	other := newTex(t, soft.New(), render.ARGB8888, 1, 1, red)
