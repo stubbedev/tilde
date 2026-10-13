@@ -147,7 +147,7 @@ func TestNestedInSway(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer display.Close()
-	comp, err := compositor.New(display, b, compositor.DefaultConfig(testenv.Keymap(t)))
+	comp, err := compositor.New(l, display, b, compositor.DefaultConfig(testenv.Keymap(t)))
 	if err != nil {
 		t.Fatal(err)
 	}

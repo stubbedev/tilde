@@ -8,9 +8,11 @@ import (
 	"slices"
 
 	"github.com/stubbedev/tilde/internal/backend"
+	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/seat"
 	"github.com/stubbedev/tilde/internal/server"
+	"github.com/stubbedev/tilde/internal/shell"
 	"github.com/stubbedev/tilde/internal/shm"
 	"github.com/stubbedev/tilde/internal/surface"
 	"github.com/stubbedev/tilde/internal/xkb"
@@ -27,12 +29,14 @@ func DefaultConfig(keymap *xkb.Keymap) Config {
 }
 
 type Compositor struct {
-	outputs  []backend.Output
-	renderer render.Renderer
-	surfaces *surface.Manager
-	shm      *shm.Manager
-	seat     *seat.Seat
-	textures map[*surface.Surface]*texture
+	outputs   []backend.Output
+	renderer  render.Renderer
+	surfaces  *surface.Manager
+	shm       *shm.Manager
+	seat      *seat.Seat
+	shell     *shell.Shell
+	textures  map[*surface.Surface]*texture
+	toplevels []*shell.Toplevel
 }
 
 type texture struct {
@@ -40,7 +44,7 @@ type texture struct {
 	format render.Format
 }
 
-func New(display *server.Display, b backend.Backend, cfg Config) (*Compositor, error) {
+func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (*Compositor, error) {
 	c := &Compositor{renderer: b.Renderer(), textures: map[*surface.Surface]*texture{}}
 	var err error
 	if c.surfaces, err = surface.New(display, c); err != nil {
@@ -50,6 +54,10 @@ func New(display *server.Display, b backend.Backend, cfg Config) (*Compositor, e
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.seat, err = seat.New(display, cfg.Seat); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
+	if c.shell, err = shell.New(display, l, c); err != nil {
+		c.seat.Close()
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if err := b.Start(c); err != nil {
@@ -192,3 +200,33 @@ func (c *Compositor) Destroyed(s *surface.Surface) {
 	c.seat.SurfaceDestroyed(s)
 	c.dropTexture(s)
 }
+
+func (c *Compositor) Toplevels() []*shell.Toplevel {
+	return slices.Clone(c.toplevels)
+}
+
+func (c *Compositor) ToplevelInitialCommit(*shell.Toplevel) error { return nil }
+
+func (c *Compositor) ToplevelMapped(t *shell.Toplevel) error {
+	c.toplevels = append(c.toplevels, t)
+	return c.seat.SetKeyboardFocus(t.Surface())
+}
+
+func (c *Compositor) ToplevelUnmapped(t *shell.Toplevel) error {
+	c.toplevels = slices.DeleteFunc(c.toplevels, func(x *shell.Toplevel) bool { return x == t })
+	if c.seat.Focus() != t.Surface() {
+		return nil
+	}
+	if n := len(c.toplevels); n > 0 {
+		return c.seat.SetKeyboardFocus(c.toplevels[n-1].Surface())
+	}
+	return c.seat.SetKeyboardFocus(nil)
+}
+
+func (c *Compositor) ToplevelCommitted(*shell.Toplevel) error { return nil }
+
+func (c *Compositor) ToplevelChanged(*shell.Toplevel, shell.Change) error { return nil }
+
+func (c *Compositor) ToplevelRequest(*shell.Toplevel, shell.Request) error { return nil }
+
+func (c *Compositor) ClientResponsive(*server.Client, bool) error { return nil }

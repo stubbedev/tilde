@@ -111,7 +111,7 @@ func run() (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, keymap.Close()) }()
-	comp, err := compositor.New(display, b, compositor.DefaultConfig(keymap))
+	comp, err := compositor.New(l, display, b, compositor.DefaultConfig(keymap))
 	if err != nil {
 		return err
 	}
