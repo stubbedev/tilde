@@ -10,7 +10,11 @@ import (
 	"time"
 
 	"github.com/stubbedev/tilde/internal/loop"
+	cfs "github.com/stubbedev/tilde/internal/protocol/client/fractionalscale"
+	cvp "github.com/stubbedev/tilde/internal/protocol/client/viewporter"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
+	sfs "github.com/stubbedev/tilde/internal/protocol/server/fractionalscale"
+	svp "github.com/stubbedev/tilde/internal/protocol/server/viewporter"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	"github.com/stubbedev/tilde/internal/region"
 	"github.com/stubbedev/tilde/internal/render"
@@ -52,14 +56,16 @@ func (r *recorder) Destroyed(s *Surface) {
 }
 
 type env struct {
-	t       *testing.T
-	loop    *loop.Loop
-	disp    *server.Display
-	rec     *recorder
-	done    chan error
-	client  *wlclient.Display
-	comp    *cw.WlCompositor
-	subcomp *cw.WlSubcompositor
+	t          *testing.T
+	loop       *loop.Loop
+	disp       *server.Display
+	rec        *recorder
+	done       chan error
+	client     *wlclient.Display
+	comp       *cw.WlCompositor
+	subcomp    *cw.WlSubcompositor
+	viewporter *cvp.WpViewporter
+	fractional *cfs.WpFractionalScaleManagerV1
 }
 
 type registry map[string]uint32
@@ -114,7 +120,14 @@ func setup(t *testing.T, compositorVersion uint32) *env {
 	if e.subcomp, err = cw.NewWlSubcompositor(e.client, 1); err != nil {
 		t.Fatal(err)
 	}
-	if err := errors.Join(reg.Bind(globals["wl_compositor"], e.comp), reg.Bind(globals["wl_subcompositor"], e.subcomp)); err != nil {
+	if e.viewporter, err = cvp.NewWpViewporter(e.client, 1); err != nil {
+		t.Fatal(err)
+	}
+	if e.fractional, err = cfs.NewWpFractionalScaleManagerV1(e.client, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := errors.Join(reg.Bind(globals["wl_compositor"], e.comp), reg.Bind(globals["wl_subcompositor"], e.subcomp),
+		reg.Bind(globals["wp_viewporter"], e.viewporter), reg.Bind(globals["wp_fractional_scale_manager_v1"], e.fractional)); err != nil {
 		t.Fatal(err)
 	}
 	e.roundtrip()
@@ -544,4 +557,124 @@ func TestRolesAreExclusive(t *testing.T) {
 			t.Errorf("the same role after its object died: %v", err)
 		}
 	})
+}
+
+func fx(v float64) wire.Fixed { return wire.FixedFromFloat(v) }
+
+func TestViewportSizesTheSurface(t *testing.T) {
+	e := setup(t, 6)
+	s := e.surface()
+	vp, err := e.viewporter.GetViewport(s)
+	must(t, err, s.Attach(e.buffer(40, 20), 0, 0), vp.SetDestination(80, 30), s.Commit())
+	e.roundtrip()
+	if c := e.last(s); c.size != image.Pt(80, 30) {
+		t.Fatalf("size %v, want the 80x30 destination", c.size)
+	}
+	must(t, vp.SetSource(fx(10), fx(5), fx(20), fx(10)), vp.SetDestination(-1, -1), s.Commit())
+	e.roundtrip()
+	c := e.last(s)
+	if c.size != image.Pt(20, 10) {
+		t.Fatalf("size %v, want the integral 20x10 source", c.size)
+	}
+	if got := c.s.BufferSource(); got != (render.FRect{X: 10, Y: 5, W: 20, H: 10}) {
+		t.Fatalf("buffer source %+v", got)
+	}
+	must(t, vp.Destroy(), s.Commit())
+	e.roundtrip()
+	if c := e.last(s); c.size != image.Pt(40, 20) {
+		t.Fatalf("size %v after the viewport went away, want the buffer size", c.size)
+	}
+}
+
+func TestViewportErrors(t *testing.T) {
+	cases := []struct {
+		name string
+		do   func(e *env, s *cw.WlSurface, vp *cvp.WpViewport) error
+		code uint32
+	}{
+		{"zero destination", func(_ *env, _ *cw.WlSurface, vp *cvp.WpViewport) error { return vp.SetDestination(0, 5) }, uint32(svp.WpViewportErrorBadValue)},
+		{"negative source", func(_ *env, _ *cw.WlSurface, vp *cvp.WpViewport) error {
+			return vp.SetSource(fx(-2), fx(0), fx(1), fx(1))
+		}, uint32(svp.WpViewportErrorBadValue)},
+		{"fractional source without destination", func(e *env, s *cw.WlSurface, vp *cvp.WpViewport) error {
+			return errors.Join(s.Attach(e.buffer(10, 10), 0, 0), vp.SetSource(fx(0), fx(0), fx(2.5), fx(2)), s.Commit())
+		}, uint32(svp.WpViewportErrorBadSize)},
+		{"source outside the buffer", func(e *env, s *cw.WlSurface, vp *cvp.WpViewport) error {
+			return errors.Join(s.Attach(e.buffer(10, 10), 0, 0), vp.SetSource(fx(5), fx(5), fx(6), fx(5)), s.Commit())
+		}, uint32(svp.WpViewportErrorOutOfBuffer)},
+		{"surface destroyed", func(_ *env, s *cw.WlSurface, vp *cvp.WpViewport) error {
+			return errors.Join(s.Destroy(), vp.SetDestination(5, 5))
+		}, uint32(svp.WpViewportErrorNoSurface)},
+		{"second viewport", func(e *env, s *cw.WlSurface, _ *cvp.WpViewport) error {
+			_, err := e.viewporter.GetViewport(s)
+			return err
+		}, uint32(svp.WpViewporterErrorViewportExists)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			e := setup(t, 6)
+			s := e.surface()
+			vp, err := e.viewporter.GetViewport(s)
+			must(t, err, c.do(e, s, vp))
+			e.protocolError(c.code)
+		})
+	}
+}
+
+type scaleEvents struct{ preferred []uint32 }
+
+func (f *scaleEvents) PreferredScale(_ *cfs.WpFractionalScaleV1, scale uint32) error {
+	f.preferred = append(f.preferred, scale)
+	return nil
+}
+
+type bufferScale struct {
+	cw.WlSurfaceHandler
+	scales []int32
+}
+
+func (b *bufferScale) PreferredBufferScale(_ *cw.WlSurface, factor int32) error {
+	b.scales = append(b.scales, factor)
+	return nil
+}
+
+func TestPreferredScale(t *testing.T) {
+	e := setup(t, 6)
+	bs := &bufferScale{}
+	s, err := e.comp.CreateSurface(bs)
+	must(t, err)
+	fs := &scaleEvents{}
+	_, err = e.fractional.GetFractionalScale(fs, s)
+	must(t, err, s.Commit())
+	e.roundtrip()
+	e.on(func() {
+		surf := e.rec.commits[0].s
+		for _, scale := range []uint32{180, 180, 120} {
+			if err := surf.SetPreferredScale(scale); err != nil {
+				t.Error(err)
+			}
+		}
+	})
+	e.roundtrip()
+	if !slices.Equal(fs.preferred, []uint32{180, 120}) || !slices.Equal(bs.scales, []int32{2, 1}) {
+		t.Fatalf("fractional %v, integer %v; want 180 then 120, and 2 then 1, without repeats", fs.preferred, bs.scales)
+	}
+	late := &scaleEvents{}
+	other, err := e.comp.CreateSurface(&bufferScale{})
+	must(t, err, other.Commit())
+	e.roundtrip()
+	e.on(func() {
+		if err := find(t, e.rec.commits, other).s.SetPreferredScale(240); err != nil {
+			t.Error(err)
+		}
+	})
+	_, err = e.fractional.GetFractionalScale(late, other)
+	must(t, err)
+	e.roundtrip()
+	if !slices.Equal(late.preferred, []uint32{240}) {
+		t.Fatalf("a fractional object created after the preference got %v", late.preferred)
+	}
+	_, err = e.fractional.GetFractionalScale(&scaleEvents{}, s)
+	must(t, err)
+	e.protocolError(uint32(sfs.WpFractionalScaleManagerV1ErrorFractionalScaleExists))
 }

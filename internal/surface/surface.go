@@ -8,6 +8,8 @@ import (
 	"image"
 	"slices"
 
+	sfs "github.com/stubbedev/tilde/internal/protocol/server/fractionalscale"
+	svp "github.com/stubbedev/tilde/internal/protocol/server/viewporter"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	"github.com/stubbedev/tilde/internal/region"
 	"github.com/stubbedev/tilde/internal/render"
@@ -44,6 +46,12 @@ func New(d *server.Display, l Listener) (*Manager, error) {
 		return nil, err
 	}
 	if _, err := d.AddGlobal(sw.WlSubcompositorInterface, subcompositorVersion, m.bindSubcompositor); err != nil {
+		return nil, err
+	}
+	if _, err := d.AddGlobal(svp.WpViewporterInterface, viewporterVersion, bindViewporter); err != nil {
+		return nil, err
+	}
+	if _, err := d.AddGlobal(sfs.WpFractionalScaleManagerV1Interface, fractionalVersion, bindFractional); err != nil {
 		return nil, err
 	}
 	return m, nil
@@ -123,6 +131,8 @@ const (
 	fieldTransform
 	fieldOpaque
 	fieldInput
+	fieldSource
+	fieldDest
 )
 
 type state struct {
@@ -136,6 +146,10 @@ type state struct {
 	opaque        region.Region
 	input         region.Region
 	inputInfinite bool
+	source        render.FRect
+	hasSource     bool
+	dest          image.Point
+	hasDest       bool
 	frames        []*sw.WlCallback
 }
 
@@ -157,6 +171,12 @@ func (dst *state) merge(src *state) {
 	}
 	if src.set&fieldInput != 0 {
 		dst.input, dst.inputInfinite = src.input, src.inputInfinite
+	}
+	if src.set&fieldSource != 0 {
+		dst.source, dst.hasSource = src.source, src.hasSource
+	}
+	if src.set&fieldDest != 0 {
+		dst.dest, dst.hasDest = src.dest, src.hasDest
 	}
 	dst.set |= src.set
 	dst.damage = dst.damage.Union(src.damage)
@@ -182,6 +202,9 @@ type Surface struct {
 	sub          *Subsurface
 	order        []*Surface
 	pendingOrder []*Surface
+	viewport     *viewport
+	fractional   *fractional
+	preferred    uint32
 	destroyed    bool
 }
 
@@ -213,12 +236,37 @@ func (s *Surface) Transform() render.Transform {
 	return s.current.transform
 }
 
-func (s *Surface) Size() image.Point {
-	if s.current.buffer == nil {
-		return image.Point{}
+func (s *Surface) geometry(over ...*state) geometry {
+	g := geometry{
+		buffer: s.current.buffer, scale: s.current.scale, transform: s.current.transform,
+		source: s.current.source, hasSource: s.current.hasSource, dest: s.current.dest, hasDest: s.current.hasDest,
 	}
-	size := s.current.transform.Size(s.current.buffer.Size())
-	return image.Pt(size.X/int(s.current.scale), size.Y/int(s.current.scale))
+	for _, st := range over {
+		if st.set&fieldBuffer != 0 {
+			g.buffer = st.buffer
+		}
+		if st.set&fieldScale != 0 {
+			g.scale = st.scale
+		}
+		if st.set&fieldTransform != 0 {
+			g.transform = st.transform
+		}
+		if st.set&fieldSource != 0 {
+			g.source, g.hasSource = st.source, st.hasSource
+		}
+		if st.set&fieldDest != 0 {
+			g.dest, g.hasDest = st.dest, st.hasDest
+		}
+	}
+	return g
+}
+
+func (s *Surface) Size() image.Point {
+	return s.geometry().size()
+}
+
+func (s *Surface) BufferSource() render.FRect {
+	return s.geometry().bufferSource()
 }
 
 func (s *Surface) Damage() region.Region {
@@ -278,6 +326,40 @@ func (s *Surface) ClearRole(r Role) {
 	}
 }
 
+func (s *Surface) Enter(outputs []*sw.WlOutput) error {
+	for _, o := range outputs {
+		if err := s.resource.SendEnter(o); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Surface) Leave(outputs []*sw.WlOutput) error {
+	for _, o := range outputs {
+		if err := s.resource.SendLeave(o); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Surface) SetPreferredScale(scale120 uint32) error {
+	if scale120 == 0 || scale120 == s.preferred || s.destroyed {
+		return nil
+	}
+	s.preferred = scale120
+	if s.fractional != nil {
+		if err := s.fractional.resource.SendPreferredScale(scale120); err != nil {
+			return err
+		}
+	}
+	if s.resource.Base().Version() >= 6 {
+		return s.resource.SendPreferredBufferScale(int32((scale120 + 119) / 120)) //nolint:gosec // at most 2^32/120
+	}
+	return nil
+}
+
 func (s *Surface) FrameDone(msec uint32) error {
 	frames := s.current.frames
 	s.current.frames = nil
@@ -298,26 +380,17 @@ func (s *Surface) protocolError(code sw.WlSurfaceError, format string, args ...a
 }
 
 func (s *Surface) checkSize() error {
-	buffer, scale, transform := s.current.buffer, s.current.scale, s.current.transform
-	for _, st := range []*state{&s.cache, &s.pending} {
-		if st.set&fieldBuffer != 0 {
-			buffer = st.buffer
-		}
-		if st.set&fieldScale != 0 {
-			scale = st.scale
-		}
-		if st.set&fieldTransform != 0 {
-			transform = st.transform
-		}
+	g := s.geometry(&s.cache, &s.pending)
+	err := g.validate()
+	switch {
+	case errors.Is(err, errInvalidSize):
+		return s.protocolError(sw.WlSurfaceErrorInvalidSize, "buffer %v is not a multiple of scale %d", g.buffer.Size(), g.scale)
+	case errors.Is(err, errBadSize):
+		return s.viewport.badSize(g.source)
+	case errors.Is(err, errOutOfBuffer):
+		return s.viewport.outOfBuffer(g.source, g.unscaled())
 	}
-	if buffer == nil {
-		return nil
-	}
-	size := transform.Size(buffer.Size())
-	if size.X%int(scale) != 0 || size.Y%int(scale) != 0 {
-		return s.protocolError(sw.WlSurfaceErrorInvalidSize, "buffer %v is not a multiple of scale %d", buffer.Size(), scale)
-	}
-	return nil
+	return err
 }
 
 func (s *Surface) commit() error {
@@ -372,35 +445,12 @@ func (s *Surface) applyCache() error {
 }
 
 func (s *Surface) mapDamage(st *state) (surface, buffer region.Region) {
-	b, scale, transform := s.current.buffer, s.current.scale, s.current.transform
-	if st.set&fieldBuffer != 0 {
-		b = st.buffer
-	}
-	if st.set&fieldScale != 0 {
-		scale = st.scale
-	}
-	if st.set&fieldTransform != 0 {
-		transform = st.transform
-	}
-	if b == nil {
+	g := s.geometry(st)
+	if g.buffer == nil {
 		return st.damage, region.Region{}
 	}
-	size := b.Size()
-	bounds := image.Rectangle{Max: size}
-	k := int(scale)
-	toSurface := func(r image.Rectangle) image.Rectangle {
-		r = transform.Invert().Rect(r.Intersect(bounds), size)
-		return image.Rect(r.Min.X/k, r.Min.Y/k, ceilDiv(r.Max.X, k), ceilDiv(r.Max.Y, k))
-	}
-	toBuffer := func(r image.Rectangle) image.Rectangle {
-		r = image.Rectangle{Min: r.Min.Mul(k), Max: r.Max.Mul(k)}
-		return transform.Rect(r, transform.Invert().Size(size)).Intersect(bounds)
-	}
-	return st.damage.Union(st.bufferDamage.Map(toSurface)), st.bufferDamage.Intersect(bounds).Union(st.damage.Map(toBuffer))
-}
-
-func ceilDiv(a, b int) int {
-	return (a + b - 1) / b
+	bounds := image.Rectangle{Max: g.buffer.Size()}
+	return st.damage.Union(st.bufferDamage.Map(g.toSurface)), st.bufferDamage.Intersect(bounds).Union(st.damage.Map(g.toBuffer))
 }
 
 func (s *Surface) destroy() {
