@@ -24,12 +24,14 @@ type Axis struct {
 type Cursor struct {
 	client  *server.Client
 	surface *surface.Surface
+	shape   string
 	hotspot image.Point
 	set     bool
 }
 
 func (c Cursor) Set() bool                 { return c.set }
 func (c Cursor) Surface() *surface.Surface { return c.surface }
+func (c Cursor) Shape() string             { return c.shape }
 func (c Cursor) Hotspot() image.Point      { return c.hotspot }
 
 type pointerState struct {
@@ -37,6 +39,10 @@ type pointerState struct {
 	enterSerial uint32
 	buttons     []uint32
 	cursor      Cursor
+}
+
+func (s *Seat) HasPointer() bool {
+	return s.devices[sw.WlSeatCapabilityPointer] > 0
 }
 
 func (s *Seat) PointerFocus() *surface.Surface {
@@ -219,7 +225,7 @@ func (r pointerRequests) SetCursor(obj *sw.WlPointer, serial uint32, wl *sw.WlSu
 		cur.surface = sf
 	}
 	s.pointer.cursor = cur
-	return nil
+	return s.listener.CursorChanged()
 }
 
 func (r pointerRequests) Release(*sw.WlPointer) error {

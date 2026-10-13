@@ -11,6 +11,7 @@ type Input struct {
 	Log      []string
 	Surfaces map[wire.ObjectID]string
 	Serial   uint32
+	Pointer  *cw.WlPointer
 }
 
 func (in *Input) name(s *cw.WlSurface) string {
@@ -50,7 +51,7 @@ func (c *Client) Seat() (*cw.WlSeat, *Input) {
 	c.must(c.Display.Roundtrip())
 	in := &Input{Surfaces: map[wire.ObjectID]string{}}
 	if caps.Has(cw.WlSeatCapabilityPointer) {
-		_, err := seat.GetPointer(pointerEvents{in})
+		in.Pointer, err = seat.GetPointer(pointerEvents{in})
 		c.must(err)
 	}
 	if caps.Has(cw.WlSeatCapabilityTouch) {

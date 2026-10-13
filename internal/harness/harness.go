@@ -37,6 +37,11 @@ type Harness struct {
 
 func Start(t *testing.T, modes ...backend.Mode) *Harness {
 	t.Helper()
+	return StartWith(t, func(*compositor.Config) {}, modes...)
+}
+
+func StartWith(t *testing.T, configure func(*compositor.Config), modes ...backend.Mode) *Harness {
+	t.Helper()
 	dir, err := os.MkdirTemp("", "tilde-")
 	if err != nil {
 		t.Fatalf("harness: runtime dir: %v", err)
@@ -55,7 +60,9 @@ func Start(t *testing.T, modes ...backend.Mode) *Harness {
 			t.Fatalf("harness: %v", err)
 		}
 	}
-	if h.compositor, err = compositor.New(h.loop, h.display, h.backend, compositor.DefaultConfig(testenv.Keymap(t))); err != nil {
+	cfg := compositor.DefaultConfig(testenv.Keymap(t))
+	configure(&cfg)
+	if h.compositor, err = compositor.New(h.loop, h.display, h.backend, cfg); err != nil {
 		t.Fatalf("harness: %v", err)
 	}
 	go func() { h.done <- h.loop.Run() }()

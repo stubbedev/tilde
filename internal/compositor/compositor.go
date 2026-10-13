@@ -17,17 +17,29 @@ import (
 	"github.com/stubbedev/tilde/internal/shell"
 	"github.com/stubbedev/tilde/internal/shm"
 	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/tilde/internal/xcursor"
 	"github.com/stubbedev/tilde/internal/xkb"
 )
 
 var Background = render.Color{R: 0x1e, G: 0x1e, B: 0x2e, A: 0xff}
 
 type Config struct {
-	Seat seat.Config
+	Seat   seat.Config
+	Cursor CursorConfig
 }
 
+type CursorConfig struct {
+	Theme *xcursor.Theme
+	Size  int
+}
+
+const DefaultCursorSize = 24
+
 func DefaultConfig(keymap *xkb.Keymap) Config {
-	return Config{Seat: seat.Config{Keymap: keymap, RepeatRate: seat.DefaultRepeatRate, RepeatDelay: seat.DefaultRepeatDelay}}
+	return Config{
+		Seat:   seat.Config{Keymap: keymap, RepeatRate: seat.DefaultRepeatRate, RepeatDelay: seat.DefaultRepeatDelay},
+		Cursor: CursorConfig{Size: DefaultCursorSize},
+	}
 }
 
 type Compositor struct {
@@ -44,6 +56,8 @@ type Compositor struct {
 	entered  []*entered
 	cursor   point
 	touches  map[int32]*output.Output
+	cursors  CursorConfig
+	pointers map[cursorKey]*cursorTexture
 }
 
 type entered struct {
@@ -57,6 +71,11 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		textures: map[*surface.Surface]*texture{},
 		shown:    map[*output.Output][]*surface.Surface{},
 		touches:  map[int32]*output.Output{},
+		cursors:  cfg.Cursor,
+		pointers: map[cursorKey]*cursorTexture{},
+	}
+	if c.cursors.Size <= 0 {
+		return nil, fmt.Errorf("compositor: cursor size %d is not positive", c.cursors.Size)
 	}
 	var err error
 	if c.layout, err = output.New(display); err != nil {
@@ -68,7 +87,7 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 	if c.shm, err = shm.New(display, c.renderer.Formats()); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
-	if c.seat, err = seat.New(display, cfg.Seat); err != nil {
+	if c.seat, err = seat.New(display, cfg.Seat, c); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.shell, err = shell.New(display, l, c); err != nil {
@@ -82,6 +101,10 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 }
 
 func (c *Compositor) Close() {
+	for _, ct := range c.pointers {
+		ct.tex.Destroy()
+	}
+	clear(c.pointers)
 	c.seat.Close()
 }
 

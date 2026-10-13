@@ -8,6 +8,7 @@ import (
 	"image"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/wlclient"
+	"github.com/stubbedev/tilde/internal/xcursor"
 	"github.com/stubbedev/tilde/internal/xkb"
 )
 
@@ -76,6 +78,28 @@ func openBackend(name string, l *loop.Loop) (backend.Backend, error) {
 	return b, nil
 }
 
+func cursorConfig(getenv func(string) string) (compositor.CursorConfig, error) {
+	cfg := compositor.CursorConfig{Size: compositor.DefaultCursorSize}
+	if v := getenv("XCURSOR_SIZE"); v != "" {
+		size, err := strconv.Atoi(v)
+		if err != nil || size <= 0 {
+			return cfg, fmt.Errorf("XCURSOR_SIZE %q is not a positive integer", v)
+		}
+		cfg.Size = size
+	}
+	name := getenv("XCURSOR_THEME")
+	if name == "" {
+		name = "default"
+	}
+	theme, err := xcursor.Open(name, xcursor.SearchPath(getenv))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "tilde: %v; drawing the built-in arrow\n", err)
+		return cfg, nil
+	}
+	cfg.Theme = theme
+	return cfg, nil
+}
+
 func run() (err error) {
 	requested := flag.String("backend", "", "output and input backend: nested or headless (default: nested when WAYLAND_DISPLAY is set, else headless)")
 	flag.Parse()
@@ -111,7 +135,12 @@ func run() (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, keymap.Close()) }()
-	comp, err := compositor.New(l, display, b, compositor.DefaultConfig(keymap))
+	cfg := compositor.DefaultConfig(keymap)
+	cfg.Cursor, err = cursorConfig(os.Getenv)
+	if err != nil {
+		return err
+	}
+	comp, err := compositor.New(l, display, b, cfg)
 	if err != nil {
 		return err
 	}

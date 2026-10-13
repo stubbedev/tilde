@@ -65,7 +65,7 @@ func setup(t *testing.T) *env {
 	if _, err := surface.New(e.disp, e.surf); err != nil {
 		t.Fatal(err)
 	}
-	if e.seat, err = New(e.disp, Config{Keymap: e.keymap, RepeatRate: DefaultRepeatRate, RepeatDelay: DefaultRepeatDelay}); err != nil {
+	if e.seat, err = New(e.disp, Config{Keymap: e.keymap, RepeatRate: DefaultRepeatRate, RepeatDelay: DefaultRepeatDelay}, quietListener{}); err != nil {
 		t.Fatal(err)
 	}
 	e.surf.seat = e.seat
@@ -348,3 +348,7 @@ func TestCapabilitiesFollowDevices(t *testing.T) {
 	c.keyboard()
 	e.key(30, false)
 }
+
+type quietListener struct{}
+
+func (quietListener) CursorChanged() error { return nil }

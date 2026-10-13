@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 
+	scs "github.com/stubbedev/tilde/internal/protocol/server/cursorshape"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/surface"
@@ -36,8 +37,13 @@ type clientResources struct {
 	touches   []*sw.WlTouch
 }
 
+type Listener interface {
+	CursorChanged() error
+}
+
 type Seat struct {
 	display  *server.Display
+	listener Listener
 	cfg      Config
 	state    *xkb.State
 	devices  map[sw.WlSeatCapability]int
@@ -49,7 +55,7 @@ type Seat struct {
 	touch    touchState
 }
 
-func New(d *server.Display, cfg Config) (*Seat, error) {
+func New(d *server.Display, cfg Config, listener Listener) (*Seat, error) {
 	if cfg.Keymap == nil {
 		return nil, errors.New("seat: no keymap")
 	}
@@ -57,8 +63,12 @@ func New(d *server.Display, cfg Config) (*Seat, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Seat{display: d, cfg: cfg, state: st, devices: map[sw.WlSeatCapability]int{}}
+	s := &Seat{display: d, listener: listener, cfg: cfg, state: st, devices: map[sw.WlSeatCapability]int{}}
 	if _, err := d.AddGlobal(sw.WlSeatInterface, seatVersion, s.bind); err != nil {
+		st.Close()
+		return nil, err
+	}
+	if _, err := d.AddGlobal(scs.WpCursorShapeManagerV1Interface, cursorShapeVersion, s.bindCursorShape); err != nil {
 		st.Close()
 		return nil, err
 	}

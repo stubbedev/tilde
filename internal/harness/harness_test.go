@@ -173,11 +173,21 @@ func TestFractionalScaleRendersCrisp(t *testing.T) {
 	}
 	want := soft.NewBuffer(scaled.Size.X, scaled.Size.Y)
 	checker(want.Pix, want.Stride, scaled.Size, 0)
+	var cursor image.Rectangle
+	h.Do(func(_ *headless.Backend, c *compositor.Compositor) error {
+		x, y := c.Cursor()
+		tip := image.Pt(int(x*1.5), int(y*1.5))
+		cursor = image.Rectangle{Min: tip, Max: tip.Add(image.Pt(36, 36))}
+		return nil
+	})
 	h.Eventually("the buffer pixel for pixel on the output", func(b *headless.Backend, _ *compositor.Compositor) bool {
 		got := b.Outputs()[0].Snapshot()
-		for i := range got.Pix {
-			if got.Pix[i] != want.Pix[i] {
-				return false
+		for y := range scaled.Size.Y {
+			for x := range scaled.Size.X {
+				i := y*got.Stride + x*4
+				if !image.Pt(x, y).In(cursor) && string(got.Pix[i:i+4]) != string(want.Pix[i:i+4]) {
+					return false
+				}
 			}
 		}
 		return true

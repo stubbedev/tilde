@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/stubbedev/tilde/internal/xcursor"
 	"github.com/stubbedev/tilde/internal/xkb"
 )
 
@@ -37,4 +38,17 @@ func Keymap(t testing.TB) *xkb.Keymap {
 	}
 	t.Cleanup(func() { _ = km.Close() })
 	return km
+}
+
+func CursorTheme(t testing.TB) *xcursor.Theme {
+	t.Helper()
+	path := os.Getenv("TILDE_TEST_XCURSOR_PATH")
+	if path == "" {
+		missing(t, "TILDE_TEST_XCURSOR_PATH is not set")
+	}
+	theme, err := xcursor.Open("Vanilla-DMZ", []string{path})
+	if err != nil {
+		missing(t, "no test cursor theme: %v", err)
+	}
+	return theme
 }

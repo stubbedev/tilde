@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	ccs "github.com/stubbedev/tilde/internal/protocol/client/cursorshape"
 	cfs "github.com/stubbedev/tilde/internal/protocol/client/fractionalscale"
 	cvp "github.com/stubbedev/tilde/internal/protocol/client/viewporter"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
@@ -30,6 +31,7 @@ type Client struct {
 	WM            *cxdg.XdgWmBase
 	Viewporter    *cvp.WpViewporter
 	Fractional    *cfs.WpFractionalScaleManagerV1
+	CursorShape   *ccs.WpCursorShapeManagerV1
 	Outputs       []*cw.WlOutput
 	registry      *cw.WlRegistry
 	globals       *registry
@@ -88,6 +90,8 @@ func Connect(t testing.TB, socket string) *Client {
 	c.must(err)
 	c.Fractional, err = cfs.NewWpFractionalScaleManagerV1(d, 1)
 	c.must(err)
+	c.CursorShape, err = ccs.NewWpCursorShapeManagerV1(d, 2)
+	c.must(err)
 	c.must(errors.Join(
 		reg.Bind(globals.byName["wl_compositor"].name, c.Compositor),
 		reg.Bind(globals.byName["wl_subcompositor"].name, c.Subcompositor),
@@ -95,6 +99,7 @@ func Connect(t testing.TB, socket string) *Client {
 		reg.Bind(globals.byName["xdg_wm_base"].name, c.WM),
 		reg.Bind(globals.byName["wp_viewporter"].name, c.Viewporter),
 		reg.Bind(globals.byName["wp_fractional_scale_manager_v1"].name, c.Fractional),
+		reg.Bind(globals.byName["wp_cursor_shape_manager_v1"].name, c.CursorShape),
 	))
 	for _, name := range globals.outputs {
 		o, err := cw.NewWlOutput(d, 4, outputEvents{})
