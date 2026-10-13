@@ -4,9 +4,15 @@
 default:
     @just --list
 
-# Every gate a commit must pass: formatting, the release gates and the
-# vulnerability scan. `devenv test` and CI run this.
-gates: fmt-check check vuln
+# Every gate a commit must pass: formatting, the release gates, the
+# vulnerability scan and the headless harness. `devenv test` and CI run this.
+gates: fmt-check check vuln headless
+
+# The compositor-in-the-loop harness: boots tilde on the headless backend and
+# drives real clients against it. TILDE_HEADLESS=1 turns a missing client into
+# a failure instead of a skip.
+headless:
+    TILDE_HEADLESS=1 go test -count=1 ./internal/harness/...
 
 # Run every release gate in order: vet, lint, test, build.
 check: vet lint test build

@@ -53,7 +53,8 @@ Everything lives under `internal/` except the commands.
 
 | Package | Owns |
 | --- | --- |
-| `cmd/tilde` | The compositor binary: builds the loop, backends, renderer and server, and runs them |
+| `cmd/tilde` | The compositor binary: builds the loop, server and backend, and runs them |
+| `compositor` | Connects backend events to the server and draws each output's frames; `cmd/tilde` and the harness both build on it |
 | `cmd/tildectl` | The IPC client (#31) |
 | `wire` | The message codec and fd passing (#3), and the object runtime generated bindings build on (#4) |
 | `scanner` | Generates `protocol/{server,client}/...` from the XML pinned in `protocol/protocols.json` (#4) |
@@ -77,6 +78,8 @@ Everything lives under `internal/` except the commands.
 | `config` | The typed config, its validation and reload (#30) |
 | `ipc` | The IPC socket and event stream (#31) |
 | `session` | logind, udev and libinput: device access, hotplug and VT switching (#38, #39, #42) |
+| `harness` | The compositor-in-the-loop harness (#10) |
+| `golden` | Golden-image comparison for software-rendered frames |
 
 Dependencies point inward: `wm` imports nothing from tilde; `wire` and
 `loop` import nothing from tilde; `protocol/...` imports only `wire` and
@@ -113,8 +116,11 @@ itself lands in M9 (#62), which records the selection rule here.
 
 - Unit tests for the pure core and every package with logic of its own.
 - Golden images, byte-exact, from the software renderer.
-- The compositor-in-the-loop harness (#10) boots tilde headless with real
-  clients. It is the integration gate.
+- The compositor-in-the-loop harness (#10) boots the same compositor
+  `cmd/tilde` runs on the headless backend, in process, with a private
+  `XDG_RUNTIME_DIR`, and drives real clients from the dev shell against it.
+  `just headless` runs it with `TILDE_HEADLESS=1`, which turns a missing
+  client into a failure; it is part of `just gates`, so CI runs it too.
 
 ## Reference implementations
 

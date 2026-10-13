@@ -49,10 +49,10 @@ linters:
         linters:
           - gosec
         text: G115
-      - path: internal/scanner/
+      - path: internal/(scanner|harness|golden)/
         linters:
           - gosec
-        text: G30[1246]
+        text: G(204|30[1246])
 
 issues:
   max-issues-per-linter: 0

@@ -13,6 +13,7 @@
     just
     git
     gh
+    wayland-utils
   ];
 
   enterTest = ''

@@ -3,12 +3,17 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
+	"image"
 	"io"
 	"os"
 	"strings"
 	"syscall"
 
+	"github.com/stubbedev/tilde/internal/backend"
+	"github.com/stubbedev/tilde/internal/backend/headless"
+	"github.com/stubbedev/tilde/internal/compositor"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/server"
 )
@@ -38,7 +43,14 @@ func parseDebug(s string) (debug, error) {
 	return d, nil
 }
 
+var headlessMode = backend.Mode{Size: image.Pt(1920, 1080), RefreshMHz: 60000, Preferred: true}
+
 func run() (err error) {
+	backendName := flag.String("backend", "headless", "output and input backend: headless")
+	flag.Parse()
+	if *backendName != "headless" {
+		return fmt.Errorf("unknown backend %q (available: headless)", *backendName)
+	}
 	dbg, err := parseDebug(os.Getenv("TILDE_DEBUG"))
 	if err != nil {
 		return err
@@ -57,6 +69,14 @@ func run() (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, display.Close()) }()
+	b := headless.New(l)
+	defer func() { err = errors.Join(err, b.Close()) }()
+	if _, err := b.AddOutput(headlessMode); err != nil {
+		return err
+	}
+	if _, err := compositor.New(b); err != nil {
+		return err
+	}
 	if err := os.Setenv("WAYLAND_DISPLAY", display.Name()); err != nil {
 		return fmt.Errorf("export WAYLAND_DISPLAY: %w", err)
 	}
