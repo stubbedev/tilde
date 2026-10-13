@@ -28,6 +28,7 @@ type Backend interface {
 type Handler interface {
 	OutputAdded(o Output) error
 	OutputRemoved(o Output) error
+	OutputChanged(o Output) error
 	Frame(o Output) error
 	Presented(o Output, p Presentation) error
 	DeviceAdded(d Device) error

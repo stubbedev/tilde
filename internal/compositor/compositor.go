@@ -44,6 +44,13 @@ func (c *Compositor) OutputRemoved(o backend.Output) error {
 	return nil
 }
 
+func (c *Compositor) OutputChanged(o backend.Output) error {
+	if err := o.ScheduleFrame(); err != nil {
+		return fmt.Errorf("compositor: frame after %s changed: %w", o.Name(), err)
+	}
+	return nil
+}
+
 func (c *Compositor) Frame(o backend.Output) error {
 	if err := c.render(o); err != nil {
 		return fmt.Errorf("compositor: frame on %s: %w", o.Name(), err)
