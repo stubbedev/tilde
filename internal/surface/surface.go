@@ -185,7 +185,7 @@ type Surface struct {
 	destroyed    bool
 }
 
-func surfaceOf(r *sw.WlSurface) (*Surface, error) {
+func From(r *sw.WlSurface) (*Surface, error) {
 	h, ok := r.Handler().(surfaceRequests)
 	if !ok {
 		return nil, fmt.Errorf("surface: wl_surface@%d has handler %T", r.Base().ID(), r.Handler())

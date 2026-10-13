@@ -67,11 +67,11 @@ func (subcompositorRequests) Destroy(*sw.WlSubcompositor) error {
 }
 
 func (subcompositorRequests) GetSubsurface(obj *sw.WlSubcompositor, res *sw.WlSubsurface, surface, parent *sw.WlSurface) (sw.WlSubsurfaceHandler, error) {
-	s, err := surfaceOf(surface)
+	s, err := From(surface)
 	if err != nil {
 		return nil, err
 	}
-	p, err := surfaceOf(parent)
+	p, err := From(parent)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (r subsurfaceRequests) place(obj *sw.WlSubsurface, sibling *sw.WlSurface, a
 	if p == nil {
 		return nil
 	}
-	ref, err := surfaceOf(sibling)
+	ref, err := From(sibling)
 	if err != nil {
 		return err
 	}
