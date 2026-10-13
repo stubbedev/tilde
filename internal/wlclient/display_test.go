@@ -116,3 +116,25 @@ func TestAddRejectsLiveClientIDs(t *testing.T) {
 		t.Fatalf("Add over wl_display = %v, want ErrInvalidNewID", err)
 	}
 }
+
+func TestSocketPath(t *testing.T) {
+	env := func(vars map[string]string) func(string) string {
+		return func(k string) string { return vars[k] }
+	}
+	cases := []struct {
+		vars map[string]string
+		want string
+	}{
+		{map[string]string{"WAYLAND_DISPLAY": "wayland-1", "XDG_RUNTIME_DIR": "/run/user/1"}, "/run/user/1/wayland-1"},
+		{map[string]string{"XDG_RUNTIME_DIR": "/run/user/1"}, "/run/user/1/wayland-0"},
+		{map[string]string{"WAYLAND_DISPLAY": "/tmp/host.sock"}, "/tmp/host.sock"},
+	}
+	for _, c := range cases {
+		if got, err := SocketPath(env(c.vars)); err != nil || got != c.want {
+			t.Errorf("SocketPath(%v) = %q, %v; want %q", c.vars, got, err, c.want)
+		}
+	}
+	if _, err := SocketPath(env(map[string]string{"WAYLAND_DISPLAY": "wayland-1"})); err == nil {
+		t.Error("a relative display without XDG_RUNTIME_DIR resolved")
+	}
+}

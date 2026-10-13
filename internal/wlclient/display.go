@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 
 	"golang.org/x/sys/unix"
 
@@ -24,6 +25,21 @@ type Display struct {
 	free    []wire.ObjectID
 	next    wire.ObjectID
 	display *wayland.WlDisplay
+}
+
+func SocketPath(getenv func(string) string) (string, error) {
+	name := getenv("WAYLAND_DISPLAY")
+	if name == "" {
+		name = "wayland-0"
+	}
+	if filepath.IsAbs(name) {
+		return name, nil
+	}
+	dir := getenv("XDG_RUNTIME_DIR")
+	if dir == "" {
+		return "", fmt.Errorf("wlclient: WAYLAND_DISPLAY %q is relative and XDG_RUNTIME_DIR is not set", name)
+	}
+	return filepath.Join(dir, name), nil
 }
 
 func Connect(path string) (*Display, error) {
@@ -131,6 +147,10 @@ func (d *Display) Dispatch() error {
 	if err := d.poll(unix.POLLIN); err != nil {
 		return err
 	}
+	return d.ReadEvents()
+}
+
+func (d *Display) ReadEvents() error {
 	err := d.conn.Fill()
 	if pending := d.DispatchPending(); pending != nil {
 		return pending
