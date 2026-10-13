@@ -3,6 +3,8 @@ package server
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -26,6 +28,7 @@ type Client struct {
 	lastID     wire.ObjectID
 	wlDisplay  *sw.WlDisplay
 	registries []*sw.WlRegistry
+	hooks      map[wire.ObjectID][]func()
 	writable   bool
 	gone       bool
 }
@@ -40,6 +43,7 @@ func (d *Display) addClient(fd int) error {
 		conn:    wire.NewConn(fd),
 		creds:   *creds,
 		objects: map[wire.ObjectID]wire.Resource{},
+		hooks:   map[wire.ObjectID][]func(){},
 		lastID:  firstServerID - 1,
 	}
 	if d.trace != nil {
@@ -53,6 +57,23 @@ func (d *Display) addClient(fd int) error {
 	}
 	d.clients = append(d.clients, c)
 	return nil
+}
+
+func (c *Client) Display() *Display {
+	return c.display
+}
+
+func (c *Client) OnDestroy(r wire.Resource, f func()) {
+	id := r.Base().ID()
+	c.hooks[id] = append(c.hooks[id], f)
+}
+
+func (c *Client) runHooks(id wire.ObjectID) {
+	hooks := c.hooks[id]
+	delete(c.hooks, id)
+	for _, f := range hooks {
+		f()
+	}
 }
 
 func (c *Client) Creds() unix.Ucred {
@@ -87,6 +108,7 @@ func (c *Client) Remove(id wire.ObjectID) error {
 	if _, ok := c.objects[id]; !ok {
 		return fmt.Errorf("server: remove unknown object %d", id)
 	}
+	c.runHooks(id)
 	delete(c.objects, id)
 	if id < firstServerID {
 		return c.wlDisplay.SendDeleteID(uint32(id))
@@ -209,6 +231,9 @@ func (c *Client) destroy() {
 		return
 	}
 	c.gone = true
+	for _, id := range slices.Sorted(maps.Keys(c.hooks)) {
+		c.runHooks(id)
+	}
 	_ = c.conn.Flush()
 	_ = c.source.Remove()
 	_ = c.conn.Close()

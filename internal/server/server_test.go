@@ -410,3 +410,61 @@ func TestCloseDisconnectsClients(t *testing.T) {
 		t.Fatal("client still connected after Close")
 	}
 }
+
+func TestDestroyHooksRunOnDestructorAndDisconnect(t *testing.T) {
+	h := start(t)
+	var ran []string
+	h.on(func() {
+		if _, err := h.disp.AddGlobal(sw.WlCompositorInterface, 6, func(c *Client, id wire.ObjectID, version uint32) error {
+			comp, err := sw.NewWlCompositor(c, id, version, releasable{})
+			if err != nil {
+				return err
+			}
+			c.OnDestroy(comp, func() { ran = append(ran, "compositor") })
+			return nil
+		}); err != nil {
+			t.Error(err)
+		}
+	})
+	d := h.connect()
+	reg, _ := h.registry(d)
+	first, err := cw.NewWlCompositor(d, 6)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := cw.NewWlCompositor(d, 6)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []*cw.WlCompositor{first, second} {
+		if err := reg.Bind(1, c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := d.Roundtrip(); err != nil {
+		t.Fatal(err)
+	}
+	if err := first.Release(); err == nil {
+		t.Fatal("release is a version 7 request and should not be sendable at version 6")
+	}
+	h.on(func() {
+		c := h.disp.clients[0]
+		if err := c.Remove(first.Base().ID()); err != nil {
+			t.Error(err)
+		}
+		if len(ran) != 1 {
+			t.Errorf("hooks after a destructor: %v", ran)
+		}
+	})
+	if err := d.Close(); err != nil {
+		t.Fatal(err)
+	}
+	h.waitClients(0)
+	h.on(func() {
+		if len(ran) != 2 {
+			t.Errorf("hooks after disconnect: %v, want both compositors", ran)
+		}
+	})
+}
+
+type releasable struct{ sw.WlCompositorHandler }
