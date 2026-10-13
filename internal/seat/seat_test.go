@@ -34,8 +34,9 @@ func (s *surfaces) Committed(sf *surface.Surface) error {
 	return nil
 }
 
-func (s *surfaces) Destroyed(sf *surface.Surface) {
+func (s *surfaces) Destroyed(sf *surface.Surface) error {
 	s.seat.SurfaceDestroyed(sf)
+	return nil
 }
 
 type env struct {

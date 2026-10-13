@@ -182,8 +182,9 @@ func (o *Output) bind(c *server.Client, id wire.ObjectID, version uint32) error 
 		return err
 	}
 	o.bindings = append(o.bindings, b)
-	c.OnDestroy(b.wl, func() {
+	c.OnDestroy(b.wl, func() error {
 		o.bindings = slices.DeleteFunc(o.bindings, func(x *binding) bool { return x == b })
+		return nil
 	})
 	return o.send(b)
 }
@@ -277,8 +278,9 @@ func (r xdgManagerRequests) GetXdgOutput(_ *sxo.ZxdgOutputManagerV1, x *sxo.Zxdg
 				continue
 			}
 			b.xdg = append(b.xdg, x)
-			b.client.OnDestroy(x, func() {
+			b.client.OnDestroy(x, func() error {
 				b.xdg = slices.DeleteFunc(b.xdg, func(y *sxo.ZxdgOutputV1) bool { return y == x })
+				return nil
 			})
 			if err := o.sendXdg(x); err != nil {
 				return nil, err

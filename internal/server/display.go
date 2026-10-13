@@ -141,10 +141,11 @@ func (d *Display) Close() error {
 		return nil
 	}
 	d.closed = true
+	var errs []error
 	for len(d.clients) > 0 {
-		d.clients[0].destroy()
+		errs = append(errs, d.clients[0].destroy())
 	}
-	return errors.Join(d.listener.Remove(), d.release())
+	return errors.Join(append(errs, d.listener.Remove(), d.release())...)
 }
 
 func (d *Display) accept(loop.Events) error {
@@ -171,12 +172,13 @@ func (d *Display) flush() error {
 			d.dead = append(d.dead, c)
 		}
 	}
+	var errs []error
 	for i, c := range d.dead {
-		c.destroy()
+		errs = append(errs, c.destroy())
 		d.dead[i] = nil
 	}
 	d.dead = d.dead[:0]
-	return nil
+	return errors.Join(errs...)
 }
 
 func (d *Display) removeClient(c *Client) {

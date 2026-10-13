@@ -87,7 +87,7 @@ func (r *recorder) GrabChanged() error { return r.note("grab changed") }
 type noSurfaces struct{}
 
 func (noSurfaces) Committed(*surface.Surface) error { return nil }
-func (noSurfaces) Destroyed(*surface.Surface)       {}
+func (noSurfaces) Destroyed(*surface.Surface) error { return nil }
 
 type env struct {
 	t     *testing.T

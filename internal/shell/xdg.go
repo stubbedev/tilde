@@ -107,10 +107,11 @@ func (sh *Shell) bind(c *server.Client, id wire.ObjectID, version uint32) error 
 		return err
 	}
 	b.resource = res
-	c.OnDestroy(res, func() {
-		if b.timer != nil {
-			_ = b.timer.Remove()
+	c.OnDestroy(res, func() error {
+		if b.timer == nil {
+			return nil
 		}
+		return b.timer.Remove()
 	})
 	return nil
 }
@@ -175,12 +176,16 @@ func (b *wmBase) GetXdgSurface(obj *sxdg.XdgWmBase, res *sxdg.XdgSurface, wl *sw
 		return nil, obj.ProtocolError(sxdg.XdgWmBaseErrorRole, err.Error())
 	}
 	b.surfaces = append(b.surfaces, xs)
-	forget := func() {
+	forget := func() error {
 		b.surfaces = slices.DeleteFunc(b.surfaces, func(x *XdgSurface) bool { return x == xs })
 		surf.ClearRole(xs)
+		return nil
 	}
 	b.client.OnDestroy(res, forget)
-	b.client.OnDestroy(wl, func() { delete(b.shell.subRoles, surf) })
+	b.client.OnDestroy(wl, func() error {
+		delete(b.shell.subRoles, surf)
+		return nil
+	})
 	return xs, nil
 }
 
@@ -293,7 +298,7 @@ func (xs *XdgSurface) GetToplevel(obj *sxdg.XdgSurface, res *sxdg.XdgToplevel) (
 	}
 	t := &Toplevel{xs: xs, resource: res}
 	xs.role = t
-	xs.base.client.OnDestroy(res, func() { _ = t.destroy() })
+	xs.base.client.OnDestroy(res, t.destroy)
 	if res.Base().Version() >= 5 {
 		caps := binary.NativeEndian.AppendUint32(nil, uint32(sxdg.XdgToplevelWmCapabilitiesFullscreen))
 		caps = binary.NativeEndian.AppendUint32(caps, uint32(sxdg.XdgToplevelWmCapabilitiesMaximize))

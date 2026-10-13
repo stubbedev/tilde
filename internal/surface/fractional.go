@@ -32,10 +32,11 @@ func (fractionalManagerRequests) GetFractionalScale(obj *sfs.WpFractionalScaleMa
 	}
 	f := &fractional{resource: res}
 	s.fractional = f
-	s.client.OnDestroy(res, func() {
+	s.client.OnDestroy(res, func() error {
 		if s.fractional == f {
 			s.fractional = nil
 		}
+		return nil
 	})
 	if s.preferred != 0 {
 		if err := res.SendPreferredScale(s.preferred); err != nil {

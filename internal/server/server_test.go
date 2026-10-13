@@ -420,7 +420,10 @@ func TestDestroyHooksRunOnDestructorAndDisconnect(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			c.OnDestroy(comp, func() { ran = append(ran, "compositor") })
+			c.OnDestroy(comp, func() error {
+				ran = append(ran, "compositor")
+				return nil
+			})
 			return nil
 		}); err != nil {
 			t.Error(err)
@@ -468,3 +471,41 @@ func TestDestroyHooksRunOnDestructorAndDisconnect(t *testing.T) {
 }
 
 type releasable struct{ sw.WlCompositorHandler }
+
+func TestFailingDestroyHooksAreReported(t *testing.T) {
+	h := start(t)
+	broken := errors.New("hook failed")
+	h.on(func() {
+		if _, err := h.disp.AddGlobal(sw.WlCompositorInterface, 6, func(c *Client, id wire.ObjectID, version uint32) error {
+			comp, err := sw.NewWlCompositor(c, id, version, releasable{})
+			if err != nil {
+				return err
+			}
+			c.OnDestroy(comp, func() error { return broken })
+			return nil
+		}); err != nil {
+			t.Error(err)
+		}
+	})
+	d := h.connect()
+	reg, _ := h.registry(d)
+	first, err := cw.NewWlCompositor(d, 6)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := cw.NewWlCompositor(d, 6)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := errors.Join(reg.Bind(1, first), reg.Bind(1, second), d.Roundtrip()); err != nil {
+		t.Fatal(err)
+	}
+	h.on(func() {
+		if err := h.disp.clients[0].Remove(first.Base().ID()); !errors.Is(err, broken) {
+			t.Errorf("Remove = %v, want the hook's error", err)
+		}
+		if err := h.disp.Close(); !errors.Is(err, broken) {
+			t.Errorf("Close = %v, want the hook's error from tearing the client down", err)
+		}
+	})
+}

@@ -34,7 +34,7 @@ func (r *reader) Committed(s *surface.Surface) error {
 	})
 }
 
-func (r *reader) Destroyed(*surface.Surface) {}
+func (r *reader) Destroyed(*surface.Surface) error { return nil }
 
 type env struct {
 	t      *testing.T

@@ -51,8 +51,9 @@ func (r *recorder) Committed(s *Surface) error {
 	return nil
 }
 
-func (r *recorder) Destroyed(s *Surface) {
+func (r *recorder) Destroyed(s *Surface) error {
 	r.destroyed = append(r.destroyed, s)
+	return nil
 }
 
 type env struct {

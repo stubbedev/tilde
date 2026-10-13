@@ -33,7 +33,7 @@ type Role interface {
 
 type Listener interface {
 	Committed(s *Surface) error
-	Destroyed(s *Surface)
+	Destroyed(s *Surface) error
 }
 
 type Manager struct {
@@ -453,10 +453,11 @@ func (s *Surface) mapDamage(st *state) (surface, buffer region.Region) {
 	return st.damage.Union(st.bufferDamage.Map(g.toSurface)), st.bufferDamage.Intersect(bounds).Union(st.damage.Map(g.toBuffer))
 }
 
-func (s *Surface) destroy() {
+func (s *Surface) destroy() error {
 	s.destroyed = true
+	var errs []error
 	for _, cb := range append(append(s.pending.frames, s.cache.frames...), s.current.frames...) {
-		_ = s.client.Remove(cb.Base().ID())
+		errs = append(errs, s.client.Remove(cb.Base().ID()))
 	}
 	s.pending.frames, s.cache.frames, s.current.frames = nil, nil, nil
 	if s.sub != nil {
@@ -473,7 +474,7 @@ func (s *Surface) destroy() {
 		}
 	}
 	s.order, s.pendingOrder = nil, nil
-	s.manager.listener.Destroyed(s)
+	return errors.Join(append(errs, s.manager.listener.Destroyed(s))...)
 }
 
 type surfaceRequests struct{ s *Surface }

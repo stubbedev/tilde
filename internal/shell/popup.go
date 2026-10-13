@@ -44,7 +44,7 @@ func (xs *XdgSurface) GetPopup(obj *sxdg.XdgSurface, res *sxdg.XdgPopup, parent 
 		px.popups = append(px.popups, p)
 	}
 	xs.role = p
-	xs.base.client.OnDestroy(res, func() { _ = p.destroy() })
+	xs.base.client.OnDestroy(res, p.destroy)
 	return p, nil
 }
 

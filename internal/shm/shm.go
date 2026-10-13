@@ -100,14 +100,17 @@ type pool struct {
 	refs     int
 }
 
-func (p *pool) unref() {
+func (p *pool) unref() error {
 	p.refs--
 	if p.refs > 0 {
-		return
+		return nil
 	}
-	_ = unix.Munmap(p.mapping)
-	_ = unix.Close(p.fd)
+	errs := []error{unix.Munmap(p.mapping), unix.Close(p.fd)}
 	p.mapping, p.fd = nil, -1
+	if err := errors.Join(errs...); err != nil {
+		return fmt.Errorf("shm: release pool: %w", err)
+	}
+	return nil
 }
 
 func (p *pool) CreateBuffer(obj *sw.WlShmPool, res *sw.WlBuffer, offset, width, height, stride int32, format sw.WlShmFormat) (sw.WlBufferHandler, error) {

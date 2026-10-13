@@ -28,7 +28,7 @@ type Client struct {
 	lastID     wire.ObjectID
 	wlDisplay  *sw.WlDisplay
 	registries []*sw.WlRegistry
-	hooks      map[wire.ObjectID][]func()
+	hooks      map[wire.ObjectID][]func() error
 	writable   bool
 	gone       bool
 }
@@ -43,7 +43,7 @@ func (d *Display) addClient(fd int) error {
 		conn:    wire.NewConn(fd),
 		creds:   *creds,
 		objects: map[wire.ObjectID]wire.Resource{},
-		hooks:   map[wire.ObjectID][]func(){},
+		hooks:   map[wire.ObjectID][]func() error{},
 		lastID:  firstServerID - 1,
 	}
 	if d.trace != nil {
@@ -63,17 +63,19 @@ func (c *Client) Display() *Display {
 	return c.display
 }
 
-func (c *Client) OnDestroy(r wire.Resource, f func()) {
+func (c *Client) OnDestroy(r wire.Resource, f func() error) {
 	id := r.Base().ID()
 	c.hooks[id] = append(c.hooks[id], f)
 }
 
-func (c *Client) runHooks(id wire.ObjectID) {
+func (c *Client) runHooks(id wire.ObjectID) error {
 	hooks := c.hooks[id]
 	delete(c.hooks, id)
+	var errs []error
 	for _, f := range hooks {
-		f()
+		errs = append(errs, f())
 	}
+	return errors.Join(errs...)
 }
 
 func (c *Client) Sent(err error) error {
@@ -115,12 +117,12 @@ func (c *Client) Remove(id wire.ObjectID) error {
 	if _, ok := c.objects[id]; !ok {
 		return fmt.Errorf("server: remove unknown object %d", id)
 	}
-	c.runHooks(id)
+	hooks := c.runHooks(id)
 	delete(c.objects, id)
 	if id < firstServerID {
-		return c.wlDisplay.SendDeleteID(uint32(id))
+		return errors.Join(hooks, c.wlDisplay.SendDeleteID(uint32(id)))
 	}
-	return nil
+	return hooks
 }
 
 func (c *Client) NewID() (wire.ObjectID, error) {
@@ -134,62 +136,56 @@ func (c *Client) NewID() (wire.ObjectID, error) {
 func (c *Client) handle(ev loop.Events) error {
 	if ev&loop.Writable != 0 {
 		if err := c.flush(); err != nil {
-			c.destroy()
-			return nil
+			return c.destroy()
 		}
 	}
 	if ev&loop.Readable != 0 {
 		err := c.conn.Fill()
-		if c.dispatch(); c.gone {
-			return nil
+		if teardown := c.dispatch(); c.gone {
+			return teardown
 		}
 		if err != nil {
-			c.destroy()
-			return nil
+			return c.destroy()
 		}
 	}
 	if ev&(loop.Hangup|loop.Error) != 0 {
-		c.destroy()
+		return c.destroy()
 	}
 	return nil
 }
 
-func (c *Client) dispatch() {
+func (c *Client) dispatch() error {
 	for !c.gone {
 		m, err := c.conn.Next()
 		if err != nil {
-			c.fail(err)
-			return
+			return c.fail(err)
 		}
 		if m == nil {
-			return
+			return nil
 		}
 		r, ok := c.objects[m.ID]
 		if !ok {
 			_ = m.Finish()
-			c.fail(invalidObject(c.wlDisplay, "invalid object %d", m.ID))
-			return
+			return c.fail(invalidObject(c.wlDisplay, "invalid object %d", m.ID))
 		}
 		if err := r.Dispatch(m); err != nil {
-			c.fail(err)
-			return
+			return c.fail(err)
 		}
 	}
+	return nil
 }
 
-func (c *Client) fail(err error) {
+func (c *Client) fail(err error) error {
 	object, code := wire.Resource(c.wlDisplay), sw.WlDisplayErrorImplementation
 	var pe *wire.ProtocolError
 	var me *wire.MessageError
 	switch {
 	case c.conn.Err() != nil:
-		c.destroy()
-		return
+		return c.destroy()
 	case errors.As(err, &pe):
 		object = c.resource(pe.Object)
 		_ = c.wlDisplay.SendError(object, pe.Code, pe.Message)
-		c.destroy()
-		return
+		return c.destroy()
 	case errors.As(err, &me):
 		object, code = c.resource(me.Object), sw.WlDisplayErrorInvalidMethod
 		for _, target := range []error{wire.ErrUnknownObject, wire.ErrWrongInterface, wire.ErrNullObject, wire.ErrInvalidNewID} {
@@ -201,7 +197,7 @@ func (c *Client) fail(err error) {
 		code = sw.WlDisplayErrorInvalidObject
 	}
 	_ = c.wlDisplay.SendError(object, uint32(code), err.Error())
-	c.destroy()
+	return c.destroy()
 }
 
 func (c *Client) resource(id wire.ObjectID) wire.Resource {
@@ -233,18 +229,22 @@ func (c *Client) flush() error {
 	return nil
 }
 
-func (c *Client) destroy() {
+func (c *Client) destroy() error {
 	if c.gone {
-		return
+		return nil
 	}
 	c.gone = true
+	var errs []error
 	for _, id := range slices.Sorted(maps.Keys(c.hooks)) {
-		c.runHooks(id)
+		errs = append(errs, c.runHooks(id))
 	}
 	_ = c.conn.Flush()
-	_ = c.source.Remove()
-	_ = c.conn.Close()
+	errs = append(errs, c.source.Remove(), c.conn.Close())
 	c.display.removeClient(c)
+	if err := errors.Join(errs...); err != nil {
+		return fmt.Errorf("server: tear down the client of pid %d: %w", c.creds.Pid, err)
+	}
+	return nil
 }
 
 func (c *Client) trace(incoming bool, id wire.ObjectID, opcode wire.Opcode, body []byte) {

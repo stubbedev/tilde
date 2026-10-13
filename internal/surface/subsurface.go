@@ -85,7 +85,10 @@ func (subcompositorRequests) GetSubsurface(obj *sw.WlSubcompositor, res *sw.WlSu
 	s.sub = sub
 	p.order = append(p.order, s)
 	p.pendingOrder = append(p.pendingOrder, s)
-	s.client.OnDestroy(res, func() { sub.destroy() })
+	s.client.OnDestroy(res, func() error {
+		sub.destroy()
+		return nil
+	})
 	return subsurfaceRequests{sub}, nil
 }
 
