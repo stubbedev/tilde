@@ -135,11 +135,26 @@ func (l *Library) Close() {
 }
 
 type Keymap struct {
-	lib    *Library
-	keymap uintptr
-	text   string
-	fd     int
-	size   uint32
+	lib     *Library
+	ownsLib bool
+	keymap  uintptr
+	text    string
+	fd      int
+	size    uint32
+}
+
+func Open(getenv func(string) string) (*Keymap, error) {
+	l, err := Load(LibraryPath(getenv))
+	if err != nil {
+		return nil, err
+	}
+	km, err := l.Compile(NamesFromEnv(getenv))
+	if err != nil {
+		l.Close()
+		return nil, err
+	}
+	km.ownsLib = true
+	return km, nil
 }
 
 func (l *Library) Compile(names Names) (*Keymap, error) {
@@ -204,6 +219,9 @@ func (k *Keymap) Text() string {
 
 func (k *Keymap) Close() error {
 	k.lib.keymapUnref(k.keymap)
+	if k.ownsLib {
+		k.lib.Close()
+	}
 	if err := unix.Close(k.fd); err != nil {
 		return fmt.Errorf("xkb: close keymap fd %d: %w", k.fd, err)
 	}

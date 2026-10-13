@@ -9,18 +9,29 @@ import (
 
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/render"
+	"github.com/stubbedev/tilde/internal/seat"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/shm"
 	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/tilde/internal/xkb"
 )
 
 var Background = render.Color{R: 0x1e, G: 0x1e, B: 0x2e, A: 0xff}
+
+type Config struct {
+	Seat seat.Config
+}
+
+func DefaultConfig(keymap *xkb.Keymap) Config {
+	return Config{Seat: seat.Config{Keymap: keymap, RepeatRate: seat.DefaultRepeatRate, RepeatDelay: seat.DefaultRepeatDelay}}
+}
 
 type Compositor struct {
 	outputs  []backend.Output
 	renderer render.Renderer
 	surfaces *surface.Manager
 	shm      *shm.Manager
+	seat     *seat.Seat
 	textures map[*surface.Surface]*texture
 }
 
@@ -29,13 +40,16 @@ type texture struct {
 	format render.Format
 }
 
-func New(display *server.Display, b backend.Backend) (*Compositor, error) {
+func New(display *server.Display, b backend.Backend, cfg Config) (*Compositor, error) {
 	c := &Compositor{renderer: b.Renderer(), textures: map[*surface.Surface]*texture{}}
 	var err error
 	if c.surfaces, err = surface.New(display, c); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.shm, err = shm.New(display, c.renderer.Formats()); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
+	if c.seat, err = seat.New(display, cfg.Seat); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if err := b.Start(c); err != nil {
@@ -97,11 +111,34 @@ func (c *Compositor) render(o backend.Output) error {
 
 func (c *Compositor) Presented(backend.Output, backend.Presentation) error { return nil }
 
-func (c *Compositor) DeviceAdded(backend.Device) error { return nil }
+func (c *Compositor) Close() {
+	c.seat.Close()
+}
 
-func (c *Compositor) DeviceRemoved(backend.Device) error { return nil }
+func (c *Compositor) Seat() *seat.Seat {
+	return c.seat
+}
 
-func (c *Compositor) Input(backend.Device, backend.Event) error { return nil }
+func (c *Compositor) DeviceAdded(d backend.Device) error {
+	if d.Capabilities().Has(backend.Keyboard) {
+		return c.seat.AddKeyboard()
+	}
+	return nil
+}
+
+func (c *Compositor) DeviceRemoved(d backend.Device) error {
+	if d.Capabilities().Has(backend.Keyboard) {
+		return c.seat.RemoveKeyboard()
+	}
+	return nil
+}
+
+func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
+	if k, ok := e.(backend.Key); ok {
+		return c.seat.Key(k.Code, k.Pressed, k.Time)
+	}
+	return nil
+}
 
 func (c *Compositor) Committed(s *surface.Surface) error {
 	if !s.Attached() {
@@ -152,5 +189,6 @@ func (c *Compositor) Texture(s *surface.Surface) render.Texture {
 }
 
 func (c *Compositor) Destroyed(s *surface.Surface) {
+	c.seat.SurfaceDestroyed(s)
 	c.dropTexture(s)
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/wlclient"
+	"github.com/stubbedev/tilde/internal/xkb"
 )
 
 func main() {
@@ -105,9 +106,16 @@ func run() (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, display.Close()) }()
-	if _, err := compositor.New(display, b); err != nil {
+	keymap, err := xkb.Open(os.Getenv)
+	if err != nil {
 		return err
 	}
+	defer func() { err = errors.Join(err, keymap.Close()) }()
+	comp, err := compositor.New(display, b, compositor.DefaultConfig(keymap))
+	if err != nil {
+		return err
+	}
+	defer comp.Close()
 	if err := os.Setenv("WAYLAND_DISPLAY", display.Name()); err != nil {
 		return fmt.Errorf("export WAYLAND_DISPLAY: %w", err)
 	}

@@ -18,10 +18,10 @@ import (
 
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/compositor"
-	"github.com/stubbedev/tilde/internal/harness"
 	"github.com/stubbedev/tilde/internal/loop"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	"github.com/stubbedev/tilde/internal/server"
+	"github.com/stubbedev/tilde/internal/testenv"
 	"github.com/stubbedev/tilde/internal/wire"
 )
 
@@ -35,9 +35,9 @@ type sway struct {
 
 func startSway(t *testing.T) *sway {
 	t.Helper()
-	bin := harness.Require(t, "sway")
-	harness.Require(t, "swaymsg")
-	harness.Require(t, "grim")
+	bin := testenv.Require(t, "sway")
+	testenv.Require(t, "swaymsg")
+	testenv.Require(t, "grim")
 	dir, err := os.MkdirTemp("", "tilde-host-")
 	if err != nil {
 		t.Fatal(err)
@@ -147,9 +147,11 @@ func TestNestedInSway(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer display.Close()
-	if _, err := compositor.New(display, b); err != nil {
+	comp, err := compositor.New(display, b, compositor.DefaultConfig(testenv.Keymap(t)))
+	if err != nil {
 		t.Fatal(err)
 	}
+	defer comp.Close()
 	done := make(chan error, 1)
 	go func() { done <- l.Run() }()
 	on := func(f func()) {

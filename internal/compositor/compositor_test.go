@@ -15,6 +15,7 @@ import (
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/render/soft"
 	"github.com/stubbedev/tilde/internal/server"
+	"github.com/stubbedev/tilde/internal/testenv"
 	"github.com/stubbedev/tilde/internal/wlclient"
 )
 
@@ -100,9 +101,10 @@ func setup(t *testing.T) *rig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.comp, err = New(disp, fakeBackend{r.renderer}); err != nil {
+	if r.comp, err = New(disp, fakeBackend{r.renderer}, DefaultConfig(testenv.Keymap(t))); err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(r.comp.Close)
 	done := make(chan error, 1)
 	go func() { done <- l.Run() }()
 	t.Cleanup(func() {

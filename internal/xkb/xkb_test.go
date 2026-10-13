@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/harness"
+	"github.com/stubbedev/tilde/internal/testenv"
 	"github.com/stubbedev/tilde/internal/xkb"
 )
 
@@ -123,7 +123,7 @@ func TestEnvironment(t *testing.T) {
 }
 
 func TestLibxkbcommonClientsReadAllThreeLayouts(t *testing.T) {
-	xkbcli := harness.Require(t, "xkbcli")
+	xkbcli := testenv.Require(t, "xkbcli")
 	km := compile(t)
 	dir := t.TempDir()
 	write := func(name, text string) string {

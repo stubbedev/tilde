@@ -41,7 +41,7 @@ func TestWaylandInfoConnects(t *testing.T) {
 	if trace := h.Trace(); !strings.Contains(trace, "wl_display@1.get_registry(new id wl_registry@2)") {
 		t.Fatalf("wayland-info never reached the compositor:\n%s", trace)
 	}
-	for _, global := range []string{"'wl_compositor'", "'wl_subcompositor'", "'wl_shm'"} {
+	for _, global := range []string{"'wl_compositor'", "'wl_subcompositor'", "'wl_shm'", "'wl_seat'"} {
 		if !strings.Contains(out, global) {
 			t.Errorf("wayland-info does not list %s:\n%s", global, out)
 		}

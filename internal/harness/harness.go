@@ -20,9 +20,8 @@ import (
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/render/soft"
 	"github.com/stubbedev/tilde/internal/server"
+	"github.com/stubbedev/tilde/internal/testenv"
 )
-
-const strictEnv = "TILDE_HEADLESS"
 
 type Harness struct {
 	t          *testing.T
@@ -56,7 +55,7 @@ func Start(t *testing.T, modes ...backend.Mode) *Harness {
 			t.Fatalf("harness: %v", err)
 		}
 	}
-	if h.compositor, err = compositor.New(h.display, h.backend); err != nil {
+	if h.compositor, err = compositor.New(h.display, h.backend, compositor.DefaultConfig(testenv.Keymap(t))); err != nil {
 		t.Fatalf("harness: %v", err)
 	}
 	go func() { h.done <- h.loop.Run() }()
@@ -66,6 +65,9 @@ func Start(t *testing.T, modes ...backend.Mode) *Harness {
 func (h *Harness) stop() {
 	for _, c := range h.clients {
 		c.kill()
+	}
+	if h.compositor != nil {
+		defer h.compositor.Close()
 	}
 	if h.loop != nil && h.compositor != nil {
 		if err := h.loop.Post(func() error {
@@ -153,19 +155,6 @@ func (h *Harness) Trace() string {
 	return h.trace.String()
 }
 
-func Require(t *testing.T, binary string) string {
-	t.Helper()
-	path, err := exec.LookPath(binary)
-	if err == nil {
-		return path
-	}
-	if os.Getenv(strictEnv) == "1" {
-		t.Fatalf("harness: %s is not on PATH and %s=1 forbids skipping", binary, strictEnv)
-	}
-	t.Skipf("harness: %s is not on PATH", binary)
-	return ""
-}
-
 type Client struct {
 	cmd    *exec.Cmd
 	output syncBuffer
@@ -174,7 +163,7 @@ type Client struct {
 
 func (h *Harness) Run(binary string, args ...string) *Client {
 	h.t.Helper()
-	path := Require(h.t, binary)
+	path := testenv.Require(h.t, binary)
 	cmd := exec.CommandContext(context.Background(), path, args...)
 	cmd.Env = append(os.Environ(), "XDG_RUNTIME_DIR="+h.RuntimeDir, "WAYLAND_DISPLAY="+h.display.Name())
 	c := &Client{cmd: cmd, exited: make(chan error, 1)}
