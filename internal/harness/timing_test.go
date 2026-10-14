@@ -76,6 +76,37 @@ func TestPresentationFeedback(t *testing.T) {
 	}
 }
 
+func TestPresentationFeedbackFollowsTheFrameThatDrewIt(t *testing.T) {
+	h := Start(t, small)
+	c := testclient.Connect(t, h.Socket())
+	p, err := cpt.NewWpPresentation(c.Display, 2, &presentationEvents{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Bind("wp_presentation", p)
+	w := c.Window("timed", quadrants)
+	c.DispatchUntil("the window to map", w.Mapped)
+	w.Stop()
+	commit := func(fb *feedbackEvents, paint testclient.Painter) {
+		t.Helper()
+		_, err := p.Feedback(w.Surface, fb)
+		if err := errors.Join(err, w.Surface.Attach(c.Buffer(w.Size, 0, paint), 0, 0), w.Surface.DamageBuffer(0, 0, int32(w.Size.X), int32(w.Size.Y)), w.Surface.Commit(), c.Display.Flush()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	drawn, next := &feedbackEvents{}, &feedbackEvents{}
+	commit(drawn, testclient.Fill(0xff, 0, 0xff))
+	h.Eventually("a frame drew the first update", showing(150, 90, [3]byte{0xff, 0, 0xff}))
+	commit(next, testclient.Fill(0xff, 0xff, 0))
+	c.DispatchUntil("both feedbacks answered", func() bool { return len(drawn.log) > 0 && len(next.log) > 0 })
+	if !slices.Equal(drawn.log, []string{"presented"}) || !slices.Equal(next.log, []string{"presented"}) {
+		t.Fatalf("the update a frame drew was %v and the one committed before that frame's vblank %v, want both presented", drawn.log, next.log)
+	}
+	if next.seq <= drawn.seq {
+		t.Fatalf("the later update was presented at refresh %d, not after the drawn one at %d", next.seq, drawn.seq)
+	}
+}
+
 type releases struct{ n int }
 
 func (r *releases) Release(*cw.WlBuffer) error {

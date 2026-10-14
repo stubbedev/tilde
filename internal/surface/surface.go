@@ -200,6 +200,7 @@ type Surface struct {
 	cache        state
 	cached       bool
 	current      state
+	latched      []*spt.WpPresentationFeedback
 	damage       region.Region
 	bufferDamage region.Region
 	attached     bool
@@ -545,8 +546,8 @@ func (s *Surface) destroy() error {
 		errs = append(errs, s.client.Remove(cb.Base().ID()))
 	}
 	s.pending.frames, s.cache.frames, s.current.frames = nil, nil, nil
-	errs = append(errs, s.client.Sent(discard(append(append(s.pending.feedbacks, s.cache.feedbacks...), s.current.feedbacks...))))
-	s.pending.feedbacks, s.cache.feedbacks, s.current.feedbacks = nil, nil, nil
+	errs = append(errs, s.client.Sent(discard(append(append(append(s.pending.feedbacks, s.cache.feedbacks...), s.current.feedbacks...), s.latched...))))
+	s.pending.feedbacks, s.cache.feedbacks, s.current.feedbacks, s.latched = nil, nil, nil, nil
 	if s.sub != nil {
 		s.sub.detach()
 	}

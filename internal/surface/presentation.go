@@ -47,9 +47,14 @@ func discard(feedbacks []*spt.WpPresentationFeedback) error {
 	return nil
 }
 
-func (s *Surface) Presented(outputs []*sw.WlOutput, at, refresh time.Duration, seq uint64, kind PresentationKind) error {
-	feedbacks := s.current.feedbacks
+func (s *Surface) Latch() {
+	s.latched = append(s.latched, s.current.feedbacks...)
 	s.current.feedbacks = nil
+}
+
+func (s *Surface) Presented(outputs []*sw.WlOutput, at, refresh time.Duration, seq uint64, kind PresentationKind) error {
+	feedbacks := s.latched
+	s.latched = nil
 	sec, nsec := uint64(at/time.Second), uint32(at%time.Second) //nolint:gosec // a monotonic timestamp is positive and the remainder fits
 	for _, fb := range feedbacks {
 		for _, o := range outputs {

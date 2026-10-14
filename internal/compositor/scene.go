@@ -73,6 +73,9 @@ func (c *Compositor) render(o *output.Output) error {
 		return err
 	}
 	c.shown[o] = shown
+	for _, s := range shown {
+		s.Latch()
+	}
 	if sc.diff(bounds).Empty() {
 		sc.skipped()
 		return errors.Join(c.unchanged(o, sc), c.lockBlanked(o))
