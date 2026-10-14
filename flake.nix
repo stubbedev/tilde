@@ -39,6 +39,24 @@
           vm = import ./nix/vm.nix {
             inherit pkgs;
             module = self.nixosModules.default;
+            name = "tilde-drm";
+            devices = ["virtio-gpu-pci"];
+            outputs = ["Virtual-1"];
+          };
+          vm-two-gpus = import ./nix/vm.nix {
+            inherit pkgs;
+            module = self.nixosModules.default;
+            name = "tilde-two-gpus";
+            devices = ["virtio-gpu-pci" "virtio-gpu-pci"];
+            outputs = ["Virtual-1" "Virtual-2"];
+          };
+          vm-display-only = import ./nix/vm.nix {
+            inherit pkgs;
+            module = self.nixosModules.default;
+            name = "tilde-display-only";
+            devices = ["virtio-gpu-pci"];
+            kernelModules = ["vkms"];
+            outputs = ["Virtual-1" "Virtual-2"];
           };
           headless = pkgs.callPackage ./nix/headless.nix {
             tilde = self.packages.${system}.tilde;

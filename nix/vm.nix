@@ -1,25 +1,27 @@
 {
   pkgs,
   module,
+  name,
+  devices,
+  outputs,
+  kernelModules ? [],
 }: let
   user = "alice";
   uid = 1000;
   run = command: "su ${user} -c 'XDG_RUNTIME_DIR=/run/user/${toString uid} ${command}'";
 in
   pkgs.testers.runNixOSTest {
-    name = "tilde-drm";
+    inherit name;
 
     nodes.machine = {config, ...}: {
       imports = [module];
 
+      boot.kernelModules = kernelModules;
       virtualisation = {
         graphics = true;
         cores = 2;
         memorySize = 2048;
-        qemu.options = [
-          "-vga none"
-          "-device virtio-gpu-pci"
-        ];
+        qemu.options = ["-vga none"] ++ map (d: "-device ${d}") devices;
       };
 
       hardware.graphics.enable = true;
@@ -44,16 +46,21 @@ in
     };
 
     testScript = ''
+      want = ${builtins.toJSON outputs}
       machine.wait_for_unit("greetd.service")
       try:
-          machine.wait_until_succeeds("${run "tildectl outputs"}", timeout=120)
+          machine.wait_until_succeeds(f"${run "tildectl outputs"} | jq -e 'length == {len(want)}'", timeout=120)
       except Exception:
           print(machine.execute("journalctl -b --no-pager -t tilde -t greetd")[1])
           raise
-      outputs = machine.succeed("${run "tildectl outputs"} | jq -r '.[].name'").split()
-      assert outputs == ["Virtual-1"], f"outputs {outputs}"
+      print(machine.succeed("journalctl -b --no-pager -t tilde"))
+      got = sorted(machine.succeed("${run "tildectl outputs"} | jq -r '.[].name'").split())
+      assert got == sorted(want), f"outputs {got}, want {want}"
       display = machine.succeed("ls /run/user/${toString uid} | grep -m1 '^wayland-[0-9]*$'").strip()
-      machine.succeed("${run "WAYLAND_DISPLAY=$display grim /tmp/screen.png"}".replace("$display", display))
-      machine.copy_from_machine("/tmp/screen.png")
+      for output in want:
+          machine.succeed(f"grep -qx enabled /sys/class/drm/card*-{output}/enabled")
+          shot = f"/tmp/{output}.png"
+          machine.succeed(f"${run "WAYLAND_DISPLAY={display} grim -o {output} {shot}"}")
+          machine.copy_from_machine(shot)
     '';
   }
