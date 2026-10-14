@@ -131,6 +131,10 @@ func (d *Display) Name() string {
 	return d.name
 }
 
+func (d *Display) Path() string {
+	return d.socketPath
+}
+
 func (d *Display) NextSerial() uint32 {
 	d.serial++
 	return d.serial

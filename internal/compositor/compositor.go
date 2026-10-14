@@ -29,6 +29,7 @@ var Background = render.Color{R: 0x1e, G: 0x1e, B: 0x2e, A: 0xff}
 type Config struct {
 	Seat   seat.Config
 	Cursor CursorConfig
+	WM     wm.Settings
 }
 
 type CursorConfig struct {
@@ -42,6 +43,7 @@ func DefaultConfig(keymap *xkb.Keymap) Config {
 	return Config{
 		Seat:   seat.Config{Keymap: keymap, RepeatRate: seat.DefaultRepeatRate, RepeatDelay: seat.DefaultRepeatDelay},
 		Cursor: CursorConfig{Size: DefaultCursorSize},
+		WM:     wm.Settings{Collapse: wm.CollapseEmptySplits},
 	}
 }
 
@@ -56,6 +58,8 @@ type Compositor struct {
 	textures   map[*surface.Surface]*texture
 	windows    []*window
 	wm         wm.State
+	settings   wm.Settings
+	display    *server.Display
 	nextWindow wm.WindowID
 	active     *window
 	consumed   []uint32
@@ -84,6 +88,8 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		shown:    map[*output.Output][]*surface.Surface{},
 		touches:  map[int32]*output.Output{},
 		cursors:  cfg.Cursor,
+		settings: cfg.WM,
+		display:  display,
 		pointers: map[cursorKey]*cursorTexture{},
 		usable:   map[*output.Output]image.Rectangle{},
 	}

@@ -368,15 +368,22 @@ func (s State) SwitchWorkspace(id WorkspaceID) (State, error) {
 	return s, nil
 }
 
-func (s State) RelativeWorkspace(offset int) (State, error) {
+func (s State) relative(offset int) (WorkspaceID, error) {
 	o := s.output(s.focused)
 	if o == nil {
-		return State{}, fmt.Errorf("move %+d workspaces: %w", offset, ErrUnknownOutput)
+		return 0, fmt.Errorf("step %+d workspaces: %w", offset, ErrUnknownOutput)
 	}
 	at := slices.IndexFunc(s.workspaces, func(w Workspace) bool { return w.ID == o.Active })
 	n := len(s.workspaces)
-	i := ((at+offset)%n + n) % n
-	return s.SwitchWorkspace(s.workspaces[i].ID)
+	return s.workspaces[((at+offset)%n+n)%n].ID, nil
+}
+
+func (s State) RelativeWorkspace(offset int) (State, error) {
+	id, err := s.relative(offset)
+	if err != nil {
+		return State{}, err
+	}
+	return s.SwitchWorkspace(id)
 }
 
 func (s State) MoveToWorkspace(id WorkspaceID) (State, error) {
