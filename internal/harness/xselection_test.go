@@ -24,6 +24,8 @@ import (
 
 const xchunk = 16 << 10
 
+var errRefused = errors.New("the paste was refused")
+
 func (c *xclient) intern(names ...string) {
 	c.t.Helper()
 	for _, name := range names {
@@ -93,7 +95,7 @@ func (c *xclient) convert(win xproto.Window, selection, target string) (xproto.A
 			continue
 		}
 		if n.Property == 0 {
-			return 0, nil, fmt.Errorf("the paste of %s was refused", target)
+			return 0, nil, fmt.Errorf("%s: %w", target, errRefused)
 		}
 		r, err := read()
 		if err != nil || r.Type != c.atoms["INCR"] {
@@ -171,12 +173,21 @@ func TestWaylandSelectionsPasteIntoX(t *testing.T) {
 			return err == nil && r.Owner != 0
 		})
 		win := xc.inputWindow()
-		idle := func(<-chan struct{}) {}
 		serve := func(done <-chan struct{}) {
 			a.seen(t, "the source asked for the text", func() bool { return slices.Contains(src.Log, "send text/plain;charset=utf-8") })
 			<-done
 		}
-		_, targets := xc.paste(win, "CLIPBOARD", "TARGETS", idle)
+		var targets []byte
+		for deadline := time.Now().Add(clientTimeout); ; time.Sleep(10 * time.Millisecond) {
+			_, list, err := xc.convert(win, "CLIPBOARD", "TARGETS")
+			if err == nil {
+				targets = list
+				break
+			}
+			if !errors.Is(err, errRefused) || time.Now().After(deadline) {
+				t.Fatal(err)
+			}
+		}
 		if got := xc.names(targets); !slices.Equal(got, []string{"TARGETS", "UTF8_STRING", "text/html"}) {
 			t.Fatalf("targets %v", got)
 		}

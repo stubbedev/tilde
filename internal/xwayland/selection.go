@@ -118,7 +118,6 @@ func (m *wm) selectionOwned(atom xproto.Atom, owner xproto.Window, at xproto.Tim
 	if sel == nil || owner == m.sel {
 		return nil
 	}
-	sel.owned = false
 	if owner == 0 {
 		if sel.x == nil {
 			return nil
@@ -126,6 +125,7 @@ func (m *wm) selectionOwned(atom xproto.Atom, owner xproto.Window, at xproto.Tim
 		sel.x = nil
 		return m.listener.SetSelection(sel.kind, nil)
 	}
+	sel.owned = false
 	if m.focused == 0 {
 		return nil
 	}
