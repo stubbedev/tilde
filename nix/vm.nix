@@ -8,16 +8,22 @@
   unplug ? null,
   tildeConfig ? null,
   rendersOn ? "card0",
+  overlays ? [],
+  machineConfig ? {},
+  extraTest ? _: "",
 }: let
   user = "alice";
   uid = 1000;
-  run = command: "su ${user} -c 'XDG_RUNTIME_DIR=/run/user/${toString uid} ${command}'";
+  runtime = "/run/user/${toString uid}";
+  run = command: "su ${user} -c 'XDG_RUNTIME_DIR=${runtime} DBUS_SESSION_BUS_ADDRESS=unix:path=${runtime}/bus ${command}'";
 in
   pkgs.testers.runNixOSTest {
     inherit name;
 
+    node.pkgsReadOnly = overlays == [];
     nodes.machine = {config, ...}: {
-      imports = [module];
+      imports = [module machineConfig];
+      nixpkgs.overlays = pkgs.lib.mkIf (overlays != []) overlays;
 
       boot.kernelModules = kernelModules;
       systemd.tmpfiles.settings = pkgs.lib.optionalAttrs (tildeConfig != null) {
@@ -79,7 +85,7 @@ in
         machine.succeed("journalctl -b --no-pager -t tilde | grep 'rendering on ${rendersOn},'")
         got = sorted(machine.succeed("${run "tildectl outputs"} | jq -r '.[].name'").split())
         assert got == sorted(want), f"outputs {got}, want {want}"
-        display = machine.succeed("ls /run/user/${toString uid} | grep -m1 '^wayland-[0-9]*$'").strip()
+        display = machine.succeed("ls ${runtime} | grep -m1 '^wayland-[0-9]*$'").strip()
         for output in want:
             machine.succeed(f"grep -qx enabled /sys/class/drm/card*-{output}/enabled")
             shot = f"/tmp/{output}.png"
@@ -88,6 +94,7 @@ in
             pixels = machine.succeed(f"${run "WAYLAND_DISPLAY={display} grim -t ppm -o {output} -"} | tail -n +4 | od -An -v -tx1 -w3 | sort -u").split("\n")
             assert [p.strip() for p in pixels if p.strip()] == ["1e 1e 2e"], f"{output} shows {pixels[:4]} besides the background"
       ''
+      + extraTest run
       + pkgs.lib.optionalString (unplug != null) ''
         import json
         after = json.dumps(${builtins.toJSON unplug.outputs})

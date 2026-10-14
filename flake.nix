@@ -71,6 +71,10 @@
             kernelModules = ["vkms"];
             outputs = ["Virtual-1" "Virtual-2"];
           };
+          vm-screencast = import ./nix/screencast.nix {
+            inherit pkgs;
+            module = self.nixosModules.default;
+          };
           headless = pkgs.callPackage ./nix/headless.nix {
             tilde = self.packages.${system}.tilde;
             gelm = gelm.packages.${system}.gelm;

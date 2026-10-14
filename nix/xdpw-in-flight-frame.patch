@@ -1,0 +1,40 @@
+diff -ru a/src/screencast/ext_image_copy.c b/src/screencast/ext_image_copy.c
+--- a/src/screencast/ext_image_copy.c
++++ b/src/screencast/ext_image_copy.c
+@@ -294,6 +294,9 @@
+ 			return;
+ 		}
+ 	}
++	if (cast->ext_session.frame) {
++		ext_image_copy_capture_frame_v1_destroy(cast->ext_session.frame);
++	}
+ 	cast->ext_session.frame = ext_image_copy_capture_session_v1_create_frame(
+ 			cast->ext_session.capture_session);
+ 	ext_image_copy_capture_frame_v1_add_listener(cast->ext_session.frame,
+diff -ru a/src/screencast/pipewire_screencast.c b/src/screencast/pipewire_screencast.c
+--- a/src/screencast/pipewire_screencast.c
++++ b/src/screencast/pipewire_screencast.c
+@@ -353,6 +353,8 @@
+ 	cast->process_retry = NULL;
+ }
+ 
++static void pwr_arm_process_retry(struct xdpw_screencast_instance *cast);
++
+ static void pwr_handle_stream_state_changed(void *data,
+ 		enum pw_stream_state old, enum pw_stream_state state, const char *error) {
+ 	struct xdpw_screencast_instance *cast = data;
+@@ -365,7 +367,13 @@
+ 	switch (state) {
+ 	case PW_STREAM_STATE_STREAMING:
+ 		cast->pwr_stream_state = true;
+-		xdpw_pwr_dequeue_buffer(cast);
++		if (!cast->current_frame.pw_buffer) {
++			xdpw_pwr_dequeue_buffer(cast);
++		}
++		if (!cast->current_frame.pw_buffer) {
++			pwr_arm_process_retry(cast);
++			break;
++		}
+ 		xdpw_wlr_frame_capture(cast);
+ 		break;
+ 	case PW_STREAM_STATE_PAUSED:
