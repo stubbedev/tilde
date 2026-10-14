@@ -436,6 +436,29 @@ func (s State) relative(offset int) (WorkspaceID, error) {
 	return s.workspaces[((at+offset)%n+n)%n].ID, nil
 }
 
+func (s State) AssignWorkspace(id WorkspaceID, output string) (State, error) {
+	switch {
+	case s.output(output) == nil:
+		return State{}, fmt.Errorf("assign workspace %d to %s: %w", id, output, ErrUnknownOutput)
+	case s.workspace(id) == nil:
+		return State{}, fmt.Errorf("assign workspace %d to %s: %w", id, output, ErrInvalidWorkspace)
+	case s.workspace(id).Output == output:
+		return s, nil
+	}
+	s = s.clone()
+	w := s.workspace(id)
+	from := w.Output
+	w.Output, w.home = output, ""
+	if o := s.output(from); o != nil && o.Active == id {
+		if next := s.firstOn(from); next != nil {
+			o.Active = next.ID
+		} else {
+			o.Active = s.create(s.firstUnused(), from).ID
+		}
+	}
+	return s, nil
+}
+
 func (s State) RelativeWorkspace(offset int) (State, error) {
 	id, err := s.relative(offset)
 	if err != nil {

@@ -150,3 +150,29 @@ func TestOutputsComeAndGo(t *testing.T) {
 		t.Fatalf("removing an unknown output: %v", err)
 	}
 }
+
+func TestAssigningAWorkspaceMovesItToAnotherOutput(t *testing.T) {
+	s := ok(t)(State{}.AddOutput("DP-1", left, left))
+	s = ok(t)(s.AddOutput("DP-2", right, right))
+	s = ok(t)(s.MapWindow(1, Autotile{}))
+	s = ok(t)(s.AssignWorkspace(1, "DP-2"))
+	if got := layoutOf(s); got[1] != "DP-2" || got[3] != "DP-1" {
+		t.Fatalf("workspaces %v after moving 1 to DP-2", got)
+	}
+	if got := active(s); !slices.Equal(got, []WorkspaceID{3, 2}) {
+		t.Fatalf("active %v: DP-1 needs a fresh workspace and DP-2 keeps its own", got)
+	}
+	s = ok(t)(s.SwitchWorkspace(1))
+	if got := active(s); !slices.Equal(got, []WorkspaceID{3, 1}) || s.FocusedOutput() != "DP-2" {
+		t.Fatalf("active %v focused %s after activating the moved workspace", got, s.FocusedOutput())
+	}
+	if same := ok(t)(s.AssignWorkspace(1, "DP-2")); !slices.Equal(active(same), active(s)) {
+		t.Fatal("assigning a workspace to its own output changed something")
+	}
+	if _, err := s.AssignWorkspace(9, "DP-1"); !errors.Is(err, ErrInvalidWorkspace) {
+		t.Fatalf("an unknown workspace: %v", err)
+	}
+	if _, err := s.AssignWorkspace(1, "HDMI-1"); !errors.Is(err, ErrUnknownOutput) {
+		t.Fatalf("an unknown output: %v", err)
+	}
+}
