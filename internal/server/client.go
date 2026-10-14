@@ -30,6 +30,7 @@ type Client struct {
 	registries []*sw.WlRegistry
 	hooks      map[wire.ObjectID][]func() error
 	writable   bool
+	dropping   bool
 	gone       bool
 }
 
@@ -82,10 +83,14 @@ func (c *Client) runHooks(id wire.ObjectID) error {
 }
 
 func (c *Client) Sent(err error) error {
-	if err != nil && c.conn.Err() != nil {
+	if err == nil || c.conn.Err() == nil {
+		return err
+	}
+	if c.gone || c.dropping {
 		return nil
 	}
-	return err
+	c.dropping = true
+	return c.display.loop.Post(c.destroy)
 }
 
 func (c *Client) Creds() unix.Ucred {
@@ -122,8 +127,8 @@ func (c *Client) Remove(id wire.ObjectID) error {
 	}
 	hooks := c.runHooks(id)
 	delete(c.objects, id)
-	if id < firstServerID {
-		return errors.Join(hooks, c.wlDisplay.SendDeleteID(uint32(id)))
+	if id < firstServerID && !c.gone {
+		return errors.Join(hooks, c.Sent(c.wlDisplay.SendDeleteID(uint32(id))))
 	}
 	return hooks
 }
