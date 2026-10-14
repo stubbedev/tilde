@@ -89,6 +89,7 @@ type Compositor struct {
 	importer        dmabufRenderer
 	power           *outputpower.Manager
 	drm             *drm.Device
+	lidClosed       bool
 	windows         []*window
 	stack           []*window
 	interaction     *interaction

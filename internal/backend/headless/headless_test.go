@@ -102,7 +102,7 @@ func TestStartAnnouncesDevicesThenOutputs(t *testing.T) {
 	if _, err := b.AddOutput(mode100); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"device+ headless-keyboard", "device+ headless-pointer", "device+ headless-touch", "output+ HEADLESS-1", "output+ HEADLESS-2"}
+	want := []string{"device+ headless-keyboard", "device+ headless-pointer", "device+ headless-touch", "device+ headless-switches", "output+ HEADLESS-1", "output+ HEADLESS-2"}
 	if !slices.Equal(r.log, want) {
 		t.Fatalf("log = %v, want %v", r.log, want)
 	}

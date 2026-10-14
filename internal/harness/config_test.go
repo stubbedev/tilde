@@ -235,3 +235,54 @@ func TestRepeatingBindsWithRepeatOff(t *testing.T) {
 		t.Fatalf("a repeating bind fired %d times with key repeat off", n)
 	}
 }
+
+func TestClosingTheLidDisablesTheInternalPanel(t *testing.T) {
+	h := StartWith(t, func(c *compositor.Config) {
+		c.Outputs = []compositor.OutputRule{{Name: "eDP-1", Scale: 2 * output.Unit}}
+	})
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+		_, err := b.AddNamedOutput("eDP-1", small)
+		if err != nil {
+			return err
+		}
+		_, err = b.AddNamedOutput("DP-1", small)
+		return err
+	})
+	c := testclient.Connect(t, h.Socket())
+	w := c.Window("on the panel", quadrants)
+	c.DispatchUntil("the window to map", w.Mapped)
+	names := func(comp *compositor.Compositor) []string {
+		var out []string
+		for _, o := range comp.Outputs() {
+			out = append(out, o.Backend().Name())
+		}
+		return out
+	}
+	lid := func(closed bool) {
+		h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+			return b.Switches().Toggle(backend.SwitchLid, closed)
+		})
+	}
+	lid(true)
+	h.Do(func(_ *headless.Backend, comp *compositor.Compositor) error {
+		if got := names(comp); !slices.Equal(got, []string{"DP-1"}) {
+			t.Errorf("outputs with the lid closed: %v", got)
+		}
+		if ws, ok := comp.WM().WorkspaceOf(1); !ok || ws == 0 {
+			t.Errorf("the window left the session: %v %v", ws, ok)
+		}
+		return nil
+	})
+	lid(false)
+	h.Do(func(_ *headless.Backend, comp *compositor.Compositor) error {
+		if got := names(comp); !slices.Equal(got, []string{"DP-1", "eDP-1"}) {
+			t.Errorf("outputs with the lid open: %v", got)
+		}
+		for _, o := range comp.Outputs() {
+			if o.Backend().Name() == "eDP-1" && o.Scale() != 2*output.Unit {
+				t.Errorf("the panel came back at scale %d, not its rule's", o.Scale())
+			}
+		}
+		return nil
+	})
+}

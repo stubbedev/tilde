@@ -27,6 +27,7 @@ type Backend struct {
 	keyboard *Keyboard
 	pointer  *Pointer
 	touch    *Touch
+	switches *Switches
 	closed   bool
 }
 
@@ -35,6 +36,7 @@ func New(l *loop.Loop) *Backend {
 	b.keyboard = &Keyboard{device{b, "headless-keyboard", backend.Keyboard}}
 	b.pointer = &Pointer{device{b, "headless-pointer", backend.Pointer}}
 	b.touch = &Touch{device{b, "headless-touch", backend.Touch}}
+	b.switches = &Switches{device{b, "headless-switches", 0}}
 	return b
 }
 
@@ -116,7 +118,7 @@ func (b *Backend) Renderer() render.Renderer {
 }
 
 func (b *Backend) devices() []backend.Device {
-	return []backend.Device{b.keyboard, b.pointer, b.touch}
+	return []backend.Device{b.keyboard, b.pointer, b.touch, b.switches}
 }
 
 func (b *Backend) Close() error {
@@ -144,6 +146,10 @@ func (b *Backend) Outputs() []*Output {
 }
 
 func (b *Backend) AddOutput(modes ...backend.Mode) (*Output, error) {
+	return b.AddNamedOutput(fmt.Sprintf("HEADLESS-%d", b.next+1), modes...)
+}
+
+func (b *Backend) AddNamedOutput(name string, modes ...backend.Mode) (*Output, error) {
 	if len(modes) == 0 {
 		return nil, errors.New("headless: an output needs at least one mode")
 	}
@@ -159,7 +165,7 @@ func (b *Backend) AddOutput(modes ...backend.Mode) (*Output, error) {
 	b.next++
 	o := &Output{
 		backend: b,
-		name:    fmt.Sprintf("HEADLESS-%d", b.next),
+		name:    name,
 		modes:   slices.Clone(modes),
 		state:   backend.OutputState{Enabled: true, Mode: current},
 	}
@@ -411,6 +417,16 @@ func (p *Pointer) Axis(orientation backend.Orientation, source backend.AxisSourc
 
 func (p *Pointer) Frame() error {
 	return p.backend.emit(p, backend.PointerFrame{Time: now()})
+}
+
+type Switches struct{ device }
+
+func (b *Backend) Switches() *Switches {
+	return b.switches
+}
+
+func (s *Switches) Toggle(kind backend.SwitchKind, on bool) error {
+	return s.backend.emit(s, backend.Switch{Time: now(), Kind: kind, On: on})
 }
 
 type Touch struct{ device }

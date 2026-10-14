@@ -34,6 +34,11 @@ A list of rules. Each output takes the first rule that matches it.
 A mode the output does not have is reported, and the output keeps its current
 mode.
 
+While the laptop lid is closed, internal panels (`eDP-*`) are off whatever the
+rules say, and their workspaces move to the other outputs; opening the lid
+brings the panel back under its rule. libinput turns off the internal keyboard
+and touchpad while the lid is closed.
+
 ## input.keyboard
 
 | Key | Value |

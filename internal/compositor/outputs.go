@@ -36,13 +36,19 @@ func (r OutputRule) scale() output.Scale {
 	return r.Scale
 }
 
+func internalPanel(name string) bool {
+	return strings.HasPrefix(name, "eDP")
+}
+
 func (c *Compositor) outputRule(b backend.Output) OutputRule {
-	for _, r := range c.outputRules {
-		if r.matches(b) {
-			return r
-		}
+	var rule OutputRule
+	if i := slices.IndexFunc(c.outputRules, func(r OutputRule) bool { return r.matches(b) }); i >= 0 {
+		rule = c.outputRules[i]
 	}
-	return OutputRule{}
+	if c.lidClosed && internalPanel(b.Name()) {
+		rule.Disabled = true
+	}
+	return rule
 }
 
 type ModePolicy interface {
