@@ -64,6 +64,7 @@ type process struct {
 	ready  *loop.Source
 	line   []byte
 	up     bool
+	failed error
 }
 
 func Listen(l *loop.Loop, d *server.Display, opts Options) (*Server, error) {
@@ -283,6 +284,9 @@ func (s *Server) exited(p *process, status error) error {
 	if status == nil {
 		status = errors.New("exit status 0")
 	}
+	if p.failed != nil {
+		status = fmt.Errorf("%w, killed because its window manager failed: %w", status, p.failed)
+	}
 	s.opts.Report(fmt.Errorf("xwayland: Xwayland on %s exited (%w); the next X client starts it again", s.Display(), status))
 	return errors.Join(append(errs, s.arm())...)
 }
@@ -291,7 +295,13 @@ func (s *Server) manage(p *process, conn net.Conn) {
 	c, err := claim(conn)
 	if err != nil {
 		_ = conn.Close()
-		s.report(fmt.Errorf("xwayland: %s: %w", s.Display(), err))
+		_ = s.loop.Post(func() error {
+			if s.proc != p {
+				return nil
+			}
+			p.failed = err
+			return s.kill(p)
+		})
 		return
 	}
 	c.report = s.report
