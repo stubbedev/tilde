@@ -248,14 +248,39 @@ func (r *Renderer) DMABUFFormats() ([]gpu.FormatModifier, error) {
 	return slices.Compact(out), nil
 }
 
-func (r *Renderer) MainDevice() (uint64, error) {
+func (r *Renderer) RenderNode() (string, error) {
 	dev, err := r.d.Device()
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	node := dev.RenderNode()
 	if node == "" {
-		return 0, fmt.Errorf("%w: %s has no render node", gpu.ErrUnsupported, r.gl.Renderer())
+		return "", fmt.Errorf("%w: %s has no render node", gpu.ErrUnsupported, r.gl.Renderer())
+	}
+	return node, nil
+}
+
+func (r *Renderer) SyncFile() (int, error) {
+	if err := r.enter(); err != nil {
+		return -1, err
+	}
+	fd := -1
+	sync, err := r.d.Fence()
+	if err == nil {
+		fd, err = sync.FD()
+		err = errors.Join(err, sync.Destroy())
+	}
+	return fd, errors.Join(err, r.leave("gles: fence"))
+}
+
+func (r *Renderer) NativeFences() bool {
+	return r.d.Has("EGL_ANDROID_native_fence_sync")
+}
+
+func (r *Renderer) MainDevice() (uint64, error) {
+	node, err := r.RenderNode()
+	if err != nil {
+		return 0, err
 	}
 	var st unix.Stat_t
 	if err := unix.Stat(node, &st); err != nil {

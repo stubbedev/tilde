@@ -15,6 +15,8 @@ import (
 	"github.com/stubbedev/tilde/internal/binds"
 	"github.com/stubbedev/tilde/internal/data"
 	"github.com/stubbedev/tilde/internal/dmabuf"
+	"github.com/stubbedev/tilde/internal/drm"
+	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/output"
 	"github.com/stubbedev/tilde/internal/render"
@@ -24,6 +26,7 @@ import (
 	"github.com/stubbedev/tilde/internal/shm"
 	"github.com/stubbedev/tilde/internal/singlepixel"
 	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/tilde/internal/syncobj"
 	"github.com/stubbedev/tilde/internal/wm"
 	"github.com/stubbedev/tilde/internal/xcursor"
 	"github.com/stubbedev/tilde/internal/xkb"
@@ -81,6 +84,7 @@ type Compositor struct {
 	imported    map[*dmabuf.Buffer]render.Texture
 	dmabuf      *dmabuf.Manager
 	importer    dmabufRenderer
+	drm         *drm.Device
 	windows     []*window
 	stack       []*window
 	interaction *interaction
@@ -191,6 +195,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 			return nil, fmt.Errorf("compositor: %w", err)
 		}
 	}
+	if err := c.explicitSync(l, display); err != nil {
+		return nil, errors.Join(err, c.Close())
+	}
 	if c.data, err = data.New(display, c); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
@@ -233,6 +240,33 @@ func (c *Compositor) dropDecor() error {
 	return errors.Join(append(errs, c.dropPointers())...)
 }
 
+func (c *Compositor) explicitSync(l *loop.Loop, display *server.Display) error {
+	r, ok := c.renderer.(syncRenderer)
+	if !ok || !r.NativeFences() {
+		return nil
+	}
+	node, err := r.RenderNode()
+	if errors.Is(err, gpu.ErrUnsupported) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("compositor: %w", err)
+	}
+	if c.drm, err = drm.Open(node); err != nil {
+		return fmt.Errorf("compositor: %w", err)
+	}
+	timelines, err := c.drm.Cap(drm.CapSyncobjTimeline)
+	if err != nil || timelines == 0 {
+		dev := c.drm
+		c.drm = nil
+		return errors.Join(err, dev.Close())
+	}
+	if _, err := syncobj.New(display, l, c.drm, r); err != nil {
+		return fmt.Errorf("compositor: %w", err)
+	}
+	return nil
+}
+
 func (c *Compositor) Close() error {
 	errs := []error{c.dropDecor()}
 	for b, tex := range c.imported {
@@ -241,6 +275,10 @@ func (c *Compositor) Close() error {
 	}
 	if c.dmabuf != nil {
 		errs = append(errs, c.dmabuf.Close())
+	}
+	if c.drm != nil {
+		errs = append(errs, c.drm.Close())
+		c.drm = nil
 	}
 	c.seat.Close()
 	return errors.Join(errs...)

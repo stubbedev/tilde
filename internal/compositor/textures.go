@@ -11,6 +11,7 @@ import (
 	"github.com/stubbedev/tilde/internal/shm"
 	"github.com/stubbedev/tilde/internal/singlepixel"
 	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/tilde/internal/syncobj"
 )
 
 type texture struct {
@@ -22,6 +23,12 @@ type texture struct {
 type dmabufRenderer interface {
 	dmabuf.Importer
 	ImportTexture(b gpu.DMABUF) (render.Texture, error)
+}
+
+type syncRenderer interface {
+	syncobj.Fencer
+	RenderNode() (string, error)
+	NativeFences() bool
 }
 
 func (c *Compositor) Committed(s *surface.Surface) error {
