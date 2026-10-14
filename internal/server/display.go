@@ -163,7 +163,7 @@ func (d *Display) accept(loop.Events) error {
 		case err != nil:
 			return fmt.Errorf("server: accept on %s: %w", d.socketPath, err)
 		}
-		if err := d.addClient(fd); err != nil {
+		if _, err := d.AddClient(fd); err != nil {
 			_ = unix.Close(fd)
 			return err
 		}
@@ -199,17 +199,27 @@ type Global struct {
 	iface   *wire.Interface
 	version uint32
 	bind    BindFunc
+	visible func(*Client) bool
 	removed bool
 }
 
+func everyone(*Client) bool { return true }
+
 func (d *Display) AddGlobal(iface *wire.Interface, version uint32, bind BindFunc) (*Global, error) {
+	return d.AddGlobalFor(iface, version, everyone, bind)
+}
+
+func (d *Display) AddGlobalFor(iface *wire.Interface, version uint32, visible func(*Client) bool, bind BindFunc) (*Global, error) {
 	if err := wire.CheckVersion(iface, version); err != nil {
 		return nil, fmt.Errorf("server: add global: %w", err)
 	}
 	d.nextGlobal++
-	g := &Global{display: d, name: d.nextGlobal, iface: iface, version: version, bind: bind}
+	g := &Global{display: d, name: d.nextGlobal, iface: iface, version: version, bind: bind, visible: visible}
 	d.globals = append(d.globals, g)
 	for _, c := range d.clients {
+		if !visible(c) {
+			continue
+		}
 		for _, r := range c.registries {
 			_ = r.SendGlobal(g.name, iface.Name, version)
 		}
@@ -228,6 +238,9 @@ func (g *Global) Remove() error {
 	g.removed = true
 	d := g.display
 	for _, c := range d.clients {
+		if !g.visible(c) {
+			continue
+		}
 		for _, r := range c.registries {
 			_ = r.SendGlobalRemove(g.name)
 		}

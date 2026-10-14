@@ -33,10 +33,13 @@ type Client struct {
 	gone       bool
 }
 
-func (d *Display) addClient(fd int) error {
+func (d *Display) AddClient(fd int) (*Client, error) {
 	creds, err := unix.GetsockoptUcred(fd, unix.SOL_SOCKET, unix.SO_PEERCRED)
 	if err != nil {
-		return fmt.Errorf("server: SO_PEERCRED on client fd %d: %w", fd, err)
+		return nil, fmt.Errorf("server: SO_PEERCRED on client fd %d: %w", fd, err)
+	}
+	if err := unix.SetNonblock(fd, true); err != nil {
+		return nil, fmt.Errorf("server: make client fd %d non-blocking: %w", fd, err)
 	}
 	c := &Client{
 		display: d,
@@ -50,13 +53,13 @@ func (d *Display) addClient(fd int) error {
 		c.conn.SetTracer(c.trace)
 	}
 	if c.wlDisplay, err = sw.NewWlDisplay(c, 1, 1, displayRequests{c}); err != nil {
-		return err
+		return nil, err
 	}
 	if c.source, err = d.loop.AddFD(fd, loop.Readable, c.handle); err != nil {
-		return err
+		return nil, err
 	}
 	d.clients = append(d.clients, c)
-	return nil
+	return c, nil
 }
 
 func (c *Client) Display() *Display {

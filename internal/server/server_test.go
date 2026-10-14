@@ -509,3 +509,53 @@ func TestFailingDestroyHooksAreReported(t *testing.T) {
 		}
 	})
 }
+
+func TestPrivateGlobalsAndSocketpairClients(t *testing.T) {
+	h := start(t)
+	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM|unix.SOCK_CLOEXEC, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var private *Client
+	var bound []uint32
+	h.on(func() {
+		var err error
+		if private, err = h.disp.AddClient(fds[0]); err != nil {
+			t.Error(err)
+			return
+		}
+		_, err = h.disp.AddGlobalFor(sw.WlCompositorInterface, 6, func(c *Client) bool { return c == private }, compositorGlobal(&bound))
+		if err != nil {
+			t.Error(err)
+		}
+	})
+	mine, err := wlclient.FromFD(fds[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = mine.Close() })
+	if _, r := h.registry(mine); r.globals[1] != "wl_compositor/6" {
+		t.Fatalf("the chosen client sees %v", r.globals)
+	}
+	other := h.connect()
+	reg, r := h.registry(other)
+	if len(r.globals) != 0 {
+		t.Fatalf("another client sees %v", r.globals)
+	}
+	comp, err := cw.NewWlCompositor(other, 6)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Bind(1, comp); err != nil {
+		t.Fatal(err)
+	}
+	var pe *wire.ProtocolError
+	if err := other.Roundtrip(); !errors.As(err, &pe) || !strings.Contains(pe.Message, "invalid global") {
+		t.Fatalf("binding a hidden global: %v", err)
+	}
+	h.on(func() {
+		if len(bound) != 0 {
+			t.Errorf("a hidden global was bound: %v", bound)
+		}
+	})
+}

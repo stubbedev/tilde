@@ -52,6 +52,11 @@ func Connect(path string) (*Display, error) {
 		_ = unix.Close(fd)
 		return nil, fmt.Errorf("wlclient: connect %s: %w", path, err)
 	}
+	return FromFD(fd)
+}
+
+func FromFD(fd int) (*Display, error) {
+	var err error
 	d := &Display{conn: wire.NewConn(fd), objects: map[wire.ObjectID]wire.Resource{}, deleted: map[wire.ObjectID]struct{}{}}
 	if d.display, err = wayland.NewWlDisplay(d, 1, displayEvents{d}); err != nil {
 		_ = d.conn.Close()
