@@ -256,7 +256,7 @@ Everything lives under `internal/` except the commands.
 | `output` | `wl_output` and `zxdg_output_v1`: each output's mode, logical position and scale in 120ths, with rounding that keeps logical edges adjacent in device pixels (#19) |
 | `outputmanagement` | `zwlr_output_manager_v1`: outputs as heads with their modes for display configuration tools, whose configurations override the config file's output rules until a reload (#107) |
 | `shm` | `wl_shm` pools and buffers, read fault-safely when a client truncates its pool (#12) |
-| `seat` | `wl_seat`, keyboard, pointer and touch, `wp_cursor_shape_v1` (#13, #14) |
+| `seat` | `wl_seat`, keyboard, pointer and touch, `wp_cursor_shape_v1`, and touchpad gestures through `zwp_pointer_gestures_v1`, which stay with the surface they began on (#13, #14, #108) |
 | `data` | `wl_data_device_manager` and `zwp_primary_selection_device_manager_v1`: the clipboard and primary selection offered to the keyboard focus, and drag and drop (#18) |
 | `xcursor` | Xcursor files and theme lookup through `XCURSOR_PATH` and `Inherits`, and the built-in arrow (#14) |
 | `xkb` | Keymap compilation, sealed keymap fds and modifier state through libxkbcommon (#13) |

@@ -481,6 +481,22 @@ func (p *Pointer) Frame() error {
 	return p.backend.emit(p, backend.PointerFrame{Time: now()})
 }
 
+func (p *Pointer) GestureBegin(g backend.Gesture, fingers uint32) error {
+	return p.backend.emit(p, backend.GestureBegin{Time: now(), Gesture: g, Fingers: fingers})
+}
+
+func (p *Pointer) Swipe(dx, dy float64) error {
+	return p.backend.emit(p, backend.SwipeUpdate{Time: now(), DX: dx, DY: dy})
+}
+
+func (p *Pointer) Pinch(dx, dy, scale, rotation float64) error {
+	return p.backend.emit(p, backend.PinchUpdate{Time: now(), DX: dx, DY: dy, Scale: scale, Rotation: rotation})
+}
+
+func (p *Pointer) GestureEnd(g backend.Gesture, cancelled bool) error {
+	return p.backend.emit(p, backend.GestureEnd{Time: now(), Gesture: g, Cancelled: cancelled})
+}
+
 type Switches struct{ device }
 
 func (b *Backend) Switches() *Switches {

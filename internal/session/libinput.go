@@ -41,6 +41,14 @@ const (
 	evTouchMotion       = 502
 	evTouchCancel       = 503
 	evTouchFrame        = 504
+	evSwipeBegin        = 800
+	evSwipeUpdate       = 801
+	evSwipeEnd          = 802
+	evPinchBegin        = 803
+	evPinchUpdate       = 804
+	evPinchEnd          = 805
+	evHoldBegin         = 806
+	evHoldEnd           = 807
 	evSwitchToggle      = 900
 	capKeyboard         = 0
 	capPointer          = 1
@@ -87,6 +95,14 @@ type libinputFuncs struct {
 	touchTime      func(tev uintptr) uint64
 	touchSlot      func(tev uintptr) int32
 	touchX, touchY func(tev uintptr, size uint32) float64
+	gestureEvent   func(ev uintptr) uintptr
+	gestureTime    func(gev uintptr) uint64
+	fingers        func(gev uintptr) int32
+	cancelled      func(gev uintptr) int32
+	gestureDX      func(gev uintptr) float64
+	gestureDY      func(gev uintptr) float64
+	gestureScale   func(gev uintptr) float64
+	gestureAngle   func(gev uintptr) float64
 	switchEvent    func(ev uintptr) uintptr
 	switchTime     func(sev uintptr) uint64
 	switchKind     func(sev uintptr) int32
@@ -301,6 +317,14 @@ func (in *Libinput) bind(path string) error {
 		{&f.touchSlot, "libinput_event_touch_get_seat_slot"},
 		{&f.touchX, "libinput_event_touch_get_x_transformed"},
 		{&f.touchY, "libinput_event_touch_get_y_transformed"},
+		{&f.gestureEvent, "libinput_event_get_gesture_event"},
+		{&f.gestureTime, "libinput_event_gesture_get_time_usec"},
+		{&f.fingers, "libinput_event_gesture_get_finger_count"},
+		{&f.cancelled, "libinput_event_gesture_get_cancelled"},
+		{&f.gestureDX, "libinput_event_gesture_get_dx"},
+		{&f.gestureDY, "libinput_event_gesture_get_dy"},
+		{&f.gestureScale, "libinput_event_gesture_get_scale"},
+		{&f.gestureAngle, "libinput_event_gesture_get_angle_delta"},
 		{&f.switchEvent, "libinput_event_get_switch_event"},
 		{&f.switchTime, "libinput_event_switch_get_time_usec"},
 		{&f.switchKind, "libinput_event_switch_get_switch"},
@@ -449,6 +473,12 @@ func (in *Libinput) event(ev uintptr) error {
 	return nil
 }
 
+var gestures = map[int32]backend.Gesture{
+	evSwipeBegin: backend.Swipe, evSwipeEnd: backend.Swipe,
+	evPinchBegin: backend.Pinch, evPinchEnd: backend.Pinch,
+	evHoldBegin: backend.Hold, evHoldEnd: backend.Hold,
+}
+
 func pointerFrame(out []backend.Event, at time.Duration) []backend.Event {
 	return append(out, backend.PointerFrame{Time: at})
 }
@@ -504,6 +534,18 @@ func (in *Libinput) translate(out []backend.Event, d *InputDevice, ev uintptr) [
 		return append(out, backend.TouchCancel{Time: usec(f.touchTime(t)), ID: f.touchSlot(t)})
 	case evTouchFrame:
 		return append(out, backend.TouchFrame{Time: usec(f.touchTime(f.touchEvent(ev)))})
+	case evSwipeBegin, evPinchBegin, evHoldBegin:
+		g := f.gestureEvent(ev)
+		return append(out, backend.GestureBegin{Time: usec(f.gestureTime(g)), Gesture: gestures[typ], Fingers: uint32(max(f.fingers(g), 0))})
+	case evSwipeUpdate:
+		g := f.gestureEvent(ev)
+		return append(out, backend.SwipeUpdate{Time: usec(f.gestureTime(g)), DX: f.gestureDX(g), DY: f.gestureDY(g)})
+	case evPinchUpdate:
+		g := f.gestureEvent(ev)
+		return append(out, backend.PinchUpdate{Time: usec(f.gestureTime(g)), DX: f.gestureDX(g), DY: f.gestureDY(g), Scale: f.gestureScale(g), Rotation: f.gestureAngle(g)})
+	case evSwipeEnd, evPinchEnd, evHoldEnd:
+		g := f.gestureEvent(ev)
+		return append(out, backend.GestureEnd{Time: usec(f.gestureTime(g)), Gesture: gestures[typ], Cancelled: f.cancelled(g) != 0})
 	case evSwitchToggle:
 		s := f.switchEvent(ev)
 		kind := backend.SwitchLid

@@ -205,6 +205,38 @@ type TouchFrame struct {
 	Time time.Duration
 }
 
+type Gesture uint8
+
+const (
+	Swipe Gesture = iota + 1
+	Pinch
+	Hold
+)
+
+type GestureBegin struct {
+	Time    time.Duration
+	Gesture Gesture
+	Fingers uint32
+}
+
+type SwipeUpdate struct {
+	Time   time.Duration
+	DX, DY float64
+}
+
+type PinchUpdate struct {
+	Time     time.Duration
+	DX, DY   float64
+	Scale    float64
+	Rotation float64
+}
+
+type GestureEnd struct {
+	Time      time.Duration
+	Gesture   Gesture
+	Cancelled bool
+}
+
 type SwitchKind uint8
 
 const (
@@ -231,3 +263,7 @@ func (e TouchMotion) Timestamp() time.Duration           { return e.Time }
 func (e TouchUp) Timestamp() time.Duration               { return e.Time }
 func (e TouchCancel) Timestamp() time.Duration           { return e.Time }
 func (e TouchFrame) Timestamp() time.Duration            { return e.Time }
+func (e GestureBegin) Timestamp() time.Duration          { return e.Time }
+func (e SwipeUpdate) Timestamp() time.Duration           { return e.Time }
+func (e PinchUpdate) Timestamp() time.Duration           { return e.Time }
+func (e GestureEnd) Timestamp() time.Duration            { return e.Time }

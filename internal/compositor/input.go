@@ -173,6 +173,14 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 		return c.seat.PointerAxis(e.Time, a)
 	case backend.PointerFrame:
 		return c.seat.PointerFrame()
+	case backend.GestureBegin:
+		return c.seat.GestureBegin(e.Time, e.Gesture, e.Fingers)
+	case backend.SwipeUpdate:
+		return c.seat.SwipeUpdate(e.Time, e.DX, e.DY)
+	case backend.PinchUpdate:
+		return c.seat.PinchUpdate(e.Time, e.DX, e.DY, e.Scale, e.Rotation)
+	case backend.GestureEnd:
+		return c.seat.GestureEnd(e.Time, e.Gesture, e.Cancelled)
 	case backend.TouchDown:
 		p, out, ok := c.onOutput(e.Output, e.X, e.Y)
 		if !ok {

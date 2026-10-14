@@ -11,7 +11,8 @@ Hyprland + hy3 setup with something smaller.
 - **Drawing**: client surfaces, 1px borders and tab bars. Nothing else.
 - **Desktop protocols** for a full session: layer-shell, session lock, idle
   notify and inhibit, data control, screen capture, foreign toplevels,
-  workspaces, output management, virtual input, XWayland.
+  workspaces, output management, touchpad gestures, virtual input,
+  XWayland.
 - **Hardware**: DRM/KMS through logind, libinput, NVIDIA (explicit sync) and
   Mesa, fractional scaling, and multi-GPU.
 

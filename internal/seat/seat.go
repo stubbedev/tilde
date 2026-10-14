@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	scs "github.com/stubbedev/tilde/internal/protocol/server/cursorshape"
+	spg "github.com/stubbedev/tilde/internal/protocol/server/pointergestures"
 	srp "github.com/stubbedev/tilde/internal/protocol/server/relativepointer"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	"github.com/stubbedev/tilde/internal/server"
@@ -38,6 +39,9 @@ type clientResources struct {
 	keyboards []*sw.WlKeyboard
 	pointers  []*sw.WlPointer
 	relatives []*srp.ZwpRelativePointerV1
+	swipes    []*spg.ZwpPointerGestureSwipeV1
+	pinches   []*spg.ZwpPointerGesturePinchV1
+	holds     []*spg.ZwpPointerGestureHoldV1
 	touches   []*sw.WlTouch
 	presses   [recentPresses]uint32
 	pressed   int
@@ -61,6 +65,7 @@ type Seat struct {
 	keyboard keyboardState
 	keymaps  map[*sw.WlKeyboard]*VirtualKeyboard
 	pointer  pointerState
+	gesture  gestureState
 	touch    touchState
 }
 
@@ -79,6 +84,10 @@ func New(d *server.Display, cfg Config, listener Listener) (*Seat, error) {
 		return nil, err
 	}
 	if _, err := d.AddGlobal(srp.ZwpRelativePointerManagerV1Interface, relativePointerVersion, s.bindRelativePointer); err != nil {
+		s.Close()
+		return nil, err
+	}
+	if _, err := d.AddGlobal(spg.ZwpPointerGesturesV1Interface, gesturesVersion, s.bindGestures); err != nil {
 		s.Close()
 		return nil, err
 	}
@@ -122,7 +131,8 @@ func (s *Seat) PressSerial(c *server.Client, serial uint32) bool {
 }
 
 func (s *Seat) forget(r *clientResources) {
-	if len(r.seats) == 0 && len(r.keyboards) == 0 && len(r.pointers) == 0 && len(r.relatives) == 0 && len(r.touches) == 0 {
+	if len(r.seats) == 0 && len(r.keyboards) == 0 && len(r.pointers) == 0 && len(r.relatives) == 0 && len(r.touches) == 0 &&
+		len(r.swipes) == 0 && len(r.pinches) == 0 && len(r.holds) == 0 {
 		s.clients = slices.DeleteFunc(s.clients, func(x *clientResources) bool { return x == r })
 	}
 }
@@ -207,6 +217,9 @@ func (s *Seat) SurfaceDestroyed(target *surface.Surface) error {
 	}
 	if s.pointer.cursor.surface == target {
 		s.pointer.cursor = Cursor{}
+	}
+	if s.gesture.surface == target {
+		s.gesture = gestureState{}
 	}
 	s.touch.points = slices.DeleteFunc(s.touch.points, func(p touchPoint) bool { return p.surface == target })
 	return err
