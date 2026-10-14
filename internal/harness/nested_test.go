@@ -115,7 +115,6 @@ func TestNestedTildeHidesTheHostCursor(t *testing.T) {
 }
 
 func TestNestedSessionWithRealClients(t *testing.T) {
-	t.Setenv("LIBGL_ALWAYS_SOFTWARE", "1")
 	t.Setenv("GOELM_DEBUG", "demo")
 	host := Start(t, desktop)
 	n := startNested(t, host)
@@ -125,7 +124,7 @@ func TestNestedSessionWithRealClients(t *testing.T) {
 	})
 
 	typed := filepath.Join(t.TempDir(), "typed")
-	terminal := n.run("alacritty", "-e", "sh", "-c", `read -r line; printf %s "$line" > "$0"`, typed)
+	terminal := n.run("alacritty-swrast", "-e", "sh", "-c", `read -r line; printf %s "$line" > "$0"`, typed)
 	n.eventually("alacritty to map", nestedToplevels(1))
 	n.eventually("alacritty to take the keyboard", func(c *compositor.Compositor) bool {
 		return c.Seat().Focus() == c.Toplevels()[0].Surface()

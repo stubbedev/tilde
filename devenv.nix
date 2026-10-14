@@ -4,6 +4,11 @@
   ...
 }: let
   gelm = inputs.gelm.packages.${pkgs.stdenv.hostPlatform.system}.gelm.overrideAttrs {tags = ["gelmdebug"];};
+  alacritty-swrast = pkgs.writeShellScriptBin "alacritty-swrast" ''
+    export __EGL_VENDOR_LIBRARY_DIRS=${pkgs.mesa}/share/glvnd/egl_vendor.d
+    export LIBGL_ALWAYS_SOFTWARE=1
+    exec ${pkgs.alacritty}/bin/alacritty "$@"
+  '';
 in {
   env = {
     CGO_ENABLED = "0";
@@ -30,6 +35,7 @@ in {
     foot
     wl-clipboard
     gelm
+    alacritty-swrast
   ];
 
   enterTest = ''
