@@ -349,6 +349,9 @@ func (c *Compositor) surfaceAt(p point) (*surface.Surface, point, *window) {
 	if s, local := c.hitUnmanaged(p); s != nil {
 		return s, local, nil
 	}
+	if s, local := c.hitInputPopups(p); s != nil {
+		return s, local, nil
+	}
 	for _, e := range slices.Backward(c.layers) {
 		if s, local := hitPopups(c.layerPopups(e), p); s != nil {
 			return s, local, nil

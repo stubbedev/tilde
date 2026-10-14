@@ -3,7 +3,9 @@ package compositor
 import (
 	"errors"
 	"image"
+	"slices"
 
+	"github.com/stubbedev/tilde/internal/inputmethod"
 	"github.com/stubbedev/tilde/internal/output"
 	"github.com/stubbedev/tilde/internal/surface"
 )
@@ -31,22 +33,46 @@ func clampInto(r, bounds image.Rectangle) image.Rectangle {
 	return r.Add(shift)
 }
 
-func (c *Compositor) drawInputPopups(pass *frame, o *output.Output, shown []*surface.Surface) ([]*surface.Surface, error) {
-	var errs []error
+type placedInputPopup struct {
+	popup  inputmethod.Popup
+	at     image.Rectangle
+	cursor image.Rectangle
+}
+
+func (c *Compositor) inputPopups() []placedInputPopup {
+	var placed []placedInputPopup
 	for _, p := range c.inputMethods.Popups() {
 		org, ok := c.originOf(p.Anchor)
 		if !ok || p.Surface.Buffer() == nil {
 			continue
 		}
 		cursor := image.Rectangle{Min: org.child(p.Cursor.Min).at, Max: org.child(p.Cursor.Max).at}
-		at := image.Rectangle{Min: image.Pt(cursor.Min.X, cursor.Max.Y), Max: image.Pt(cursor.Min.X, cursor.Max.Y).Add(p.Surface.Size())}
+		below := image.Pt(cursor.Min.X, cursor.Max.Y)
+		at := image.Rectangle{Min: below, Max: below.Add(p.Surface.Size())}
 		if out := c.outputAt(point{float64(cursor.Min.X), float64(cursor.Min.Y)}); out != nil {
 			at = clampInto(at, out.Logical())
 		}
-		errs = append(errs, p.Placed(cursor.Sub(at.Min)))
-		if at.Overlaps(o.Logical()) {
-			shown = c.drawTree(pass, o, p.Surface, flat(at.Min), shown)
+		placed = append(placed, placedInputPopup{popup: p, at: at, cursor: cursor})
+	}
+	return placed
+}
+
+func (c *Compositor) drawInputPopups(pass *frame, o *output.Output, shown []*surface.Surface) ([]*surface.Surface, error) {
+	var errs []error
+	for _, p := range c.inputPopups() {
+		errs = append(errs, p.popup.Placed(p.cursor.Sub(p.at.Min)))
+		if p.at.Overlaps(o.Logical()) {
+			shown = c.drawTree(pass, o, p.popup.Surface, flat(p.at.Min), shown)
 		}
 	}
 	return shown, errors.Join(errs...)
+}
+
+func (c *Compositor) hitInputPopups(p point) (*surface.Surface, point) {
+	for _, placed := range slices.Backward(c.inputPopups()) {
+		if s, local := hitTree(placed.popup.Surface, flat(placed.at.Min), p); s != nil {
+			return s, local
+		}
+	}
+	return nil, point{}
 }

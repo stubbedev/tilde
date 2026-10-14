@@ -141,6 +141,7 @@ func typing(t *testing.T, h *Harness, name string) *typist {
 
 type method struct {
 	c   *testclient.Client
+	in  *testclient.Input
 	im  *cim.ZwpInputMethodV2
 	log *inputMethodLog
 }
@@ -148,7 +149,7 @@ type method struct {
 func inputMethod(t *testing.T, h *Harness) *method {
 	t.Helper()
 	c := testclient.Connect(t, h.Socket())
-	seat, _ := c.Seat()
+	seat, in := c.Seat()
 	m, err := cim.NewZwpInputMethodManagerV2(c.Display, 1)
 	if err != nil {
 		t.Fatal(err)
@@ -160,7 +161,7 @@ func inputMethod(t *testing.T, h *Harness) *method {
 		t.Fatal(err)
 	}
 	c.Sync()
-	return &method{c: c, im: im, log: log}
+	return &method{c: c, in: in, im: im, log: log}
 }
 
 func send(t *testing.T, requests ...func() error) {
@@ -268,6 +269,16 @@ func TestInputMethodPopupsSitUnderTheTextCursor(t *testing.T) {
 	m.c.DispatchUntil("the text input rectangle", func() bool { return len(rects.rects) > 0 })
 	if got, want := rects.rects[len(rects.rects)-1], image.Rect(0, -16, 2, 0); got != want {
 		t.Fatalf("the popup was told the cursor is at %v, want %v", got, want)
+	}
+	m.in.Name(s, "popup")
+	h.click(0, 35, 40, btnLeft)
+	m.c.DispatchUntil("the click on the popup", func() bool { return slices.Contains(m.in.Log, "button 272 0") })
+	if !slices.Contains(m.in.Log, "enter popup 5,4") {
+		t.Fatalf("the input method's client saw %q, want the pointer to enter its popup at 5,4", m.in.Log)
+	}
+	ty.c.Sync()
+	if slices.Contains(ty.in.Log, "kb_leave editor") || slices.Contains(m.log.log, "deactivate") {
+		t.Fatal("clicking the popup took the keyboard focus from the text input")
 	}
 	ty.commit(t, ty.ti.Disable)
 	h.Eventually("the popup hidden with the input method", showing(32, 37, [3]byte{0xff, 0, 0}))
