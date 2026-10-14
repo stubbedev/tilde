@@ -69,6 +69,10 @@ func (f *fakeOutput) State() backend.OutputState {
 func (f *fakeOutput) Commit(backend.OutputState) error { return nil }
 func (f *fakeOutput) ScheduleFrame() error             { return nil }
 func (f *fakeOutput) Present(render.Region) error      { return nil }
+func (f *fakeOutput) CursorPlane() (backend.CursorPlane, error) {
+	return nil, backend.ErrNoCursorPlanes
+}
+
 func (f *fakeOutput) BeginFrame() (backend.Frame, error) {
 	return backend.Frame{}, errors.New("no frames")
 }

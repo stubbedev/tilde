@@ -1,6 +1,8 @@
 package drm
 
 import (
+	"errors"
+	"image"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"github.com/stubbedev/tilde/internal/edid"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
+	"github.com/stubbedev/tilde/internal/render"
 )
 
 type added struct {
@@ -42,6 +45,35 @@ func connected(t *testing.T) int {
 		}
 	}
 	return n
+}
+
+func cursorImage(t *testing.T, o *Output) {
+	t.Helper()
+	cp, err := o.CursorPlane()
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := cp.BeginCursor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := f.Renderer.Begin(f.Target, render.Region{image.Rectangle{Max: cp.CursorSize()}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Clear(render.Color{})
+	p.FillRect(image.Rect(0, 0, 8, 8), render.Color{R: 0xff, A: 0xff})
+	if err := errors.Join(p.End(), cp.SetCursor(image.Pt(1, 1)), cp.MoveCursor(image.Pt(50, 50))); err != nil {
+		t.Fatal(err)
+	}
+	if len(o.cursor.buffers) != cursorBuffers || o.cursor.pending.fb == 0 || o.cursor.refused != nil {
+		t.Fatalf("%s cursor: %d buffers, pending %+v, refused %v", o.Name(), len(o.cursor.buffers), o.cursor.pending, o.cursor.refused)
+	}
+	pix, pitch := o.cursor.pending.dumb.Pix, int(o.cursor.pending.dumb.Pitch)
+	if [4]byte(pix[:4]) != [4]byte{0, 0, 0xff, 0xff} || [4]byte(pix[7*pitch+28:7*pitch+32]) != [4]byte{0, 0, 0xff, 0xff} || [4]byte(pix[8*pitch:8*pitch+4]) != [4]byte{} {
+		t.Fatalf("%s cursor buffer: %v, %v, %v", o.Name(), pix[:4], pix[7*pitch+28:7*pitch+32], pix[8*pitch:8*pitch+4])
+	}
+	t.Logf("%s cursor plane %d, %v", o.Name(), o.cursor.plane.id, cp.CursorSize())
 }
 
 func TestStartOnThisCardWithoutMaster(t *testing.T) {
@@ -78,6 +110,7 @@ func TestStartOnThisCardWithoutMaster(t *testing.T) {
 			t.Errorf("%s has no EDID description", o.Name())
 		}
 		t.Logf("%s (%s) on CRTC %d and plane %d with modifiers %#x, %+v", o.Name(), o.Description(), o.crtc.id, o.primary.id, o.primary.modifiers, o.State().Mode)
+		cursorImage(t, o)
 	}
 	if err := b.Close(); err != nil {
 		t.Fatal(err)

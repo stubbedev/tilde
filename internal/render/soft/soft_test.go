@@ -123,6 +123,22 @@ func TestClearReplacesTheDamageWithoutBlending(t *testing.T) {
 	}
 }
 
+func TestReadCopiesRowsAtAnyStride(t *testing.T) {
+	r := soft.New()
+	b := soft.NewBuffer(2, 2)
+	frame(t, r, b, render.Region{image.Rect(1, 1, 2, 2)}, func(p render.Pass) { p.Clear(render.Color{B: 0x10, A: 0x20}) })
+	pix := make([]byte, 2*12)
+	if err := b.Read(pix, 12); err != nil {
+		t.Fatal(err)
+	}
+	if want := px(0x10, 0, 0, 0x20); [4]byte(pix[16:20]) != want || [4]byte(pix[0:4]) != px(0, 0, 0, 0) {
+		t.Fatalf("read %v", pix)
+	}
+	if err := b.Read(pix[:12], 12); err == nil {
+		t.Fatal("a short read target was accepted")
+	}
+}
+
 func TestTextureAlphaAndFormats(t *testing.T) {
 	r := soft.New()
 	translucent := newTex(t, r, render.ARGB8888, 1, 1, px(0, 0, 0x80, 0x80))

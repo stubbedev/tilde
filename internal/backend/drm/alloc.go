@@ -108,6 +108,10 @@ func (a *gbmAllocator) allocate(size image.Point, format uint32, modifiers []uin
 	}}, nil
 }
 
+func (a *gbmAllocator) offscreen(size image.Point) (readTarget, error) {
+	return a.gles.NewFramebuffer(size)
+}
+
 func (a *gbmAllocator) fence() (int, error) {
 	if !a.gles.NativeFences() {
 		return -1, a.gles.Finish()

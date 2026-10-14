@@ -25,6 +25,21 @@ func (b *Buffer) Size() image.Point {
 	return image.Pt(b.W, b.H)
 }
 
+func (b *Buffer) Read(pix []byte, stride int) error {
+	if stride < b.W*4 || len(pix) < stride*(b.H-1)+b.W*4 {
+		return fmt.Errorf("soft: reading %dx%d needs stride %d and %d bytes", b.W, b.H, b.W*4, b.W*4*b.H)
+	}
+	for y := range b.H {
+		copy(pix[y*stride:y*stride+b.W*4], b.Pix[y*b.Stride:])
+	}
+	return nil
+}
+
+func (b *Buffer) Destroy() error {
+	b.Pix, b.W, b.H = nil, 0, 0
+	return nil
+}
+
 func (b *Buffer) bounds() image.Rectangle {
 	return image.Rect(0, 0, b.W, b.H)
 }

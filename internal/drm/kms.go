@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"image"
+	"math"
 	"runtime"
 	"unsafe"
 
@@ -46,6 +48,9 @@ const (
 	ioctlAddFB2            = 0xb8
 	ioctlObjGetProperties  = 0xb9
 	ioctlAtomic            = 0xbc
+	ioctlCreateDumb        = 0xb2
+	ioctlMapDumb           = 0xb3
+	ioctlDestroyDumb       = 0xb4
 	ioctlCreatePropBlob    = 0xbd
 	ioctlDestroyPropBlob   = 0xbe
 	modeInfoSize           = 68
@@ -466,6 +471,47 @@ func (d *Device) AddFB2(fb FB) (uint32, error) {
 func (d *Device) RemoveFB(id uint32) error {
 	arg := id
 	return d.ioctl("DRM_IOCTL_MODE_RMFB", ioctlRmFB, unsafe.Pointer(&arg), unsafe.Sizeof(arg)) //nolint:gosec // the kernel reads this value during the call
+}
+
+type Dumb struct {
+	Handle, Pitch uint32
+	Pix           []byte
+}
+
+func (d *Device) CreateDumb(size image.Point) (Dumb, error) {
+	if size.X <= 0 || size.Y <= 0 || size.X > math.MaxUint16 || size.Y > math.MaxUint16 {
+		return Dumb{}, fmt.Errorf("drm: cannot make a %v dumb buffer", size)
+	}
+	arg := struct {
+		height, width, bpp, flags, handle, pitch uint32
+		size                                     uint64
+	}{height: uint32(size.Y), width: uint32(size.X), bpp: 32}
+	if err := d.ioctl("DRM_IOCTL_MODE_CREATE_DUMB", ioctlCreateDumb, unsafe.Pointer(&arg), unsafe.Sizeof(arg)); err != nil { //nolint:gosec // the kernel fills this struct during the call
+		return Dumb{}, err
+	}
+	b := Dumb{Handle: arg.handle, Pitch: arg.pitch}
+	m := struct {
+		handle, pad uint32
+		offset      uint64
+	}{handle: arg.handle}
+	if err := d.ioctl("DRM_IOCTL_MODE_MAP_DUMB", ioctlMapDumb, unsafe.Pointer(&m), unsafe.Sizeof(m)); err != nil { //nolint:gosec // the kernel fills this struct during the call
+		return Dumb{}, errors.Join(err, d.DestroyDumb(b))
+	}
+	pix, err := unix.Mmap(d.fd, int64(m.offset), int(arg.size), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED) //nolint:gosec // mmap offsets and dumb buffer sizes fit
+	if err != nil {
+		return Dumb{}, errors.Join(fmt.Errorf("drm: map a %v dumb buffer on %s: %w", size, d.path, err), d.DestroyDumb(b))
+	}
+	b.Pix = pix
+	return b, nil
+}
+
+func (d *Device) DestroyDumb(b Dumb) error {
+	var err error
+	if b.Pix != nil {
+		err = unix.Munmap(b.Pix)
+	}
+	arg := b.Handle
+	return errors.Join(err, d.ioctl("DRM_IOCTL_MODE_DESTROY_DUMB", ioctlDestroyDumb, unsafe.Pointer(&arg), unsafe.Sizeof(arg))) //nolint:gosec // the kernel reads this value during the call
 }
 
 type FlipEvent struct {

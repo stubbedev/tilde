@@ -443,6 +443,10 @@ func (o *Output) BeginFrame() (backend.Frame, error) {
 	return backend.Frame{Renderer: o.backend.chain.renderer(), Target: buf.target, Age: age}, nil
 }
 
+func (o *Output) CursorPlane() (backend.CursorPlane, error) {
+	return nil, backend.ErrNoCursorPlanes
+}
+
 func (o *Output) Present(damage render.Region) error {
 	buf := o.drawing
 	if buf == nil {

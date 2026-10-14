@@ -286,6 +286,10 @@ func (o *Output) BeginFrame() (backend.Frame, error) {
 	return backend.Frame{Renderer: o.backend.renderer, Target: o.target, Age: age}, nil
 }
 
+func (o *Output) CursorPlane() (backend.CursorPlane, error) {
+	return nil, backend.ErrNoCursorPlanes
+}
+
 func (o *Output) Present(damage render.Region) error {
 	if !o.inFrame {
 		return fmt.Errorf("headless: present on %s without BeginFrame", o.name)

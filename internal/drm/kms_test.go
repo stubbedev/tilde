@@ -3,6 +3,7 @@ package drm_test
 import (
 	"encoding/binary"
 	"errors"
+	"image"
 	"slices"
 	"testing"
 
@@ -150,5 +151,27 @@ func TestAtomicRequestsGroupByObject(t *testing.T) {
 	})
 	if allocs != 0 {
 		t.Fatalf("%v allocations per reused request", allocs)
+	}
+}
+
+func TestDumbBuffersScanOutLinearARGB(t *testing.T) {
+	d := card(t)
+	b, err := d.CreateDumb(image.Pt(64, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.Pitch < 64*4 || len(b.Pix) < int(b.Pitch)*32 {
+		t.Fatalf("pitch %d for %d mapped bytes", b.Pitch, len(b.Pix))
+	}
+	b.Pix[len(b.Pix)-1] = 0xff
+	id, err := d.AddFB2(drm.FB{Width: 64, Height: 32, Format: 'A' | 'R'<<8 | '2'<<16 | '4'<<24, Handles: [4]uint32{b.Handle}, Pitches: [4]uint32{b.Pitch}})
+	if err != nil {
+		t.Fatal(errors.Join(err, d.DestroyDumb(b)))
+	}
+	if err := errors.Join(d.RemoveFB(id), d.DestroyDumb(b)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.CreateDumb(image.Point{}); err == nil {
+		t.Fatal("an empty dumb buffer was made")
 	}
 }

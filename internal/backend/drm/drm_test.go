@@ -47,9 +47,12 @@ type commit struct {
 type fakeDevice struct {
 	events, write int
 	connected     bool
+	refuseCursor  bool
 	commits       []commit
 	blobs         uint32
 	destroyed     []uint32
+	dumbs, fbs    uint32
+	live          map[uint32]bool
 }
 
 var modes = []kdrm.Mode{
@@ -58,6 +61,13 @@ var modes = []kdrm.Mode{
 }
 
 func (f *fakeDevice) FD() int { return f.events }
+
+func (f *fakeDevice) Cap(c uint64) (uint64, error) {
+	if c != kdrm.CapCursorWidth && c != kdrm.CapCursorHeight {
+		return 0, fmt.Errorf("unknown cap %#x", c)
+	}
+	return 64, nil
+}
 
 func (f *fakeDevice) Resources() (kdrm.Resources, error) {
 	return kdrm.Resources{CRTCs: []uint32{10, 11}, Connectors: []uint32{20}, Encoders: []uint32{30}}, nil
@@ -75,24 +85,28 @@ func (f *fakeDevice) Encoder(id uint32) (kdrm.Encoder, error) {
 	return kdrm.Encoder{ID: id, PossibleCRTCs: 0b11}, nil
 }
 
-func (f *fakeDevice) Planes() ([]uint32, error) { return []uint32{40, 41, 42}, nil }
+func (f *fakeDevice) Planes() ([]uint32, error) { return []uint32{40, 41, 42, 43}, nil }
 
 func (f *fakeDevice) Plane(id uint32) (kdrm.Plane, error) {
-	return kdrm.Plane{ID: id, PossibleCRTCs: map[uint32]uint32{40: 0b01, 41: 0b10, 42: 0b11}[id], Formats: []uint32{scanoutFormat}}, nil
+	format := scanoutFormat
+	if id == 43 {
+		format = cursorFormat
+	}
+	return kdrm.Plane{ID: id, PossibleCRTCs: map[uint32]uint32{40: 0b01, 41: 0b10, 42: 0b11, 43: 0b01}[id], Formats: []uint32{format}}, nil
 }
 
 func (f *fakeDevice) Properties(object, kind uint32) (map[string]kdrm.Property, error) {
 	switch kind {
 	case kdrm.ObjectPlane:
-		typ := uint64(1)
-		if object == 42 {
-			typ = 0
+		typ, formats := map[uint32]uint64{42: 0, 43: 2}[object], uint64(0)
+		if object == 40 || object == 41 {
+			typ, formats = 1, inFormatsBlob
 		}
 		return map[string]kdrm.Property{
 			"type": {ID: propType, Value: typ}, "FB_ID": {ID: propFB}, "CRTC_ID": {ID: propPlaneCRTC},
 			"SRC_X": {ID: propSrcX}, "SRC_Y": {ID: propSrcY}, "SRC_W": {ID: propSrcW}, "SRC_H": {ID: propSrcH},
 			"CRTC_X": {ID: propCRTCX}, "CRTC_Y": {ID: propCRTCY}, "CRTC_W": {ID: propCRTCW}, "CRTC_H": {ID: propCRTCH},
-			"IN_FORMATS": {ID: propInFormats, Value: inFormatsBlob}, "IN_FENCE_FD": {ID: propInFence},
+			"IN_FORMATS": {ID: propInFormats, Value: formats}, "IN_FENCE_FD": {ID: propInFence},
 		}, nil
 	case kdrm.ObjectCRTC:
 		return map[string]kdrm.Property{"ACTIVE": {ID: propActive}, "MODE_ID": {ID: propModeID}}, nil
@@ -134,10 +148,40 @@ func (f *fakeDevice) DestroyBlob(id uint32) error {
 	return nil
 }
 
+func (f *fakeDevice) CreateDumb(size image.Point) (kdrm.Dumb, error) {
+	f.dumbs++
+	if f.live == nil {
+		f.live = map[uint32]bool{}
+	}
+	f.live[f.dumbs] = true
+	return kdrm.Dumb{Handle: f.dumbs, Pitch: uint32(size.X * 4), Pix: make([]byte, size.X*size.Y*4)}, nil
+}
+
+func (f *fakeDevice) DestroyDumb(b kdrm.Dumb) error {
+	if !f.live[b.Handle] {
+		return fmt.Errorf("dumb buffer %d destroyed twice", b.Handle)
+	}
+	delete(f.live, b.Handle)
+	return nil
+}
+
+func (f *fakeDevice) AddFB2(fb kdrm.FB) (uint32, error) {
+	if fb.Format != cursorFormat || fb.WithModifier || !f.live[fb.Handles[0]] {
+		return 0, fmt.Errorf("unexpected framebuffer %+v", fb)
+	}
+	f.fbs++
+	return 700 + f.fbs, nil
+}
+
+func (f *fakeDevice) RemoveFB(uint32) error { return nil }
+
 func (f *fakeDevice) Commit(r *kdrm.Request, flags uint32, userData uint64) error {
 	c := commit{flags: flags, userData: userData, values: map[[2]uint32]uint64{}}
 	r.Each(func(object, property uint32, value uint64) { c.values[[2]uint32{object, property}] = value })
 	f.commits = append(f.commits, c)
+	if f.refuseCursor && c.values[[2]uint32{43, propFB}] != 0 {
+		return unix.EINVAL
+	}
 	return nil
 }
 
@@ -165,6 +209,10 @@ type fakeAlloc struct {
 func (a *fakeAlloc) renderer() render.Renderer { return a.soft }
 
 func (a *fakeAlloc) renderable(uint32) ([]uint64, error) { return []uint64{0, 7, 9}, nil }
+
+func (a *fakeAlloc) offscreen(size image.Point) (readTarget, error) {
+	return soft.NewBuffer(size.X, size.Y), nil
+}
 
 func (a *fakeAlloc) allocate(size image.Point, _ uint32, modifiers []uint64) (*scanout, error) {
 	if !slices.Equal(modifiers, []uint64{0, 7}) {
@@ -446,5 +494,182 @@ func TestPowerAndWake(t *testing.T) {
 	woke := r.dev.commits[len(r.dev.commits)-1]
 	if woke.flags&kdrm.AtomicAllowModeset == 0 || woke.values[[2]uint32{10, propModeID}] == 0 {
 		t.Fatalf("waking did not recommit the mode: %+v", woke)
+	}
+}
+
+func (r *rig) lit() *Output {
+	r.t.Helper()
+	o := r.b.Outputs()[0]
+	if err := o.ScheduleFrame(); err != nil {
+		r.t.Fatal(err)
+	}
+	r.settle()
+	r.dev.flip(r.t, 10, 1)
+	r.settle()
+	r.dev.commits = nil
+	return o
+}
+
+func (r *rig) setCursor(o *Output, hotspot image.Point) error {
+	r.t.Helper()
+	cp, err := o.CursorPlane()
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	f, err := cp.BeginCursor()
+	if err != nil {
+		return err
+	}
+	p, err := f.Renderer.Begin(f.Target, render.Region{image.Rectangle{Max: cp.CursorSize()}})
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	p.Clear(render.Color{})
+	p.FillRect(image.Rect(0, 0, 1, 1), render.Color{R: 0xff, A: 0xff})
+	if err := p.End(); err != nil {
+		r.t.Fatal(err)
+	}
+	return cp.SetCursor(hotspot)
+}
+
+func cursorAt(c commit) (uint64, image.Point, bool) {
+	fb, ok := c.values[[2]uint32{43, propFB}]
+	return fb, image.Pt(int(int64(c.values[[2]uint32{43, propCRTCX}])), int(int64(c.values[[2]uint32{43, propCRTCY}]))), ok
+}
+
+func TestCursorPlaneMovesWithoutFrames(t *testing.T) {
+	r := start(t)
+	o := r.lit()
+	if err := r.setCursor(o, image.Pt(4, 6)); err != nil {
+		t.Fatal(err)
+	}
+	if len(r.dev.commits) != 3 || r.dev.commits[0].flags != kdrm.AtomicTestOnly || r.dev.commits[2].flags != kdrm.AtomicNonblock|kdrm.AtomicPageFlipEvent {
+		t.Fatalf("setting the cursor committed %+v", r.dev.commits)
+	}
+	shown := r.dev.commits[2]
+	if _, ok := shown.values[[2]uint32{40, propFB}]; ok {
+		t.Fatal("a cursor update touched the primary plane")
+	}
+	if fb, at, _ := cursorAt(shown); fb == 0 || at != image.Pt(-4, -6) || shown.values[[2]uint32{43, propCRTCW}] != 64 || shown.values[[2]uint32{43, propPlaneCRTC}] != 10 {
+		t.Fatalf("cursor fb %d at %v in %+v", fb, at, shown.values)
+	}
+	cp, _ := o.CursorPlane()
+	for _, at := range []image.Point{image.Pt(100, 50), image.Pt(120, 70)} {
+		if err := cp.MoveCursor(at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(r.dev.commits) != 3 {
+		t.Fatal("the cursor moved while its last update was still flipping")
+	}
+	r.dev.flip(t, 10, 2)
+	r.settle()
+	if len(r.dev.commits) != 5 || len(r.rec.presents) != 1 {
+		t.Fatalf("%d commits and %d presents after the flip", len(r.dev.commits), len(r.rec.presents))
+	}
+	if _, at, _ := cursorAt(r.dev.commits[4]); at != image.Pt(116, 64) {
+		t.Fatalf("the cursor landed at %v", at)
+	}
+	r.dev.flip(t, 10, 3)
+	r.settle()
+	if err := cp.HideCursor(); err != nil {
+		t.Fatal(err)
+	}
+	if fb, _, ok := cursorAt(r.dev.commits[len(r.dev.commits)-1]); !ok || fb != 0 {
+		t.Fatal("hiding the cursor did not clear its plane")
+	}
+	if err := o.ScheduleFrame(); err != nil {
+		t.Fatal(err)
+	}
+	r.dev.flip(t, 10, 4)
+	r.settle()
+	if fb, _, ok := cursorAt(r.dev.commits[len(r.dev.commits)-1]); !ok || fb != 0 {
+		t.Fatal("a frame brought a hidden cursor back")
+	}
+}
+
+func TestFramesCarryTheCursor(t *testing.T) {
+	r := start(t)
+	o := r.lit()
+	fences := len(r.alloc.fences)
+	if err := r.setCursor(o, image.Point{}); err != nil {
+		t.Fatal(err)
+	}
+	cp, _ := o.CursorPlane()
+	if err := o.ScheduleFrame(); err != nil {
+		t.Fatal(err)
+	}
+	if err := cp.MoveCursor(image.Pt(30, 40)); err != nil {
+		t.Fatal(err)
+	}
+	r.dev.flip(t, 10, 2)
+	r.settle()
+	last := r.dev.commits[len(r.dev.commits)-1]
+	if _, at, _ := cursorAt(last); at != image.Pt(30, 40) || last.values[[2]uint32{40, propFB}] == 0 {
+		t.Fatalf("the frame after the move: %+v", last.values)
+	}
+	if n := len(r.alloc.fences) - fences; n != 1 {
+		t.Fatalf("%d fences for one frame", n)
+	}
+	if pix := o.cursor.pending.dumb.Pix; [4]byte(pix[:4]) != [4]byte{0, 0, 0xff, 0xff} || pix[4] != 0 {
+		t.Fatalf("the cursor buffer starts %v", pix[:8])
+	}
+}
+
+func TestARefusedCursorFallsBack(t *testing.T) {
+	r := start(t)
+	o := r.lit()
+	r.dev.refuseCursor = true
+	if err := r.setCursor(o, image.Point{}); err == nil {
+		t.Fatal("a refused cursor image was accepted")
+	}
+	cp, _ := o.CursorPlane()
+	if err := cp.MoveCursor(image.Pt(1, 1)); err == nil {
+		t.Fatal("a refused cursor plane moved")
+	}
+	if _, err := cp.BeginCursor(); err == nil {
+		t.Fatal("a refused cursor plane took another image")
+	}
+}
+
+func TestAFrameDropsACursorItsTestRefuses(t *testing.T) {
+	r := start(t)
+	o := r.b.Outputs()[0]
+	if err := r.setCursor(o, image.Point{}); err != nil {
+		t.Fatalf("an untested cursor before the first frame: %v", err)
+	}
+	r.dev.refuseCursor = true
+	if err := o.ScheduleFrame(); err != nil {
+		t.Fatal(err)
+	}
+	r.settle()
+	last := r.dev.commits[len(r.dev.commits)-1]
+	if fb, _, _ := cursorAt(last); fb != 0 || last.values[[2]uint32{40, propFB}] == 0 || last.flags&kdrm.AtomicTestOnly != 0 {
+		t.Fatalf("the first frame: %+v", last)
+	}
+	cp, _ := o.CursorPlane()
+	if err := cp.MoveCursor(image.Pt(1, 1)); err == nil {
+		t.Fatal("the cursor plane stayed in use after the frame dropped it")
+	}
+}
+
+func TestCursorPlanesBelongToOneCRTC(t *testing.T) {
+	r := start(t)
+	o := r.b.Outputs()[0]
+	if o.cursor == nil || o.cursor.plane.id != 43 || r.b.cursor != image.Pt(64, 64) {
+		t.Fatalf("cursor %+v, size %v", o.cursor, r.b.cursor)
+	}
+	if err := r.setCursor(o, image.Point{}); err != nil || len(r.dev.live) != cursorBuffers {
+		t.Fatalf("%d dumb buffers for the cursor: %v", len(r.dev.live), err)
+	}
+	r.dev.connected = false
+	if err := r.b.Hotplug(); err != nil {
+		t.Fatal(err)
+	}
+	if i := slices.IndexFunc(r.b.planes, func(p *plane) bool { return p.id == 43 }); r.b.planes[i].taken {
+		t.Fatal("the cursor plane stayed taken after its output left")
+	}
+	if len(r.dev.live) != 0 {
+		t.Fatalf("dumb buffers %v outlived their output", r.dev.live)
 	}
 }

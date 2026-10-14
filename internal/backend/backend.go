@@ -3,6 +3,7 @@
 package backend
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"time"
@@ -73,6 +74,16 @@ type Presentation struct {
 	Seq     uint64
 }
 
+var ErrNoCursorPlanes = errors.New("backend: this backend draws the cursor in the frame")
+
+type CursorPlane interface {
+	CursorSize() image.Point
+	BeginCursor() (Frame, error)
+	SetCursor(hotspot image.Point) error
+	MoveCursor(at image.Point) error
+	HideCursor() error
+}
+
 type Output interface {
 	Name() string
 	Description() string
@@ -83,6 +94,7 @@ type Output interface {
 	ScheduleFrame() error
 	BeginFrame() (Frame, error)
 	Present(damage render.Region) error
+	CursorPlane() (CursorPlane, error)
 }
 
 type Capability uint8
