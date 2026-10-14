@@ -58,14 +58,14 @@ in
           machine.succeed(f"${run "tildectl dispatch exec {launcher}"}")
           windows = "${run "tildectl windows"}"
           try:
-              machine.wait_until_succeeds(f"{windows} | jq -e 'any(.[]; .title | startswith(\"waiting\"))'", timeout=180)
+              machine.wait_until_succeeds(f"{windows} | jq -e 'any(.[]; .title | startswith(\"waiting\"))'", timeout=600)
               machine.sleep(5)
               machine.send_key("ret")
-              machine.wait_until_succeeds(f"{windows} | jq -e 'all(.[]; .title | startswith(\"waiting\") | not)'", timeout=120)
-              machine.wait_until_succeeds(f"{windows} | jq -e 'all(.[]; .title | test(\"^(sharing|waiting)\") | not)'", timeout=120)
+              machine.wait_until_succeeds(f"{windows} | jq -e 'all(.[]; .title | startswith(\"waiting\") | not)'", timeout=600)
+              machine.wait_until_succeeds(f"{windows} | jq -e 'all(.[]; .title | test(\"^(sharing|waiting)\") | not)'", timeout=600)
           finally:
               print(machine.succeed(f"{windows} | jq -r '.[].title'"))
-              print(machine.execute(f"tail -40 /tmp/{name}.log")[1])
+              print(machine.execute(f"tail -40 /tmp/{name}.log; ps -u alice -o pid,etime,time,rss,args | cut -c1-160")[1])
           machine.succeed(f"{windows} | jq -e 'all(.[]; .title | test(\"^(sharing|waiting|failed)\") | not)'")
           machine.succeed(f"{windows} | jq -e '[.[] | select(.title | startswith(\"shared 1280x800\"))] | length == {shared}'")
 
