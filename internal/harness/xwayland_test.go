@@ -100,7 +100,7 @@ func xDial(t *testing.T, h *Harness) *xclient {
 	}
 	t.Cleanup(x.Close)
 	c := &xclient{t: t, x: x, root: xproto.Setup(x).DefaultScreen(x).Root, atoms: map[string]xproto.Atom{}}
-	for _, name := range []string{"WM_CLASS", "_NET_WM_NAME", "UTF8_STRING", "_NET_WM_WINDOW_TYPE", "_NET_WM_WINDOW_TYPE_DIALOG", "_NET_WM_STATE", "_NET_WM_STATE_FULLSCREEN"} {
+	for _, name := range []string{"WM_CLASS", "_NET_WM_NAME", "UTF8_STRING", "_NET_WM_WINDOW_TYPE", "_NET_WM_WINDOW_TYPE_DIALOG", "_NET_WM_STATE", "_NET_WM_STATE_FULLSCREEN", "_NET_WM_STATE_MODAL", "WM_TRANSIENT_FOR"} {
 		r, err := xproto.InternAtom(x, false, uint16(len(name)), name).Reply()
 		if err != nil {
 			t.Fatal(err)
@@ -132,6 +132,8 @@ func (c *xclient) window(rect image.Rectangle, pixel uint32, override bool, prop
 			typ = c.atoms["UTF8_STRING"]
 		case "_NET_WM_WINDOW_TYPE", "_NET_WM_STATE", "WM_PROTOCOLS":
 			typ, format = xproto.Atom(xproto.AtomAtom), 32
+		case "WM_TRANSIENT_FOR":
+			typ, format = xproto.Atom(xproto.AtomWindow), 32
 		}
 		checks = append(checks, xproto.ChangePropertyChecked(c.x, xproto.PropModeReplace, win, c.atoms[name], typ, format, uint32(len(value))/uint32(format/8), value))
 	}
@@ -414,4 +416,25 @@ func TestHungXClientsAreMarkedUnresponsive(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.Eventually("the answered X window marked responsive", unresponsive(1, false))
+}
+
+func TestAnXModalDialogKeepsTheFocus(t *testing.T) {
+	h := StartXwayland(t, func(err error) { t.Errorf("xwayland reported: %v", err) }, small)
+	xc := xDial(t, h)
+	main := xc.window(image.Rect(10, 10, 90, 70), 0xff0000, false, map[string][]byte{
+		"WM_CLASS": []byte("xtest\x00XTest\x00"),
+	})
+	h.Eventually("the main window tiled", func(_ *headless.Backend, c *compositor.Compositor) bool { return len(windowsOf(c)) == 1 })
+	xc.window(image.Rect(0, 0, 40, 30), 0x0000ff, false, map[string][]byte{
+		"WM_CLASS":         []byte("dialog\x00XTest\x00"),
+		"WM_TRANSIENT_FOR": binary.LittleEndian.AppendUint32(nil, uint32(main)),
+		"_NET_WM_STATE":    xc.atom("_NET_WM_STATE_MODAL"),
+	})
+	dialogFocused := func(_ *headless.Backend, c *compositor.Compositor) bool {
+		ws := windowsOf(c)
+		return len(ws) == 2 && ws[1].Floating && ws[1].Focused
+	}
+	h.Eventually("the modal dialog focused", dialogFocused)
+	h.click(0, 5, 5, btnLeft)
+	h.Eventually("the modal dialog still focused after a click on its parent", dialogFocused)
 }

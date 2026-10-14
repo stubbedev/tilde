@@ -198,6 +198,11 @@
       "path": "unstable/xdg-foreign/xdg-foreign-unstable-v2.xml"
     },
     {
+      "package": "xdgdialog",
+      "source": "wayland-protocols",
+      "path": "staging/xdg-dialog/xdg-dialog-v1.xml"
+    },
+    {
       "package": "pointergestures",
       "source": "wayland-protocols",
       "path": "unstable/pointer-gestures/pointer-gestures-unstable-v1.xml"

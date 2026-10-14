@@ -16,6 +16,7 @@ import (
 	swlr "github.com/stubbedev/tilde/internal/protocol/server/wlrlayershell"
 	sxa "github.com/stubbedev/tilde/internal/protocol/server/xdgactivation"
 	sxd "github.com/stubbedev/tilde/internal/protocol/server/xdgdecoration"
+	sxdd "github.com/stubbedev/tilde/internal/protocol/server/xdgdialog"
 	sxf1 "github.com/stubbedev/tilde/internal/protocol/server/xdgforeignv1"
 	sxf2 "github.com/stubbedev/tilde/internal/protocol/server/xdgforeignv2"
 	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
@@ -62,6 +63,7 @@ const (
 	ChangedTitle Change = iota + 1
 	ChangedAppID
 	ChangedParent
+	ChangedModal
 )
 
 type Listener interface {
@@ -123,6 +125,7 @@ func New(d *server.Display, l *loop.Loop, listener Listener) (*Shell, error) {
 		{sxf1.ZxdgImporterV1Interface, foreignVersion, sh.bindImporterV1},
 		{sxf2.ZxdgExporterV2Interface, foreignVersion, sh.bindExporterV2},
 		{sxf2.ZxdgImporterV2Interface, foreignVersion, sh.bindImporterV2},
+		{sxdd.XdgWmDialogV1Interface, dialogVersion, sh.bindDialog},
 	} {
 		if _, err := d.AddGlobal(g.iface, g.version, g.bind); err != nil {
 			return nil, err

@@ -148,6 +148,10 @@ func (w *Window) PrefersFloating() bool {
 		w.has(w.props.types, "_NET_WM_WINDOW_TYPE_DIALOG", "_NET_WM_WINDOW_TYPE_UTILITY", "_NET_WM_WINDOW_TYPE_SPLASH", "_NET_WM_WINDOW_TYPE_TOOLBAR")
 }
 
+func (w *Window) Modal() bool {
+	return w.has(w.props.states, "_NET_WM_STATE_MODAL")
+}
+
 func (w *Window) Fullscreen() bool {
 	return w.has(w.props.states, "_NET_WM_STATE_FULLSCREEN")
 }

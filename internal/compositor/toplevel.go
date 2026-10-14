@@ -25,6 +25,7 @@ type toplevel interface {
 	Title() string
 	pid() int32
 	parent() toplevel
+	modal() bool
 	prefersFloating() bool
 	scaled() bool
 	settled(w want) bool
@@ -46,6 +47,10 @@ func (t xdgToplevel) parent() toplevel {
 		return xdgToplevel{p}
 	}
 	return nil
+}
+
+func (t xdgToplevel) modal() bool {
+	return t.Modal()
 }
 
 func (xdgToplevel) prefersFloating() bool {

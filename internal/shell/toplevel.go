@@ -41,6 +41,8 @@ type Toplevel struct {
 	current    State
 	configures configures[State]
 	decoration *sxd.ZxdgToplevelDecorationV1
+	dialog     bool
+	modal      bool
 	destroyed  bool
 }
 

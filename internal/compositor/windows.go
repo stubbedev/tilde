@@ -114,8 +114,25 @@ func (c *Compositor) syncAreas() error {
 	return c.update(s, nil)
 }
 
+func (c *Compositor) modalChild(w *window) *window {
+	for _, x := range slices.Backward(c.windows) {
+		if x != w && x.top.modal() && x.top.parent() == w.top {
+			if deeper := c.modalChild(x); deeper != nil {
+				return deeper
+			}
+			return x
+		}
+	}
+	return nil
+}
+
 func (c *Compositor) reconcile() error {
 	focused, hasFocus := c.wm.Focused()
+	if hasFocus {
+		if m := c.modalChild(c.windowByID(focused)); m != nil {
+			return c.update(c.wm.FocusWindow(m.id))
+		}
+	}
 	var errs []error
 	a := c.wm.Arrange(c.decor.reserved())
 	c.tabBars = a.TabBars
@@ -283,7 +300,12 @@ func (c *Compositor) unmapToplevel(t toplevel) error {
 
 func (c *Compositor) ToplevelCommitted(*shell.Toplevel) error { return nil }
 
-func (c *Compositor) ToplevelChanged(*shell.Toplevel, shell.Change) error { return c.syncForeign() }
+func (c *Compositor) ToplevelChanged(_ *shell.Toplevel, change shell.Change) error {
+	if change == shell.ChangedModal {
+		return errors.Join(c.reconcile(), c.syncForeign())
+	}
+	return c.syncForeign()
+}
 
 func (c *Compositor) ToplevelRequest(t *shell.Toplevel, r shell.Request) error {
 	w := c.windowOf(xdgToplevel{t})

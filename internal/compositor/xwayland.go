@@ -42,6 +42,10 @@ func (t xToplevel) parent() toplevel {
 	return nil
 }
 
+func (t xToplevel) modal() bool {
+	return t.Modal()
+}
+
 func (t xToplevel) prefersFloating() bool {
 	return t.PrefersFloating()
 }
