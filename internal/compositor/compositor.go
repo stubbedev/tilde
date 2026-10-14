@@ -140,6 +140,7 @@ type Compositor struct {
 	idle            *idle.Manager
 	extLists        []*extList
 	wlrManagers     []*wlrManager
+	wsManagers      []*wsManager
 	cursorGen       uint64
 	cursorOps       frame
 	cursorShown     []*surface.Surface
@@ -233,6 +234,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if err := c.addForeignToplevels(display); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
+	if err := c.addWorkspaces(display); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.data, err = data.New(display, c); err != nil {
