@@ -134,9 +134,9 @@ type opened struct {
 
 func hostInput(session.InputConfig) error { return nil }
 
-func openBackend(kind backendKind, renderer rendererKind, l *loop.Loop, input session.InputConfig, report func(error)) (opened, error) {
+func openBackend(kind backendKind, renderer rendererKind, l *loop.Loop, input session.InputConfig, gpu string, report func(error)) (opened, error) {
 	if kind == drmBackend {
-		n, err := openNative(l, os.Getenv, input, report)
+		n, err := openNative(l, os.Getenv, input, gpu, report)
 		if err != nil {
 			return opened{}, err
 		}
@@ -240,6 +240,7 @@ type loaded struct {
 	input     session.InputConfig
 	xwayland  bool
 	zero      bool
+	gpu       string
 }
 
 func (s source) load() (loaded, error) {
@@ -268,7 +269,7 @@ func (s source) load() (loaded, error) {
 		return loaded{}, errors.Join(err, keymap.Close())
 	}
 	cfg.Cursor = s.cursor
-	return loaded{cfg: cfg, keymap: keymap, env: file.Env, autostart: file.Autostart, input: file.Input, xwayland: file.Xwayland, zero: file.ZeroScaling}, nil
+	return loaded{cfg: cfg, keymap: keymap, env: file.Env, autostart: file.Autostart, input: file.Input, xwayland: file.Xwayland, zero: file.ZeroScaling, gpu: file.GPU}, nil
 }
 
 func sessionVars(env [][2]string, getenv func(string) string) [][2]string {
@@ -394,7 +395,7 @@ func run(args []string) (err error) {
 	}, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP); err != nil {
 		return err
 	}
-	b, err := openBackend(kind, renderer, l, first.input, cfg.Report)
+	b, err := openBackend(kind, renderer, l, first.input, first.gpu, cfg.Report)
 	if err != nil {
 		return err
 	}

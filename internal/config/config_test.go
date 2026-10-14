@@ -86,6 +86,14 @@ func TestEmptyConfigIsTheDefaults(t *testing.T) {
 	if !cfg.Xwayland || !cfg.ZeroScaling {
 		t.Fatal("Xwayland or its zero scaling is off by default")
 	}
+	if cfg.GPU != "" {
+		t.Fatalf("a primary GPU %q chosen without config", cfg.GPU)
+	}
+	for _, text := range []string{"gpu: card1\n", "gpu: /dev/dri/card1\n"} {
+		if c, err := Parse("t.yaml", []byte(text)); err != nil || c.GPU != "card1" {
+			t.Fatalf("%q gives gpu %q, %v", text, c.GPU, err)
+		}
+	}
 	if cfg.Input.Devices != nil || cfg.Input.Pointer != (session.DeviceConfig{}) || cfg.Input.Touchpad != (session.DeviceConfig{}) {
 		t.Fatalf("input %+v", cfg.Input)
 	}
@@ -120,6 +128,7 @@ func TestErrorsNameFileLineAndKey(t *testing.T) {
 		"input:\n  pointer:\n    accel_speed: 2\n":                 "t.yaml:3: input.pointer.accel_speed: 2 is not from -1 to 1",
 		"input:\n  pointer:\n    scroll_factor: 0\n":               "t.yaml:3: input.pointer.scroll_factor: 0 is not above 0 to 100",
 		"input:\n  devices:\n    mouse:\n      accel_profile: x\n": `t.yaml:4: input.devices."mouse".accel_profile: "x" is not one of adaptive, flat`,
+		"gpu: renderD128\n":                                        `t.yaml:1: gpu: "renderD128" is not a DRM card such as card1 or /dev/dri/card1`,
 	}
 	for text, want := range cases {
 		_, err := Parse("t.yaml", []byte(text))

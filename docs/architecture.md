@@ -124,6 +124,21 @@ larger than the plane, or a plane whose test commit refuses it, puts the
 cursor back into the frame; a refusal is logged and lasts for the output's
 lifetime.
 
+tilde drives every DRM card on its seat, one KMS backend each (#62), and
+renders every output on one primary GPU, because client buffers become
+textures in that GPU's context. The primary is the card named by `gpu` in
+the config, else the boot VGA device (`boot_vga` in sysfs) if it has a
+render node, else the first card with a render node, else the first card,
+rendering in software; the choice and its reason are logged at startup.
+The other cards show outputs the primary rendered (#63): their frames are
+drawn into the primary's offscreen targets and copied into the card's
+linear dumb buffers before each flip, the same copy the cursor plane uses,
+so display-only devices such as vkms and DisplayLink work too. Outputs keep
+the kernel's connector names, which are unique across cards because the
+kernel numbers the connectors of each type globally. Cards come and go with udev: a
+new card is driven as a secondary, a removed secondary drops its outputs
+without touching the gone device, and losing the primary is fatal.
+
 ## Xwayland
 
 `internal/xwayland` (#44) starts Xwayland lazily. At startup tilde takes an

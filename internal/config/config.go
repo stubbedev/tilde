@@ -117,6 +117,7 @@ type rawConfig struct {
 	Env       map[string]At[string] `yaml:"env"`
 	Autostart []At[string]          `yaml:"autostart"`
 	Xwayland  rawXwayland           `yaml:"xwayland"`
+	GPU       *At[string]           `yaml:"gpu"`
 }
 
 type rawXwayland struct {
@@ -244,6 +245,7 @@ type Config struct {
 	Autostart   []string
 	Xwayland    bool
 	ZeroScaling bool
+	GPU         string
 }
 
 var mocha = map[string]render.Color{
@@ -270,6 +272,16 @@ type parser struct {
 
 func (p *parser) fail(line int, key string, format string, args ...any) {
 	p.errs = append(p.errs, &Error{File: p.file, Line: line, Key: key, Err: fmt.Errorf(format, args...)})
+}
+
+var cardName = regexp.MustCompile(`^card[0-9]+$`)
+
+func (p *parser) card(a At[string]) string {
+	name := strings.TrimPrefix(a.V, "/dev/dri/")
+	if !cardName.MatchString(name) {
+		p.fail(a.Line, "gpu", "%q is not a DRM card such as card1 or /dev/dri/card1", a.V)
+	}
+	return name
 }
 
 func parseHex(s string) (render.Color, bool) {
@@ -573,6 +585,9 @@ func Parse(file string, data []byte) (Config, error) {
 	}
 	if raw.Tabs.Font != nil {
 		cfg.Font = raw.Tabs.Font.V
+	}
+	if raw.GPU != nil {
+		cfg.GPU = p.card(*raw.GPU)
 	}
 	at := &cfg.WM.Autotile
 	if raw.Autotile.Enabled != nil {

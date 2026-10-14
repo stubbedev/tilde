@@ -214,6 +214,17 @@ Xwayland sees the logical layout and tilde stretches X windows, which keeps
 their size but blurs them on scaled outputs. Both settings are read at
 startup; a reload does not change them.
 
+## gpu
+
+```yaml
+gpu: card1
+```
+
+The DRM card that renders, as `card1` or `/dev/dri/card1`. Without it tilde
+picks the boot VGA device if it has a render node, else the first card with
+a render node. Every other card shows its outputs through a copy from this
+one. Read at startup only.
+
 ## Locking
 
 tilde speaks `ext-session-lock-v1`, so lockers such as swaylock, hyprlock or

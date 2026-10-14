@@ -216,3 +216,37 @@ func TestEnumerateThisMachine(t *testing.T) {
 		t.Logf("%s %s %d:%d", d.Subsystem, d.Devnode, d.Device.Major, d.Device.Minor)
 	}
 }
+
+func TestCardsReportBootVGAAndRenderNodes(t *testing.T) {
+	root := t.TempDir()
+	roots := Roots{Sys: filepath.Join(root, "sys"), UdevData: filepath.Join(root, "udev")}
+	gpu := filepath.Join(roots.Sys, "devices/pci0000:00/0000:01:00.0")
+	write(t, filepath.Join(gpu, "boot_vga"), "1\n")
+	write(t, filepath.Join(gpu, "drm/card0/uevent"), "MAJOR=226\nMINOR=0\nDEVNAME=dri/card0\n")
+	write(t, filepath.Join(gpu, "drm/renderD128/uevent"), "MAJOR=226\nMINOR=128\nDEVNAME=dri/renderD128\n")
+	display := filepath.Join(roots.Sys, "devices/platform/vkms")
+	write(t, filepath.Join(display, "drm/card1/uevent"), "MAJOR=226\nMINOR=1\nDEVNAME=dri/card1\n")
+	link(t, filepath.Join(gpu, "drm/card0"), filepath.Join(roots.Sys, "class/drm/card0"))
+	link(t, filepath.Join(gpu, "drm/renderD128"), filepath.Join(roots.Sys, "class/drm/renderD128"))
+	link(t, filepath.Join(display, "drm/card1"), filepath.Join(roots.Sys, "class/drm/card1"))
+	devices, err := Enumerate(roots, DefaultSeat, DRM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type facts struct{ boot, render bool }
+	got := map[string]facts{}
+	for _, d := range devices {
+		boot, err := d.BootVGA()
+		if err != nil {
+			t.Fatal(err)
+		}
+		render, err := d.HasRenderNode()
+		if err != nil {
+			t.Fatal(err)
+		}
+		got[filepath.Base(d.Devnode)] = facts{boot, render}
+	}
+	if got["card0"] != (facts{true, true}) || got["card1"] != (facts{false, false}) {
+		t.Fatalf("cards %+v", got)
+	}
+}
