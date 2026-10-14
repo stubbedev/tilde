@@ -11,6 +11,7 @@ import (
 
 	"github.com/stubbedev/tilde/internal/backend/headless"
 	"github.com/stubbedev/tilde/internal/compositor"
+	cxdg "github.com/stubbedev/tilde/internal/protocol/client/xdgshell"
 	"github.com/stubbedev/tilde/internal/shell"
 	"github.com/stubbedev/tilde/internal/testclient"
 	"github.com/stubbedev/tilde/internal/wire"
@@ -271,4 +272,40 @@ func TestClientsLeavingABacklogDoNotStopTheCompositor(t *testing.T) {
 	}
 	survives(t, h)
 	h.Eventually("the leaving client's window gone", mappedToplevels(1))
+}
+
+type deaf struct{}
+
+func (deaf) Configure(*cxdg.XdgSurface, uint32) error { return nil }
+
+type deafToplevel struct{}
+
+func (deafToplevel) Configure(*cxdg.XdgToplevel, int32, int32, []byte) error { return nil }
+func (deafToplevel) Close(*cxdg.XdgToplevel) error                           { return nil }
+func (deafToplevel) ConfigureBounds(*cxdg.XdgToplevel, int32, int32) error   { return nil }
+func (deafToplevel) WmCapabilities(*cxdg.XdgToplevel, []byte) error          { return nil }
+
+func TestUnackedConfiguresDoNotStallOthers(t *testing.T) {
+	h := Start(t, small)
+	c := testclient.Connect(t, h.Socket())
+	for range 3 {
+		s := c.Surface()
+		xs, err := c.WM.GetXdgSurface(deaf{}, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := xs.GetToplevel(deafToplevel{}); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Commit(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := c.Display.Roundtrip(); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		survives(t, h)
+	}
+	h.Eventually("the windows that acked mapped", mappedToplevels(2))
 }
