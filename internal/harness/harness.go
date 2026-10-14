@@ -133,7 +133,7 @@ func start(t *testing.T, s setup, modes ...backend.Mode) *Harness {
 	}
 	h.compositor.OnDispatch(h.ipc.Dispatched)
 	if s.xwayland != nil {
-		opts := xwayland.Options{Binary: xwayland.Path(os.Getenv), Dir: dir, Env: os.Environ(), Log: h.xlog, Report: s.xwayland}
+		opts := xwayland.Options{Binary: xwayland.Path(os.Getenv), Dir: dir, Env: os.Environ(), Log: h.xlog, Report: s.xwayland, Listener: h.compositor}
 		if h.xwayland, err = xwayland.Listen(h.loop, h.display, opts); err != nil {
 			t.Fatalf("harness: %v", err)
 		}

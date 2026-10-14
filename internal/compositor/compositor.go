@@ -32,6 +32,7 @@ import (
 	"github.com/stubbedev/tilde/internal/wm"
 	"github.com/stubbedev/tilde/internal/xcursor"
 	"github.com/stubbedev/tilde/internal/xkb"
+	"github.com/stubbedev/tilde/internal/xwayland"
 )
 
 var Background = render.Color{R: 0x1e, G: 0x1e, B: 0x2e, A: 0xff}
@@ -131,6 +132,7 @@ type Compositor struct {
 	cursors         CursorConfig
 	pointers        map[cursorKey]*cursorTexture
 	hwCursors       map[*output.Output]*hwCursor
+	unmanaged       []*xwayland.Window
 	cursorGen       uint64
 	cursorOps       frame
 	cursorShown     []*surface.Surface

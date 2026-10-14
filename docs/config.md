@@ -165,6 +165,11 @@ a rule needs at least one. `float: true` or `tile: true` decides where a new
 window goes; `size: <w>x<h>` sizes it when it floats. Later rules override
 earlier ones.
 
+X11 windows match `app_id` against the class half of `WM_CLASS` (`Steam`,
+`jetbrains-idea`). Without a rule, a window floats when it has a parent
+(`WM_TRANSIENT_FOR` for X11), is modal, is a dialog, utility, splash or
+toolbar window, or has a fixed size; `tile: true` overrides that.
+
 ## env and autostart
 
 ```yaml

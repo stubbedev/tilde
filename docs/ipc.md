@@ -61,7 +61,9 @@ focused one, or `null`:
  "rect":{"x":0,"y":0,"width":1024,"height":1152},"floating":false,"fullscreen":false,"urgent":false,"focused":true}
 ```
 
-Window IDs are never reused while tilde runs.
+Window IDs are never reused while tilde runs. For an X11 window, `app_id` is
+the class half of `WM_CLASS`, `title` is `_NET_WM_NAME` or else `WM_NAME`, and
+`pid` is `_NET_WM_PID`, or 0 when the client does not set it.
 
 `version`: the number 1.
 

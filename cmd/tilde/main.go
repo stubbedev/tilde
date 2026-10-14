@@ -421,7 +421,7 @@ func run(args []string) (err error) {
 	exports := [][2]string{{"WAYLAND_DISPLAY", display.Name()}, {ipc.SocketEnv, socket}}
 	if first.xwayland {
 		var xw *xwayland.Server
-		xw, err = xwayland.Listen(l, display, xwayland.Options{Binary: xwayland.Path(os.Getenv), Dir: "/tmp", Env: os.Environ(), Log: os.Stderr, Report: cfg.Report})
+		xw, err = xwayland.Listen(l, display, xwayland.Options{Binary: xwayland.Path(os.Getenv), Dir: "/tmp", Env: os.Environ(), Log: os.Stderr, Report: cfg.Report, Listener: s.comp})
 		if err != nil {
 			return fmt.Errorf("%w (or turn it off with xwayland.enabled: false)", err)
 		}

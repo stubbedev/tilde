@@ -80,6 +80,7 @@ func (c *Compositor) render(o *output.Output) error {
 	for _, e := range c.layers {
 		shown = c.drawPopups(pass, o, c.layerPopups(e), shown)
 	}
+	shown = c.drawUnmanaged(pass, o, shown)
 	shown = c.drawDragIcon(pass, o, shown)
 	placed, err := c.placeCursor(o)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -89,6 +90,7 @@ type shellRig struct {
 	t     *testing.T
 	loop  *loop.Loop
 	shell *Shell
+	log   []string
 	d     *wlclient.Display
 	comp  *cw.WlCompositor
 	xs    *cxs.XwaylandShellV1
@@ -128,7 +130,15 @@ func startShell(t *testing.T) *shellRig {
 		t.Fatal(err)
 	}
 	r := &shellRig{t: t, loop: l}
-	if r.shell, err = newShell(disp, func(c *server.Client) bool { return c == xwayland }); err != nil {
+	associated := func(serial uint64, _ *surface.Surface) error {
+		r.log = append(r.log, fmt.Sprintf("associated %#x", serial))
+		return nil
+	}
+	dissociated := func(serial uint64) error {
+		r.log = append(r.log, fmt.Sprintf("dissociated %#x", serial))
+		return nil
+	}
+	if r.shell, err = newShell(disp, func(c *server.Client) bool { return c == xwayland }, associated, dissociated); err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)
@@ -211,6 +221,11 @@ func TestShellAssociatesSurfacesOnCommit(t *testing.T) {
 	}
 	if r.lookup(serial) {
 		t.Fatal("a destroyed surface stayed associated")
+	}
+	var log []string
+	r.on(func() { log = slices.Clone(r.log) })
+	if !slices.Equal(log, []string{"associated 0x700000005", "dissociated 0x700000005"}) {
+		t.Fatalf("hooks %v", log)
 	}
 }
 

@@ -272,6 +272,9 @@ func (c *Compositor) hitWindow(w *window, p point) (*surface.Surface, point) {
 }
 
 func (c *Compositor) surfaceAt(p point) (*surface.Surface, point, *window) {
+	if s, local := c.hitUnmanaged(p); s != nil {
+		return s, local, nil
+	}
 	for _, e := range slices.Backward(c.layers) {
 		if s, local := hitPopups(c.layerPopups(e), p); s != nil {
 			return s, local, nil
@@ -331,6 +334,11 @@ func hitTree(s *surface.Surface, at image.Point, p point) (*surface.Surface, poi
 }
 
 func (c *Compositor) originOf(target *surface.Surface) (image.Point, bool) {
+	for _, w := range c.unmanaged {
+		if origin, ok := treeOrigin(w.Surface(), w.Rect().Min, target); ok {
+			return origin, true
+		}
+	}
 	for _, w := range c.windows {
 		if !w.visible {
 			continue

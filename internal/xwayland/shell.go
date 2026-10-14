@@ -16,12 +16,14 @@ const (
 )
 
 type Shell struct {
-	global   *server.Global
-	bySerial map[uint64]*surface.Surface
+	global      *server.Global
+	bySerial    map[uint64]*surface.Surface
+	associated  func(serial uint64, s *surface.Surface) error
+	dissociated func(serial uint64) error
 }
 
-func newShell(d *server.Display, visible func(*server.Client) bool) (*Shell, error) {
-	sh := &Shell{bySerial: map[uint64]*surface.Surface{}}
+func newShell(d *server.Display, visible func(*server.Client) bool, associated func(uint64, *surface.Surface) error, dissociated func(uint64) error) (*Shell, error) {
+	sh := &Shell{bySerial: map[uint64]*surface.Surface{}, associated: associated, dissociated: dissociated}
 	var err error
 	if sh.global, err = d.AddGlobalFor(sxs.XwaylandShellV1Interface, shellVersion, visible, sh.bind); err != nil {
 		return nil, fmt.Errorf("xwayland: %w", err)
@@ -61,10 +63,7 @@ func (r shellRequests) GetXwaylandSurface(obj *sxs.XwaylandShellV1, _ *sxs.Xwayl
 	if err := s.SetRole(x); err != nil {
 		return nil, obj.ProtocolError(sxs.XwaylandShellV1ErrorRole, err.Error())
 	}
-	r.c.OnDestroy(wl, func() error {
-		x.forget()
-		return nil
-	})
+	r.c.OnDestroy(wl, x.forget)
 	return x, nil
 }
 
@@ -84,7 +83,7 @@ func (x *xsurface) Committed(*surface.Surface) error {
 	}
 	x.serial = x.pending
 	x.sh.bySerial[x.serial] = x.s
-	return nil
+	return x.sh.associated(x.serial, x.s)
 }
 
 func (x *xsurface) SetSerial(obj *sxs.XwaylandSurfaceV1, lo, hi uint32) error {
@@ -103,8 +102,10 @@ func (*xsurface) Destroy(*sxs.XwaylandSurfaceV1) error {
 	return nil
 }
 
-func (x *xsurface) forget() {
-	if x.serial != 0 && x.sh.bySerial[x.serial] == x.s {
-		delete(x.sh.bySerial, x.serial)
+func (x *xsurface) forget() error {
+	if x.serial == 0 || x.sh.bySerial[x.serial] != x.s {
+		return nil
 	}
+	delete(x.sh.bySerial, x.serial)
+	return x.sh.dissociated(x.serial)
 }

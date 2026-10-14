@@ -4,74 +4,288 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"image"
 	"io"
 	"log"
 	"net"
 	"sync"
 
 	"github.com/jezek/xgb"
+	"github.com/jezek/xgb/composite"
 	"github.com/jezek/xgb/xproto"
 )
 
 var quietXGB sync.Once
 
-var wmAtoms = []string{"WM_S0", "_NET_WM_CM_S0", "_NET_SUPPORTING_WM_CHECK", "_NET_WM_NAME", "UTF8_STRING"}
+type atoms map[string]xproto.Atom
 
-func intern(x *xgb.Conn, names []string) (map[string]xproto.Atom, error) {
+var atomNames = []string{
+	"WM_S0", "_NET_WM_CM_S0", "WM_PROTOCOLS", "WM_DELETE_WINDOW", "WM_TAKE_FOCUS", "WM_STATE", "WM_CLASS", "WM_NAME",
+	"WM_HINTS", "WM_NORMAL_HINTS", "WM_TRANSIENT_FOR", "WL_SURFACE_SERIAL", "UTF8_STRING",
+	"_NET_SUPPORTED", "_NET_SUPPORTING_WM_CHECK", "_NET_WM_NAME", "_NET_WM_PID", "_NET_ACTIVE_WINDOW", "_NET_CLIENT_LIST",
+	"_NET_WM_STATE", "_NET_WM_STATE_FULLSCREEN", "_NET_WM_STATE_MODAL",
+	"_NET_WM_WINDOW_TYPE", "_NET_WM_WINDOW_TYPE_NORMAL", "_NET_WM_WINDOW_TYPE_DIALOG", "_NET_WM_WINDOW_TYPE_UTILITY",
+	"_NET_WM_WINDOW_TYPE_SPLASH", "_NET_WM_WINDOW_TYPE_TOOLBAR",
+}
+
+var supported = []string{
+	"_NET_SUPPORTED", "_NET_SUPPORTING_WM_CHECK", "_NET_WM_NAME", "_NET_WM_PID", "_NET_ACTIVE_WINDOW", "_NET_CLIENT_LIST",
+	"_NET_WM_STATE", "_NET_WM_STATE_FULLSCREEN", "_NET_WM_STATE_MODAL", "_NET_WM_WINDOW_TYPE",
+}
+
+var watched = []string{
+	"WM_CLASS", "WM_NAME", "_NET_WM_NAME", "WM_HINTS", "WM_NORMAL_HINTS", "WM_TRANSIENT_FOR", "_NET_WM_WINDOW_TYPE",
+	"_NET_WM_STATE", "WM_PROTOCOLS", "_NET_WM_PID",
+}
+
+func intern(x *xgb.Conn, names []string) (atoms, error) {
 	cookies := make([]xproto.InternAtomCookie, len(names))
 	for i, name := range names {
 		cookies[i] = xproto.InternAtom(x, false, uint16(len(name)), name) //nolint:gosec // atom names are short constants
 	}
-	atoms := make(map[string]xproto.Atom, len(names))
+	out := make(atoms, len(names))
 	for i, c := range cookies {
 		reply, err := c.Reply()
 		if err != nil {
 			return nil, fmt.Errorf("intern %s: %w", names[i], err)
 		}
-		atoms[names[i]] = reply.Atom
+		out[names[i]] = reply.Atom
 	}
-	return atoms, nil
+	return out, nil
 }
 
-func claim(conn net.Conn) (*xgb.Conn, error) {
+type xconn struct {
+	x      *xgb.Conn
+	atoms  atoms
+	root   xproto.Window
+	check  xproto.Window
+	post   func(func(*wm) error)
+	report func(error)
+}
+
+func claim(conn net.Conn) (*xconn, error) {
 	quietXGB.Do(func() { xgb.Logger = log.New(io.Discard, "", 0) })
 	x, err := xgb.NewConnNet(conn)
 	if err != nil {
 		return nil, fmt.Errorf("connect as the window manager: %w", err)
 	}
-	if err := own(x); err != nil {
+	c := &xconn{x: x}
+	if err := c.own(); err != nil {
 		x.Close()
 		return nil, err
 	}
-	return x, nil
+	return c, nil
 }
 
-func own(x *xgb.Conn) error {
+func (c *xconn) own() error {
+	x := c.x
+	if err := composite.Init(x); err != nil {
+		return fmt.Errorf("the Composite extension: %w", err)
+	}
 	screen := xproto.Setup(x).DefaultScreen(x)
-	atoms, err := intern(x, wmAtoms)
-	if err != nil {
+	c.root = screen.Root
+	var err error
+	if c.atoms, err = intern(x, atomNames); err != nil {
 		return err
 	}
-	win, err := xproto.NewWindowId(x)
-	if err != nil {
+	if c.check, err = xproto.NewWindowId(x); err != nil {
 		return fmt.Errorf("allocate the window manager's window: %w", err)
 	}
-	id := binary.LittleEndian.AppendUint32(nil, uint32(win))
-	const name = "tilde"
-	checks := []interface{ Check() error }{
-		xproto.CreateWindowChecked(x, 0, win, screen.Root, -100, -100, 1, 1, 0, xproto.WindowClassInputOutput, screen.RootVisual, 0, nil),
-		xproto.ChangePropertyChecked(x, xproto.PropModeReplace, screen.Root, atoms["_NET_SUPPORTING_WM_CHECK"], xproto.AtomWindow, 32, 1, id),
-		xproto.ChangePropertyChecked(x, xproto.PropModeReplace, win, atoms["_NET_SUPPORTING_WM_CHECK"], xproto.AtomWindow, 32, 1, id),
-		xproto.ChangePropertyChecked(x, xproto.PropModeReplace, win, atoms["_NET_WM_NAME"], atoms["UTF8_STRING"], 8, uint32(len(name)), []byte(name)),
-		xproto.SetSelectionOwnerChecked(x, win, atoms["WM_S0"], xproto.TimeCurrentTime),
-		xproto.SetSelectionOwnerChecked(x, win, atoms["_NET_WM_CM_S0"], xproto.TimeCurrentTime),
+	id := binary.LittleEndian.AppendUint32(nil, uint32(c.check))
+	var support []byte
+	for _, name := range supported {
+		support = binary.LittleEndian.AppendUint32(support, uint32(c.atoms[name]))
 	}
-	var errs []error
-	for _, c := range checks {
-		errs = append(errs, c.Check())
+	const name = "tilde"
+	events := uint32(xproto.EventMaskSubstructureRedirect | xproto.EventMaskSubstructureNotify | xproto.EventMaskPropertyChange)
+	checks := []interface{ Check() error }{
+		xproto.ChangeWindowAttributesChecked(x, c.root, xproto.CwEventMask, []uint32{events}),
+		composite.RedirectSubwindowsChecked(x, c.root, composite.RedirectManual),
+		xproto.CreateWindowChecked(x, 0, c.check, c.root, -100, -100, 1, 1, 0, xproto.WindowClassInputOutput, screen.RootVisual, 0, nil),
+		xproto.ChangePropertyChecked(x, xproto.PropModeReplace, c.root, c.atoms["_NET_SUPPORTING_WM_CHECK"], xproto.AtomWindow, 32, 1, id),
+		xproto.ChangePropertyChecked(x, xproto.PropModeReplace, c.check, c.atoms["_NET_SUPPORTING_WM_CHECK"], xproto.AtomWindow, 32, 1, id),
+		xproto.ChangePropertyChecked(x, xproto.PropModeReplace, c.check, c.atoms["_NET_WM_NAME"], c.atoms["UTF8_STRING"], 8, uint32(len(name)), []byte(name)),
+		xproto.ChangePropertyChecked(x, xproto.PropModeReplace, c.root, c.atoms["_NET_SUPPORTED"], xproto.AtomAtom, 32, uint32(len(supported)), support), //nolint:gosec // a short constant list
+		xproto.SetSelectionOwnerChecked(x, c.check, c.atoms["WM_S0"], xproto.TimeCurrentTime),
+		xproto.SetSelectionOwnerChecked(x, c.check, c.atoms["_NET_WM_CM_S0"], xproto.TimeCurrentTime),
+	}
+	errs := make([]error, 0, len(checks))
+	for _, ck := range checks {
+		errs = append(errs, ck.Check())
 	}
 	if err := errors.Join(errs...); err != nil {
-		return fmt.Errorf("take the WM_S0 selection: %w", err)
+		return fmt.Errorf("become the window manager: %w", err)
 	}
 	return nil
+}
+
+func rectOf(x, y int16, w, h uint16) image.Rectangle {
+	return image.Rect(int(x), int(y), int(x)+int(w), int(y)+int(h))
+}
+
+func (c *xconn) run() {
+	for {
+		ev, xerr := c.x.WaitForEvent()
+		switch {
+		case ev == nil && xerr == nil:
+			return
+		case xerr != nil:
+			if _, gone := xerr.(xproto.WindowError); !gone {
+				c.report(fmt.Errorf("xwayland: X error: %w", xerr))
+			}
+		default:
+			c.handle(ev)
+		}
+	}
+}
+
+func (c *xconn) handle(ev xgb.Event) {
+	switch e := ev.(type) {
+	case xproto.CreateNotifyEvent:
+		xproto.ChangeWindowAttributes(c.x, e.Window, xproto.CwEventMask, []uint32{xproto.EventMaskPropertyChange})
+		rect := rectOf(e.X, e.Y, e.Width, e.Height)
+		c.post(func(m *wm) error { return m.created(e.Window, rect, e.OverrideRedirect) })
+	case xproto.DestroyNotifyEvent:
+		c.post(func(m *wm) error { return m.destroyed(e.Window) })
+	case xproto.MapRequestEvent:
+		if p, ok := c.props(e.Window); ok {
+			c.post(func(m *wm) error { return m.mapRequested(e.Window, p) })
+		}
+	case xproto.MapNotifyEvent:
+		if p, ok := c.props(e.Window); ok {
+			c.post(func(m *wm) error { return m.mapped(e.Window, p, e.OverrideRedirect) })
+		}
+	case xproto.UnmapNotifyEvent:
+		c.post(func(m *wm) error { return m.unmapped(e.Window) })
+	case xproto.ConfigureNotifyEvent:
+		rect := rectOf(e.X, e.Y, e.Width, e.Height)
+		c.post(func(m *wm) error { return m.configured(e.Window, rect) })
+	case xproto.ConfigureRequestEvent:
+		rect := rectOf(e.X, e.Y, e.Width, e.Height)
+		c.post(func(m *wm) error { return m.configureRequested(e.Window, rect, e.ValueMask) })
+	case xproto.PropertyNotifyEvent:
+		if !c.watches(e.Atom) {
+			return
+		}
+		if p, ok := c.props(e.Window); ok {
+			c.post(func(m *wm) error { return m.propertyChanged(e.Window, p) })
+		}
+	case xproto.ClientMessageEvent:
+		c.message(e)
+	}
+}
+
+func (c *xconn) watches(a xproto.Atom) bool {
+	for _, name := range watched {
+		if c.atoms[name] == a {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *xconn) message(e xproto.ClientMessageEvent) {
+	d := e.Data.Data32
+	switch e.Type {
+	case c.atoms["WL_SURFACE_SERIAL"]:
+		serial := uint64(d[1])<<32 | uint64(d[0])
+		c.post(func(m *wm) error { return m.serialSet(e.Window, serial) })
+	case c.atoms["_NET_WM_STATE"]:
+		c.post(func(m *wm) error { return m.stateRequested(e.Window, d[0], xproto.Atom(d[1]), xproto.Atom(d[2])) })
+	case c.atoms["_NET_ACTIVE_WINDOW"]:
+		c.post(func(m *wm) error { return m.activeRequested(e.Window) })
+	}
+}
+
+func (c *xconn) props(win xproto.Window) (props, bool) {
+	names := watched
+	cookies := make([]xproto.GetPropertyCookie, len(names))
+	for i, name := range names {
+		cookies[i] = xproto.GetProperty(c.x, false, win, c.atoms[name], xproto.GetPropertyTypeAny, 0, 2048)
+	}
+	values := make(map[string][]byte, len(names))
+	for i, ck := range cookies {
+		reply, err := ck.Reply()
+		if err != nil {
+			if _, gone := errors.AsType[xproto.WindowError](err); gone {
+				return props{}, false
+			}
+			c.report(fmt.Errorf("xwayland: read %s of window %#x: %w", names[i], win, err))
+			continue
+		}
+		if reply.ValueLen > 0 {
+			values[names[i]] = reply.Value
+		}
+	}
+	p, err := parseProps(values)
+	if err != nil {
+		c.report(fmt.Errorf("xwayland: window %#x: %w", win, err))
+	}
+	return p, true
+}
+
+func atomList(data []byte, what string) ([]xproto.Atom, error) {
+	v, err := cardinals(data, what, 0)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]xproto.Atom, len(v))
+	for i, a := range v {
+		out[i] = xproto.Atom(a)
+	}
+	return out, nil
+}
+
+func parseProps(values map[string][]byte) (props, error) {
+	var p props
+	var errs []error
+	p.hints = Hints{Input: true}
+	if v, ok := values["WM_CLASS"]; ok {
+		var err error
+		p.class, err = parseClass(v)
+		errs = append(errs, err)
+	}
+	switch {
+	case values["_NET_WM_NAME"] != nil:
+		var err error
+		p.title, err = parseUTF8(values["_NET_WM_NAME"])
+		errs = append(errs, err)
+	case values["WM_NAME"] != nil:
+		p.title = latin1(values["WM_NAME"])
+	}
+	if v, ok := values["WM_HINTS"]; ok {
+		var err error
+		p.hints, err = parseHints(v)
+		errs = append(errs, err)
+	}
+	if v, ok := values["WM_NORMAL_HINTS"]; ok {
+		var err error
+		p.size, err = parseSizeHints(v)
+		errs = append(errs, err)
+	}
+	if v, ok := values["WM_TRANSIENT_FOR"]; ok {
+		w, err := cardinals(v, "WM_TRANSIENT_FOR", 1)
+		if err == nil {
+			p.transient = xproto.Window(w[0])
+		}
+		errs = append(errs, err)
+	}
+	if v, ok := values["_NET_WM_PID"]; ok {
+		pid, err := cardinals(v, "_NET_WM_PID", 1)
+		if err == nil {
+			p.pid = pid[0]
+		}
+		errs = append(errs, err)
+	}
+	for _, l := range []struct {
+		name string
+		dst  *[]xproto.Atom
+	}{{"_NET_WM_WINDOW_TYPE", &p.types}, {"_NET_WM_STATE", &p.states}, {"WM_PROTOCOLS", &p.protocols}} {
+		if v, ok := values[l.name]; ok {
+			var err error
+			*l.dst, err = atomList(v, l.name)
+			errs = append(errs, err)
+		}
+	}
+	return p, errors.Join(errs...)
 }

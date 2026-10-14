@@ -16,10 +16,12 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/jezek/xgb/xproto"
 	"golang.org/x/sys/unix"
 
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/server"
+	"github.com/stubbedev/tilde/internal/surface"
 )
 
 const Env = "TILDE_XWAYLAND"
@@ -34,11 +36,12 @@ func Path(getenv func(string) string) string {
 }
 
 type Options struct {
-	Binary string
-	Dir    string
-	Env    []string
-	Log    io.Writer
-	Report func(error)
+	Binary   string
+	Dir      string
+	Env      []string
+	Log      io.Writer
+	Report   func(error)
+	Listener Listener
 }
 
 type Server struct {
@@ -55,6 +58,7 @@ type Server struct {
 type process struct {
 	cmd    *exec.Cmd
 	client *server.Client
+	wm     *wm
 	notify int
 	ready  *loop.Source
 	line   []byte
@@ -62,6 +66,9 @@ type process struct {
 }
 
 func Listen(l *loop.Loop, d *server.Display, opts Options) (*Server, error) {
+	if opts.Listener == nil || opts.Report == nil {
+		return nil, errors.New("xwayland: Options.Listener and Options.Report are required")
+	}
 	binary, err := exec.LookPath(opts.Binary)
 	if err != nil {
 		return nil, fmt.Errorf("xwayland: find %s (set %s to its path): %w", opts.Binary, Env, err)
@@ -72,7 +79,7 @@ func Listen(l *loop.Loop, d *server.Display, opts Options) (*Server, error) {
 		return nil, err
 	}
 	s := &Server{loop: l, display: d, opts: opts, socks: socks}
-	if s.shell, err = newShell(d, s.isXwayland); err != nil {
+	if s.shell, err = newShell(d, s.isXwayland, s.associated, s.dissociated); err != nil {
 		return nil, errors.Join(err, socks.close())
 	}
 	if err := s.arm(); err != nil {
@@ -201,7 +208,7 @@ func (s *Server) start() error {
 	if err = errors.Join(err, wmFile.Close()); err != nil {
 		return errors.Join(fmt.Errorf("the window manager socket: %w", err), unix.Close(wayland[0]), s.kill(p))
 	}
-	go s.manage(conn)
+	go s.manage(p, conn)
 	if p.client, err = s.display.AddClient(wayland[0]); err != nil {
 		return errors.Join(err, unix.Close(wayland[0]), s.kill(p))
 	}
@@ -246,6 +253,16 @@ func (s *Server) stopNotify(p *process) error {
 	return errors.Join(errs...)
 }
 
+func (p *process) release() error {
+	if p.wm == nil {
+		return nil
+	}
+	err := p.wm.close()
+	p.wm.x.Close()
+	p.wm = nil
+	return err
+}
+
 func (s *Server) kill(p *process) error {
 	if err := p.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
 		return fmt.Errorf("xwayland: kill pid %d: %w", p.cmd.Process.Pid, err)
@@ -258,7 +275,7 @@ func (s *Server) exited(p *process, status error) error {
 		return nil
 	}
 	s.proc = nil
-	errs := []error{s.stopNotify(p)}
+	errs := []error{s.stopNotify(p), p.release()}
 	if s.closed {
 		return errors.Join(errs...)
 	}
@@ -269,22 +286,45 @@ func (s *Server) exited(p *process, status error) error {
 	return errors.Join(append(errs, s.arm())...)
 }
 
-func (s *Server) manage(conn net.Conn) {
-	x, err := claim(conn)
+func (s *Server) manage(p *process, conn net.Conn) {
+	c, err := claim(conn)
 	if err != nil {
 		_ = conn.Close()
 		s.report(fmt.Errorf("xwayland: %s: %w", s.Display(), err))
 		return
 	}
-	for {
-		ev, xerr := x.WaitForEvent()
-		switch {
-		case ev == nil && xerr == nil:
-			return
-		case xerr != nil:
-			s.report(fmt.Errorf("xwayland: %s: %w", s.Display(), xerr))
-		}
+	c.report = s.report
+	c.post = func(f func(*wm) error) {
+		_ = s.loop.Post(func() error {
+			if s.proc != p || p.wm == nil {
+				return nil
+			}
+			return f(p.wm)
+		})
 	}
+	_ = s.loop.Post(func() error {
+		if s.proc != p {
+			c.x.Close()
+			return nil
+		}
+		p.wm = &wm{x: c.x, root: c.root, atoms: c.atoms, windows: map[xproto.Window]*Window{}, shell: s.shell, listener: s.opts.Listener}
+		return nil
+	})
+	c.run()
+}
+
+func (s *Server) associated(serial uint64, sf *surface.Surface) error {
+	if s.proc == nil || s.proc.wm == nil {
+		return nil
+	}
+	return s.proc.wm.associated(serial, sf)
+}
+
+func (s *Server) dissociated(serial uint64) error {
+	if s.proc == nil || s.proc.wm == nil {
+		return nil
+	}
+	return s.proc.wm.dissociated(serial)
 }
 
 func (s *Server) report(err error) {
@@ -301,7 +341,7 @@ func (s *Server) Close() error {
 	s.closed = true
 	errs := []error{s.disarm()}
 	if p := s.proc; p != nil {
-		errs = append(errs, s.kill(p), s.stopNotify(p))
+		errs = append(errs, s.kill(p), s.stopNotify(p), p.release())
 		s.proc = nil
 	}
 	return errors.Join(append(errs, s.shell.close(), s.socks.close())...)
