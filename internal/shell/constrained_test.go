@@ -9,11 +9,12 @@ import (
 
 func TestConstrainedStatesNeedVersion7(t *testing.T) {
 	for _, version := range []uint32{6, 7} {
-		e := setup(t)
-		e.rec.initial = func(tl *Toplevel) error {
-			_, err := tl.Configure(State{States: []ToplevelState{sxdg.XdgToplevelStateTiledLeft, sxdg.XdgToplevelStateConstrainedLeft}})
-			return err
-		}
+		e := setup(t, func(r *recorder) {
+			r.initial = func(tl *Toplevel) error {
+				_, err := tl.Configure(State{States: []ToplevelState{sxdg.XdgToplevelStateTiledLeft, sxdg.XdgToplevelStateConstrainedLeft}})
+				return err
+			}
+		})
 		c := e.connect(version)
 		w := c.window()
 		must(t, w.surf.Commit())

@@ -387,7 +387,10 @@ func TestNothingIsSentBeforeFlush(t *testing.T) {
 func TestMessagesStraddlingTheInputBuffer(t *testing.T) {
 	a, b := pair(t)
 	sizes := []int{maxMessageSize - 12, 100, maxMessageSize - 12, 3, maxMessageSize - 12, 0}
+	written := make(chan struct{})
+	t.Cleanup(func() { <-written })
 	go func() {
+		defer close(written)
 		for i, n := range sizes {
 			e := a.Begin(1, Opcode(i))
 			e.Array(bytes.Repeat([]byte{byte(i)}, n))
@@ -406,7 +409,10 @@ func TestMessagesStraddlingTheInputBuffer(t *testing.T) {
 				}
 				var pfd [1]unix.PollFd
 				pfd[0] = unix.PollFd{Fd: int32(a.FD()), Events: unix.POLLOUT}
-				_, _ = unix.Poll(pfd[:], -1)
+				if n, err := unix.Poll(pfd[:], 5000); err != nil || n == 0 {
+					t.Errorf("poll for writing: %d ready, %v", n, err)
+					return
+				}
 			}
 		}
 	}()

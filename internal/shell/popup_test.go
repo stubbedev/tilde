@@ -74,8 +74,9 @@ func (e *env) shellGrab() int {
 }
 
 func TestPopupIsPlacedAndMapped(t *testing.T) {
-	e := setup(t)
-	e.rec.constraint = image.Rect(0, 0, 100, 100)
+	e := setup(t, func(r *recorder) {
+		r.constraint = image.Rect(0, 0, 100, 100)
+	})
 	c := e.connect(6)
 	w := c.window()
 	c.mapped(w, image.Pt(100, 100))
@@ -113,8 +114,9 @@ func TestPopupIsPlacedAndMapped(t *testing.T) {
 }
 
 func TestNestedPopupsAreOffsetByTheirParents(t *testing.T) {
-	e := setup(t)
-	e.rec.constraint = image.Rect(-1000, -1000, 1000, 1000)
+	e := setup(t, func(r *recorder) {
+		r.constraint = image.Rect(-1000, -1000, 1000, 1000)
+	})
 	c := e.connect(6)
 	w := c.window()
 	c.mapped(w, image.Pt(100, 100))
@@ -130,9 +132,10 @@ func TestNestedPopupsAreOffsetByTheirParents(t *testing.T) {
 }
 
 func TestPopupGrabs(t *testing.T) {
-	e := setup(t)
-	e.rec.constraint = image.Rect(0, 0, 100, 100)
-	e.rec.press = 42
+	e := setup(t, func(r *recorder) {
+		r.constraint = image.Rect(0, 0, 100, 100)
+		r.press = 42
+	})
 	c := e.connect(6)
 	w := c.window()
 	c.mapped(w, image.Pt(100, 100))
@@ -218,9 +221,10 @@ func TestPopupProtocolErrors(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			e := setup(t)
-			e.rec.constraint = image.Rect(0, 0, 100, 100)
-			e.rec.press = 42
+			e := setup(t, func(r *recorder) {
+				r.constraint = image.Rect(0, 0, 100, 100)
+				r.press = 42
+			})
 			c := e.connect(6)
 			w := c.window()
 			c.mapped(w, image.Pt(100, 100))
@@ -231,8 +235,9 @@ func TestPopupProtocolErrors(t *testing.T) {
 }
 
 func TestReactivePopupsFollowTheirConstraint(t *testing.T) {
-	e := setup(t)
-	e.rec.constraint = image.Rect(0, 0, 100, 100)
+	e := setup(t, func(r *recorder) {
+		r.constraint = image.Rect(0, 0, 100, 100)
+	})
 	c := e.connect(6)
 	w := c.window()
 	c.mapped(w, image.Pt(100, 100))
@@ -243,9 +248,9 @@ func TestReactivePopupsFollowTheirConstraint(t *testing.T) {
 	must(t, pos.SetReactive())
 	reactive := c.popup(w.xs, pos)
 	c.mapped(reactive.surf, image.Pt(20, 20))
-	e.rec.constraint = image.Rect(0, 0, 90, 90)
 	var errs []error
 	e.on(func() {
+		e.rec.constraint = image.Rect(0, 0, 90, 90)
 		for _, p := range e.rec.popups {
 			errs = append(errs, p.Reconstrain())
 		}

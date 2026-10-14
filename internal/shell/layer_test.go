@@ -52,18 +52,19 @@ func (l *layer) last() uint32 {
 	return l.ev.serials[len(l.ev.serials)-1]
 }
 
-func layerSetup(t *testing.T) (*env, *client) {
-	e := setup(t)
-	e.rec.layerSize = func(l *LayerSurface) image.Point {
-		size := l.Current().Size
-		if size.X == 0 {
-			size.X = 200
+func layerSetup(t *testing.T, configure ...func(*recorder)) (*env, *client) {
+	e := setup(t, append([]func(*recorder){func(r *recorder) {
+		r.layerSize = func(l *LayerSurface) image.Point {
+			size := l.Current().Size
+			if size.X == 0 {
+				size.X = 200
+			}
+			if size.Y == 0 {
+				size.Y = 100
+			}
+			return size
 		}
-		if size.Y == 0 {
-			size.Y = 100
-		}
-		return size
-	}
+	}}, configure...)...)
 	return e, e.connect(6)
 }
 
@@ -112,8 +113,7 @@ func TestLayerSurfaceConfigureMapAndUnmap(t *testing.T) {
 }
 
 func TestLayerSurfaceCloseAndPopups(t *testing.T) {
-	e, c := layerSetup(t)
-	e.rec.constraint = image.Rect(0, 0, 200, 100)
+	e, c := layerSetup(t, func(r *recorder) { r.constraint = image.Rect(0, 0, 200, 100) })
 	l := c.layer(bar, image.Pt(0, 30))
 	must(t, l.surf.Commit())
 	c.roundtrip()

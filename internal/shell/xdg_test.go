@@ -121,7 +121,7 @@ type env struct {
 	disp  *server.Display
 }
 
-func setup(t *testing.T) *env {
+func setup(t *testing.T, configure ...func(*recorder)) *env {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "tilde-")
 	if err != nil {
@@ -151,6 +151,9 @@ func setup(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	e.shell.pingTimeout = 30 * time.Millisecond
+	for _, f := range configure {
+		f(e.rec)
+	}
 	done := make(chan error, 1)
 	go func() { done <- l.Run() }()
 	t.Cleanup(func() {
@@ -379,11 +382,12 @@ func TestDefaultConfigureAndMap(t *testing.T) {
 }
 
 func TestStateAppliesAfterAckAndCommit(t *testing.T) {
-	e := setup(t)
-	e.rec.initial = func(tl *Toplevel) error {
-		_, err := tl.Configure(State{Size: image.Pt(640, 480), States: []ToplevelState{sxdg.XdgToplevelStateActivated, sxdg.XdgToplevelStateSuspended}})
-		return err
-	}
+	e := setup(t, func(r *recorder) {
+		r.initial = func(tl *Toplevel) error {
+			_, err := tl.Configure(State{Size: image.Pt(640, 480), States: []ToplevelState{sxdg.XdgToplevelStateActivated, sxdg.XdgToplevelStateSuspended}})
+			return err
+		}
+	})
 	c := e.connect(5)
 	w := c.window()
 	must(t, w.surf.Commit())

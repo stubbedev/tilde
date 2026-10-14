@@ -35,6 +35,7 @@ type commit struct {
 	input        region.Region
 	stack        []*Surface
 	subPos       image.Point
+	source       render.FRect
 }
 
 type recorder struct {
@@ -43,7 +44,7 @@ type recorder struct {
 }
 
 func (r *recorder) Committed(s *Surface) error {
-	c := commit{s: s, attached: s.Attached(), bufferDamage: s.BufferDamage(), size: s.Size(), damage: s.Damage(), offset: s.Offset(), scale: s.Scale(), opaque: s.Opaque(), input: s.Input(), stack: slices.Collect(s.Stack())}
+	c := commit{s: s, attached: s.Attached(), bufferDamage: s.BufferDamage(), size: s.Size(), damage: s.Damage(), offset: s.Offset(), scale: s.Scale(), opaque: s.Opaque(), input: s.Input(), stack: slices.Collect(s.Stack()), source: s.BufferSource()}
 	if s.Subsurface() != nil {
 		c.subPos = s.Subsurface().Position()
 	}
@@ -577,7 +578,7 @@ func TestViewportSizesTheSurface(t *testing.T) {
 	if c.size != image.Pt(20, 10) {
 		t.Fatalf("size %v, want the integral 20x10 source", c.size)
 	}
-	if got := c.s.BufferSource(); got != (render.FRect{X: 10, Y: 5, W: 20, H: 10}) {
+	if got := c.source; got != (render.FRect{X: 10, Y: 5, W: 20, H: 10}) {
 		t.Fatalf("buffer source %+v", got)
 	}
 	must(t, vp.Destroy(), s.Commit())
