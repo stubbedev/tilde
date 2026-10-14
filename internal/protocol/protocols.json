@@ -213,6 +213,11 @@
       "path": "staging/alpha-modifier/alpha-modifier-v1.xml"
     },
     {
+      "package": "securitycontext",
+      "source": "wayland-protocols",
+      "path": "staging/security-context/security-context-v1.xml"
+    },
+    {
       "package": "pointergestures",
       "source": "wayland-protocols",
       "path": "unstable/pointer-gestures/pointer-gestures-unstable-v1.xml"

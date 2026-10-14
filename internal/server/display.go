@@ -42,6 +42,8 @@ type Display struct {
 	clients    []*Client
 	dead       []*Client
 	globals    []*Global
+	restricted []*wire.Interface
+	sandboxes  []*sandbox
 	nextGlobal uint32
 	serial     uint32
 	closed     bool
@@ -149,6 +151,9 @@ func (d *Display) Close() error {
 	for len(d.clients) > 0 {
 		errs = append(errs, d.clients[0].destroy())
 	}
+	for len(d.sandboxes) > 0 {
+		errs = append(errs, d.sandboxes[0].close())
+	}
 	return errors.Join(append(errs, d.listener.Remove(), d.release())...)
 }
 
@@ -214,6 +219,7 @@ func (d *Display) AddGlobalFor(iface *wire.Interface, version uint32, visible fu
 		return nil, fmt.Errorf("server: add global: %w", err)
 	}
 	d.nextGlobal++
+	visible = d.visibility(iface, visible)
 	g := &Global{display: d, name: d.nextGlobal, iface: iface, version: version, bind: bind, visible: visible}
 	d.globals = append(d.globals, g)
 	for _, c := range d.clients {

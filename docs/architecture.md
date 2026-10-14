@@ -240,7 +240,8 @@ Everything lives under `internal/` except the commands.
 | `scanner` | Generates `protocol/{server,client}/...` from the XML pinned in `protocol/protocols.json` (#4) |
 | `protocol/...` | Generated bindings, one package per protocol and side; never edited by hand |
 | `loop` | The event loop: fd sources, timers, signals, idle queue, mailbox (#5) |
-| `server` | Display socket, clients, object maps, globals (#6) |
+| `server` | Display socket, clients, object maps, globals; sandbox sockets whose clients carry a security context and do not see restricted globals (#6, #118) |
+| `securitycontext` | `wp_security_context_manager_v1`: Flatpak and other sandbox engines register a socket for their apps; the compositor restricts screen capture, data control, foreign toplevels, output management, virtual input, session lock, layer shell, workspaces and global shortcuts to unsandboxed clients (#118) |
 | `wlclient` | The client side of a connection: object map, zombies and dispatch, for the nested backend and tests (#6, #9) |
 | `backend` | The backend interface: outputs, frames, input devices (#8) |
 | `backend/headless` | Virtual outputs and injected input, for tests (#8) |

@@ -225,6 +225,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		nextWindow:    1,
 	}
 	c.adopt(cfg, m)
+	if err := sandbox(display); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
 	if c.repeat.timer, err = l.AddTimer(c.repeatFired); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}

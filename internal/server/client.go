@@ -32,9 +32,14 @@ type Client struct {
 	writable   bool
 	dropping   bool
 	gone       bool
+	context    *SecurityContext
 }
 
 func (d *Display) AddClient(fd int) (*Client, error) {
+	return d.addClient(fd, nil)
+}
+
+func (d *Display) addClient(fd int, context *SecurityContext) (*Client, error) {
 	creds, err := unix.GetsockoptUcred(fd, unix.SOL_SOCKET, unix.SO_PEERCRED)
 	if err != nil {
 		return nil, fmt.Errorf("server: SO_PEERCRED on client fd %d: %w", fd, err)
@@ -49,6 +54,7 @@ func (d *Display) AddClient(fd int) (*Client, error) {
 		objects: map[wire.ObjectID]wire.Resource{},
 		hooks:   map[wire.ObjectID][]func() error{},
 		lastID:  firstServerID - 1,
+		context: context,
 	}
 	if d.trace != nil {
 		c.conn.SetTracer(c.trace)
