@@ -50,7 +50,9 @@ type device interface {
 type scanout struct {
 	target    render.Target
 	fb        uint32
+	prepare   func() error
 	free      func() error
+	drop      func() error
 	presented uint64
 }
 
@@ -100,6 +102,7 @@ type Backend struct {
 	cursor  image.Point
 	paused  bool
 	closed  bool
+	gone    bool
 }
 
 func newBackend(l *loop.Loop, dev device, alloc allocator, vendors edid.Vendors) (*Backend, error) {
@@ -387,6 +390,26 @@ func (b *Backend) Resume() error {
 	return errors.Join(append(errs, b.scan())...)
 }
 
+func (b *Backend) Unplug() error {
+	if b.closed {
+		return nil
+	}
+	b.closed, b.gone = true, true
+	var errs []error
+	for len(b.outputs) > 0 {
+		o := b.outputs[0]
+		b.outputs = b.outputs[1:]
+		if b.handler != nil {
+			errs = append(errs, b.handler.OutputRemoved(o))
+		}
+		errs = append(errs, o.release())
+	}
+	if b.src != nil {
+		errs = append(errs, b.src.Remove())
+	}
+	return errors.Join(append(errs, b.alloc.close())...)
+}
+
 func (b *Backend) Close() error {
 	if b.closed {
 		return nil
@@ -610,6 +633,11 @@ func (o *Output) Present(render.Region) error {
 	if o.b.paused {
 		return nil
 	}
+	if s.prepare != nil {
+		if err := s.prepare(); err != nil {
+			return fmt.Errorf("drm: copy the frame of %s to its device: %w", o.Name(), err)
+		}
+	}
 	fence, err := o.b.alloc.fence()
 	if err != nil {
 		return err
@@ -738,7 +766,11 @@ func (o *Output) flipped(e kdrm.FlipEvent) error {
 func (o *Output) freeBuffers() error {
 	var errs []error
 	for _, s := range o.buffers {
-		errs = append(errs, s.free())
+		if o.b.gone {
+			errs = append(errs, s.drop())
+		} else {
+			errs = append(errs, s.free())
+		}
 	}
 	o.buffers, o.drawing, o.queued, o.front = nil, nil, nil, nil
 	return errors.Join(errs...)
@@ -746,7 +778,7 @@ func (o *Output) freeBuffers() error {
 
 func (o *Output) release() error {
 	err := o.freeBuffers()
-	if o.modeBlob != 0 {
+	if o.modeBlob != 0 && !o.b.gone {
 		err = errors.Join(err, o.b.dev.DestroyBlob(o.modeBlob))
 		o.modeBlob = 0
 	}

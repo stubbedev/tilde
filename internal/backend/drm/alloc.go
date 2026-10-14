@@ -103,6 +103,8 @@ func (a *gbmAllocator) allocate(size image.Point, format uint32, modifiers []uin
 	}
 	return &scanout{target: target, fb: id, free: func() error {
 		return errors.Join(a.dev.RemoveFB(id), release())
+	}, drop: func() error {
+		return errors.Join(target.Destroy(), bo.Close())
 	}}, nil
 }
 
@@ -144,11 +146,18 @@ func (a *gbmAllocator) close() error {
 	return errors.Join(errs...)
 }
 
-func New(l *loop.Loop, dev *kdrm.Device, paths gpu.Paths, vendors edid.Vendors) (*Backend, error) {
+func atomic(dev *kdrm.Device) error {
 	for _, c := range []uint64{kdrm.ClientCapUniversal, kdrm.ClientCapAtomic} {
 		if err := dev.SetClientCap(c, 1); err != nil {
-			return nil, fmt.Errorf("drm: %s needs atomic KMS: %w", dev.Path(), err)
+			return fmt.Errorf("drm: %s needs atomic KMS: %w", dev.Path(), err)
 		}
+	}
+	return nil
+}
+
+func New(l *loop.Loop, dev *kdrm.Device, paths gpu.Paths, vendors edid.Vendors) (*Backend, error) {
+	if err := atomic(dev); err != nil {
+		return nil, err
 	}
 	alloc, err := newGBMAllocator(dev, paths)
 	if err != nil {

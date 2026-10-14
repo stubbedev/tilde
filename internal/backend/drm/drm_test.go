@@ -54,6 +54,9 @@ type fakeDevice struct {
 	destroyed     []uint32
 	dumbs, fbs    uint32
 	live          map[uint32]bool
+	pix           map[uint32][]byte
+	scanouts      map[uint32]uint32
+	removedFBs    int
 }
 
 var modes = []kdrm.Mode{
@@ -155,7 +158,12 @@ func (f *fakeDevice) CreateDumb(size image.Point) (kdrm.Dumb, error) {
 		f.live = map[uint32]bool{}
 	}
 	f.live[f.dumbs] = true
-	return kdrm.Dumb{Handle: f.dumbs, Pitch: uint32(size.X * 4), Pix: make([]byte, size.X*size.Y*4)}, nil
+	pix := make([]byte, size.X*size.Y*4)
+	if f.pix == nil {
+		f.pix = map[uint32][]byte{}
+	}
+	f.pix[f.dumbs] = pix
+	return kdrm.Dumb{Handle: f.dumbs, Pitch: uint32(size.X * 4), Pix: pix}, nil
 }
 
 func (f *fakeDevice) DestroyDumb(b kdrm.Dumb) error {
@@ -167,14 +175,21 @@ func (f *fakeDevice) DestroyDumb(b kdrm.Dumb) error {
 }
 
 func (f *fakeDevice) AddFB2(fb kdrm.FB) (uint32, error) {
-	if fb.Format != cursorFormat || fb.WithModifier || !f.live[fb.Handles[0]] {
+	if (fb.Format != cursorFormat && fb.Format != scanoutFormat) || fb.WithModifier || !f.live[fb.Handles[0]] {
 		return 0, fmt.Errorf("unexpected framebuffer %+v", fb)
 	}
 	f.fbs++
+	if f.scanouts == nil {
+		f.scanouts = map[uint32]uint32{}
+	}
+	f.scanouts[700+f.fbs] = fb.Handles[0]
 	return 700 + f.fbs, nil
 }
 
-func (f *fakeDevice) RemoveFB(uint32) error { return nil }
+func (f *fakeDevice) RemoveFB(uint32) error {
+	f.removedFBs++
+	return nil
+}
 
 func (f *fakeDevice) Commit(r *kdrm.Request, flags uint32, userData uint64) error {
 	c := commit{flags: flags, userData: userData, values: map[[2]uint32]uint64{}}
@@ -216,7 +231,7 @@ func (a *fakeAlloc) allocate(size image.Point, _ uint32, modifiers []uint64) (*s
 		return nil, fmt.Errorf("allocated with modifiers %v", modifiers)
 	}
 	a.next++
-	return &scanout{target: soft.NewBuffer(size.X, size.Y), fb: 900 + a.next, free: func() error { a.freed++; return nil }}, nil
+	return &scanout{target: soft.NewBuffer(size.X, size.Y), fb: 900 + a.next, free: func() error { a.freed++; return nil }, drop: func() error { return nil }}, nil
 }
 
 func (a *fakeAlloc) fence() (int, error) {
@@ -294,6 +309,11 @@ type rig struct {
 
 func start(t *testing.T) *rig {
 	t.Helper()
+	return boot(t, func(*fakeDevice) allocator { return &fakeAlloc{soft: soft.New()} })
+}
+
+func boot(t *testing.T, alloc func(*fakeDevice) allocator) *rig {
+	t.Helper()
 	var p [2]int
 	if err := unix.Pipe2(p[:], unix.O_NONBLOCK|unix.O_CLOEXEC); err != nil {
 		t.Fatal(err)
@@ -304,8 +324,10 @@ func start(t *testing.T) *rig {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = l.Close() })
-	r := &rig{t: t, l: l, dev: &fakeDevice{events: p[0], write: p[1], connected: true}, alloc: &fakeAlloc{soft: soft.New()}, rec: &recorder{}}
-	if r.b, err = newBackend(l, r.dev, r.alloc, nil); err != nil {
+	r := &rig{t: t, l: l, dev: &fakeDevice{events: p[0], write: p[1], connected: true}, rec: &recorder{}}
+	a := alloc(r.dev)
+	r.alloc, _ = a.(*fakeAlloc)
+	if r.b, err = newBackend(l, r.dev, a, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.b.Start(r.rec); err != nil {
@@ -723,5 +745,49 @@ func TestFramebuffersCarryModifiersOnlyWhereTheDeviceTakesThem(t *testing.T) {
 				t.Fatalf("framebuffer = %+v, %v", fb, err)
 			}
 		})
+	}
+}
+
+func TestSecondaryDevicesShowFramesThePrimaryRendered(t *testing.T) {
+	primary := soft.New()
+	r := boot(t, func(dev *fakeDevice) allocator { return &copyAllocator{dev: dev, primary: primary} })
+	o := r.rec.outputs[0]
+	f, err := o.BeginFrame()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Renderer != render.Renderer(primary) {
+		t.Fatalf("a secondary device's frame renders with %T, not the primary renderer", f.Renderer)
+	}
+	p, err := f.Renderer.Begin(f.Target, render.Region{image.Rect(0, 0, 4, 4)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.FillRect(image.Rect(0, 0, 4, 4), render.Color{R: 0xff, A: 0xff})
+	if err := errors.Join(p.End(), o.Present(nil)); err != nil {
+		t.Fatal(err)
+	}
+	fb := r.dev.commits[len(r.dev.commits)-1].values[[2]uint32{40, propFB}]
+	pix := r.dev.pix[r.dev.scanouts[uint32(fb)]]
+	if pix == nil || pix[2] != 0xff || pix[1] != 0 || pix[0] != 0 {
+		t.Fatalf("the scanout buffer behind framebuffer %d starts with %v, not the red the primary drew", fb, pix[:4])
+	}
+}
+
+func TestUnpluggedDevicesDropTheirOutputsWithoutTouchingTheDevice(t *testing.T) {
+	r := boot(t, func(dev *fakeDevice) allocator { return &copyAllocator{dev: dev, primary: soft.New()} })
+	r.settle()
+	commits, dumbs, fbs := len(r.dev.commits), len(r.dev.live), r.dev.removedFBs
+	if err := r.b.Unplug(); err != nil {
+		t.Fatal(err)
+	}
+	if r.rec.log[len(r.rec.log)-1] != "removed "+r.rec.outputs[0].Name() {
+		t.Fatalf("log %v: unplugging did not remove the output", r.rec.log)
+	}
+	if len(r.dev.commits) != commits || len(r.dev.live) != dumbs || r.dev.removedFBs != fbs {
+		t.Fatalf("unplugging touched the gone device: %d commits, %d dumb buffers, %d framebuffers removed", len(r.dev.commits)-commits, dumbs-len(r.dev.live), r.dev.removedFBs-fbs)
+	}
+	if err := r.b.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
