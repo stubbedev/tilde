@@ -148,11 +148,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1791874452,
-        "narHash": "sha256-qfbWL+xexNs84nQILlnDKIAe3FVfEPMJTjrwWX835S0=",
+        "lastModified": 1791995789,
+        "narHash": "sha256-b7VF0lQALgzvVSNpkXP1XxskrgbQutujhE7UGx1Ak2A=",
         "owner": "stubbedev",
         "repo": "gelm",
-        "rev": "b5673a57dc8fdbecbc9dddec4197cd4d51e21d96",
+        "rev": "df326e0639c8bcc2331192f9ae5383ff6cd36c9f",
         "type": "github"
       },
       "original": {
