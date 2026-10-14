@@ -126,6 +126,9 @@ func Enumerate(roots Roots, seat string, subsystems ...Subsystem) ([]UdevDevice,
 	for _, sub := range subsystems {
 		dir := filepath.Join(roots.Sys, "class", string(sub))
 		entries, err := os.ReadDir(dir)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
 		if err != nil {
 			return nil, fmt.Errorf("session: list %s: %w", dir, err)
 		}

@@ -178,6 +178,32 @@ func TestWatchBindsTheUdevGroup(t *testing.T) {
 	}
 }
 
+func TestEnumerateWithoutAClassDirectory(t *testing.T) {
+	sys := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(sys, "class", string(Input)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	devices, err := Enumerate(Roots{Sys: sys, UdevData: t.TempDir()}, DefaultSeat, DRM, Input)
+	if err != nil || len(devices) != 0 {
+		t.Fatalf("devices %v, err %v", devices, err)
+	}
+	if os.Geteuid() == 0 {
+		return
+	}
+	class := filepath.Join(sys, "class", string(Input))
+	if err := os.Chmod(class, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(class, 0o755); err != nil {
+			t.Error(err)
+		}
+	})
+	if _, err := Enumerate(Roots{Sys: sys, UdevData: t.TempDir()}, DefaultSeat, Input); err == nil {
+		t.Fatal("an unreadable class directory was not an error")
+	}
+}
+
 func TestEnumerateThisMachine(t *testing.T) {
 	devices, err := Enumerate(SystemRoots, DefaultSeat, DRM, Input)
 	if err != nil {
