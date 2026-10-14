@@ -79,6 +79,7 @@ var ErrNoCursorPlanes = errors.New("backend: this backend draws the cursor in th
 
 type Scanner interface {
 	Scanout(b gpu.DMABUF, release func() error) (bool, error)
+	ScanoutFormats() gpu.ScanoutTarget
 }
 
 type CursorPlane interface {

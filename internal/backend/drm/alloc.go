@@ -121,12 +121,16 @@ func importFB(dev device, d gpu.DMABUF, withModifiers bool) (uint32, func() erro
 func framebuffer(size image.Point, format uint32, modifier uint64, withModifiers bool) (kdrm.FB, error) {
 	fb := kdrm.FB{Width: uint32(size.X), Height: uint32(size.Y), Format: format} //nolint:gosec // scanout sizes fit
 	switch {
+	case !addable(modifier, withModifiers):
+		return kdrm.FB{}, fmt.Errorf("the buffer has modifier %#x but the device takes no ADDFB2 modifiers, so only an implicit or linear layout can be scanned out", modifier)
 	case withModifiers && modifier != gpu.ModifierInvalid:
 		fb.Modifier, fb.WithModifier = modifier, true
-	case !withModifiers && modifier != gpu.ModifierInvalid && modifier != gpu.ModifierLinear:
-		return kdrm.FB{}, fmt.Errorf("the buffer has modifier %#x but the device takes no ADDFB2 modifiers, so only an implicit or linear layout can be scanned out", modifier)
 	}
 	return fb, nil
+}
+
+func addable(modifier uint64, withModifiers bool) bool {
+	return withModifiers || modifier == gpu.ModifierInvalid || modifier == gpu.ModifierLinear
 }
 
 func (a *gbmAllocator) fence() (int, error) {

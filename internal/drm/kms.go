@@ -87,6 +87,14 @@ func (d *Device) FD() int {
 	return d.fd
 }
 
+func (d *Device) Number() (uint64, error) {
+	var st unix.Stat_t
+	if err := unix.Fstat(d.fd, &st); err != nil {
+		return 0, fmt.Errorf("drm: stat %s: %w", d.path, err)
+	}
+	return st.Rdev, nil
+}
+
 func (d *Device) SetClientCap(capability, value uint64) error {
 	arg := struct{ capability, value uint64 }{capability, value}
 	return d.ioctlW("DRM_IOCTL_SET_CLIENT_CAP", ioctlSetClientCap, unsafe.Pointer(&arg), unsafe.Sizeof(arg)) //nolint:gosec // the kernel reads this struct during the call

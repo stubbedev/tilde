@@ -29,6 +29,7 @@ const (
 
 type device interface {
 	FD() int
+	Number() (uint64, error)
 	Cap(capability uint64) (uint64, error)
 	Resources() (kdrm.Resources, error)
 	Connector(id uint32) (kdrm.Connector, error)
@@ -86,6 +87,7 @@ type plane struct {
 	kind      planeKind
 	possible  uint32
 	modifiers []uint64
+	clients   []gpu.FormatModifier
 	props     map[string]kdrm.Property
 	taken     bool
 }
@@ -93,6 +95,7 @@ type plane struct {
 type Backend struct {
 	loop      *loop.Loop
 	modifiers bool
+	number    uint64
 	vendors   edid.Vendors
 	dev       device
 	alloc     allocator
@@ -116,6 +119,9 @@ func newBackend(l *loop.Loop, dev device, alloc allocator, vendors edid.Vendors)
 		return nil, fmt.Errorf("drm: ADDFB2 modifier support: %w", err)
 	}
 	b.modifiers = modifiers == 1
+	if b.number, err = dev.Number(); err != nil {
+		return nil, err
+	}
 	res, err := dev.Resources()
 	if err != nil {
 		return nil, err
@@ -187,13 +193,19 @@ func (b *Backend) plane(id uint32, renderable []uint64) (*plane, error) {
 	if !slices.Contains(info.Formats, format) {
 		return nil, nil
 	}
-	in, ok := props["IN_FORMATS"]
-	if !ok || in.Value == 0 {
-		return p, nil
+	var blob []byte
+	if in, ok := props["IN_FORMATS"]; ok && in.Value != 0 {
+		if blob, err = b.dev.Blob(uint32(in.Value)); err != nil { //nolint:gosec // property blob IDs are 32-bit
+			return nil, err
+		}
 	}
-	blob, err := b.dev.Blob(uint32(in.Value)) //nolint:gosec // property blob IDs are 32-bit
-	if err != nil {
-		return nil, err
+	if p.kind == primaryPlane {
+		if p.clients, err = b.clientFormats(info.Formats, blob); err != nil {
+			return nil, fmt.Errorf("drm: formats of primary plane %d: %w", id, err)
+		}
+	}
+	if blob == nil {
+		return p, nil
 	}
 	scanable, err := kdrm.Modifiers(blob, format)
 	if err != nil {
@@ -214,6 +226,25 @@ func (b *Backend) plane(id uint32, renderable []uint64) (*plane, error) {
 		return nil, fmt.Errorf("drm: primary plane %d scans out no XRGB8888 modifier the renderer can draw: plane %#x, renderer %#x", id, scanable, renderable)
 	}
 	return p, nil
+}
+
+func (b *Backend) clientFormats(formats []uint32, inFormats []byte) ([]gpu.FormatModifier, error) {
+	var pairs []gpu.FormatModifier
+	for _, f := range formats {
+		modifiers := []uint64{gpu.ModifierInvalid}
+		if inFormats != nil {
+			var err error
+			if modifiers, err = kdrm.Modifiers(inFormats, f); err != nil {
+				return nil, err
+			}
+		}
+		for _, m := range modifiers {
+			if addable(m, b.modifiers) {
+				pairs = append(pairs, gpu.FormatModifier{Format: f, Modifier: m})
+			}
+		}
+	}
+	return pairs, nil
 }
 
 func (b *Backend) Renderer() render.Renderer {
@@ -665,6 +696,10 @@ func (o *Output) Present(render.Region) error {
 	o.modeset, o.lit, o.flipping = false, true, true
 	o.queued = s
 	return nil
+}
+
+func (o *Output) ScanoutFormats() gpu.ScanoutTarget {
+	return gpu.ScanoutTarget{Device: o.b.number, Formats: o.primary.clients}
 }
 
 func (o *Output) Scanout(d gpu.DMABUF, release func() error) (bool, error) {

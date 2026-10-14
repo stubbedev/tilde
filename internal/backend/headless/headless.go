@@ -227,7 +227,7 @@ type Output struct {
 	damage         render.Region
 	removed        bool
 	cursor         *Cursor
-	scanout        bool
+	scanout        *gpu.ScanoutTarget
 	scanouts       uint64
 	shownRelease   func() error
 	queuedRelease  func() error
@@ -316,8 +316,15 @@ func (o *Output) Present(damage render.Region) error {
 	return o.arm()
 }
 
-func (o *Output) AllowScanout(on bool) {
-	o.scanout = on
+func (o *Output) AllowScanout(t gpu.ScanoutTarget) {
+	o.scanout = &t
+}
+
+func (o *Output) ScanoutFormats() gpu.ScanoutTarget {
+	if o.scanout == nil {
+		return gpu.ScanoutTarget{}
+	}
+	return *o.scanout
 }
 
 func (o *Output) Scanouts() uint64 {
@@ -329,7 +336,7 @@ func (o *Output) ShowsClientBuffer() bool {
 }
 
 func (o *Output) Scanout(d gpu.DMABUF, release func() error) (bool, error) {
-	if !o.scanout || o.removed || !o.state.Enabled || o.state.Off || o.inFrame || o.presentPending || d.Size != o.state.Mode.Size {
+	if o.scanout == nil || !slices.Contains(o.scanout.Formats, gpu.FormatModifier{Format: d.Format, Modifier: d.Modifier}) || o.removed || !o.state.Enabled || o.state.Off || o.inFrame || o.presentPending || d.Size != o.state.Mode.Size {
 		return false, nil
 	}
 	o.queuedRelease, o.presentPending, o.drawn = release, true, false

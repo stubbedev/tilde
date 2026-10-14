@@ -39,6 +39,7 @@ const (
 	propHotspotX
 	propHotspotY
 	inFormatsBlob = 500
+	fakeNumber    = 0xe200
 )
 
 type commit struct {
@@ -67,6 +68,8 @@ var modes = []kdrm.Mode{
 }
 
 func (f *fakeDevice) FD() int { return f.events }
+
+func (f *fakeDevice) Number() (uint64, error) { return fakeNumber, nil }
 
 func (f *fakeDevice) Cap(c uint64) (uint64, error) {
 	switch c {
@@ -810,6 +813,15 @@ func TestUnpluggedDevicesDropTheirOutputsWithoutTouchingTheDevice(t *testing.T) 
 	}
 	if err := r.b.Close(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestOutputsOfferThePrimaryPlaneFormatsForScanout(t *testing.T) {
+	r := start(t)
+	got := r.lit().ScanoutFormats()
+	want := gpu.ScanoutTarget{Device: fakeNumber, Formats: []gpu.FormatModifier{{Format: scanoutFormat, Modifier: 0}, {Format: scanoutFormat, Modifier: 7}}}
+	if got.Device != want.Device || !slices.Equal(got.Formats, want.Formats) {
+		t.Fatalf("scanout formats %+v, want %+v", got, want)
 	}
 }
 

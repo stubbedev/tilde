@@ -86,3 +86,8 @@ type FormatModifier struct {
 	Format   uint32
 	Modifier uint64
 }
+
+type ScanoutTarget struct {
+	Device  uint64
+	Formats []FormatModifier
+}
