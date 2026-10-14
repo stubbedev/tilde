@@ -69,7 +69,9 @@ func (c *Compositor) render(o *output.Output) error {
 			shown = c.drawPopups(pass, o, c.popups(w), shown)
 		}
 	}
-	c.evictLabels(o)
+	if err := c.evictLabels(o); err != nil {
+		return err
+	}
 	for _, e := range c.layersAt(o, swlr.ZwlrLayerShellV1LayerOverlay) {
 		shown = c.drawTree(pass, o, e.surface.Surface(), e.bounds().Min, shown)
 	}

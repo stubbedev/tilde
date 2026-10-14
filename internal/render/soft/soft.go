@@ -71,8 +71,9 @@ func (t *texture) Update(stride int, data []byte, damage render.Region) error {
 	return nil
 }
 
-func (t *texture) Destroy() {
+func (t *texture) Destroy() error {
 	t.pix = nil
+	return nil
 }
 
 type Renderer struct {

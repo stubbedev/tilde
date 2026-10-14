@@ -42,7 +42,7 @@ func startNestedWith(t *testing.T, host *Harness, configure func(*compositor.Con
 	if n.loop, err = loop.New(); err != nil {
 		t.Fatal(err)
 	}
-	b, err := nested.New(n.loop, host.Socket())
+	b, err := nested.New(n.loop, host.Socket(), nested.Options{Renderer: nested.Soft})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,8 +66,7 @@ func startNestedWith(t *testing.T, host *Harness, configure func(*compositor.Con
 		if err := <-done; err != nil && !errors.Is(err, nested.ErrClosed) {
 			t.Error(err)
 		}
-		n.comp.Close()
-		if err := errors.Join(display.Close(), b.Close(), n.loop.Close()); err != nil {
+		if err := errors.Join(n.comp.Close(), display.Close(), b.Close(), n.loop.Close()); err != nil {
 			t.Error(err)
 		}
 	})

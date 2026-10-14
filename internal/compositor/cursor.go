@@ -1,6 +1,7 @@
 package compositor
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"math"
@@ -88,9 +89,11 @@ func (c *Compositor) CursorChanged() error {
 	return c.scheduleAll()
 }
 
-func (c *Compositor) dropPointers() {
+func (c *Compositor) dropPointers() error {
+	var errs []error
 	for _, ct := range c.pointers {
-		ct.tex.Destroy()
+		errs = append(errs, ct.tex.Destroy())
 	}
 	clear(c.pointers)
+	return errors.Join(errs...)
 }

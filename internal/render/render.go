@@ -159,7 +159,7 @@ type Target interface {
 type Texture interface {
 	Size() image.Point
 	Update(stride int, data []byte, damage Region) error
-	Destroy()
+	Destroy() error
 }
 
 type Renderer interface {

@@ -30,9 +30,9 @@ func (t *spyTexture) Update(stride int, data []byte, damage render.Region) error
 	return t.Texture.Update(stride, data, damage)
 }
 
-func (t *spyTexture) Destroy() {
+func (t *spyTexture) Destroy() error {
 	t.destroyed = true
-	t.Texture.Destroy()
+	return t.Texture.Destroy()
 }
 
 type spyRenderer struct {
@@ -104,7 +104,11 @@ func setup(t *testing.T) *rig {
 	if r.comp, err = New(l, disp, fakeBackend{r.renderer}, DefaultConfig(testenv.Keymap(t), testenv.Font(t))); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(r.comp.Close)
+	t.Cleanup(func() {
+		if err := r.comp.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	done := make(chan error, 1)
 	go func() { done <- l.Run() }()
 	t.Cleanup(func() {

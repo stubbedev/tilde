@@ -1,6 +1,7 @@
 package compositor
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 
@@ -27,8 +28,7 @@ func (c *Compositor) Committed(s *surface.Surface) error {
 func (c *Compositor) attach(s *surface.Surface) error {
 	switch b := s.Buffer().(type) {
 	case nil:
-		c.dropTexture(s)
-		return nil
+		return c.dropTexture(s)
 	case *shm.Buffer:
 		if err := c.upload(s, b); err != nil {
 			return err
@@ -39,7 +39,9 @@ func (c *Compositor) attach(s *surface.Surface) error {
 		if err != nil {
 			return fmt.Errorf("compositor: upload single-pixel wl_surface@%d: %w", s.Resource().Base().ID(), err)
 		}
-		c.dropTexture(s)
+		if err := c.dropTexture(s); err != nil {
+			return errors.Join(err, tex.Destroy())
+		}
 		c.textures[s] = &texture{tex: tex, format: render.ARGB8888}
 		return b.Release()
 	default:
@@ -57,17 +59,24 @@ func (c *Compositor) upload(s *surface.Surface, b *shm.Buffer) error {
 		if err != nil {
 			return fmt.Errorf("compositor: upload wl_surface@%d: %w", s.Resource().Base().ID(), err)
 		}
-		c.dropTexture(s)
+		if err := c.dropTexture(s); err != nil {
+			return errors.Join(err, tex.Destroy())
+		}
 		c.textures[s] = &texture{tex: tex, format: b.Format()}
 		return nil
 	})
 }
 
-func (c *Compositor) dropTexture(s *surface.Surface) {
-	if t, ok := c.textures[s]; ok {
-		t.tex.Destroy()
-		delete(c.textures, s)
+func (c *Compositor) dropTexture(s *surface.Surface) error {
+	t, ok := c.textures[s]
+	if !ok {
+		return nil
 	}
+	delete(c.textures, s)
+	if err := t.tex.Destroy(); err != nil {
+		return fmt.Errorf("compositor: destroy the texture of wl_surface@%d: %w", s.Resource().Base().ID(), err)
+	}
+	return nil
 }
 
 func (c *Compositor) Texture(s *surface.Surface) render.Texture {
@@ -81,7 +90,9 @@ func (c *Compositor) Destroyed(s *surface.Surface) error {
 	if err := c.seat.SurfaceDestroyed(s); err != nil {
 		return err
 	}
-	c.dropTexture(s)
+	if err := c.dropTexture(s); err != nil {
+		return err
+	}
 	for o, shown := range c.shown {
 		c.shown[o] = slices.DeleteFunc(shown, func(x *surface.Surface) bool { return x == s })
 	}

@@ -208,22 +208,24 @@ func (c *Compositor) Reconfigure(cfg Config) error {
 	c.adopt(cfg, m)
 	c.submap = ""
 	c.repeat.active = false
-	for o := range c.labels {
-		c.dropLabels(o)
-	}
-	c.dropPointers()
-	if err := errors.Join(c.seat.Reconfigure(pending), c.repeat.timer.Disarm(), c.applyOutputRules(), c.scheduleAll()); err != nil {
+	if err := errors.Join(c.dropDecor(), c.seat.Reconfigure(pending), c.repeat.timer.Disarm(), c.applyOutputRules(), c.scheduleAll()); err != nil {
 		c.report(fmt.Errorf("compositor: apply the new config: %w", err))
 	}
 	return nil
 }
 
-func (c *Compositor) Close() {
+func (c *Compositor) dropDecor() error {
+	var errs []error
 	for o := range c.labels {
-		c.dropLabels(o)
+		errs = append(errs, c.dropLabels(o))
 	}
-	c.dropPointers()
+	return errors.Join(append(errs, c.dropPointers())...)
+}
+
+func (c *Compositor) Close() error {
+	err := c.dropDecor()
 	c.seat.Close()
+	return err
 }
 
 func (c *Compositor) Seat() *seat.Seat {

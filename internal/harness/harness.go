@@ -87,7 +87,11 @@ func (h *Harness) stop() {
 		c.kill()
 	}
 	if h.compositor != nil {
-		defer h.compositor.Close()
+		defer func() {
+			if err := h.compositor.Close(); err != nil {
+				h.t.Errorf("harness: close the compositor: %v", err)
+			}
+		}()
 	}
 	if h.loop != nil && h.compositor != nil {
 		if err := h.loop.Post(func() error {

@@ -22,6 +22,7 @@ import (
 	"github.com/stubbedev/tilde/internal/backend/nested"
 	"github.com/stubbedev/tilde/internal/compositor"
 	"github.com/stubbedev/tilde/internal/config"
+	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/ipc"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/server"
@@ -72,13 +73,29 @@ func chooseBackend(requested, waylandDisplay string) (string, error) {
 	return "", fmt.Errorf("unknown backend %q (available: nested, headless)", requested)
 }
 
-func openBackend(name string, l *loop.Loop) (backend.Backend, error) {
+func chooseRenderer(requested, backendName string) (nested.Renderer, error) {
+	switch {
+	case requested == "" && backendName == "nested", requested == "gles" && backendName == "nested":
+		return nested.GLES, nil
+	case requested == "" || requested == "soft":
+		return nested.Soft, nil
+	case requested == "gles":
+		return 0, fmt.Errorf("the %s backend renders in software only", backendName)
+	}
+	return 0, fmt.Errorf("unknown renderer %q (available: gles, soft)", requested)
+}
+
+func openBackend(name string, renderer nested.Renderer, l *loop.Loop) (backend.Backend, error) {
 	if name == "nested" {
 		host, err := wlclient.SocketPath(os.Getenv)
 		if err != nil {
 			return nil, err
 		}
-		return nested.New(l, host)
+		b, err := nested.New(l, host, nested.Options{Renderer: renderer, GPU: gpu.PathsFromEnv(os.Getenv)})
+		if err != nil && renderer == nested.GLES {
+			return nil, fmt.Errorf("%w (run with --renderer soft to present through shm)", err)
+		}
+		return b, err
 	}
 	b := headless.New(l)
 	if _, err := b.AddOutput(headlessMode); err != nil {
@@ -235,11 +252,16 @@ func run(args []string) (err error) {
 	flags := flag.NewFlagSet("tilde", flag.ContinueOnError)
 	path := flags.String("config", "", "config file (default: $XDG_CONFIG_HOME/tilde/config.yaml)")
 	withSystemd := flags.Bool("systemd", false, "export the session environment to D-Bus activation and the systemd user manager, and run "+systemd.Target+" while tilde runs")
+	rendererName := flags.String("renderer", "", "gles or soft (default: gles for the nested backend, soft for headless)")
 	requested := flags.String("backend", "", "output and input backend: nested or headless (default: nested when WAYLAND_DISPLAY is set, else headless)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	backendName, err := chooseBackend(*requested, os.Getenv("WAYLAND_DISPLAY"))
+	if err != nil {
+		return err
+	}
+	renderer, err := chooseRenderer(*rendererName, backendName)
 	if err != nil {
 		return err
 	}
@@ -296,7 +318,7 @@ func run(args []string) (err error) {
 	}, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP); err != nil {
 		return err
 	}
-	b, err := openBackend(backendName, l)
+	b, err := openBackend(backendName, renderer, l)
 	if err != nil {
 		return err
 	}
@@ -309,7 +331,7 @@ func run(args []string) (err error) {
 	if s.comp, err = compositor.New(l, display, b, cfg); err != nil {
 		return err
 	}
-	defer s.comp.Close()
+	defer func() { err = errors.Join(err, s.comp.Close()) }()
 	socket, err := ipc.SocketPath(os.Getenv("XDG_RUNTIME_DIR"), display.Name())
 	if err != nil {
 		return err

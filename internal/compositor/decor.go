@@ -1,6 +1,7 @@
 package compositor
 
 import (
+	"errors"
 	"fmt"
 	"image"
 
@@ -94,15 +95,17 @@ func (c *Compositor) label(o *output.Output, key labelKey) (render.Texture, erro
 	return tex, nil
 }
 
-func (c *Compositor) evictLabels(o *output.Output) {
+func (c *Compositor) evictLabels(o *output.Output) error {
+	var errs []error
 	for key, l := range c.labels[o] {
 		if !l.used {
-			l.tex.Destroy()
+			errs = append(errs, l.tex.Destroy())
 			delete(c.labels[o], key)
 			continue
 		}
 		l.used = false
 	}
+	return errors.Join(errs...)
 }
 
 func (c *Compositor) drawBorder(pass render.Pass, o *output.Output, w *window) {
@@ -166,9 +169,11 @@ func (c *Compositor) drawTabBars(pass render.Pass, o *output.Output) error {
 	return nil
 }
 
-func (c *Compositor) dropLabels(o *output.Output) {
+func (c *Compositor) dropLabels(o *output.Output) error {
+	var errs []error
 	for _, l := range c.labels[o] {
-		l.tex.Destroy()
+		errs = append(errs, l.tex.Destroy())
 	}
 	delete(c.labels, o)
+	return errors.Join(errs...)
 }

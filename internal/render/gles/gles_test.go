@@ -1,9 +1,13 @@
 package gles_test
 
 import (
+	"errors"
 	"image"
+	"os"
 	"strings"
 	"testing"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/render"
@@ -95,8 +99,9 @@ func load(t *testing.T, r render.Renderer) textures {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		a.Destroy()
-		x.Destroy()
+		if err := errors.Join(a.Destroy(), x.Destroy()); err != nil {
+			t.Error(err)
+		}
 	})
 	return textures{a, x}
 }
@@ -158,8 +163,10 @@ func TestParityWithTheSoftwareRenderer(t *testing.T) {
 	parity(t, renderer(t))
 }
 
-func TestParityOnHardware(t *testing.T) {
-	parity(t, rendererOn(t, func(lib *gpu.Library) (*gpu.Display, error) {
+func hardware(t *testing.T) (*gles.Renderer, string) {
+	t.Helper()
+	var node string
+	r := rendererOn(t, func(lib *gpu.Library) (*gpu.Display, error) {
 		devices, err := lib.Devices()
 		if err != nil {
 			return nil, err
@@ -167,13 +174,91 @@ func TestParityOnHardware(t *testing.T) {
 		for _, dev := range devices {
 			if dev.RenderNode() != "" && !dev.Software() {
 				if d, err := lib.OnDevice(dev); err == nil {
+					node = dev.RenderNode()
 					return d, nil
 				}
 			}
 		}
 		t.Skip("no EGL vendor drives a render node here; unset __EGL_VENDOR_LIBRARY_DIRS on a GPU machine to run this")
 		return nil, nil
-	}))
+	})
+	return r, node
+}
+
+func TestParityOnHardware(t *testing.T) {
+	r, _ := hardware(t)
+	parity(t, r)
+}
+
+func TestDMABUFTexturesOnHardware(t *testing.T) {
+	g, node := hardware(t)
+	fd, err := unix.Open(node, unix.O_RDWR|unix.O_CLOEXEC, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(fd)
+	lib, err := gpu.LoadGBM(gpu.PathsFromEnv(os.Getenv))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+	dev, err := lib.Open(fd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dev.Close()
+	bo, err := dev.Allocate(image.Pt(8, 8), gpu.FormatARGB8888, nil, gpu.UseRendering)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer bo.Close()
+	client, err := g.ImportFramebuffer(bo.DMABUF)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Destroy()
+	paint(t, g, client, render.Region{image.Rect(0, 0, 8, 8)}, func(p render.Pass) {
+		p.FillRect(image.Rect(0, 0, 8, 8), render.Color{B: 0x80, A: 0x80})
+		p.FillRect(image.Rect(0, 0, 4, 8), render.Color{R: 0xff, A: 0xff})
+	})
+	if err := g.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	tex, err := g.ImportTexture(bo.DMABUF)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tex.Destroy()
+	if err := tex.Update(32, make([]byte, 256), nil); err == nil {
+		t.Fatal("a dmabuf texture accepted an upload")
+	}
+	fb := framebuffer(t, g, image.Pt(16, 8))
+	paint(t, g, fb, render.Region{image.Rect(0, 0, 16, 8)}, func(p render.Pass) {
+		p.FillRect(image.Rect(0, 0, 16, 8), render.Color{G: 0xff, A: 0xff})
+		p.DrawTexture(tex, render.FRect{W: 8, H: 8}, image.Rect(8, 0, 16, 8), render.Flipped, 1)
+	})
+	got := make([]byte, 16*8*4)
+	if err := fb.Read(got, 64); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		x    int
+		want [4]byte
+	}{{2, [4]byte{0, 0xff, 0, 0xff}}, {10, [4]byte{0x80, 0x7f, 0, 0xff}}, {14, [4]byte{0, 0, 0xff, 0xff}}} {
+		px := [4]byte(got[4*64+c.x*4:])
+		if !near(px, c.want) {
+			t.Errorf("x=%d: %v, want %v", c.x, px, c.want)
+		}
+	}
+}
+
+func near(a, b [4]byte) bool {
+	for i := range a {
+		if d := int(a[i]) - int(b[i]); d < -1 || d > 1 {
+			return false
+		}
+	}
+	return true
 }
 
 func parity(t *testing.T, g *gles.Renderer) {
@@ -262,5 +347,66 @@ func TestMisuseFailsPrecisely(t *testing.T) {
 	p.DrawTexture(load(t, g).argb, render.FRect{W: 8, H: 5}, image.Rect(0, 0, 8, 5), render.Normal, 1)
 	if err := p.End(); err == nil || !strings.Contains(err.Error(), "not premultiplied") {
 		t.Fatalf("a straight-alpha color: %v", err)
+	}
+}
+
+func TestExternalYUVTexturesOnHardware(t *testing.T) {
+	g, node := hardware(t)
+	fd, err := unix.Open(node, unix.O_RDWR|unix.O_CLOEXEC, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(fd)
+	lib, err := gpu.LoadGBM(gpu.PathsFromEnv(os.Getenv))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+	dev, err := lib.Open(fd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dev.Close()
+	nv12 := uint32('N') | uint32('V')<<8 | uint32('1')<<16 | uint32('2')<<24
+	bo, err := dev.Allocate(image.Pt(16, 16), nv12, nil, gpu.UseLinear)
+	if err != nil {
+		t.Skipf("%s cannot allocate linear NV12: %v", dev.Backend(), err)
+	}
+	defer bo.Close()
+	for i, p := range bo.Planes {
+		rows, value := 16, byte(126)
+		if i == 1 {
+			rows, value = 8, 128
+		}
+		size := int(p.Offset) + rows*int(p.Stride)
+		m, err := unix.Mmap(p.FD, 0, size, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+		if err != nil {
+			t.Skipf("map NV12 plane %d: %v", i, err)
+		}
+		for j := int(p.Offset); j < size; j++ {
+			m[j] = value
+		}
+		if err := unix.Munmap(m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tex, err := g.ImportTexture(bo.DMABUF)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tex.Destroy()
+	fb := framebuffer(t, g, image.Pt(16, 16))
+	paint(t, g, fb, render.Region{image.Rect(0, 0, 16, 16)}, func(p render.Pass) {
+		p.DrawTexture(tex, render.FRect{W: 16, H: 16}, image.Rect(0, 0, 16, 16), render.Normal, 1)
+	})
+	got := make([]byte, 16*16*4)
+	if err := fb.Read(got, 64); err != nil {
+		t.Fatal(err)
+	}
+	px := got[8*64+8*4:][:4]
+	for c := range 3 {
+		if d := int(px[c]) - 128; d < -4 || d > 4 {
+			t.Fatalf("mid-gray NV12 sampled as %v", px)
+		}
 	}
 }

@@ -6,12 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"math"
 	"slices"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/stubbedev/tilde/internal/backend"
+	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	xdg "github.com/stubbedev/tilde/internal/protocol/client/xdgshell"
@@ -32,7 +30,7 @@ type Backend struct {
 	host       *wlclient.Display
 	source     *loop.Source
 	writable   bool
-	renderer   *soft.Renderer
+	chain      swapchain
 	handler    backend.Handler
 	compositor *cw.WlCompositor
 	shm        *cw.WlShm
@@ -60,15 +58,30 @@ func (r registry) Global(_ *cw.WlRegistry, name uint32, iface string, version ui
 
 func (r registry) GlobalRemove(*cw.WlRegistry, uint32) error { return nil }
 
-func New(l *loop.Loop, socket string) (b *Backend, err error) {
+type Renderer uint8
+
+const (
+	Soft Renderer = iota + 1
+	GLES
+)
+
+type Options struct {
+	Renderer Renderer
+	GPU      gpu.Paths
+}
+
+func New(l *loop.Loop, socket string, opts Options) (b *Backend, err error) {
 	host, err := wlclient.Connect(socket)
 	if err != nil {
 		return nil, fmt.Errorf("nested: %w", err)
 	}
-	b = &Backend{loop: l, host: host, renderer: soft.New()}
+	b = &Backend{loop: l, host: host}
 	defer func() {
 		if err != nil {
-			_ = host.Close()
+			if b.chain != nil {
+				err = errors.Join(err, b.chain.close())
+			}
+			err = errors.Join(err, host.Close())
 		}
 	}()
 	globals := registry{}
@@ -118,6 +131,16 @@ func New(l *loop.Loop, socket string) (b *Backend, err error) {
 	}
 	if err := host.Roundtrip(); err != nil {
 		return nil, fmt.Errorf("nested: bind host globals: %w", err)
+	}
+	switch opts.Renderer {
+	case Soft:
+		b.chain = &shmChain{shm: b.shm, soft: soft.New()}
+	case GLES:
+		if b.chain, err = newDMABUFChain(host, globals, reg, opts.GPU); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("nested: unknown renderer %d", opts.Renderer)
 	}
 	if b.source, err = l.AddFD(host.Conn().FD(), loop.Readable, b.readHost); err != nil {
 		return nil, err
@@ -186,7 +209,7 @@ func (b *Backend) Start(h backend.Handler) error {
 }
 
 func (b *Backend) Renderer() render.Renderer {
-	return b.renderer
+	return b.chain.renderer()
 }
 
 func (b *Backend) devices() []backend.Device {
@@ -217,7 +240,7 @@ func (b *Backend) Close() error {
 		}
 	}
 	b.closed = true
-	errs = append(errs, b.source.Remove(), b.host.Close())
+	errs = append(errs, b.chain.close(), b.source.Remove(), b.host.Close())
 	return errors.Join(errs...)
 }
 
@@ -254,10 +277,17 @@ func (b *Backend) outputFor(s *cw.WlSurface) *Output {
 	return nil
 }
 
-type shmBuffer struct {
+type buffer struct {
 	wl     *cw.WlBuffer
-	target *soft.Buffer
+	target render.Target
 	busy   bool
+}
+
+type swapchain interface {
+	renderer() render.Renderer
+	allocate(o *Output, size image.Point) ([]*buffer, func() error, error)
+	finish() error
+	close() error
 }
 
 type Output struct {
@@ -269,9 +299,9 @@ type Output struct {
 	pending         image.Point
 	size            image.Point
 	configured      bool
-	mapping         []byte
-	buffers         [2]*shmBuffer
-	drawing         *shmBuffer
+	buffers         []*buffer
+	free            func() error
+	drawing         *buffer
 	frameRequested  bool
 	idleQueued      bool
 	callbackPending bool
@@ -338,56 +368,30 @@ func (o *Output) resize(size image.Point) error {
 	if err := o.releaseBuffers(); err != nil {
 		return err
 	}
-	stride := size.X * 4
-	frame := stride * size.Y
-	if size.X > math.MaxInt16 || size.Y > math.MaxInt16 || 2*frame > math.MaxInt32 {
-		return fmt.Errorf("nested: host window %v is too large for shm buffers", size)
-	}
-	fd, err := unix.MemfdCreate("tilde-nested", unix.MFD_CLOEXEC)
-	if err != nil {
-		return fmt.Errorf("nested: memfd_create: %w", err)
-	}
-	defer func() { _ = unix.Close(fd) }()
-	if err := unix.Ftruncate(fd, int64(2*frame)); err != nil {
-		return fmt.Errorf("nested: size the %s buffers to %d bytes: %w", o.name, 2*frame, err)
-	}
-	if o.mapping, err = unix.Mmap(fd, 0, 2*frame, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED); err != nil {
-		return fmt.Errorf("nested: map the %s buffers: %w", o.name, err)
-	}
-	pool, err := o.backend.shm.CreatePool(fd, int32(2*frame)) //nolint:gosec // bounded by the size check above
+	buffers, free, err := o.backend.chain.allocate(o, size)
 	if err != nil {
 		return err
 	}
-	for i := range o.buffers {
-		buf := &shmBuffer{target: &soft.Buffer{Pix: o.mapping[i*frame : (i+1)*frame], Stride: stride, W: size.X, H: size.Y}}
-		if buf.wl, err = pool.CreateBuffer(bufferEvents{o, buf}, int32(i*frame), int32(size.X), int32(size.Y), int32(stride), cw.WlShmFormatXrgb8888); err != nil { //nolint:gosec // bounded by the size check above
-			return err
-		}
-		o.buffers[i] = buf
-	}
-	o.size = size
-	return pool.Destroy()
+	o.buffers, o.free, o.size = buffers, free, size
+	return nil
 }
 
 func (o *Output) releaseBuffers() error {
 	var errs []error
-	for i, buf := range o.buffers {
-		if buf != nil {
-			errs = append(errs, buf.wl.Destroy())
-			o.buffers[i] = nil
-		}
+	for _, buf := range o.buffers {
+		errs = append(errs, buf.wl.Destroy())
 	}
-	o.drawing = nil
-	if o.mapping != nil {
-		errs = append(errs, unix.Munmap(o.mapping))
-		o.mapping = nil
+	o.buffers, o.drawing = nil, nil
+	if o.free != nil {
+		errs = append(errs, o.free())
+		o.free = nil
 	}
 	return errors.Join(errs...)
 }
 
-func (o *Output) freeBuffer() *shmBuffer {
+func (o *Output) freeBuffer() *buffer {
 	for _, buf := range o.buffers {
-		if buf != nil && !buf.busy {
+		if !buf.busy {
 			return buf
 		}
 	}
@@ -430,7 +434,7 @@ func (o *Output) BeginFrame() (render.Renderer, render.Target, error) {
 		return nil, nil, fmt.Errorf("nested: the host holds every buffer of %s", o.name)
 	}
 	o.drawing = buf
-	return o.backend.renderer, buf.target, nil
+	return o.backend.chain.renderer(), buf.target, nil
 }
 
 func (o *Output) Present(damage render.Region) error {
@@ -439,6 +443,9 @@ func (o *Output) Present(damage render.Region) error {
 		return fmt.Errorf("nested: present on %s without BeginFrame", o.name)
 	}
 	o.drawing = nil
+	if err := o.backend.chain.finish(); err != nil {
+		return err
+	}
 	if err := o.surface.Attach(buf.wl, 0, 0); err != nil {
 		return err
 	}
@@ -536,7 +543,7 @@ func (toplevelEvents) WmCapabilities(*xdg.XdgToplevel, []byte) error        { re
 
 type bufferEvents struct {
 	o   *Output
-	buf *shmBuffer
+	buf *buffer
 }
 
 func (e bufferEvents) Release(*cw.WlBuffer) error {

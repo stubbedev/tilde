@@ -32,6 +32,12 @@ uniform sampler2D tex;
 uniform float alpha;
 varying vec2 v_texcoord;
 void main() { gl_FragColor = texture2D(tex, v_texcoord) * alpha; }`
+	externalShader = `#extension GL_OES_EGL_image_external : require
+precision mediump float;
+uniform samplerExternalOES tex;
+uniform float alpha;
+varying vec2 v_texcoord;
+void main() { gl_FragColor = texture2D(tex, v_texcoord) * alpha; }`
 	rgbxShader = `precision mediump float;
 uniform sampler2D tex;
 uniform float alpha;
@@ -48,15 +54,17 @@ type program struct {
 }
 
 type Renderer struct {
-	d      *gpu.Display
-	gl     *gpu.GL
-	solid  program
-	rgba   program
-	rgbx   program
-	vbo    uint32
-	verts  [16]float32
-	pass   pass
-	closed bool
+	d         *gpu.Display
+	gl        *gpu.GL
+	solid     program
+	rgba      program
+	rgbx      program
+	external  program
+	modifiers map[uint32][]gpu.Modifier
+	vbo       uint32
+	verts     [16]float32
+	pass      pass
+	closed    bool
 }
 
 func (r *Renderer) enter() error {
@@ -75,7 +83,7 @@ func (r *Renderer) leave(op string) error {
 }
 
 func New(d *gpu.Display) (*Renderer, error) {
-	r := &Renderer{d: d, gl: d.GL()}
+	r := &Renderer{d: d, gl: d.GL(), modifiers: map[uint32][]gpu.Modifier{}}
 	r.pass.owner = r
 	if err := r.enter(); err != nil {
 		return nil, err
@@ -91,10 +99,17 @@ func (r *Renderer) setup() error {
 			return fmt.Errorf("gles: %s lacks %s", r.gl.Renderer(), ext)
 		}
 	}
-	for _, p := range []struct {
+	programs := []struct {
 		prog     *program
 		fragment string
-	}{{&r.solid, solidShader}, {&r.rgba, rgbaShader}, {&r.rgbx, rgbxShader}} {
+	}{{&r.solid, solidShader}, {&r.rgba, rgbaShader}, {&r.rgbx, rgbxShader}}
+	if slices.Contains(exts, "GL_OES_EGL_image_external") {
+		programs = append(programs, struct {
+			prog     *program
+			fragment string
+		}{&r.external, externalShader})
+	}
+	for _, p := range programs {
 		id, err := r.gl.Link(vertexShader, p.fragment)
 		if err != nil {
 			return err
@@ -122,11 +137,21 @@ func (r *Renderer) Close() error {
 	if err := r.enter(); err != nil {
 		return err
 	}
-	for _, p := range []program{r.solid, r.rgba, r.rgbx} {
-		r.gl.DeleteProgram(p.id)
+	for _, p := range []program{r.solid, r.rgba, r.rgbx, r.external} {
+		if p.id != 0 {
+			r.gl.DeleteProgram(p.id)
+		}
 	}
 	r.gl.DeleteBuffers(1, &r.vbo)
 	return r.leave("gles: close")
+}
+
+func (r *Renderer) Finish() error {
+	if err := r.enter(); err != nil {
+		return err
+	}
+	r.gl.Finish()
+	return r.leave("gles: finish")
 }
 
 func (r *Renderer) Formats() []render.Format {
@@ -138,6 +163,8 @@ type texture struct {
 	id     uint32
 	size   image.Point
 	opaque bool
+	target uint32
+	img    *gpu.Image
 }
 
 func fits(size image.Point, stride int, data []byte) error {
@@ -157,7 +184,7 @@ func (r *Renderer) NewTexture(format render.Format, size image.Point, stride int
 	if err := r.enter(); err != nil {
 		return nil, err
 	}
-	t := &texture{r: r, size: size, opaque: format == render.XRGB8888}
+	t := &texture{r: r, size: size, opaque: format == render.XRGB8888, target: gpu.Texture2D}
 	r.gl.GenTextures(1, &t.id)
 	r.gl.BindTexture(gpu.Texture2D, t.id)
 	r.gl.TexParameteri(gpu.Texture2D, gpu.TextureWrapS, gpu.ClampToEdge)
@@ -175,9 +202,59 @@ func (t *texture) Size() image.Point {
 	return t.size
 }
 
+func (r *Renderer) externalOnly(b gpu.DMABUF) (bool, error) {
+	mods, ok := r.modifiers[b.Format]
+	if !ok {
+		var err error
+		if mods, err = r.d.DMABUFModifiers(b.Format); err != nil {
+			return false, err
+		}
+		r.modifiers[b.Format] = mods
+	}
+	for _, m := range mods {
+		if m.Modifier == b.Modifier {
+			return m.ExternalOnly, nil
+		}
+	}
+	return false, nil
+}
+
+func (r *Renderer) ImportTexture(b gpu.DMABUF) (render.Texture, error) {
+	external, err := r.externalOnly(b)
+	if err != nil {
+		return nil, err
+	}
+	if external && r.external.id == 0 {
+		return nil, fmt.Errorf("%w: %s samples format %#x with modifier %#x only through GL_OES_EGL_image_external", gpu.ErrUnsupported, r.gl.Renderer(), b.Format, b.Modifier)
+	}
+	img, err := r.d.ImportDMABUF(b)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.enter(); err != nil {
+		return nil, errors.Join(err, img.Destroy())
+	}
+	t := &texture{r: r, size: b.Size, target: gpu.Texture2D, img: img}
+	if external {
+		t.target = gpu.TextureExternalOES
+	}
+	r.gl.GenTextures(1, &t.id)
+	r.gl.BindTexture(t.target, t.id)
+	r.gl.TexParameteri(t.target, gpu.TextureWrapS, gpu.ClampToEdge)
+	r.gl.TexParameteri(t.target, gpu.TextureWrapT, gpu.ClampToEdge)
+	r.gl.EGLImageTargetTexture2D(t.target, img)
+	if err := r.leave("gles: import a dmabuf texture"); err != nil {
+		return nil, errors.Join(err, t.Destroy())
+	}
+	return t, nil
+}
+
 func (t *texture) Update(stride int, data []byte, damage render.Region) error {
 	if t.id == 0 {
 		return errors.New("gles: update of a destroyed texture")
+	}
+	if t.img != nil {
+		return errors.New("gles: a dmabuf texture is updated by its client, not uploaded")
 	}
 	if err := fits(t.size, stride, data); err != nil {
 		return err
@@ -204,13 +281,21 @@ func (t *texture) Update(stride int, data []byte, damage render.Region) error {
 	return t.r.leave("gles: update texture")
 }
 
-func (t *texture) Destroy() {
-	if t.id == 0 || t.r.enter() != nil {
-		return
+func (t *texture) Destroy() error {
+	if t.id == 0 {
+		return nil
+	}
+	if err := t.r.enter(); err != nil {
+		return err
 	}
 	t.r.gl.DeleteTextures(1, &t.id)
 	t.id = 0
-	_ = t.r.leave("gles: destroy texture")
+	err := t.r.leave("gles: destroy texture")
+	if t.img != nil {
+		err = errors.Join(err, t.img.Destroy())
+		t.img = nil
+	}
+	return err
 }
 
 type Framebuffer struct {
@@ -443,19 +528,22 @@ func (p *pass) DrawTexture(t render.Texture, src render.FRect, dst image.Rectang
 		return
 	}
 	prog := p.owner.rgba
-	if tex.opaque {
+	switch {
+	case tex.target == gpu.TextureExternalOES:
+		prog = p.owner.external
+	case tex.opaque:
 		prog = p.owner.rgbx
 	}
 	gl := p.owner.gl
 	gl.UseProgram(prog.id)
 	gl.Uniform1f(prog.alpha, alpha)
-	gl.BindTexture(gpu.Texture2D, tex.id)
+	gl.BindTexture(tex.target, tex.id)
 	filter := int32(gpu.Linear)
 	if transform.Size(image.Pt(int(src.W), int(src.H))) == dst.Size() && src.W == float64(int(src.W)) && src.H == float64(int(src.H)) {
 		filter = gpu.Nearest
 	}
-	gl.TexParameteri(gpu.Texture2D, gpu.TextureMinFilter, filter)
-	gl.TexParameteri(gpu.Texture2D, gpu.TextureMagFilter, filter)
+	gl.TexParameteri(tex.target, gpu.TextureMinFilter, filter)
+	gl.TexParameteri(tex.target, gpu.TextureMagFilter, filter)
 	h, v := transform.Axes()
 	verts := &p.owner.verts
 	for i, corner := range [4][2]float64{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {

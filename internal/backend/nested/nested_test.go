@@ -132,7 +132,7 @@ func TestNestedInSway(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Close()
-	b, err := New(l, host.socket)
+	b, err := New(l, host.socket, Options{Renderer: Soft})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,11 @@ func TestNestedInSway(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer comp.Close()
+	defer func() {
+		if err := comp.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
 	done := make(chan error, 1)
 	go func() { done <- l.Run() }()
 	on := func(f func()) {
