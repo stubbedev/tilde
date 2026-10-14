@@ -146,6 +146,7 @@ type Compositor struct {
 	captureSessions []*captureSession
 	cursorSessions  []*cursorSession
 	scannedOut      map[*dmabuf.Buffer]*scannedOut
+	filled          map[*output.Output]filling
 	constraints     map[*surface.Surface]*constraint
 	constraint      *constraint
 	keyInhibitors   map[*surface.Surface]*shortcutsInhibitor
@@ -209,6 +210,7 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		blanked:       map[*output.Output]bool{},
 		captures:      map[*output.Output][]capture{},
 		scannedOut:    map[*dmabuf.Buffer]*scannedOut{},
+		filled:        map[*output.Output]filling{},
 		constraints:   map[*surface.Surface]*constraint{},
 		keyInhibitors: map[*surface.Surface]*shortcutsInhibitor{},
 		usable:        map[*output.Output]image.Rectangle{},

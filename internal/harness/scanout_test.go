@@ -3,10 +3,13 @@ package harness
 import (
 	"errors"
 	"image"
+	"slices"
 	"testing"
 
 	"github.com/stubbedev/tilde/internal/backend/headless"
 	"github.com/stubbedev/tilde/internal/compositor"
+	"github.com/stubbedev/tilde/internal/gpu"
+	"github.com/stubbedev/tilde/internal/surface"
 	"github.com/stubbedev/tilde/internal/testclient"
 )
 
@@ -19,6 +22,13 @@ func scanouts(h *Harness) uint64 {
 	return n
 }
 
+var primaryPlane = gpu.ScanoutTarget{Device: 0xe201, Formats: []gpu.FormatModifier{
+	{Format: gpu.FormatXRGB8888, Modifier: gpu.ModifierLinear},
+	{Format: gpu.FormatARGB8888, Modifier: gpu.ModifierLinear},
+	{Format: gpu.FormatXRGB8888, Modifier: 7},
+	{Format: gpu.FormatXRGB8888, Modifier: gpu.ModifierInvalid},
+}}
+
 type scanoutScene struct {
 	h *Harness
 	c *testclient.Client
@@ -29,7 +39,7 @@ func fullscreenScanout(t *testing.T) *scanoutScene {
 	t.Helper()
 	h := StartGLES(t, func(*compositor.Config) {}, small)
 	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
-		b.Outputs()[0].AllowScanout(true)
+		b.Outputs()[0].AllowScanout(primaryPlane)
 		return nil
 	})
 	c := testclient.Connect(t, h.Socket())
@@ -99,4 +109,26 @@ func TestDestroyingAReplacedBufferStillOnScreenSendsNoRelease(t *testing.T) {
 	if gone.Released {
 		t.Fatal("a destroyed buffer was released")
 	}
+}
+
+func TestAFullscreenSurfaceIsOfferedThePlaneFormats(t *testing.T) {
+	s := fullscreenScanout(t)
+	var game *surface.Surface
+	var got gpu.ScanoutTarget
+	s.h.Do(func(_ *headless.Backend, c *compositor.Compositor) error {
+		game = c.Seat().PointerFocus()
+		got = c.SurfaceScanout(game)
+		return nil
+	})
+	want := []gpu.FormatModifier{primaryPlane.Formats[0], primaryPlane.Formats[2], primaryPlane.Formats[3]}
+	if game == nil || got.Device != primaryPlane.Device || !slices.Equal(got.Formats, want) {
+		t.Fatalf("a fullscreen surface is offered %+v, want device %#x and the opaque formats %+v", got, primaryPlane.Device, want)
+	}
+
+	s.h.dispatch("fullscreen")
+	other := s.c.Window("beside", quadrants)
+	s.c.DispatchUntil("a second window to map", other.Mapped)
+	s.h.Eventually("the plane formats withdrawn from a tiled surface", func(_ *headless.Backend, c *compositor.Compositor) bool {
+		return len(c.SurfaceScanout(game).Formats) == 0
+	})
 }

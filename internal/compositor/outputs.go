@@ -223,7 +223,7 @@ func (c *Compositor) disable(o *output.Output) error {
 	delete(c.shown, o)
 	delete(c.hwCursors, o)
 	delete(c.blanked, o)
-	errs := []error{c.dropCaptures(o), c.closeLayers(o), o.Remove()}
+	errs := []error{c.fill(o, nil, nil), c.dropCaptures(o), c.closeLayers(o), o.Remove()}
 	delete(c.usable, o)
 	delete(c.scenes, o)
 	errs = append(errs, c.dropLabels(o), c.power.Removed(o))

@@ -3,10 +3,12 @@ package compositor
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/stubbedev/tilde/internal/dmabuf"
 	"github.com/stubbedev/tilde/internal/gpu"
+	"github.com/stubbedev/tilde/internal/output"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/shm"
 	"github.com/stubbedev/tilde/internal/singlepixel"
@@ -161,5 +163,6 @@ func (c *Compositor) Destroyed(s *surface.Surface) error {
 		c.shown[o] = slices.DeleteFunc(shown, func(x *surface.Surface) bool { return x == s })
 	}
 	c.entered = slices.DeleteFunc(c.entered, func(e *entered) bool { return e.s == s })
+	maps.DeleteFunc(c.filled, func(_ *output.Output, f filling) bool { return f.surface == s })
 	return nil
 }

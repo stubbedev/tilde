@@ -51,6 +51,8 @@ func (importer) CheckDMABUF(gpu.DMABUF) error { return nil }
 
 func (importer) BufferDestroyed(*dmabuf.Buffer) error { return nil }
 
+func (importer) SurfaceScanout(*surface.Surface) gpu.ScanoutTarget { return gpu.ScanoutTarget{} }
+
 type fencer struct{ d *drm.Device }
 
 func (f fencer) SyncFile() (int, error) {

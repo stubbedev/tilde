@@ -1,6 +1,7 @@
 // Package dmabuf implements zwp_linux_dmabuf_v1: clients share GPU buffers as
 // dmabuf planes, checked against what the renderer can import, and learn the
-// formats, modifiers and device through feedback.
+// formats, modifiers and device through feedback, which for a surface that
+// could reach a display plane leads with what that plane scans out.
 package dmabuf
 
 import (
@@ -17,6 +18,7 @@ import (
 	sld "github.com/stubbedev/tilde/internal/protocol/server/linuxdmabuf"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	"github.com/stubbedev/tilde/internal/server"
+	"github.com/stubbedev/tilde/internal/surface"
 	"github.com/stubbedev/tilde/internal/wire"
 )
 
@@ -35,15 +37,24 @@ type Importer interface {
 
 type Listener interface {
 	BufferDestroyed(b *Buffer) error
+	SurfaceScanout(s *surface.Surface) gpu.ScanoutTarget
 }
 
 type Manager struct {
 	importer Importer
 	listener Listener
 	formats  []gpu.FormatModifier
+	index    map[gpu.FormatModifier]uint16
+	all      []byte
 	device   []byte
 	table    int
 	version  uint32
+	surfaces map[*surface.Surface][]surfaceFeedback
+}
+
+type surfaceFeedback struct {
+	c   *server.Client
+	res *sld.ZwpLinuxDmabufFeedbackV1
 }
 
 func New(d *server.Display, imp Importer, l Listener) (*Manager, error) {
@@ -54,7 +65,12 @@ func New(d *server.Display, imp Importer, l Listener) (*Manager, error) {
 	if len(formats) == 0 || len(formats) > math.MaxUint16 {
 		return nil, fmt.Errorf("dmabuf: the renderer imports %d format and modifier pairs", len(formats))
 	}
-	m := &Manager{importer: imp, listener: l, formats: formats, table: -1, version: legacyVersion}
+	m := &Manager{importer: imp, listener: l, formats: formats, table: -1, version: legacyVersion, surfaces: map[*surface.Surface][]surfaceFeedback{}}
+	m.index = make(map[gpu.FormatModifier]uint16, len(formats))
+	for i, f := range formats {
+		m.index[f] = uint16(i)
+	}
+	m.all = m.indices(formats)
 	dev, err := imp.MainDevice()
 	switch {
 	case err == nil:
@@ -142,28 +158,73 @@ func (r requests) CreateParams(_ *sld.ZwpLinuxDmabufV1, res *sld.ZwpLinuxBufferP
 	return p, nil
 }
 
-func (r requests) feedback(res *sld.ZwpLinuxDmabufFeedbackV1) error {
-	indices := make([]byte, 0, 2*len(r.m.formats))
-	for i := range r.m.formats {
-		indices = binary.NativeEndian.AppendUint16(indices, uint16(i))
+func (m *Manager) indices(formats []gpu.FormatModifier) []byte {
+	var indices []byte
+	for _, f := range formats {
+		if i, ok := m.index[f]; ok {
+			indices = binary.NativeEndian.AppendUint16(indices, i)
+		}
 	}
+	return indices
+}
+
+func tranche(res *sld.ZwpLinuxDmabufFeedbackV1, device, indices []byte, flags sld.ZwpLinuxDmabufFeedbackV1TrancheFlags) error {
 	return errors.Join(
-		res.SendFormatTable(r.m.table, uint32(len(r.m.formats)*tableEntry)), //nolint:gosec // capped in New
-		res.SendMainDevice(r.m.device),
-		res.SendTrancheTargetDevice(r.m.device),
+		res.SendTrancheTargetDevice(device),
 		res.SendTrancheFormats(indices),
-		res.SendTrancheFlags(0),
+		res.SendTrancheFlags(flags),
 		res.SendTrancheDone(),
-		res.SendDone(),
 	)
 }
 
-func (r requests) GetDefaultFeedback(_ *sld.ZwpLinuxDmabufV1, res *sld.ZwpLinuxDmabufFeedbackV1) (sld.ZwpLinuxDmabufFeedbackV1Handler, error) {
-	return feedback{}, r.c.Sent(r.feedback(res))
+func (m *Manager) feedback(res *sld.ZwpLinuxDmabufFeedbackV1, scanout gpu.ScanoutTarget) error {
+	err := errors.Join(
+		res.SendFormatTable(m.table, uint32(len(m.formats)*tableEntry)), //nolint:gosec // capped in New
+		res.SendMainDevice(m.device),
+	)
+	if indices := m.indices(scanout.Formats); len(indices) > 0 {
+		err = errors.Join(err, tranche(res, binary.NativeEndian.AppendUint64(nil, scanout.Device), indices, sld.ZwpLinuxDmabufFeedbackV1TrancheFlagsScanout))
+	}
+	return errors.Join(err, tranche(res, m.device, m.all, 0), res.SendDone())
 }
 
-func (r requests) GetSurfaceFeedback(_ *sld.ZwpLinuxDmabufV1, res *sld.ZwpLinuxDmabufFeedbackV1, _ *sw.WlSurface) (sld.ZwpLinuxDmabufFeedbackV1Handler, error) {
-	return feedback{}, r.c.Sent(r.feedback(res))
+func (r requests) GetDefaultFeedback(_ *sld.ZwpLinuxDmabufV1, res *sld.ZwpLinuxDmabufFeedbackV1) (sld.ZwpLinuxDmabufFeedbackV1Handler, error) {
+	return feedback{}, r.c.Sent(r.m.feedback(res, gpu.ScanoutTarget{}))
+}
+
+func (r requests) GetSurfaceFeedback(_ *sld.ZwpLinuxDmabufV1, res *sld.ZwpLinuxDmabufFeedbackV1, wl *sw.WlSurface) (sld.ZwpLinuxDmabufFeedbackV1Handler, error) {
+	s, err := surface.From(wl)
+	if err != nil {
+		return nil, err
+	}
+	r.m.surfaces[s] = append(r.m.surfaces[s], surfaceFeedback{c: r.c, res: res})
+	r.c.OnDestroy(res, func() error {
+		r.m.forget(s, res)
+		return nil
+	})
+	return feedback{}, r.c.Sent(r.m.feedback(res, r.m.listener.SurfaceScanout(s)))
+}
+
+func (m *Manager) forget(s *surface.Surface, res *sld.ZwpLinuxDmabufFeedbackV1) {
+	left := slices.DeleteFunc(m.surfaces[s], func(f surfaceFeedback) bool { return f.res == res })
+	if len(left) == 0 {
+		delete(m.surfaces, s)
+		return
+	}
+	m.surfaces[s] = left
+}
+
+func (m *Manager) ScanoutChanged(s *surface.Surface) error {
+	feedbacks := m.surfaces[s]
+	if len(feedbacks) == 0 {
+		return nil
+	}
+	t := m.listener.SurfaceScanout(s)
+	var err error
+	for _, f := range feedbacks {
+		err = errors.Join(err, f.c.Sent(m.feedback(f.res, t)))
+	}
+	return err
 }
 
 type feedback struct{}

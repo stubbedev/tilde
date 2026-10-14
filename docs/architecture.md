@@ -139,6 +139,16 @@ kernel numbers the connectors of each type globally. Cards come and go with udev
 new card is driven as a secondary, a removed secondary drops its outputs
 without touching the gone device, and losing the primary is fatal.
 
+A frame that is only the background and one opaque, untransformed client
+dmabuf covering the output skips composition (#101): the buffer goes to the
+primary plane directly when the cursor has its own plane and a test commit
+takes it. The client's wl_buffer release, and its explicit-sync release
+point, wait until a later flip takes the buffer off screen. While a surface
+fills an output this way, its dmabuf surface feedback leads with a scanout
+tranche (#64): the primary plane's opaque formats and modifiers that the
+renderer also imports, targeted at the plane's DRM device, so the client
+allocates buffers that plane can show.
+
 ## Xwayland
 
 `internal/xwayland` (#44) starts Xwayland lazily. At startup tilde takes an

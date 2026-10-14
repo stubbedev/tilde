@@ -11,6 +11,7 @@ import (
 	"github.com/stubbedev/tilde/internal/output"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/server"
+	"github.com/stubbedev/tilde/internal/surface"
 )
 
 type scannedOut struct {
@@ -21,18 +22,19 @@ type scannedOut struct {
 
 var opaqueFormats = []uint32{gpu.FormatXRGB8888, gpu.FormatXBGR8888}
 
+type filling struct {
+	surface *surface.Surface
+	out     backend.Scanner
+}
+
 func (c *Compositor) scanout(o *output.Output, sc *scene, bounds image.Rectangle) (bool, error) {
 	out, ok := o.Backend().(backend.Scanner)
 	if !ok {
 		return false, nil
 	}
-	ops := sc.cur.ops
-	if len(ops) != 2 || sc.cur.cursorFrom != len(ops) || !ops[0].fill {
-		return false, nil
-	}
-	op := ops[1]
-	if op.surface == nil || op.dst != bounds || op.transform != render.Normal || op.alpha != 1 {
-		return false, nil
+	op, alone := fills(sc.cur.ops[:sc.cur.cursorFrom], bounds)
+	if err := c.fill(o, op.surface, out); err != nil || !alone || sc.cur.cursorFrom != len(sc.cur.ops) {
+		return false, err
 	}
 	t := c.textures[op.surface]
 	if t == nil || t.buffer == nil {
@@ -54,6 +56,50 @@ func (c *Compositor) scanout(o *output.Output, sc *scene, bounds image.Rectangle
 	}
 	held.outputs++
 	return true, nil
+}
+
+func fills(ops []drawOp, bounds image.Rectangle) (drawOp, bool) {
+	if len(ops) != 2 || !ops[0].fill {
+		return drawOp{}, false
+	}
+	op := ops[1]
+	if op.surface == nil || op.dst != bounds || op.transform != render.Normal || op.alpha != 1 {
+		return drawOp{}, false
+	}
+	return op, true
+}
+
+func (c *Compositor) fill(o *output.Output, s *surface.Surface, out backend.Scanner) error {
+	prev := c.filled[o].surface
+	if prev == s {
+		return nil
+	}
+	if s == nil {
+		delete(c.filled, o)
+	} else {
+		c.filled[o] = filling{surface: s, out: out}
+	}
+	if c.dmabuf == nil {
+		return nil
+	}
+	var err error
+	for _, changed := range []*surface.Surface{prev, s} {
+		if changed != nil {
+			err = errors.Join(err, c.dmabuf.ScanoutChanged(changed))
+		}
+	}
+	return err
+}
+
+func (c *Compositor) SurfaceScanout(s *surface.Surface) gpu.ScanoutTarget {
+	for _, o := range c.outputs {
+		if f, ok := c.filled[o]; ok && f.surface == s {
+			t := f.out.ScanoutFormats()
+			t.Formats = slices.DeleteFunc(slices.Clone(t.Formats), func(f gpu.FormatModifier) bool { return !slices.Contains(opaqueFormats, f.Format) })
+			return t
+		}
+	}
+	return gpu.ScanoutTarget{}
 }
 
 func (c *Compositor) leftScreen(b *dmabuf.Buffer) error {
