@@ -95,6 +95,24 @@ One typed `Action` set and one dispatcher, in `wm` (#66). Keybinds,
 foreign-toplevel activate are all callers of it. Nothing else mutates WM
 state.
 
+## IPC
+
+`tildectl`, bars and scripts talk to tilde over a Unix socket at
+`$XDG_RUNTIME_DIR/tilde/<WAYLAND_DISPLAY>.sock`, exported as `TILDE_SOCKET`
+(#31). Each connection sends one JSON request line and gets one JSON response
+line; a `watch` request turns the connection into an event stream of JSON
+lines. Every response carries the protocol version.
+
+The server follows the threading rule: a goroutine per connection, which
+posts its query or action to the loop and waits for the answer. Events are
+not raised at the places that change state. Before the loop waits, it takes
+a snapshot of outputs, workspaces, windows, submap and keyboard layout,
+and diffs it against the previous one, so no change goes unreported. Only
+dispatches are reported where they happen, because they leave no trace in
+the state. With no watcher connected, nothing is snapshotted. A watcher
+that falls 256 events behind is disconnected rather than buffered without
+bound. [`docs/ipc.md`](ipc.md) has the protocol.
+
 ## Packages
 
 Everything lives under `internal/` except the commands.

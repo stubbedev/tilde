@@ -67,6 +67,13 @@ func TestModifiersAndLayoutGroups(t *testing.T) {
 	}
 }
 
+func TestLayoutNames(t *testing.T) {
+	want := []string{"English (US)", "Danish", "Spanish"}
+	if got := compile(t).Layouts(); !slices.Equal(got, want) {
+		t.Fatalf("layouts %q, want %q", got, want)
+	}
+}
+
 func TestKeymapFDIsSealedAndComplete(t *testing.T) {
 	km := compile(t)
 	seals, err := unix.FcntlInt(uintptr(km.FD()), unix.F_GET_SEALS, 0)

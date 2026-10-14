@@ -19,6 +19,9 @@ func (c *Compositor) Dispatch(a wm.Action) error {
 	if err := c.update(s, nil); err != nil {
 		return err
 	}
+	if c.dispatched != nil {
+		c.dispatched(a)
+	}
 	for _, e := range effects {
 		if err := c.perform(e); err != nil {
 			return fmt.Errorf("compositor: %s: %w", a, err)

@@ -91,8 +91,9 @@ const (
 
 func TestWestonFlowerMaps(t *testing.T) {
 	h := Start(t, desktop)
-	h.Run("weston-flower")
+	flower := h.Run("weston-flower")
 	h.Eventually("weston-flower to map", mappedToplevels(1))
+	h.expectActive(flower)
 	h.Eventually("the flower on the output", func(b *headless.Backend, _ *compositor.Compositor) bool {
 		return notBackground(b.Outputs()[0].Snapshot(), image.Rect(0, 0, 1280, 800)) > 1000
 	})
@@ -109,6 +110,7 @@ func TestFootMapsAndTakesInput(t *testing.T) {
 	h.Eventually("foot to take the keyboard", func(_ *headless.Backend, c *compositor.Compositor) bool {
 		return c.Seat().Focus() != nil
 	})
+	h.expectActive(foot)
 	h.tap(keyE, keyC, keyH, keyO, keyEnter)
 	foot.Wait(t, clientTimeout)
 	got, err := os.ReadFile(typed)
@@ -141,6 +143,7 @@ func TestGelmHelloMenu(t *testing.T) {
 	h.Eventually("the keyboard back on the window", func(_ *headless.Backend, c *compositor.Compositor) bool {
 		return c.Seat().Focus() == c.Toplevels()[0].Surface()
 	})
+	h.expectActive(hello)
 }
 
 func TestGelmPopoverAndNestedMenu(t *testing.T) {

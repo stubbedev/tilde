@@ -18,6 +18,7 @@ import (
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/backend/headless"
 	"github.com/stubbedev/tilde/internal/compositor"
+	"github.com/stubbedev/tilde/internal/ipc"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/render/soft"
 	"github.com/stubbedev/tilde/internal/server"
@@ -31,6 +32,7 @@ type Harness struct {
 	display    *server.Display
 	backend    *headless.Backend
 	compositor *compositor.Compositor
+	ipc        *ipc.Server
 	trace      *syncBuffer
 	done       chan error
 	clients    []*Client
@@ -68,6 +70,14 @@ func StartWith(t *testing.T, configure func(*compositor.Config), modes ...backen
 	if h.compositor, err = compositor.New(h.loop, h.display, h.backend, cfg); err != nil {
 		t.Fatalf("harness: %v", err)
 	}
+	socket, err := ipc.SocketPath(dir, h.display.Name())
+	if err != nil {
+		t.Fatalf("harness: %v", err)
+	}
+	if h.ipc, err = ipc.Listen(h.loop, socket, h.compositor, cfg.Report); err != nil {
+		t.Fatalf("harness: %v", err)
+	}
+	h.compositor.OnDispatch(h.ipc.Dispatched)
 	go func() { h.done <- h.loop.Run() }()
 	return h
 }
@@ -90,6 +100,9 @@ func (h *Harness) stop() {
 		}
 	}
 	var errs []error
+	if h.ipc != nil {
+		errs = append(errs, h.ipc.Close())
+	}
 	if h.backend != nil {
 		errs = append(errs, h.backend.Close())
 	}
@@ -183,6 +196,10 @@ func (h *Harness) Socket() string {
 	return filepath.Join(h.RuntimeDir, h.display.Name())
 }
 
+func (h *Harness) IPCSocket() string {
+	return h.ipc.Path()
+}
+
 func (h *Harness) Trace() string {
 	return h.trace.String()
 }
@@ -202,7 +219,11 @@ func (h *Harness) RunOn(runtimeDir, display, binary string, args ...string) *Cli
 	h.t.Helper()
 	path := testenv.Require(h.t, binary)
 	cmd := exec.CommandContext(context.Background(), path, args...)
-	cmd.Env = append(os.Environ(), "XDG_RUNTIME_DIR="+runtimeDir, "WAYLAND_DISPLAY="+display)
+	socket, err := ipc.SocketPath(runtimeDir, display)
+	if err != nil {
+		h.t.Fatalf("harness: %v", err)
+	}
+	cmd.Env = append(os.Environ(), "XDG_RUNTIME_DIR="+runtimeDir, "WAYLAND_DISPLAY="+display, ipc.SocketEnv+"="+socket)
 	c := &Client{cmd: cmd, exited: make(chan error, 1)}
 	cmd.Stdout, cmd.Stderr = &c.output, &c.output
 	if err := cmd.Start(); err != nil {

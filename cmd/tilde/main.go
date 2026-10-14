@@ -21,6 +21,7 @@ import (
 	"github.com/stubbedev/tilde/internal/backend/nested"
 	"github.com/stubbedev/tilde/internal/compositor"
 	"github.com/stubbedev/tilde/internal/config"
+	"github.com/stubbedev/tilde/internal/ipc"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/wlclient"
@@ -267,8 +268,20 @@ func run() (err error) {
 		return err
 	}
 	defer s.comp.Close()
-	if err := os.Setenv("WAYLAND_DISPLAY", display.Name()); err != nil {
-		return fmt.Errorf("export WAYLAND_DISPLAY: %w", err)
+	socket, err := ipc.SocketPath(os.Getenv("XDG_RUNTIME_DIR"), display.Name())
+	if err != nil {
+		return err
+	}
+	srv, err := ipc.Listen(l, socket, s.comp, cfg.Report)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, srv.Close()) }()
+	s.comp.OnDispatch(srv.Dispatched)
+	for name, value := range map[string]string{"WAYLAND_DISPLAY": display.Name(), ipc.SocketEnv: socket} {
+		if err := os.Setenv(name, value); err != nil {
+			return fmt.Errorf("export %s: %w", name, err)
+		}
 	}
 	if _, err := l.AddSignals(func(sig os.Signal) error {
 		if sig != syscall.SIGHUP {

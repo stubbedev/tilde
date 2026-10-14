@@ -97,6 +97,8 @@ type Library struct {
 	numLevels       func(km uintptr, key, layout uint32) uint32
 	symsByLevel     func(km uintptr, key, layout, level uint32, syms **uint32) int32
 	modIndex        func(km uintptr, name *byte) uint32
+	numLayouts      func(km uintptr) uint32
+	layoutName      func(km uintptr, idx uint32) unsafe.Pointer
 }
 
 func Load(path string) (*Library, error) {
@@ -131,6 +133,8 @@ func Load(path string) (*Library, error) {
 		{handle, &l.numLevels, "xkb_keymap_num_levels_for_key"},
 		{handle, &l.symsByLevel, "xkb_keymap_key_get_syms_by_level"},
 		{handle, &l.modIndex, "xkb_keymap_mod_get_index"},
+		{handle, &l.numLayouts, "xkb_keymap_num_layouts"},
+		{handle, &l.layoutName, "xkb_keymap_layout_get_name"},
 		{c, &l.strlen, "strlen"},
 		{c, &l.free, "free"},
 	} {
@@ -156,6 +160,7 @@ type Keymap struct {
 	text    string
 	fd      int
 	size    uint32
+	layouts []string
 }
 
 func Open(getenv func(string) string) (*Keymap, error) {
@@ -185,7 +190,7 @@ func (l *Library) Compile(names Names) (*Keymap, error) {
 		l.keymapUnref(km)
 		return nil, fmt.Errorf("xkb: libxkbcommon cannot serialize the keymap for %+v", names)
 	}
-	text := strings.Clone(unsafe.String((*byte)(p), l.strlen(p))) //nolint:gosec // p is a NUL-terminated string libxkbcommon allocated
+	text := l.goString(p)
 	l.free(p)
 	if len(text) >= math.MaxUint32 {
 		l.keymapUnref(km)
@@ -196,7 +201,17 @@ func (l *Library) Compile(names Names) (*Keymap, error) {
 		l.keymapUnref(km)
 		return nil, err
 	}
-	return &Keymap{lib: l, keymap: km, text: text, fd: fd, size: uint32(len(text) + 1)}, nil //nolint:gosec // bounded by the check above
+	layouts := make([]string, l.numLayouts(km))
+	for i := range layouts {
+		if p := l.layoutName(km, uint32(i)); p != nil {
+			layouts[i] = l.goString(p)
+		}
+	}
+	return &Keymap{lib: l, keymap: km, text: text, fd: fd, size: uint32(len(text) + 1), layouts: layouts}, nil //nolint:gosec // bounded by the check above
+}
+
+func (l *Library) goString(p unsafe.Pointer) string {
+	return strings.Clone(unsafe.String((*byte)(p), l.strlen(p))) //nolint:gosec // p is a NUL-terminated string from libxkbcommon
 }
 
 func sealedMemfd(content string) (int, error) {
@@ -226,6 +241,10 @@ func (k *Keymap) FD() int {
 
 func (k *Keymap) Size() uint32 {
 	return k.size
+}
+
+func (k *Keymap) Layouts() []string {
+	return slices.Clone(k.layouts)
 }
 
 func (k *Keymap) Text() string {

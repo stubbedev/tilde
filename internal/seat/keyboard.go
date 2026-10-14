@@ -174,3 +174,7 @@ type keyboardRequests struct{}
 func (keyboardRequests) Release(*sw.WlKeyboard) error {
 	return nil
 }
+
+func (s *Seat) Layout() uint32 {
+	return s.state.Modifiers().Group
+}

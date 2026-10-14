@@ -18,7 +18,7 @@ buildGo127Module {
   # lib.fakeHash, run `nix build` and put the reported got: hash here.
   vendorHash = "sha256-He4DPejp6/mP9VOsn1+fsvHbeTDJgufkqL0oEqfTCMw=";
 
-  subPackages = ["cmd/tilde"];
+  subPackages = ["cmd/tilde" "cmd/tildectl"];
 
   # purego loads these at runtime; the store paths are baked in so the
   # binary needs no library search path.

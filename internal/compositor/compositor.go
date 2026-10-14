@@ -97,6 +97,7 @@ type Compositor struct {
 	outputRules []OutputRule
 	disabled    []backend.Output
 	reload      func() error
+	dispatched  func(wm.Action)
 	loop        *loop.Loop
 	display     *server.Display
 	nextWindow  wm.WindowID

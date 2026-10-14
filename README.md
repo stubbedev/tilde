@@ -32,6 +32,7 @@ libinput and libxkbcommon) are loaded at runtime with
 One YAML file, `~/.config/tilde/config.yaml`; see
 [`docs/config.md`](docs/config.md) for every key and
 [`docs/actions.md`](docs/actions.md) for the actions binds can run.
+`tildectl` queries and controls a running tilde; see [`docs/ipc.md`](docs/ipc.md).
 
 ## Roadmap
 
