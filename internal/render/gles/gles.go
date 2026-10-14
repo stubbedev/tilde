@@ -406,6 +406,24 @@ func (r *Renderer) NewTarget(size image.Point) (render.ReadTarget, error) {
 	return r.NewFramebuffer(size)
 }
 
+func (r *Renderer) ImportTarget(b gpu.DMABUF) (render.ReadTarget, error) {
+	return r.ImportFramebuffer(b)
+}
+
+func (r *Renderer) RenderableModifiers(format uint32) ([]uint64, error) {
+	mods, err := r.d.DMABUFModifiers(format)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]uint64, 0, len(mods))
+	for _, m := range mods {
+		if !m.ExternalOnly {
+			out = append(out, m.Modifier)
+		}
+	}
+	return out, nil
+}
+
 func (r *Renderer) ImportFramebuffer(b gpu.DMABUF) (*Framebuffer, error) {
 	img, err := r.d.ImportDMABUF(b)
 	if err != nil {

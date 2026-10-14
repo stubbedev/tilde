@@ -54,17 +54,7 @@ func (a *gbmAllocator) renderer() render.Renderer {
 }
 
 func (a *gbmAllocator) renderable(format uint32) ([]uint64, error) {
-	mods, err := a.display.DMABUFModifiers(format)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]uint64, 0, len(mods))
-	for _, m := range mods {
-		if !m.ExternalOnly {
-			out = append(out, m.Modifier)
-		}
-	}
-	return out, nil
+	return a.gles.RenderableModifiers(format)
 }
 
 func (a *gbmAllocator) allocate(size image.Point, format uint32, modifiers []uint64) (*scanout, error) {
