@@ -129,9 +129,9 @@ type opened struct {
 	switchVT func(vt uint32) error
 }
 
-func openBackend(kind backendKind, renderer rendererKind, l *loop.Loop) (opened, error) {
+func openBackend(kind backendKind, renderer rendererKind, l *loop.Loop, report func(error)) (opened, error) {
 	if kind == drmBackend {
-		n, err := openNative(l, os.Getenv)
+		n, err := openNative(l, os.Getenv, report)
 		if err != nil {
 			return opened{}, err
 		}
@@ -385,7 +385,7 @@ func run(args []string) (err error) {
 	}, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP); err != nil {
 		return err
 	}
-	b, err := openBackend(kind, renderer, l)
+	b, err := openBackend(kind, renderer, l, cfg.Report)
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,7 @@
   libglvnd,
   libgbm,
   hwdata,
+  libinput,
   dejavu_fonts,
   # Set by the flake from `self.shortRev or self.dirtyShortRev`; falls back to
   # the placeholder used when nothing was stamped in.
@@ -31,6 +32,7 @@ buildGo127Module {
     "-X github.com/stubbedev/tilde/internal/gpu.defaultGLESv2=${libglvnd}/lib/libGLESv2.so.2"
     "-X github.com/stubbedev/tilde/internal/gpu.defaultGBM=${libgbm}/lib/libgbm.so.1"
     "-X github.com/stubbedev/tilde/internal/edid.defaultPNP=${hwdata}/share/hwdata/pnp.ids"
+    "-X github.com/stubbedev/tilde/internal/session.defaultLibinput=${libinput.out}/lib/libinput.so.10"
     "-X main.defaultFont=${dejavu_fonts}/share/fonts/truetype/DejaVuSans.ttf"
   ];
 

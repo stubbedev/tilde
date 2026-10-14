@@ -183,6 +183,21 @@ type TouchFrame struct {
 	Time time.Duration
 }
 
+type SwitchKind uint8
+
+const (
+	SwitchLid SwitchKind = iota + 1
+	SwitchTabletMode
+)
+
+type Switch struct {
+	Time time.Duration
+	Kind SwitchKind
+	On   bool
+}
+
+func (e Switch) Timestamp() time.Duration { return e.Time }
+
 func (e Key) Timestamp() time.Duration                   { return e.Time }
 func (e PointerMotion) Timestamp() time.Duration         { return e.Time }
 func (e PointerMotionAbsolute) Timestamp() time.Duration { return e.Time }
