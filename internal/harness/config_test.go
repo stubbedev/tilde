@@ -148,16 +148,16 @@ func layout(b *headless.Backend, c *compositor.Compositor) []placed {
 
 func TestOutputRules(t *testing.T) {
 	at := image.Pt(1000, 50)
-	wanted := backend.Mode{Size: image.Pt(240, 150)}
-	missing := backend.Mode{Size: image.Pt(800, 600), RefreshMHz: 60000}
+	wanted := compositor.ExactMode{Size: image.Pt(240, 150)}
+	missing := compositor.ExactMode{Size: image.Pt(800, 600), RefreshMHz: 60000}
 	var r reports
 	var cfg compositor.Config
 	h := StartWith(t, func(c *compositor.Config) {
 		c.Report = r.report
 		c.Outputs = []compositor.OutputRule{
-			{Name: "HEADLESS-1", Mode: &wanted, Scale: 2 * output.Unit, Position: &at},
+			{Name: "HEADLESS-1", Mode: wanted, Scale: 2 * output.Unit, Position: &at},
 			{Description: "Headless output HEADLESS-2", Disabled: true},
-			{Name: "HEADLESS-4", Mode: &missing},
+			{Name: "HEADLESS-4", Mode: missing},
 		}
 		cfg = *c
 	})

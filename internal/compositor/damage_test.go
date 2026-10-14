@@ -58,3 +58,33 @@ func TestSurfaceDamageScalesWithItsDestination(t *testing.T) {
 		t.Fatalf("damage %v", r)
 	}
 }
+
+func TestModePolicies(t *testing.T) {
+	modes := []backend.Mode{
+		{Size: image.Pt(1920, 1080), RefreshMHz: 60000, Preferred: true},
+		{Size: image.Pt(2560, 1440), RefreshMHz: 60000},
+		{Size: image.Pt(2560, 1440), RefreshMHz: 143912},
+		{Size: image.Pt(1280, 720), RefreshMHz: 75000},
+	}
+	current := modes[3]
+	for _, c := range []struct {
+		policy ModePolicy
+		want   backend.Mode
+	}{
+		{PreferredMode{}, modes[0]},
+		{HighResMode{}, modes[2]},
+		{ExactMode{Size: image.Pt(2560, 1440), RefreshMHz: 144000}, modes[2]},
+		{ExactMode{Size: image.Pt(2560, 1440)}, modes[2]},
+		{ExactMode{Size: image.Pt(2560, 1440), RefreshMHz: 59940}, modes[1]},
+	} {
+		if got, err := c.policy.choose(modes, current); err != nil || got != c.want {
+			t.Errorf("%#v chose %+v, %v; want %+v", c.policy, got, err, c.want)
+		}
+	}
+	if _, err := (ExactMode{Size: image.Pt(800, 600)}).choose(modes, current); err == nil {
+		t.Error("a missing exact mode was chosen")
+	}
+	if got, _ := (PreferredMode{}).choose(modes[1:], current); got != current {
+		t.Errorf("no preferred mode chose %+v, want the current one", got)
+	}
+}

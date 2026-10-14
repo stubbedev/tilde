@@ -10,6 +10,7 @@ import (
 
 	drmbackend "github.com/stubbedev/tilde/internal/backend/drm"
 	kdrm "github.com/stubbedev/tilde/internal/drm"
+	"github.com/stubbedev/tilde/internal/edid"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/session"
@@ -52,7 +53,11 @@ func openNative(l *loop.Loop, getenv func(string) string) (n *native, err error)
 		return nil, err
 	}
 	n.dev, n.card = kdrm.FromFD(fd, card), dev
-	if n.Backend, err = drmbackend.New(l, n.dev, gpu.PathsFromEnv(getenv)); err != nil {
+	vendors, err := edid.LoadVendors(edid.PNPPath(getenv))
+	if err != nil {
+		return nil, err
+	}
+	if n.Backend, err = drmbackend.New(l, n.dev, gpu.PathsFromEnv(getenv), vendors); err != nil {
 		return nil, err
 	}
 	if n.monitor, err = session.Watch(l, n.logind.Seat(), []session.Subsystem{session.DRM}, n.udev); err != nil {

@@ -20,6 +20,7 @@ in {
     TILDE_LIBEGL = "${pkgs.libglvnd}/lib/libEGL.so.1";
     TILDE_LIBGLESV2 = "${pkgs.libglvnd}/lib/libGLESv2.so.2";
     TILDE_LIBGBM = "${pkgs.libgbm}/lib/libgbm.so.1";
+    TILDE_PNP_IDS = "${pkgs.hwdata}/share/hwdata/pnp.ids";
     __EGL_VENDOR_LIBRARY_DIRS = "${pkgs.mesa}/share/glvnd/egl_vendor.d";
     LIBGL_ALWAYS_SOFTWARE = "1";
   };

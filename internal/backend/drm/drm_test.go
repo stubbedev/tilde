@@ -239,7 +239,7 @@ func start(t *testing.T) *rig {
 	}
 	t.Cleanup(func() { _ = l.Close() })
 	r := &rig{t: t, l: l, dev: &fakeDevice{events: p[0], write: p[1], connected: true}, rec: &recorder{}}
-	if r.b, err = newBackend(l, r.dev, &fakeAlloc{soft: soft.New()}); err != nil {
+	if r.b, err = newBackend(l, r.dev, &fakeAlloc{soft: soft.New()}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.b.Start(r.rec); err != nil {

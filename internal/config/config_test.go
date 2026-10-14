@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/binds"
 	"github.com/stubbedev/tilde/internal/compositor"
 	"github.com/stubbedev/tilde/internal/output"
@@ -27,12 +26,14 @@ func TestExampleConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	at := image.Pt(2048, 0)
-	if want := (compositor.OutputRule{Description: "LG Electronics 27GL850", Position: &at}); cfg.Outputs[1].Description != want.Description || *cfg.Outputs[1].Position != at {
+	if cfg.Outputs[1].Description != "LG Electronics 27GL850" {
 		t.Errorf("second output %+v", cfg.Outputs[1])
 	}
-	if o := cfg.Outputs[0]; o.Name != "DP-1" || *o.Mode != (backend.Mode{Size: image.Pt(2560, 1440), RefreshMHz: 143912}) || o.Scale != output.Scale(150) {
-		t.Errorf("first output %+v mode %+v", o, *o.Mode)
+	if o := cfg.Outputs[0]; o.Name != "DP-1" || o.Mode != (compositor.ExactMode{Size: image.Pt(2560, 1440), RefreshMHz: 143912}) || o.Scale != output.Scale(150) {
+		t.Errorf("first output %+v", o)
+	}
+	if o := cfg.Outputs[1]; o.Mode != (compositor.HighResMode{}) || o.Position != nil {
+		t.Errorf("second output %+v", o)
 	}
 	if !cfg.Outputs[2].Disabled {
 		t.Error("HDMI-A-1 is not disabled")

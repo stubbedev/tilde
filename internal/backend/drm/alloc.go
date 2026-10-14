@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	kdrm "github.com/stubbedev/tilde/internal/drm"
+	"github.com/stubbedev/tilde/internal/edid"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/render"
@@ -131,7 +132,7 @@ func (a *gbmAllocator) close() error {
 	return errors.Join(errs...)
 }
 
-func New(l *loop.Loop, dev *kdrm.Device, paths gpu.Paths) (*Backend, error) {
+func New(l *loop.Loop, dev *kdrm.Device, paths gpu.Paths, vendors edid.Vendors) (*Backend, error) {
 	for _, c := range []uint64{kdrm.ClientCapUniversal, kdrm.ClientCapAtomic} {
 		if err := dev.SetClientCap(c, 1); err != nil {
 			return nil, fmt.Errorf("drm: %s needs atomic KMS: %w", dev.Path(), err)
@@ -141,7 +142,7 @@ func New(l *loop.Loop, dev *kdrm.Device, paths gpu.Paths) (*Backend, error) {
 	if err != nil {
 		return nil, err
 	}
-	b, err := newBackend(l, dev, alloc)
+	b, err := newBackend(l, dev, alloc, vendors)
 	if err != nil {
 		return nil, errors.Join(err, alloc.close())
 	}

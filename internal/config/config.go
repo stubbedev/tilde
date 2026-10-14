@@ -22,7 +22,6 @@ import (
 	gtext "github.com/stubbedev/gelm/render"
 	"go.yaml.in/yaml/v3"
 
-	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/binds"
 	"github.com/stubbedev/tilde/internal/compositor"
 	"github.com/stubbedev/tilde/internal/ipc"
@@ -317,6 +316,23 @@ func parsePair(s string) (image.Point, bool) {
 	return image.Pt(x, y), errX == nil && errY == nil
 }
 
+func (p *parser) mode(a *At[string], key string) compositor.ModePolicy {
+	switch a.V {
+	case "preferred":
+		return compositor.PreferredMode{}
+	case "highres":
+		return compositor.HighResMode{}
+	}
+	size, rate, hasRate := strings.Cut(a.V, "@")
+	dims, ok := parsePair(size)
+	hz, err := strconv.ParseFloat(rate, 64)
+	if !ok || dims.X <= 0 || dims.Y <= 0 || (hasRate && (err != nil || hz <= 0)) {
+		p.fail(a.Line, key, "%q is not preferred, highres or <width>x<height>[@<hz>]", a.V)
+		return nil
+	}
+	return compositor.ExactMode{Size: dims, RefreshMHz: int32(math.Round(hz * 1000))}
+}
+
 func (p *parser) output(i int, r rawOutput) compositor.OutputRule {
 	key := fmt.Sprintf("outputs[%d]", i)
 	rule := compositor.OutputRule{Disabled: r.Disabled}
@@ -329,16 +345,9 @@ func (p *parser) output(i int, r rawOutput) compositor.OutputRule {
 		rule.Name = r.Match.V
 	}
 	if r.Mode != nil {
-		size, rate, hasRate := strings.Cut(r.Mode.V, "@")
-		dims, ok := parsePair(size)
-		hz, err := strconv.ParseFloat(rate, 64)
-		if !ok || dims.X <= 0 || dims.Y <= 0 || (hasRate && (err != nil || hz <= 0)) {
-			p.fail(r.Mode.Line, key+".mode", "%q is not <width>x<height>[@<hz>]", r.Mode.V)
-		} else {
-			rule.Mode = &backend.Mode{Size: dims, RefreshMHz: int32(math.Round(hz * 1000))}
-		}
+		rule.Mode = p.mode(r.Mode, key+".mode")
 	}
-	if r.Position != nil {
+	if r.Position != nil && r.Position.V != "auto" {
 		at, ok := parsePair(r.Position.V)
 		if !ok {
 			p.fail(r.Position.Line, key+".position", "%q is not <x>x<y>", r.Position.V)

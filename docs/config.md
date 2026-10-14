@@ -25,9 +25,9 @@ A list of rules. Each output takes the first rule that matches it.
 
 | Key | Value |
 | --- | --- |
-| `match` | A connector name (`DP-1`), or `desc:` and the start of the output's description (`desc:LG Electronics 27GL850`) |
-| `mode` | `<width>x<height>` or `<width>x<height>@<hz>`. Without a rate, the fastest mode of that size; with one, the closest within 1 Hz. Default: the output's preferred mode |
-| `position` | `<x>x<y>` in logical pixels. Outputs without a position line up to the right of all the others |
+| `match` | A connector name (`DP-1`), or `desc:` and the start of the output's description: its EDID make, model and serial, as in `desc:Samsung Electric Company LC32G5xT` |
+| `mode` | `preferred` (the default), `highres` (the largest mode, then the fastest), `<width>x<height>`, or `<width>x<height>@<hz>`. Without a rate, the fastest mode of that size; with one, the closest within 1 Hz |
+| `position` | `<x>x<y>` in logical pixels, or `auto` (the default): outputs without a position line up to the right of all the others |
 | `scale` | 0.25 to 10, in steps of 1/120. Default 1 |
 | `disabled` | `true` turns the output off |
 

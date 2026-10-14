@@ -13,6 +13,7 @@ import (
 
 	"github.com/stubbedev/tilde/internal/backend"
 	kdrm "github.com/stubbedev/tilde/internal/drm"
+	"github.com/stubbedev/tilde/internal/edid"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/render"
@@ -72,6 +73,7 @@ type plane struct {
 
 type Backend struct {
 	loop    *loop.Loop
+	vendors edid.Vendors
 	dev     device
 	alloc   allocator
 	handler backend.Handler
@@ -85,8 +87,8 @@ type Backend struct {
 	closed  bool
 }
 
-func newBackend(l *loop.Loop, dev device, alloc allocator) (*Backend, error) {
-	b := &Backend{loop: l, dev: dev, alloc: alloc, events: make([]byte, eventBuffer)}
+func newBackend(l *loop.Loop, dev device, alloc allocator, vendors edid.Vendors) (*Backend, error) {
+	b := &Backend{loop: l, dev: dev, alloc: alloc, vendors: vendors, events: make([]byte, eventBuffer)}
 	res, err := dev.Resources()
 	if err != nil {
 		return nil, err
@@ -240,7 +242,18 @@ func (b *Backend) add(c kdrm.Connector) error {
 	if err != nil {
 		return err
 	}
-	o := &Output{b: b, conn: c, props: props, crtc: cr, primary: p}
+	o := &Output{b: b, conn: c, props: props, crtc: cr, primary: p, description: c.Name()}
+	if blob, ok := props["EDID"]; ok && blob.Value != 0 {
+		data, err := b.dev.Blob(uint32(blob.Value)) //nolint:gosec // property blob IDs are 32-bit
+		if err != nil {
+			return err
+		}
+		info, err := edid.Parse(data, b.vendors)
+		if err != nil {
+			return fmt.Errorf("drm: %s: %w", c.Name(), err)
+		}
+		o.description = info.Description()
+	}
 	cr.output, p.taken = o, true
 	i := max(slices.IndexFunc(c.Modes, kdrm.Mode.Preferred), 0)
 	if err := o.setMode(c.Modes[i]); err != nil {
@@ -330,6 +343,7 @@ func (b *Backend) Close() error {
 
 type Output struct {
 	b              *Backend
+	description    string
 	conn           kdrm.Connector
 	props          map[string]kdrm.Property
 	crtc           *crtc
@@ -353,7 +367,7 @@ func (o *Output) Name() string {
 }
 
 func (o *Output) Description() string {
-	return o.conn.Name()
+	return o.description
 }
 
 func (o *Output) PhysicalSize() image.Point {

@@ -14,7 +14,7 @@ import (
 type OutputRule struct {
 	Name        string
 	Description string
-	Mode        *backend.Mode
+	Mode        ModePolicy
 	Position    *image.Point
 	Scale       output.Scale
 	Disabled    bool
@@ -45,34 +45,66 @@ func (c *Compositor) outputRule(b backend.Output) OutputRule {
 	return OutputRule{}
 }
 
-func chooseMode(modes []backend.Mode, want *backend.Mode, current backend.Mode) (backend.Mode, error) {
-	if want == nil {
-		if i := slices.IndexFunc(modes, func(m backend.Mode) bool { return m.Preferred }); i >= 0 {
-			return modes[i], nil
-		}
-		return current, nil
+type ModePolicy interface {
+	choose(modes []backend.Mode, current backend.Mode) (backend.Mode, error)
+}
+
+type (
+	PreferredMode struct{}
+	HighResMode   struct{}
+	ExactMode     struct {
+		Size       image.Point
+		RefreshMHz int32
 	}
+)
+
+func (PreferredMode) choose(modes []backend.Mode, current backend.Mode) (backend.Mode, error) {
+	if i := slices.IndexFunc(modes, func(m backend.Mode) bool { return m.Preferred }); i >= 0 {
+		return modes[i], nil
+	}
+	return current, nil
+}
+
+func (HighResMode) choose(modes []backend.Mode, current backend.Mode) (backend.Mode, error) {
+	best := current
+	for _, m := range modes {
+		area, bestArea := m.Size.X*m.Size.Y, best.Size.X*best.Size.Y
+		if area > bestArea || area == bestArea && m.RefreshMHz > best.RefreshMHz {
+			best = m
+		}
+	}
+	return best, nil
+}
+
+func (e ExactMode) choose(modes []backend.Mode, _ backend.Mode) (backend.Mode, error) {
 	var best backend.Mode
 	found := false
 	for _, m := range modes {
-		if m.Size != want.Size {
+		if m.Size != e.Size {
 			continue
 		}
-		if want.RefreshMHz == 0 {
+		if e.RefreshMHz == 0 {
 			if !found || m.RefreshMHz > best.RefreshMHz {
 				best, found = m, true
 			}
 			continue
 		}
-		off := abs(m.RefreshMHz - want.RefreshMHz)
-		if off <= refreshToleranceMHz && (!found || off < abs(best.RefreshMHz-want.RefreshMHz)) {
+		off := abs(m.RefreshMHz - e.RefreshMHz)
+		if off <= refreshToleranceMHz && (!found || off < abs(best.RefreshMHz-e.RefreshMHz)) {
 			best, found = m, true
 		}
 	}
 	if !found {
-		return backend.Mode{}, fmt.Errorf("no mode %dx%d@%dmHz among %v", want.Size.X, want.Size.Y, want.RefreshMHz, modes)
+		return backend.Mode{}, fmt.Errorf("no mode %dx%d@%dmHz among %v", e.Size.X, e.Size.Y, e.RefreshMHz, modes)
 	}
 	return best, nil
+}
+
+func (r OutputRule) mode() ModePolicy {
+	if r.Mode == nil {
+		return PreferredMode{}
+	}
+	return r.Mode
 }
 
 func abs(v int32) int32 {
@@ -86,7 +118,7 @@ func (c *Compositor) commitOutput(b backend.Output, rule OutputRule) (bool, erro
 	current := b.State()
 	next := backend.OutputState{Enabled: !rule.Disabled, Mode: current.Mode}
 	if next.Enabled {
-		m, err := chooseMode(b.Modes(), rule.Mode, current.Mode)
+		m, err := rule.mode().choose(b.Modes(), current.Mode)
 		if err != nil {
 			return false, fmt.Errorf("compositor: output %s: %w", b.Name(), err)
 		}

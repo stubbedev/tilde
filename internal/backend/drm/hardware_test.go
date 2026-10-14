@@ -8,6 +8,7 @@ import (
 
 	"github.com/stubbedev/tilde/internal/backend"
 	kdrm "github.com/stubbedev/tilde/internal/drm"
+	"github.com/stubbedev/tilde/internal/edid"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 )
@@ -54,7 +55,11 @@ func TestStartOnThisCardWithoutMaster(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Close()
-	b, err := New(l, dev, gpu.PathsFromEnv(os.Getenv))
+	vendors, err := edid.LoadVendors(edid.PNPPath(os.Getenv))
+	if err != nil {
+		t.Skipf("no PNP ID database: %v", err)
+	}
+	b, err := New(l, dev, gpu.PathsFromEnv(os.Getenv), vendors)
 	if err != nil {
 		t.Skipf("no EGL vendor drives this card's GBM device here (unset __EGL_VENDOR_LIBRARY_DIRS on a GPU machine): %v", err)
 	}
@@ -69,7 +74,10 @@ func TestStartOnThisCardWithoutMaster(t *testing.T) {
 		if len(o.buffers) != buffersPerOut || o.buffers[0].fb == 0 || !o.State().Enabled || !o.State().Mode.Preferred {
 			t.Errorf("%s: %d buffers, state %+v", o.Name(), len(o.buffers), o.State())
 		}
-		t.Logf("%s on CRTC %d and plane %d with modifiers %#x, %+v", o.Name(), o.crtc.id, o.primary.id, o.primary.modifiers, o.State().Mode)
+		if o.Description() == o.Name() {
+			t.Errorf("%s has no EDID description", o.Name())
+		}
+		t.Logf("%s (%s) on CRTC %d and plane %d with modifiers %#x, %+v", o.Name(), o.Description(), o.crtc.id, o.primary.id, o.primary.modifiers, o.State().Mode)
 	}
 	if err := b.Close(); err != nil {
 		t.Fatal(err)

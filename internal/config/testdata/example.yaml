@@ -4,7 +4,8 @@ outputs:
     position: 0x0
     scale: 1.25
   - match: "desc:LG Electronics 27GL850"
-    position: 2048x0
+    mode: highres
+    position: auto
   - match: HDMI-A-1
     disabled: true
 input:
