@@ -25,7 +25,7 @@ func TestDMABUFClientsOnTheGLESRenderer(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	c.DispatchUntil("the commit", func() bool { return true })
+	c.Sync()
 	h.Eventually("the dmabuf subsurface", showing(18, 18, [3]byte{0, 0, 0xff}))
 	green := c.DMABUF(image.Pt(16, 16), testclient.Fill(0, 0xff, 0))
 	for _, err := range []error{child.Attach(green.WL, 0, 0), child.DamageBuffer(0, 0, 16, 16), child.Commit(), w.Surface.Commit()} {
@@ -33,7 +33,7 @@ func TestDMABUFClientsOnTheGLESRenderer(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	c.DispatchUntil("the second commit", func() bool { return true })
+	c.Sync()
 	h.Eventually("the second dmabuf", showing(18, 18, [3]byte{0, 0xff, 0}))
 	c.DispatchUntil("the first dmabuf released", func() bool { return blue.Released })
 	if green.Released {
@@ -42,6 +42,6 @@ func TestDMABUFClientsOnTheGLESRenderer(t *testing.T) {
 	if err := green.WL.Destroy(); err != nil {
 		t.Fatal(err)
 	}
-	c.DispatchUntil("the destroy", func() bool { return true })
+	c.Sync()
 	h.Eventually("the window under the destroyed dmabuf", showing(18, 18, [3]byte{0xff, 0, 0}))
 }

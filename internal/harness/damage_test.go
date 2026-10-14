@@ -105,7 +105,7 @@ func TestOnlyDamageIsRepainted(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	c.DispatchUntil("the commit", func() bool { return true })
+	c.Sync()
 	h.Eventually("the partial update presented", func(b *headless.Backend, _ *compositor.Compositor) bool {
 		return b.Outputs()[0].Presents() > presents
 	})

@@ -102,7 +102,7 @@ func (r *inputRig) child() {
 	if err := errors.Join(sub.SetPosition(80, 0), sub.SetDesync(), child.Attach(r.c.Buffer(image.Pt(80, 100), 0, quadrants), 0, 0), child.Commit(), r.w.Surface.Commit()); err != nil {
 		r.t.Fatal(err)
 	}
-	r.c.DispatchUntil("the subsurface to show", func() bool { return true })
+	r.c.Sync()
 	r.h.Eventually("the subsurface on the output", showing(81, 50, [3]byte{0, 0, 0xff}))
 }
 
@@ -135,7 +135,7 @@ func TestSubsurfacesGrabsAndInputRegions(t *testing.T) {
 	if err := errors.Join(r.childSurface.SetInputRegion(empty), r.childSurface.Commit()); err != nil {
 		t.Fatal(err)
 	}
-	r.c.DispatchUntil("the input region to apply", func() bool { return true })
+	r.c.Sync()
 	r.moveTo(122, 50)
 	r.expect("leave child", "enter win 122,50", "frame")
 }

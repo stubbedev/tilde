@@ -155,6 +155,11 @@ func (c *Client) must(err error) {
 	}
 }
 
+func (c *Client) Sync() {
+	c.t.Helper()
+	c.must(c.Display.Roundtrip())
+}
+
 func (c *Client) DispatchUntil(what string, cond func() bool) {
 	c.t.Helper()
 	deadline := time.Now().Add(5 * time.Second)

@@ -50,7 +50,7 @@ func TestClientCursorSurfaceAndHiding(t *testing.T) {
 	if err := errors.Join(cursor.Attach(r.c.Buffer(image.Pt(8, 8), 0, testclient.Fill(0, 0, 0xff)), 0, 0), cursor.Commit(), r.in.Pointer.SetCursor(r.in.Serial, cursor, 4, 4)); err != nil {
 		t.Fatal(err)
 	}
-	r.c.DispatchUntil("the cursor request", func() bool { return true })
+	r.c.Sync()
 	r.h.Eventually("the client cursor centred on the pointer", showing(77, 47, [3]byte{0xff, 0, 0}))
 	if got := pixel(r.h.Snapshot(0), 85, 55); got == [3]byte{0xff, 0, 0} {
 		t.Fatal("the cursor is larger than its 8x8 buffer")
@@ -58,7 +58,7 @@ func TestClientCursorSurfaceAndHiding(t *testing.T) {
 	if err := r.in.Pointer.SetCursor(r.in.Serial, nil, 0, 0); err != nil {
 		t.Fatal(err)
 	}
-	r.c.DispatchUntil("the hide request", func() bool { return true })
+	r.c.Sync()
 	r.h.Eventually("the window under a hidden cursor", showing(80, 50, [3]byte{0xff, 0xff, 0}))
 }
 
@@ -83,7 +83,7 @@ func TestCursorShapeFromTheThemeAtFractionalScale(t *testing.T) {
 	if err := device.SetShape(in.Serial, ccs.WpCursorShapeDeviceV1ShapePointer); err != nil {
 		t.Fatal(err)
 	}
-	c.DispatchUntil("the shape request", func() bool { return true })
+	c.Sync()
 	h.Eventually("the window under the pointer shape", func(b *headless.Backend, c *compositor.Compositor) bool {
 		return pixel(b.Outputs()[0].Snapshot(), 2, 2) == [3]byte{0x40, 0x40, 0x40} && c.Seat().Cursor().Shape() == "pointer"
 	})
@@ -150,13 +150,13 @@ func TestClientCursorsOnThePlaneAndInTheFrame(t *testing.T) {
 		if err := errors.Join(cursor.Attach(r.c.Buffer(size, 0, testclient.Fill(b, g, red)), 0, 0), cursor.DamageBuffer(0, 0, int32(size.X), int32(size.Y)), cursor.Commit()); err != nil {
 			t.Fatal(err)
 		}
-		r.c.DispatchUntil("the cursor commit", func() bool { return true })
+		r.c.Sync()
 	}
 	attach(image.Pt(8, 8), 0, 0, 0xff)
 	if err := r.in.Pointer.SetCursor(r.in.Serial, cursor, 4, 4); err != nil {
 		t.Fatal(err)
 	}
-	r.c.DispatchUntil("the cursor request", func() bool { return true })
+	r.c.Sync()
 	r.h.Eventually("the client cursor on the plane", func(b *headless.Backend, c *compositor.Compositor) bool {
 		cur := b.Outputs()[0].Cursor()
 		return cur.Visible() && showing(77, 47, [3]byte{0xff, 0, 0})(b, c)
@@ -174,7 +174,7 @@ func TestClientCursorsOnThePlaneAndInTheFrame(t *testing.T) {
 	if err := r.in.Pointer.SetCursor(r.in.Serial, nil, 0, 0); err != nil {
 		t.Fatal(err)
 	}
-	r.c.DispatchUntil("the hide request", func() bool { return true })
+	r.c.Sync()
 	r.h.Eventually("the window under a hidden cursor", showing(80, 50, [3]byte{0xff, 0xff, 0}))
 }
 
