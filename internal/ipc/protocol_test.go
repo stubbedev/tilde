@@ -89,7 +89,7 @@ func TestDiff(t *testing.T) {
 		`{"event":"urgent","window":2,"urgent":true}`,
 		`{"event":"move","window":1,"workspace":3}`,
 		`{"event":"title","window":1,"title":"a!"}`,
-		`{"event":"open","window":{"id":3,"app_id":"mpv","title":"","pid":0,"workspace":3,"output":"HDMI-A-1","rect":{"x":0,"y":0,"width":0,"height":0},"floating":false,"fullscreen":false,"urgent":false,"focused":true}}`,
+		`{"event":"open","window":{"id":3,"app_id":"mpv","title":"","pid":0,"workspace":3,"output":"HDMI-A-1","rect":{"x":0,"y":0,"width":0,"height":0},"floating":false,"fullscreen":false,"urgent":false,"unresponsive":false,"focused":true}}`,
 		`{"event":"focus","window":3}`,
 		`{"event":"submap","submap":"resize"}`,
 		`{"event":"layout","layout":{"index":1,"name":"Danish"}}`,

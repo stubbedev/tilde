@@ -108,6 +108,10 @@ func (t xToplevel) close() error {
 	return t.Close()
 }
 
+func (xToplevel) ping() error {
+	return nil
+}
+
 func (c *Compositor) XWindowMapped(w *xwayland.Window) error {
 	if w.Override() {
 		c.unmanaged = append(c.unmanaged, w)

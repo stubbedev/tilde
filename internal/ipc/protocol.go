@@ -117,17 +117,18 @@ type Workspace struct {
 }
 
 type Window struct {
-	ID         wm.WindowID    `json:"id"`
-	AppID      string         `json:"app_id"`
-	Title      string         `json:"title"`
-	PID        int32          `json:"pid"`
-	Workspace  wm.WorkspaceID `json:"workspace"`
-	Output     string         `json:"output"`
-	Rect       Rect           `json:"rect"`
-	Floating   bool           `json:"floating"`
-	Fullscreen bool           `json:"fullscreen"`
-	Urgent     bool           `json:"urgent"`
-	Focused    bool           `json:"focused"`
+	ID           wm.WindowID    `json:"id"`
+	AppID        string         `json:"app_id"`
+	Title        string         `json:"title"`
+	PID          int32          `json:"pid"`
+	Workspace    wm.WorkspaceID `json:"workspace"`
+	Output       string         `json:"output"`
+	Rect         Rect           `json:"rect"`
+	Floating     bool           `json:"floating"`
+	Fullscreen   bool           `json:"fullscreen"`
+	Urgent       bool           `json:"urgent"`
+	Unresponsive bool           `json:"unresponsive"`
+	Focused      bool           `json:"focused"`
 }
 
 type Layout struct {

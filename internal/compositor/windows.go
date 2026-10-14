@@ -22,6 +22,7 @@ type window struct {
 	layer   wm.PlacementLayer
 	output  *output.Output
 	urgent  bool
+	hung    bool
 	scale   output.Scale
 }
 
@@ -144,6 +145,7 @@ func (c *Compositor) reconcile() error {
 		c.active = target
 		if target != nil {
 			c.layerFocus, target.urgent = nil, false
+			errs = append(errs, target.top.ping())
 		}
 	}
 	return errors.Join(append(errs, c.refocus(), c.refreshPointer(), c.scheduleAll(), c.syncForeign(), c.syncWorkspaces(), c.syncCaptureSessions())...)
@@ -311,4 +313,11 @@ func (c *Compositor) Urgent(t *shell.Toplevel) bool {
 	return w != nil && w.urgent
 }
 
-func (c *Compositor) ClientResponsive(*server.Client, bool) error { return nil }
+func (c *Compositor) ClientResponsive(cl *server.Client, responsive bool) error {
+	for _, w := range c.windows {
+		if s := w.top.Surface(); s != nil && s.Client() == cl {
+			w.hung = !responsive
+		}
+	}
+	return nil
+}

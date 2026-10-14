@@ -50,6 +50,10 @@ type (
 		Window wm.WindowID `json:"window"`
 		Urgent bool        `json:"urgent"`
 	}
+	UnresponsiveEvent struct {
+		Window       wm.WindowID `json:"window"`
+		Unresponsive bool        `json:"unresponsive"`
+	}
 	FocusEvent struct {
 		Window *wm.WindowID `json:"window"`
 	}
@@ -72,6 +76,7 @@ func (CloseEvent) Name() string         { return "close" }
 func (MoveEvent) Name() string          { return "move" }
 func (TitleEvent) Name() string         { return "title" }
 func (UrgentEvent) Name() string        { return "urgent" }
+func (UnresponsiveEvent) Name() string  { return "unresponsive" }
 func (FocusEvent) Name() string         { return "focus" }
 func (SubmapEvent) Name() string        { return "submap" }
 func (LayoutEvent) Name() string        { return "layout" }
@@ -154,6 +159,9 @@ func Diff(prev, next Snapshot) []Event {
 		}
 		if p.Urgent != w.Urgent {
 			out = append(out, UrgentEvent{Window: w.ID, Urgent: w.Urgent})
+		}
+		if p.Unresponsive != w.Unresponsive {
+			out = append(out, UnresponsiveEvent{Window: w.ID, Unresponsive: w.Unresponsive})
 		}
 	}
 	was, hadFocus := prev.active()

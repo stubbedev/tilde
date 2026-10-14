@@ -58,7 +58,7 @@ focused one, or `null`:
 
 ```json
 {"id":7,"app_id":"foot","title":"~","pid":4242,"workspace":1,"output":"DP-1",
- "rect":{"x":0,"y":0,"width":1024,"height":1152},"floating":false,"fullscreen":false,"urgent":false,"focused":true}
+ "rect":{"x":0,"y":0,"width":1024,"height":1152},"floating":false,"fullscreen":false,"urgent":false,"unresponsive":false,"focused":true}
 ```
 
 Window IDs are never reused while tilde runs. For an X11 window, `app_id` is
@@ -85,6 +85,7 @@ shows, the focused output, windows, focus, submap and layout.
 | `move` | `window`, `workspace` | A window moved to another workspace |
 | `title` | `window`, `title` | A window changed its title |
 | `urgent` | `window`, `urgent` | A window asked for attention, or got it |
+| `unresponsive` | `window`, `unresponsive` | A window's client stopped answering pings, or answered again. tilde pings an xdg client when one of its windows gains focus and marks its windows after 5 seconds without an answer |
 | `focus` | `window` (ID or `null`) | Keyboard focus moved to another window, or to none |
 | `submap` | `submap` (`""` for the default binds) | The bind submap changed |
 | `layout` | `layout` (`index`, `name`) | The keyboard layout group changed |

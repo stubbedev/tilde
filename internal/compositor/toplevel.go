@@ -30,6 +30,7 @@ type toplevel interface {
 	settled(w want) bool
 	apply(w want) error
 	close() error
+	ping() error
 }
 
 type xdgToplevel struct {
@@ -89,4 +90,8 @@ func (t xdgToplevel) apply(w want) error {
 
 func (t xdgToplevel) close() error {
 	return t.SendClose()
+}
+
+func (t xdgToplevel) ping() error {
+	return t.Ping()
 }
