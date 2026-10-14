@@ -5,12 +5,12 @@ import dbus
 import dbus.mainloop.glib
 from gi.repository import GLib
 
-SOURCE_MONITOR = 1
+SOURCES = {"monitor": 1, "window": 2}
 CURSOR_MODES = {"hidden": 1, "embedded": 2}
 BACKGROUND = bytes([0x2E, 0x1E, 0x1E])
 
 
-def main(cursor_mode, frames, frame_path):
+def main(source, cursor_mode, frames, frame_path):
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
     bus = dbus.SessionBus()
     portal = bus.get_object("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop")
@@ -45,7 +45,6 @@ def main(cursor_mode, frames, frame_path):
             fail(f"Start gave streams {streams}")
             return
         outcome["node"] = int(streams[0][0])
-        outcome["size"] = tuple(int(v) for v in streams[0][1].get("size", (0, 0)))
         loop.quit()
 
     def selected(_):
@@ -54,7 +53,7 @@ def main(cursor_mode, frames, frame_path):
     def created(results):
         outcome["session"] = results["session_handle"]
         options = dbus.Dictionary(
-            {"types": dbus.UInt32(SOURCE_MONITOR), "cursor_mode": dbus.UInt32(CURSOR_MODES[cursor_mode]), "multiple": False},
+            {"types": dbus.UInt32(SOURCES[source]), "cursor_mode": dbus.UInt32(CURSOR_MODES[cursor_mode]), "multiple": False},
             signature="sv",
         )
         request("SelectSources", selected, outcome["session"], options)
@@ -65,20 +64,21 @@ def main(cursor_mode, frames, frame_path):
     if "error" in outcome:
         sys.exit(f"screencast: {outcome['error']}")
 
-    width, height = outcome["size"]
-    print(f"screencast: stream node {outcome['node']}, {width}x{height}, cursor {cursor_mode}", flush=True)
     remote = screencast.OpenPipeWireRemote(outcome["session"], dbus.Dictionary({}, signature="sv")).take()
-    subprocess.run(
-        [
-            "gst-launch-1.0", "-q",
-            "pipewiresrc", f"fd={remote}", f"path={outcome['node']}", f"num-buffers={frames}", "always-copy=true",
-            "!", "video/x-raw,format=BGRx",
-            "!", "filesink", f"location={frame_path}",
-        ],
-        check=True,
+    capture = subprocess.run(
+        ["pw-frames", str(remote), str(outcome["node"]), str(frames), frame_path],
         timeout=120,
         pass_fds=(remote,),
+        capture_output=True,
+        text=True,
     )
+    if capture.returncode != 0:
+        sys.exit(f"screencast: pw-frames exited {capture.returncode}: {capture.stderr}")
+    sizes = capture.stdout.split("\n")[0].split()
+    if len(sizes) != 2:
+        sys.exit(f"screencast: pw-frames reported no size in {capture.stdout!r}")
+    width, height = (int(v) for v in sizes)
+    print(f"screencast: {source} stream node {outcome['node']}, {width}x{height}, cursor {cursor_mode}", flush=True)
     with open(frame_path, "rb") as f:
         captured = f.read()
     size = width * height * 4
@@ -91,8 +91,11 @@ def main(cursor_mode, frames, frame_path):
     print(f"screencast: {distinct} distinct frames of {frames}; {share:.3f} of the last is the desktop background", flush=True)
     if distinct < 2:
         sys.exit("screencast: the stream shows no live content")
-    if not 0.1 <= share < 1:
+    if source == "monitor" and not 0.1 <= share < 1:
         sys.exit("screencast: the last frame does not show the desktop and its window")
+    if source == "window" and share > 0.01:
+        sys.exit("screencast: the last frame shows the desktop, not just the window")
+
 
 if __name__ == "__main__":
-    main(sys.argv[1], int(sys.argv[2]), sys.argv[3])
+    main(sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4])

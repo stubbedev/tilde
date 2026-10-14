@@ -8,7 +8,6 @@
   unplug ? null,
   tildeConfig ? null,
   rendersOn ? "card0",
-  overlays ? [],
   machineConfig ? {},
   extraTest ? _: "",
 }: let
@@ -20,10 +19,8 @@ in
   pkgs.testers.runNixOSTest {
     inherit name;
 
-    node.pkgsReadOnly = overlays == [];
     nodes.machine = {config, ...}: {
       imports = [module machineConfig];
-      nixpkgs.overlays = pkgs.lib.mkIf (overlays != []) overlays;
 
       boot.kernelModules = kernelModules;
       systemd.tmpfiles.settings = pkgs.lib.optionalAttrs (tildeConfig != null) {
