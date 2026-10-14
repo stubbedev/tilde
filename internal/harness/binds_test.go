@@ -85,6 +85,22 @@ func TestKeybinds(t *testing.T) {
 		bindSpec{chord: "SUPER + mouse_down", action: "workspace e+1"},
 		bindSpec{chord: "SUPER + mouse:274", action: "workspace 2"},
 	), small)
+	events := h.watch()
+	growsUntilMarker := func() int {
+		t.Helper()
+		h.dispatch("workspace 1")
+		n := 0
+		for line := range events {
+			switch {
+			case strings.Contains(line, `"action":"exec echo grow`):
+				n++
+			case strings.Contains(line, `"action":"workspace 1"`):
+				return n
+			}
+		}
+		t.Fatal("the IPC event stream ended")
+		return 0
+	}
 	c := testclient.Connect(t, h.Socket())
 	_, in := c.Seat()
 	w := c.Window("win", quadrants)
@@ -110,10 +126,10 @@ func TestKeybinds(t *testing.T) {
 	h.key(keyL, true)
 	eventuallyLines(t, log, func(n int) bool { return n >= 4 })
 	h.key(keyL, false)
-	settled := lines(t, log)
+	growsUntilMarker()
 	time.Sleep(100 * time.Millisecond)
-	if lines(t, log) != settled {
-		t.Fatal("a repeating bind kept firing after its key was released")
+	if n := growsUntilMarker(); n != 0 {
+		t.Fatalf("a repeating bind fired %d times after its key was released", n)
 	}
 	h.key(keyEnter, true)
 	h.key(keyEnter, false)
