@@ -17,12 +17,14 @@ type Effect interface {
 }
 
 type (
-	Close struct{ ID WindowID }
-	Exec  struct{ Command string }
+	Close     struct{ ID WindowID }
+	Exec      struct{ Command string }
+	SetSubmap struct{ Name string }
 )
 
-func (Close) isEffect() {}
-func (Exec) isEffect()  {}
+func (Close) isEffect()     {}
+func (Exec) isEffect()      {}
+func (SetSubmap) isEffect() {}
 
 type Settings struct {
 	Collapse CollapsePolicy
@@ -58,6 +60,7 @@ type (
 		Layout    Layout
 		Ephemeral bool
 	}
+	SubmapAction struct{ Name string }
 )
 
 func (a FocusAction) String() string     { return "focus " + a.Dir.String() }
@@ -73,6 +76,17 @@ func (a MakeGroupAction) String() string {
 		return "makegroup " + a.Layout.String() + " ephemeral"
 	}
 	return "makegroup " + a.Layout.String()
+}
+
+func (a SubmapAction) String() string {
+	if a.Name == "" {
+		return "submap reset"
+	}
+	return "submap " + a.Name
+}
+
+func (a SubmapAction) apply(s State, _ Settings) (State, []Effect, error) {
+	return s, []Effect{SetSubmap(a)}, nil
 }
 
 func (a FocusAction) apply(s State, _ Settings) (State, []Effect, error) {
@@ -285,6 +299,19 @@ var Actions = []ActionSpec{
 				return nil, badArgs(spec, "unknown option %q", args[1])
 			}
 			return MakeGroupAction{Layout: l, Ephemeral: len(args) == 2}, nil
+		},
+	},
+	{
+		Name: "submap", Args: "<name|reset>",
+		Summary: "Switch binds to the named submap, or back to the default ones.",
+		parse: func(spec ActionSpec, args []string, _ string) (Action, error) {
+			if err := exactly(spec, args, 1); err != nil {
+				return nil, err
+			}
+			if args[0] == "reset" {
+				return SubmapAction{}, nil
+			}
+			return SubmapAction{Name: args[0]}, nil
 		},
 	},
 }

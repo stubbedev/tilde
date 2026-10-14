@@ -26,6 +26,8 @@ var everyAction = []Action{
 	ExecAction{Command: "foot -e sh -c 'echo hi'"},
 	MakeGroupAction{Layout: SplitV},
 	MakeGroupAction{Layout: Tabbed, Ephemeral: true},
+	SubmapAction{Name: "resize"},
+	SubmapAction{},
 }
 
 func TestEveryActionRoundTripsThroughTheParser(t *testing.T) {

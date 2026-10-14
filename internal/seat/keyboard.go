@@ -65,6 +65,10 @@ func (s *Seat) SetKeyboardFocus(target *surface.Surface) error {
 	return errors.Join(errs...)
 }
 
+func (s *Seat) DepressedModifiers() uint32 {
+	return s.state.Modifiers().Depressed
+}
+
 func (s *Seat) Key(code uint32, pressed bool, at time.Duration) error {
 	k := &s.keyboard
 	i := slices.Index(k.pressed, code)

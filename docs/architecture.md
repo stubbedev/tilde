@@ -123,6 +123,7 @@ Everything lives under `internal/` except the commands.
 | `xkb` | Keymap compilation, sealed keymap fds and modifier state through libxkbcommon (#13) |
 | `shell` | xdg-shell and layer-shell glue between clients and `wm`: toplevels, popups placed by their positioner, explicit popup grabs, server-side decorations, activation tokens (#15, #16, #17, #20, #48) |
 | `wm` | The pure core and the dispatcher (#21, #66) |
+| `binds` | Typed chords (modifiers with a keycode from the first layout, a button or a scroll direction), submaps and bind flags, matched to `wm` actions (#29) |
 | `xwm` | The X11 window manager for XWayland (#45) |
 | `config` | The typed config, its validation and reload (#30) |
 | `ipc` | The IPC socket and event stream (#31) |

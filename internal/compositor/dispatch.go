@@ -36,6 +36,9 @@ func (c *Compositor) perform(e wm.Effect) error {
 		return w.toplevel.SendClose()
 	case wm.Exec:
 		return c.spawn(e.Command)
+	case wm.SetSubmap:
+		c.submap = e.Name
+		return nil
 	}
 	return fmt.Errorf("no handler for effect %T", e)
 }

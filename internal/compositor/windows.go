@@ -247,6 +247,10 @@ func (c *Compositor) ToplevelRequest(t *shell.Toplevel, r shell.Request) error {
 	return nil
 }
 
+func (c *Compositor) WM() wm.State {
+	return c.wm
+}
+
 func (c *Compositor) Urgent(t *shell.Toplevel) bool {
 	w := c.windowOf(t)
 	return w != nil && w.urgent

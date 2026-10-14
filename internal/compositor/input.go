@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stubbedev/tilde/internal/backend"
+	"github.com/stubbedev/tilde/internal/binds"
 	"github.com/stubbedev/tilde/internal/output"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	"github.com/stubbedev/tilde/internal/seat"
@@ -68,6 +69,9 @@ func (c *Compositor) onOutput(o backend.Output, x, y float64) (point, *output.Ou
 func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 	switch e := e.(type) {
 	case backend.Key:
+		if bound, err := c.bindKey(e.Code, e.Pressed); bound || err != nil {
+			return err
+		}
 		return c.seat.Key(e.Code, e.Pressed, e.Time)
 	case backend.PointerMotion:
 		b := c.layoutBounds()
@@ -98,6 +102,11 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 			c.consumed = append(c.consumed, e.Button)
 			return c.shell.DismissGrab()
 		}
+		if b, ok := c.match(binds.Button{Code: e.Button}); e.Pressed && ok {
+			c.consumed = append(c.consumed, e.Button)
+			c.run(b.Action)
+			return nil
+		}
 		if e.Pressed {
 			if err := c.clickFocus(c.seat.PointerFocus()); err != nil {
 				return err
@@ -105,6 +114,16 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 		}
 		return c.seat.PointerButton(e.Time, e.Button, e.Pressed)
 	case backend.PointerAxis:
+		if e.Orientation == backend.Vertical && e.Value != 0 {
+			dir := binds.ScrollDown
+			if e.Value < 0 {
+				dir = binds.ScrollUp
+			}
+			if b, ok := c.match(binds.Scroll{Dir: dir}); ok {
+				c.run(b.Action)
+				return nil
+			}
+		}
 		a := seat.Axis{Orientation: sw.WlPointerAxisVerticalScroll, Source: sw.WlPointerAxisSource(e.Source), Value: e.Value, Value120: e.Value120}
 		if e.Orientation == backend.Horizontal {
 			a.Orientation = sw.WlPointerAxisHorizontalScroll

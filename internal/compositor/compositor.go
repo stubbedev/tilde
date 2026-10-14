@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"os"
 	"slices"
 
 	"github.com/stubbedev/tilde/internal/backend"
+	"github.com/stubbedev/tilde/internal/binds"
 	"github.com/stubbedev/tilde/internal/data"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/output"
@@ -30,6 +32,8 @@ type Config struct {
 	Seat   seat.Config
 	Cursor CursorConfig
 	WM     wm.Settings
+	Binds  []binds.Bind
+	Report func(error)
 }
 
 type CursorConfig struct {
@@ -44,6 +48,7 @@ func DefaultConfig(keymap *xkb.Keymap) Config {
 		Seat:   seat.Config{Keymap: keymap, RepeatRate: seat.DefaultRepeatRate, RepeatDelay: seat.DefaultRepeatDelay},
 		Cursor: CursorConfig{Size: DefaultCursorSize},
 		WM:     wm.Settings{Collapse: wm.CollapseEmptySplits},
+		Report: func(err error) { fmt.Fprintln(os.Stderr, "tilde:", err) },
 	}
 }
 
@@ -59,6 +64,13 @@ type Compositor struct {
 	windows    []*window
 	wm         wm.State
 	settings   wm.Settings
+	binds      binds.Map
+	submap     string
+	held       []uint32
+	repeat     repeat
+	report     func(error)
+	seatConfig seat.Config
+	loop       *loop.Loop
 	display    *server.Display
 	nextWindow wm.WindowID
 	active     *window
@@ -83,20 +95,35 @@ type entered struct {
 
 func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (*Compositor, error) {
 	c := &Compositor{
-		renderer: b.Renderer(),
-		textures: map[*surface.Surface]*texture{},
-		shown:    map[*output.Output][]*surface.Surface{},
-		touches:  map[int32]*output.Output{},
-		cursors:  cfg.Cursor,
-		settings: cfg.WM,
-		display:  display,
-		pointers: map[cursorKey]*cursorTexture{},
-		usable:   map[*output.Output]image.Rectangle{},
+		renderer:   b.Renderer(),
+		textures:   map[*surface.Surface]*texture{},
+		shown:      map[*output.Output][]*surface.Surface{},
+		touches:    map[int32]*output.Output{},
+		cursors:    cfg.Cursor,
+		settings:   cfg.WM,
+		report:     cfg.Report,
+		seatConfig: cfg.Seat,
+		loop:       l,
+		display:    display,
+		pointers:   map[cursorKey]*cursorTexture{},
+		usable:     map[*output.Output]image.Rectangle{},
+	}
+	if c.report == nil {
+		return nil, errors.New("compositor: Config.Report is nil")
+	}
+	relevant, err := binds.Relevant(cfg.Seat.Keymap)
+	if err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
+	if c.binds, err = binds.NewMap(cfg.Binds, relevant); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
+	if c.repeat.timer, err = l.AddTimer(c.repeatFired); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.cursors.Size <= 0 {
 		return nil, fmt.Errorf("compositor: cursor size %d is not positive", c.cursors.Size)
 	}
-	var err error
 	if c.layout, err = output.New(display); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}

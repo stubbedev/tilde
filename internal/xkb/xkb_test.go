@@ -3,6 +3,7 @@ package xkb_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -166,5 +167,29 @@ func TestLibxkbcommonClientsReadAllThreeLayouts(t *testing.T) {
 		if !found {
 			t.Errorf("%s is not typed on %s in the %s layout:\n%s", c.cp, c.key, c.layout, out)
 		}
+	}
+}
+
+func TestKeycodesFromTheFirstLayout(t *testing.T) {
+	km := compile(t)
+	for name, want := range map[string]uint32{"q": 16, "Q": 16, "bracketleft": 26, "Return": 28, "exclam": 2, "XF86AudioRaiseVolume": 115} {
+		got, err := km.Keycode(name)
+		if err != nil || got != want {
+			t.Errorf("Keycode(%q) = %d, %v; want %d", name, got, err, want)
+		}
+	}
+	if _, err := km.Keycode("not_a_key"); !errors.Is(err, xkb.ErrUnknownKeysym) {
+		t.Errorf("an unknown keysym: %v", err)
+	}
+	if _, err := km.Keycode("aring"); !errors.Is(err, xkb.ErrKeysymNotMapped) {
+		t.Errorf("å is only on the dk layout: %v", err)
+	}
+	for _, name := range []string{"Shift", "Control", "Mod1", "Mod4"} {
+		if m, err := km.ModMask(name); err != nil || m == 0 {
+			t.Errorf("ModMask(%q) = %#x, %v", name, m, err)
+		}
+	}
+	if _, err := km.ModMask("Hyper9"); !errors.Is(err, xkb.ErrUnknownModifier) {
+		t.Errorf("an unknown modifier: %v", err)
 	}
 }

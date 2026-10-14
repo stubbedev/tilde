@@ -11,3 +11,4 @@ Every keybind and `tildectl dispatch` takes one of these. This file is generated
 | `kill` |  | Ask the focused window to close. |
 | `exec` | `<command>` | Run a shell command with sh -c. |
 | `makegroup` | `<h\|v\|tab> [ephemeral]` | Wrap the focused window in a new group; an ephemeral group dissolves when one window is left. |
+| `submap` | `<name\|reset>` | Switch binds to the named submap, or back to the default ones. |

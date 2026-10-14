@@ -62,6 +62,7 @@ func StartWith(t *testing.T, configure func(*compositor.Config), modes ...backen
 		}
 	}
 	cfg := compositor.DefaultConfig(testenv.Keymap(t))
+	cfg.Report = func(err error) { t.Errorf("compositor reported: %v", err) }
 	configure(&cfg)
 	if h.compositor, err = compositor.New(h.loop, h.display, h.backend, cfg); err != nil {
 		t.Fatalf("harness: %v", err)

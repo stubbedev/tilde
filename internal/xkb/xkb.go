@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"slices"
 	"strings"
 	"unsafe"
 
@@ -30,6 +31,8 @@ const (
 	modsLatched               = 1 << 1
 	modsLocked                = 1 << 2
 	layoutEffective           = 1 << 7
+	keysymCaseInsensitive     = 1 << 0
+	modInvalid                = 0xffffffff
 )
 
 func LibraryPath(getenv func(string) string) string {
@@ -88,6 +91,12 @@ type Library struct {
 	serializeLayout func(st uintptr, components int32) uint32
 	strlen          func(s unsafe.Pointer) uintptr
 	free            func(p unsafe.Pointer)
+	keysymFromName  func(name *byte, flags int32) uint32
+	minKeycode      func(km uintptr) uint32
+	maxKeycode      func(km uintptr) uint32
+	numLevels       func(km uintptr, key, layout uint32) uint32
+	symsByLevel     func(km uintptr, key, layout, level uint32, syms **uint32) int32
+	modIndex        func(km uintptr, name *byte) uint32
 }
 
 func Load(path string) (*Library, error) {
@@ -116,6 +125,12 @@ func Load(path string) (*Library, error) {
 		{handle, &l.updateKey, "xkb_state_update_key"},
 		{handle, &l.serializeMods, "xkb_state_serialize_mods"},
 		{handle, &l.serializeLayout, "xkb_state_serialize_layout"},
+		{handle, &l.keysymFromName, "xkb_keysym_from_name"},
+		{handle, &l.minKeycode, "xkb_keymap_min_keycode"},
+		{handle, &l.maxKeycode, "xkb_keymap_max_keycode"},
+		{handle, &l.numLevels, "xkb_keymap_num_levels_for_key"},
+		{handle, &l.symsByLevel, "xkb_keymap_key_get_syms_by_level"},
+		{handle, &l.modIndex, "xkb_keymap_mod_get_index"},
 		{c, &l.strlen, "strlen"},
 		{c, &l.free, "free"},
 	} {
@@ -226,6 +241,52 @@ func (k *Keymap) Close() error {
 		return fmt.Errorf("xkb: close keymap fd %d: %w", k.fd, err)
 	}
 	return nil
+}
+
+var (
+	ErrUnknownKeysym   = errors.New("xkb: unknown keysym")
+	ErrKeysymNotMapped = errors.New("xkb: keysym not on the first layout")
+	ErrUnknownModifier = errors.New("xkb: unknown modifier")
+)
+
+func (k *Keymap) Keycode(keysym string) (uint32, error) {
+	l := k.lib
+	name := cString(keysym)
+	sym := l.keysymFromName(name, 0)
+	if sym == 0 {
+		sym = l.keysymFromName(name, keysymCaseInsensitive)
+	}
+	runtime.KeepAlive(name)
+	if sym == 0 {
+		return 0, fmt.Errorf("%w %q", ErrUnknownKeysym, keysym)
+	}
+	lo, hi := l.minKeycode(k.keymap), l.maxKeycode(k.keymap)
+	for _, anyLevel := range []bool{false, true} {
+		for key := lo; key <= hi; key++ {
+			levels := l.numLevels(k.keymap, key, 0)
+			if !anyLevel {
+				levels = min(levels, 1)
+			}
+			for level := range levels {
+				var syms *uint32
+				n := l.symsByLevel(k.keymap, key, 0, level, &syms)
+				if n > 0 && slices.Contains(unsafe.Slice(syms, n), sym) && key >= evdevOffset { //nolint:gosec // libxkbcommon returned n keysyms at syms
+					return key - evdevOffset, nil
+				}
+			}
+		}
+	}
+	return 0, fmt.Errorf("%w: %q", ErrKeysymNotMapped, keysym)
+}
+
+func (k *Keymap) ModMask(name string) (uint32, error) {
+	cname := cString(name)
+	i := k.lib.modIndex(k.keymap, cname)
+	runtime.KeepAlive(cname)
+	if i == modInvalid || i >= 32 {
+		return 0, fmt.Errorf("%w %q", ErrUnknownModifier, name)
+	}
+	return 1 << i, nil
 }
 
 type Modifiers struct {
