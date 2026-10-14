@@ -175,6 +175,10 @@ func (keyboardRequests) Release(*sw.WlKeyboard) error {
 	return nil
 }
 
+func (s *Seat) Keysym(code uint32) uint32 {
+	return s.state.Keysym(code)
+}
+
 func (s *Seat) Layout() uint32 {
 	return s.state.Modifiers().Group
 }

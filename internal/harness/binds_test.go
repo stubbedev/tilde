@@ -185,3 +185,31 @@ func TestDragsNeedAMouseBind(t *testing.T) {
 		t.Fatalf("the window lost the pointer: %v", in.Log)
 	}
 }
+
+func TestCtrlAltFunctionKeysSwitchVTs(t *testing.T) {
+	var switched []uint32
+	h := StartWith(t, func(cfg *compositor.Config) {
+		cfg.SwitchVT = func(vt uint32) error {
+			switched = append(switched, vt)
+			return nil
+		}
+	}, small)
+	c := testclient.Connect(t, h.Socket())
+	_, in := c.Seat()
+	w := c.Window("win", quadrants)
+	in.Name(w.Surface, "win")
+	c.DispatchUntil("keyboard focus", func() bool { return slices.Contains(in.Log, "kb_enter win") })
+	const keyLeftCtrl, keyLeftAlt, keyF3 = 29, 56, 61
+	h.chord(keyLeftCtrl, keyLeftAlt, keyF3)
+	h.tap(keyF3)
+	h.Do(func(*headless.Backend, *compositor.Compositor) error {
+		if !slices.Equal(switched, []uint32{3}) {
+			t.Errorf("switched to %v, want VT 3 once", switched)
+		}
+		return nil
+	})
+	c.DispatchUntil("plain F3", func() bool { return slices.Contains(in.Log, "key 61 1") })
+	if n := strings.Count(strings.Join(in.Log, "\n"), "key 61 1"); n != 1 {
+		t.Fatalf("F3 reached the client %d times, want only the plain press", n)
+	}
+}

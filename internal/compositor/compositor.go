@@ -36,16 +36,17 @@ import (
 var Background = render.Color{R: 0x1e, G: 0x1e, B: 0x2e, A: 0xff}
 
 type Config struct {
-	Seat    seat.Config
-	Cursor  CursorConfig
-	WM      wm.Settings
-	Binds   []binds.Bind
-	Report  func(error)
-	Decor   Decor
-	Font    *gtext.Typeface
-	Rules   []wm.Rule
-	Outputs []OutputRule
-	Reload  func() error
+	Seat     seat.Config
+	Cursor   CursorConfig
+	WM       wm.Settings
+	Binds    []binds.Bind
+	Report   func(error)
+	Decor    Decor
+	Font     *gtext.Typeface
+	Rules    []wm.Rule
+	Outputs  []OutputRule
+	Reload   func() error
+	SwitchVT func(vt uint32) error
 }
 
 type CursorConfig struct {
@@ -108,6 +109,7 @@ type Compositor struct {
 	outputRules     []OutputRule
 	disabled        []backend.Output
 	reload          func() error
+	switchVT        func(vt uint32) error
 	dispatched      func(wm.Action)
 	loop            *loop.Loop
 	display         *server.Display
@@ -156,6 +158,7 @@ func validate(cfg Config) (binds.Map, error) {
 func (c *Compositor) adopt(cfg Config, m binds.Map) {
 	c.cursors, c.settings, c.rules, c.decor, c.font = cfg.Cursor, cfg.WM, cfg.Rules, cfg.Decor, cfg.Font
 	c.report, c.seatConfig, c.outputRules, c.reload, c.binds = cfg.Report, cfg.Seat, cfg.Outputs, cfg.Reload, m
+	c.switchVT = cfg.SwitchVT
 }
 
 func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (*Compositor, error) {

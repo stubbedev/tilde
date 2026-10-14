@@ -98,6 +98,7 @@ type Library struct {
 	symsByLevel     func(km uintptr, key, layout, level uint32, syms **uint32) int32
 	modIndex        func(km uintptr, name *byte) uint32
 	numLayouts      func(km uintptr) uint32
+	keyGetOneSym    func(st uintptr, key uint32) uint32
 	layoutName      func(km uintptr, idx uint32) unsafe.Pointer
 }
 
@@ -134,6 +135,7 @@ func Load(path string) (*Library, error) {
 		{handle, &l.symsByLevel, "xkb_keymap_key_get_syms_by_level"},
 		{handle, &l.modIndex, "xkb_keymap_mod_get_index"},
 		{handle, &l.numLayouts, "xkb_keymap_num_layouts"},
+		{handle, &l.keyGetOneSym, "xkb_state_key_get_one_sym"},
 		{handle, &l.layoutName, "xkb_keymap_layout_get_name"},
 		{c, &l.strlen, "strlen"},
 		{c, &l.free, "free"},
@@ -336,6 +338,10 @@ func (s *State) Key(evdev uint32, pressed bool) bool {
 	}
 	changed := s.lib.updateKey(s.state, evdev+evdevOffset, direction)
 	return changed&(modsDepressed|modsLatched|modsLocked|layoutEffective) != 0
+}
+
+func (s *State) Keysym(evdev uint32) uint32 {
+	return s.lib.keyGetOneSym(s.state, evdev+evdevOffset)
 }
 
 func (s *State) Modifiers() Modifiers {

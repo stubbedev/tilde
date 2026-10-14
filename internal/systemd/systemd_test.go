@@ -1,13 +1,8 @@
 package systemd
 
 import (
-	"bufio"
-	"context"
 	"errors"
-	"fmt"
 	"maps"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -18,48 +13,6 @@ import (
 
 	"github.com/stubbedev/tilde/internal/testenv"
 )
-
-const busConfig = `<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
- "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
-<busconfig>
-  <type>session</type>
-  <listen>unix:path=%s</listen>
-  <auth>EXTERNAL</auth>
-  <policy context="default">
-    <allow send_destination="*" eavesdrop="true"/>
-    <allow eavesdrop="true"/>
-    <allow own="*"/>
-  </policy>
-</busconfig>
-`
-
-func bus(t *testing.T) string {
-	t.Helper()
-	daemon := testenv.Require(t, "dbus-daemon")
-	dir := t.TempDir()
-	config := filepath.Join(dir, "bus.conf")
-	if err := os.WriteFile(config, fmt.Appendf(nil, busConfig, filepath.Join(dir, "bus")), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	cmd := exec.CommandContext(context.Background(), daemon, "--config-file="+config, "--nofork", "--print-address")
-	out, err := cmd.StdoutPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		_ = cmd.Process.Kill()
-		_ = cmd.Wait()
-	})
-	address, err := bufio.NewReader(out).ReadString('\n')
-	if err != nil {
-		t.Fatalf("dbus-daemon printed no address: %v", err)
-	}
-	return strings.TrimSpace(address)
-}
 
 type fakeManager struct {
 	mu    sync.Mutex
@@ -131,7 +84,7 @@ func systemd(t *testing.T, address, fail string) *fakeManager {
 var env = [][2]string{{"WAYLAND_DISPLAY", "wayland-1"}, {"XDG_CURRENT_DESKTOP", "tilde"}, {"TILDE_SOCKET", "/run/user/1000/tilde/wayland-1.sock"}}
 
 func TestSessionLifecycle(t *testing.T) {
-	address := bus(t)
+	address := testenv.DBus(t)
 	m := systemd(t, address, "")
 	s, err := Start(address, env)
 	if err != nil {
@@ -156,7 +109,7 @@ func TestSessionLifecycle(t *testing.T) {
 }
 
 func TestAFailedStartLeavesNoEnvironment(t *testing.T) {
-	address := bus(t)
+	address := testenv.DBus(t)
 	m := systemd(t, address, "StartUnit")
 	if _, err := Start(address, env); err == nil || !strings.Contains(err.Error(), "StartUnit") {
 		t.Fatalf("a refused StartUnit: %v", err)

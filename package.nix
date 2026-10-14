@@ -18,7 +18,7 @@ buildGo127Module {
 
   # Pins the module dependencies in go.sum. When they change, set this to
   # lib.fakeHash, run `nix build` and put the reported got: hash here.
-  vendorHash = "sha256-SM2hYVqbbQJQtME6Tmc6jfl0hHsb1q+qqZc/2iedi4Y=";
+  vendorHash = "sha256-uN6CmMyuJs/Ise/n1VujBBNoQGtEKUnNgoeSrBMeG5Q=";
 
   subPackages = ["cmd/tilde" "cmd/tildectl"];
 

@@ -22,6 +22,18 @@ func (c *Compositor) run(a wm.Action) {
 	}
 }
 
+const (
+	keysymSwitchVT1  = 0x1008fe01
+	keysymSwitchVT12 = 0x1008fe0c
+)
+
+func vtSwitch(keysym uint32) uint32 {
+	if keysym < keysymSwitchVT1 || keysym > keysymSwitchVT12 {
+		return 0
+	}
+	return keysym - keysymSwitchVT1 + 1
+}
+
 func (c *Compositor) match(t binds.Trigger) (binds.Bind, bool) {
 	return c.binds.Match(c.submap, c.seat.DepressedModifiers(), t, false)
 }
@@ -38,6 +50,10 @@ func (c *Compositor) bindKey(code uint32, pressed bool) (bool, error) {
 			return true, c.repeat.timer.Disarm()
 		}
 		return true, nil
+	}
+	if vt := vtSwitch(c.seat.Keysym(code)); vt != 0 && c.switchVT != nil {
+		c.held = append(c.held, code)
+		return true, c.switchVT(vt)
 	}
 	b, ok := c.match(binds.Key{Code: code})
 	if !ok {

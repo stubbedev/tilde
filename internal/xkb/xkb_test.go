@@ -67,6 +67,19 @@ func TestModifiersAndLayoutGroups(t *testing.T) {
 	}
 }
 
+func TestKeysymsFollowModifiers(t *testing.T) {
+	st := state(t)
+	const keyF1, keyLeftCtrl, keyLeftAlt = 59, 29, 56
+	if got := st.Keysym(keyF1); got != 0xffbe {
+		t.Fatalf("F1 is keysym %#x", got)
+	}
+	st.Key(keyLeftCtrl, true)
+	st.Key(keyLeftAlt, true)
+	if got := st.Keysym(keyF1); got != 0x1008fe01 {
+		t.Fatalf("Ctrl+Alt+F1 is keysym %#x, want XF86Switch_VT_1", got)
+	}
+}
+
 func TestLayoutNames(t *testing.T) {
 	want := []string{"English (US)", "Danish", "Spanish"}
 	if got := compile(t).Layouts(); !slices.Equal(got, want) {
