@@ -2,6 +2,8 @@
   lib,
   buildGo127Module,
   libxkbcommon,
+  libglvnd,
+  libgbm,
   dejavu_fonts,
   # Set by the flake from `self.shortRev or self.dirtyShortRev`; falls back to
   # the placeholder used when nothing was stamped in.
@@ -24,6 +26,9 @@ buildGo127Module {
   # binary needs no library search path.
   ldflags = [
     "-X github.com/stubbedev/tilde/internal/xkb.defaultLibrary=${libxkbcommon}/lib/libxkbcommon.so.0"
+    "-X github.com/stubbedev/tilde/internal/gpu.defaultEGL=${libglvnd}/lib/libEGL.so.1"
+    "-X github.com/stubbedev/tilde/internal/gpu.defaultGLESv2=${libglvnd}/lib/libGLESv2.so.2"
+    "-X github.com/stubbedev/tilde/internal/gpu.defaultGBM=${libgbm}/lib/libgbm.so.1"
     "-X main.defaultFont=${dejavu_fonts}/share/fonts/truetype/DejaVuSans.ttf"
   ];
 

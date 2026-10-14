@@ -9,6 +9,7 @@ import (
 
 	gtext "github.com/stubbedev/gelm/render"
 
+	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/xcursor"
 	"github.com/stubbedev/tilde/internal/xkb"
 )
@@ -30,6 +31,20 @@ func Require(t testing.TB, binary string) string {
 		missing(t, "%s is not on PATH", binary)
 	}
 	return path
+}
+
+func GPU(t testing.TB) *gpu.Library {
+	t.Helper()
+	l, err := gpu.Load(gpu.PathsFromEnv(os.Getenv))
+	if err != nil {
+		missing(t, "%v", err)
+	}
+	t.Cleanup(func() {
+		if err := l.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	return l
 }
 
 func XKBLibrary(t testing.TB) *xkb.Library {

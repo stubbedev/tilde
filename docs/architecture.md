@@ -95,6 +95,24 @@ One typed `Action` set and one dispatcher, in `wm` (#66). Keybinds,
 foreign-toplevel activate are all callers of it. Nothing else mutates WM
 state.
 
+## GPU
+
+`internal/gpu` (#33) loads glvnd's `libEGL.so.1` and `libGLESv2.so.2` and
+Mesa's `libgbm.so.1` through purego. The Nix build bakes their store paths
+in, and `TILDE_LIBEGL`, `TILDE_LIBGLESV2` and `TILDE_LIBGBM` override them.
+glvnd picks the vendor driver, NVIDIA or Mesa, from
+`/run/opengl-driver/share/glvnd/egl_vendor.d`. Displays come from the GBM
+platform for KMS, the device platform, or Mesa's surfaceless platform; each
+has one configless GLES2 context and no surfaces, and renders into dmabufs
+or textures.
+
+Without cgo, `os.Setenv` does not reach libc's `getenv`, so variables that
+drivers read must be in the process environment from the start. The dev
+shell sets `__EGL_VENDOR_LIBRARY_DIRS` to Mesa's vendor and
+`LIBGL_ALWAYS_SOFTWARE=1`, so GPU tests render on llvmpipe the same way
+locally and in CI. Run them with both unset to exercise the machine's
+driver: the dmabuf test only runs where a vendor drives a render node.
+
 ## IPC
 
 `tildectl`, bars and scripts talk to tilde over a Unix socket at
