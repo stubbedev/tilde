@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -217,6 +218,27 @@ func (c *Client) Wait(t *testing.T, timeout time.Duration) string {
 		t.Fatalf("harness: %s still running after %v\n%s", filepath.Base(c.cmd.Path), timeout, c.output.String())
 	}
 	return c.output.String()
+}
+
+func (c *Client) Expect(t *testing.T, text string, timeout time.Duration) string {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		out := c.output.String()
+		if i := strings.Index(out, text); i >= 0 {
+			return out[i:]
+		}
+		select {
+		case err := <-c.exited:
+			c.exited <- err
+			t.Fatalf("harness: %s exited (%v) before printing %q:\n%s", filepath.Base(c.cmd.Path), err, text, out)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("harness: %s did not print %q within %v:\n%s", filepath.Base(c.cmd.Path), text, timeout, out)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func (c *Client) kill() {

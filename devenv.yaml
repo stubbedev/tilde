@@ -2,3 +2,6 @@
 inputs:
   nixpkgs:
     url: github:NixOS/nixpkgs/nixos-unstable
+  gelm:
+    url: github:stubbedev/gelm
+    flake: true
