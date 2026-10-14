@@ -16,6 +16,7 @@ import (
 	"github.com/stubbedev/tilde/internal/loop"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	cwlr "github.com/stubbedev/tilde/internal/protocol/client/wlrlayershell"
+	cxd "github.com/stubbedev/tilde/internal/protocol/client/xdgdecoration"
 	cxdg "github.com/stubbedev/tilde/internal/protocol/client/xdgshell"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
@@ -208,6 +209,7 @@ type client struct {
 	wmE  *wmEvents
 	seat *cw.WlSeat
 	lsh  *cwlr.ZwlrLayerShellV1
+	deco *cxd.ZxdgDecorationManagerV1
 }
 
 func (e *env) connect(wmVersion uint32) *client {
@@ -236,9 +238,11 @@ func (e *env) connect(wmVersion uint32) *client {
 	must(e.t, err)
 	c.lsh, err = cwlr.NewZwlrLayerShellV1(d, 5)
 	must(e.t, err)
+	c.deco, err = cxd.NewZxdgDecorationManagerV1(d, 1)
+	must(e.t, err)
 	must(e.t, reg.Bind(globals["wl_compositor"], c.comp), reg.Bind(globals["wl_subcompositor"], c.sub),
 		reg.Bind(globals["wl_shm"], c.shm), reg.Bind(globals["xdg_wm_base"], c.wm), reg.Bind(globals["wl_seat"], c.seat),
-		reg.Bind(globals["zwlr_layer_shell_v1"], c.lsh))
+		reg.Bind(globals["zwlr_layer_shell_v1"], c.lsh), reg.Bind(globals["zxdg_decoration_manager_v1"], c.deco))
 	c.roundtrip()
 	return c
 }

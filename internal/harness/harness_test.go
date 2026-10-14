@@ -2,6 +2,7 @@ package harness
 
 import (
 	"image"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/stubbedev/tilde/internal/compositor"
 	"github.com/stubbedev/tilde/internal/golden"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
+	cxdg "github.com/stubbedev/tilde/internal/protocol/client/xdgshell"
 	"github.com/stubbedev/tilde/internal/render/soft"
 	"github.com/stubbedev/tilde/internal/testclient"
 )
@@ -83,6 +85,14 @@ func TestWindowIsComposited(t *testing.T) {
 	c.DispatchUntil("the window to map", w.Mapped)
 	if w.Size != small.Size {
 		t.Fatalf("window configured to %v, want the whole %v output", w.Size, small.Size)
+	}
+	for _, st := range []cxdg.XdgToplevelState{cxdg.XdgToplevelStateTiledLeft, cxdg.XdgToplevelStateTiledRight, cxdg.XdgToplevelStateTiledTop, cxdg.XdgToplevelStateTiledBottom, cxdg.XdgToplevelStateActivated} {
+		if !slices.Contains(w.States, st) {
+			t.Fatalf("window states %v lack %d: tiled windows say so on every edge, and the focused one is activated", w.States, st)
+		}
+	}
+	if slices.Contains(w.States, cxdg.XdgToplevelStateConstrainedLeft) {
+		t.Fatalf("window states %v: constrained states need xdg_wm_base version 7, the test client binds 6", w.States)
 	}
 	h.Eventually("the window on the output", showing(1, 1, [3]byte{0xff, 0, 0}))
 	golden.Assert(t, "window", h.Snapshot(0))

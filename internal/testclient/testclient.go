@@ -4,6 +4,7 @@
 package testclient
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"image"
@@ -247,6 +248,7 @@ type Window struct {
 	Entered      int
 	Frames       int
 	Closed       bool
+	States       []cxdg.XdgToplevelState
 	buffers      []*buffer
 	drawn        int
 }
@@ -489,8 +491,12 @@ func (w *Window) configured() error {
 
 type toplevelEvents struct{ w *Window }
 
-func (e toplevelEvents) Configure(_ *cxdg.XdgToplevel, width, height int32, _ []byte) error {
+func (e toplevelEvents) Configure(_ *cxdg.XdgToplevel, width, height int32, states []byte) error {
 	e.w.pending = image.Pt(int(width), int(height))
+	e.w.States = e.w.States[:0]
+	for i := 0; i+4 <= len(states); i += 4 {
+		e.w.States = append(e.w.States, cxdg.XdgToplevelState(binary.NativeEndian.Uint32(states[i:])))
+	}
 	return nil
 }
 

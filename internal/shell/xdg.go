@@ -13,6 +13,7 @@ import (
 	"github.com/stubbedev/tilde/internal/loop"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	swlr "github.com/stubbedev/tilde/internal/protocol/server/wlrlayershell"
+	sxd "github.com/stubbedev/tilde/internal/protocol/server/xdgdecoration"
 	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/surface"
@@ -20,7 +21,7 @@ import (
 )
 
 const (
-	wmBaseVersion = 6
+	wmBaseVersion = 7
 	xdgRole       = "xdg_surface"
 	PingTimeout   = 5 * time.Second
 )
@@ -92,6 +93,9 @@ func New(d *server.Display, l *loop.Loop, listener Listener) (*Shell, error) {
 		return nil, err
 	}
 	if _, err := d.AddGlobal(swlr.ZwlrLayerShellV1Interface, layerShellVersion, sh.bindLayerShell); err != nil {
+		return nil, err
+	}
+	if _, err := d.AddGlobal(sxd.ZxdgDecorationManagerV1Interface, decorationVersion, sh.bindDecoration); err != nil {
 		return nil, err
 	}
 	return sh, nil

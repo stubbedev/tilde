@@ -48,8 +48,13 @@ func (c *Compositor) configure(t *shell.Toplevel, o *output.Output, activated bo
 			return err
 		}
 	}
+	if o != nil {
+		s.States = append(s.States,
+			sxdg.XdgToplevelStateTiledLeft, sxdg.XdgToplevelStateTiledRight, sxdg.XdgToplevelStateTiledTop, sxdg.XdgToplevelStateTiledBottom,
+			sxdg.XdgToplevelStateConstrainedLeft, sxdg.XdgToplevelStateConstrainedRight, sxdg.XdgToplevelStateConstrainedTop, sxdg.XdgToplevelStateConstrainedBottom)
+	}
 	if activated {
-		s.States = []shell.ToplevelState{sxdg.XdgToplevelStateActivated}
+		s.States = append(s.States, sxdg.XdgToplevelStateActivated)
 	}
 	_, err := t.Configure(s)
 	return t.Surface().Client().Sent(err)

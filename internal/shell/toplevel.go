@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
+	sxd "github.com/stubbedev/tilde/internal/protocol/server/xdgdecoration"
 	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
 	"github.com/stubbedev/tilde/internal/surface"
 )
@@ -39,6 +40,7 @@ type Toplevel struct {
 	requested  State
 	current    State
 	configures configures[State]
+	decoration *sxd.ZxdgToplevelDecorationV1
 	destroyed  bool
 }
 
@@ -104,7 +106,8 @@ func (t *Toplevel) Configure(s State) (uint32, error) {
 	states := make([]byte, 0, 4*len(s.States))
 	for _, st := range s.States {
 		if (st >= sxdg.XdgToplevelStateTiledLeft && st <= sxdg.XdgToplevelStateTiledBottom && t.resource.Base().Version() < 2) ||
-			(st == sxdg.XdgToplevelStateSuspended && t.resource.Base().Version() < 6) {
+			(st == sxdg.XdgToplevelStateSuspended && t.resource.Base().Version() < 6) ||
+			(st >= sxdg.XdgToplevelStateConstrainedLeft && st <= sxdg.XdgToplevelStateConstrainedBottom && t.resource.Base().Version() < 7) {
 			continue
 		}
 		states = binary.NativeEndian.AppendUint32(states, uint32(st))
@@ -214,6 +217,9 @@ func (t *Toplevel) destroy() error {
 }
 
 func (t *Toplevel) Destroy(*sxdg.XdgToplevel) error {
+	if t.decoration != nil {
+		return t.decoration.ProtocolError(sxd.ZxdgToplevelDecorationV1ErrorOrphaned, "the xdg_toplevel was destroyed before its decoration object")
+	}
 	return nil
 }
 
