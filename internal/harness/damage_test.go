@@ -160,32 +160,39 @@ func TestSteadyStateFramesDoNotAllocate(t *testing.T) {
 	c.DispatchUntil("the window to map", w.Mapped)
 	h.Do(func(b *headless.Backend, comp *compositor.Compositor) error {
 		o := b.Outputs()[0]
-		var before, after runtime.MemStats
-		frame := func(move bool) uint64 {
-			if move {
-				if err := errors.Join(b.Pointer().Move(2, 1), b.Pointer().Frame()); err != nil {
-					t.Fatal(err)
-				}
+		move := func() {
+			if err := errors.Join(b.Pointer().Move(2, 1), b.Pointer().Frame()); err != nil {
+				t.Fatal(err)
 			}
-			runtime.ReadMemStats(&before)
+		}
+		frame := func() {
 			if err := comp.Frame(o); err != nil {
 				t.Fatal(err)
 			}
-			runtime.ReadMemStats(&after)
-			return after.Mallocs - before.Mallocs
 		}
 		for range 100 {
-			frame(true)
-			frame(false)
+			move()
+			frame()
+			frame()
 		}
-		var moving, idle uint64
-		for range 100 {
-			moving += frame(true)
-			idle += frame(false)
-		}
+		moving, idle := allocsPerFrame(100, move, frame), allocsPerFrame(100, func() {}, frame)
 		if moving != 0 || idle != 0 {
-			t.Errorf("100 cursor frames allocated %d times and 100 unchanged frames %d times", moving, idle)
+			t.Errorf("cursor frames allocated %d times each and unchanged frames %d times", moving, idle)
 		}
 		return nil
 	})
+}
+
+func allocsPerFrame(runs uint64, prepare, frame func()) uint64 {
+	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
+	var before, after runtime.MemStats
+	var total uint64
+	for range runs {
+		prepare()
+		runtime.ReadMemStats(&before)
+		frame()
+		runtime.ReadMemStats(&after)
+		total += after.Mallocs - before.Mallocs
+	}
+	return total / runs
 }
