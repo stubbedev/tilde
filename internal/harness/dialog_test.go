@@ -72,17 +72,17 @@ func TestFocusingTheParentOfAModalDialogFocusesTheDialog(t *testing.T) {
 	s.clickApp()
 	s.expectFocus("the modal dialog keeps the keyboard", s.dialog)
 
-	if err := errors.Join(s.hint.UnsetModal(), s.c.Display.Flush()); err != nil {
+	if err := errors.Join(s.hint.UnsetModal(), s.c.Display.Roundtrip()); err != nil {
 		t.Fatal(err)
 	}
 	s.clickApp()
 	s.expectFocus("the app takes the keyboard once the dialog is no longer modal", s.app)
 
-	if err := errors.Join(s.hint.SetModal(), s.c.Display.Flush()); err != nil {
+	if err := errors.Join(s.hint.SetModal(), s.c.Display.Roundtrip()); err != nil {
 		t.Fatal(err)
 	}
 	s.expectFocus("modal again, the dialog takes the keyboard back", s.dialog)
-	if err := errors.Join(s.hint.Destroy(), s.c.Display.Flush()); err != nil {
+	if err := errors.Join(s.hint.Destroy(), s.c.Display.Roundtrip()); err != nil {
 		t.Fatal(err)
 	}
 	s.clickApp()
