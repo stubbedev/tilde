@@ -31,6 +31,11 @@ keymaps with libxkbcommon anyway, so the compositor compiles and serves
 them with it too. The purego libraries' paths are baked in at build time
 by the Nix package; `TILDE_LIBXKBCOMMON` overrides libxkbcommon's.
 
+Tab titles are drawn with gelm's public `render` package. gelm's font
+discovery is internal to it, so the tab font is baked in the same way:
+the Nix package sets DejaVu Sans as the default and `TILDE_FONT` overrides
+it, until the config (#30) names one.
+
 ## Threading
 
 One goroutine owns all compositor state and runs the event loop (#5). Other

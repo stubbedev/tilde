@@ -101,7 +101,7 @@ func setup(t *testing.T) *rig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.comp, err = New(l, disp, fakeBackend{r.renderer}, DefaultConfig(testenv.Keymap(t))); err != nil {
+	if r.comp, err = New(l, disp, fakeBackend{r.renderer}, DefaultConfig(testenv.Keymap(t), testenv.Font(t))); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(r.comp.Close)

@@ -24,6 +24,7 @@ type configured struct {
 type window struct {
 	id       wm.WindowID
 	toplevel *shell.Toplevel
+	tile     image.Rectangle
 	rect     image.Rectangle
 	visible  bool
 	output   *output.Output
@@ -129,13 +130,16 @@ func (c *Compositor) syncAreas() error {
 func (c *Compositor) reconcile() error {
 	focused, hasFocus := c.wm.Focused()
 	var errs []error
-	for _, p := range c.wm.Arrange(0).Windows {
+	a := c.wm.Arrange(c.decor.reserved())
+	c.tabBars = a.TabBars
+	for _, p := range a.Windows {
 		w := c.windowByID(p.ID)
 		if w == nil {
 			return fmt.Errorf("compositor: the window manager placed unknown window %d", p.ID)
 		}
-		moved := p.Rect != w.rect
-		w.rect, w.visible = p.Rect, p.Visible
+		rect := p.Rect.Inset(c.decor.BorderWidth)
+		moved := rect != w.rect
+		w.tile, w.rect, w.visible = p.Rect, rect, p.Visible
 		if o := c.outputAtRect(p.Rect); o != nil {
 			w.output = o
 		}
@@ -172,9 +176,9 @@ func (c *Compositor) ToplevelInitialCommit(t *shell.Toplevel) error {
 	if err != nil {
 		return err
 	}
-	for _, p := range s.Arrange(0).Windows {
+	for _, p := range s.Arrange(c.decor.reserved()).Windows {
 		if p.ID == c.nextWindow {
-			return c.configure(t, c.wanted(p.Rect, true))
+			return c.configure(t, c.wanted(p.Rect.Inset(c.decor.BorderWidth), true))
 		}
 	}
 	return fmt.Errorf("compositor: the window manager did not place new window %d", c.nextWindow)
@@ -212,7 +216,7 @@ func (c *Compositor) ToplevelMapped(t *shell.Toplevel) error {
 	if err != nil {
 		return err
 	}
-	for _, p := range s.Arrange(0).Windows {
+	for _, p := range s.Arrange(c.decor.reserved()).Windows {
 		if o := c.outputAtRect(p.Rect); p.ID == w.id && o != nil && t.Requested().Bounds != (image.Point{}) {
 			w.scale = o.Scale()
 		}

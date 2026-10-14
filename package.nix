@@ -2,6 +2,7 @@
   lib,
   buildGo127Module,
   libxkbcommon,
+  dejavu_fonts,
   # Set by the flake from `self.shortRev or self.dirtyShortRev`; falls back to
   # the placeholder used when nothing was stamped in.
   rev ? "unknown",
@@ -15,7 +16,7 @@ buildGo127Module {
 
   # Pins the module dependencies in go.sum. When they change, set this to
   # lib.fakeHash, run `nix build` and put the reported got: hash here.
-  vendorHash = "sha256-sgxRd4lPFK6uaLHUU6qUAX0Ak8wXksx9ha0Z1+KFSaE=";
+  vendorHash = "sha256-1cxp/cT5zarGaeJdQlOuYRT4VMxiqJFIT9n6RPVGgpw=";
 
   subPackages = ["cmd/tilde"];
 
@@ -23,6 +24,7 @@ buildGo127Module {
   # binary needs no library search path.
   ldflags = [
     "-X github.com/stubbedev/tilde/internal/xkb.defaultLibrary=${libxkbcommon}/lib/libxkbcommon.so.0"
+    "-X main.defaultFont=${dejavu_fonts}/share/fonts/truetype/DejaVuSans.ttf"
   ];
 
   env.CGO_ENABLED = 0;

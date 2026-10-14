@@ -9,6 +9,8 @@ import (
 	"os"
 	"slices"
 
+	gtext "github.com/stubbedev/gelm/render"
+
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/binds"
 	"github.com/stubbedev/tilde/internal/data"
@@ -34,6 +36,8 @@ type Config struct {
 	WM     wm.Settings
 	Binds  []binds.Bind
 	Report func(error)
+	Decor  Decor
+	Font   *gtext.Typeface
 }
 
 type CursorConfig struct {
@@ -43,7 +47,7 @@ type CursorConfig struct {
 
 const DefaultCursorSize = 24
 
-func DefaultConfig(keymap *xkb.Keymap) Config {
+func DefaultConfig(keymap *xkb.Keymap, font *gtext.Typeface) Config {
 	return Config{
 		Seat:   seat.Config{Keymap: keymap, RepeatRate: seat.DefaultRepeatRate, RepeatDelay: seat.DefaultRepeatDelay},
 		Cursor: CursorConfig{Size: DefaultCursorSize},
@@ -52,6 +56,8 @@ func DefaultConfig(keymap *xkb.Keymap) Config {
 			Autotile: wm.Autotile{Enabled: true, Ephemeral: true, MinTrigger: 400, Divisor: 3},
 		},
 		Report: func(err error) { fmt.Fprintln(os.Stderr, "tilde:", err) },
+		Decor:  DefaultDecor(),
+		Font:   font,
 	}
 }
 
@@ -67,6 +73,10 @@ type Compositor struct {
 	windows    []*window
 	wm         wm.State
 	settings   wm.Settings
+	decor      Decor
+	font       *gtext.Typeface
+	labels     map[*output.Output]map[labelKey]*label
+	tabBars    []wm.TabBar
 	binds      binds.Map
 	submap     string
 	held       []uint32
@@ -104,6 +114,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		touches:    map[int32]*output.Output{},
 		cursors:    cfg.Cursor,
 		settings:   cfg.WM,
+		decor:      cfg.Decor,
+		font:       cfg.Font,
+		labels:     map[*output.Output]map[labelKey]*label{},
 		report:     cfg.Report,
 		seatConfig: cfg.Seat,
 		loop:       l,
@@ -113,6 +126,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 	}
 	if c.report == nil {
 		return nil, errors.New("compositor: Config.Report is nil")
+	}
+	if c.font == nil {
+		return nil, errors.New("compositor: Config.Font is nil")
 	}
 	relevant, err := binds.Relevant(cfg.Seat.Keymap)
 	if err != nil {
@@ -156,6 +172,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 }
 
 func (c *Compositor) Close() {
+	for o := range c.labels {
+		c.dropLabels(o)
+	}
 	for _, ct := range c.pointers {
 		ct.tex.Destroy()
 	}
@@ -239,6 +258,7 @@ func (c *Compositor) OutputRemoved(b backend.Output) error {
 	delete(c.shown, o)
 	errs := []error{c.closeLayers(o), o.Remove()}
 	delete(c.usable, o)
+	c.dropLabels(o)
 	for _, e := range c.entered {
 		if slices.Contains(e.outputs, o) {
 			errs = append(errs, e.s.Client().Sent(e.s.Leave(o.Resources(e.s.Client()))))

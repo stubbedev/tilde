@@ -12,6 +12,8 @@ import (
 	"strings"
 	"syscall"
 
+	gtext "github.com/stubbedev/gelm/render"
+
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/backend/headless"
 	"github.com/stubbedev/tilde/internal/backend/nested"
@@ -78,6 +80,24 @@ func openBackend(name string, l *loop.Loop) (backend.Backend, error) {
 	return b, nil
 }
 
+var defaultFont = "DejaVuSans.ttf"
+
+func loadFont(getenv func(string) string) (*gtext.Typeface, error) {
+	path := getenv("TILDE_FONT")
+	if path == "" {
+		path = defaultFont
+	}
+	data, err := os.ReadFile(path) //nolint:gosec // the font path comes from the build or the user's environment
+	if err != nil {
+		return nil, fmt.Errorf("read the tab font (set TILDE_FONT to a font file): %w", err)
+	}
+	f, err := gtext.LoadFont(data)
+	if err != nil {
+		return nil, fmt.Errorf("load the tab font %s: %w", path, err)
+	}
+	return f, nil
+}
+
 func cursorConfig(getenv func(string) string) (compositor.CursorConfig, error) {
 	cfg := compositor.CursorConfig{Size: compositor.DefaultCursorSize}
 	if v := getenv("XCURSOR_SIZE"); v != "" {
@@ -135,7 +155,11 @@ func run() (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, keymap.Close()) }()
-	cfg := compositor.DefaultConfig(keymap)
+	font, err := loadFont(os.Getenv)
+	if err != nil {
+		return err
+	}
+	cfg := compositor.DefaultConfig(keymap, font)
 	cfg.Cursor, err = cursorConfig(os.Getenv)
 	if err != nil {
 		return err

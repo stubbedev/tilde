@@ -48,6 +48,11 @@ func (c *Compositor) render(o *output.Output) error {
 		origin := c.placement(w).Min.Sub(w.toplevel.Geometry().Min)
 		shown = c.drawTree(pass, o, w.toplevel.Surface(), origin, shown)
 	}
+	c.drawBorders(pass, o)
+	if err := c.drawTabBars(pass, o); err != nil {
+		return err
+	}
+	c.evictLabels(o)
 	for _, w := range c.windows {
 		shown = c.drawPopups(pass, o, c.popups(w), shown)
 	}

@@ -41,7 +41,7 @@ func startNested(t *testing.T, host *Harness) *nestedTilde {
 		t.Fatal(err)
 	}
 	n.display = display.Name()
-	if n.comp, err = compositor.New(n.loop, display, b, compositor.DefaultConfig(testenv.Keymap(t))); err != nil {
+	if n.comp, err = compositor.New(n.loop, display, b, compositor.DefaultConfig(testenv.Keymap(t), testenv.Font(t))); err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)

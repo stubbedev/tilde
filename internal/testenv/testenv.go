@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"testing"
 
+	gtext "github.com/stubbedev/gelm/render"
+
 	"github.com/stubbedev/tilde/internal/xcursor"
 	"github.com/stubbedev/tilde/internal/xkb"
 )
@@ -51,4 +53,21 @@ func CursorTheme(t testing.TB) *xcursor.Theme {
 		missing(t, "no test cursor theme: %v", err)
 	}
 	return theme
+}
+
+func Font(t testing.TB) *gtext.Typeface {
+	t.Helper()
+	path := os.Getenv("TILDE_FONT")
+	if path == "" {
+		missing(t, "TILDE_FONT is not set")
+	}
+	data, err := os.ReadFile(path) //nolint:gosec // the test font path comes from the dev shell
+	if err != nil {
+		missing(t, "no test font: %v", err)
+	}
+	f, err := gtext.LoadFont(data)
+	if err != nil {
+		t.Fatalf("testenv: load %s: %v", path, err)
+	}
+	return f
 }

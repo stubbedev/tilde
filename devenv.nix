@@ -16,6 +16,7 @@ in {
     TILDE_LIBXKBCOMMON = "${pkgs.libxkbcommon}/lib/libxkbcommon.so.0";
     TILDE_TEST_XCURSOR_PATH = "${pkgs.vanilla-dmz}/share/icons";
     FONTCONFIG_FILE = pkgs.makeFontsConf {fontDirectories = [pkgs.dejavu_fonts];};
+    TILDE_FONT = "${pkgs.dejavu_fonts}/share/fonts/truetype/DejaVuSans.ttf";
   };
 
   packages = with pkgs; [
