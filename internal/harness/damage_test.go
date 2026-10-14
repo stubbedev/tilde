@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/backend/headless"
 	"github.com/stubbedev/tilde/internal/compositor"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
@@ -175,7 +176,7 @@ func TestSteadyStateFramesDoNotAllocate(t *testing.T) {
 			frame()
 			frame()
 		}
-		moving, idle := allocsPerFrame(100, move, frame), allocsPerFrame(100, func() {}, frame)
+		moving, idle := allocsPerRun(100, move, frame), allocsPerRun(100, func() {}, frame)
 		if moving != 0 || idle != 0 {
 			t.Errorf("cursor frames allocated %d times each and unchanged frames %d times", moving, idle)
 		}
@@ -183,7 +184,32 @@ func TestSteadyStateFramesDoNotAllocate(t *testing.T) {
 	})
 }
 
-func allocsPerFrame(runs uint64, prepare, frame func()) uint64 {
+func TestPointerMotionDoesNotAllocate(t *testing.T) {
+	h := StartUntraced(t, desktop)
+	c := testclient.Connect(t, h.Socket())
+	w := c.Window("steady", quadrants)
+	c.DispatchUntil("the window to map", w.Mapped)
+	h.Do(func(b *headless.Backend, comp *compositor.Compositor) error {
+		motions := [2]backend.Event{backend.PointerMotion{DX: 2, DY: 1}, backend.PointerMotion{DX: -2, DY: -1}}
+		var frame backend.Event = backend.PointerFrame{}
+		next := 0
+		move := func() {
+			if err := errors.Join(comp.Input(b.Pointer(), motions[next]), comp.Input(b.Pointer(), frame)); err != nil {
+				t.Fatal(err)
+			}
+			next ^= 1
+		}
+		for range 100 {
+			move()
+		}
+		if n := allocsPerRun(100, func() {}, move); n != 0 {
+			t.Errorf("a pointer motion allocated %d times", n)
+		}
+		return nil
+	})
+}
+
+func allocsPerRun(runs uint64, prepare, frame func()) uint64 {
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
 	var before, after runtime.MemStats
 	var total uint64

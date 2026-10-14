@@ -170,18 +170,17 @@ func (c *Compositor) dropCursorPlane(o *output.Output, cause error) error {
 }
 
 func (c *Compositor) cursorMoved() error {
-	var errs []error
+	var err error
 	for _, o := range c.outputs {
-		placed, err := c.placeCursor(o)
-		errs = append(errs, err)
+		placed, placeErr := c.placeCursor(o)
 		hw, ok := c.hwCursors[o]
 		repaint := !placed || (ok && hw.inFrame)
 		if repaint {
-			errs = append(errs, c.schedule(o))
+			placeErr = errors.Join(placeErr, c.schedule(o))
 		}
-		errs = append(errs, c.noteCursor(o, repaint))
+		err = errors.Join(err, placeErr, c.noteCursor(o, repaint))
 	}
-	return errors.Join(append(errs, c.updateCursorSessions())...)
+	return errors.Join(err, c.updateCursorSessions())
 }
 
 func inTree(root, s *surface.Surface) bool {

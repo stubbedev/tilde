@@ -235,11 +235,11 @@ func (k *cursorSession) update() error {
 }
 
 func (c *Compositor) updateCursorSessions() error {
-	errs := make([]error, 0, len(c.cursorSessions))
+	var err error
 	for _, k := range c.cursorSessions {
-		errs = append(errs, k.update())
+		err = errors.Join(err, k.update())
 	}
-	return errors.Join(errs...)
+	return err
 }
 
 type captureSession struct {
