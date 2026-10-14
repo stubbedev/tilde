@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	scs "github.com/stubbedev/tilde/internal/protocol/server/cursorshape"
+	srp "github.com/stubbedev/tilde/internal/protocol/server/relativepointer"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/surface"
@@ -36,6 +37,7 @@ type clientResources struct {
 	seats     []*sw.WlSeat
 	keyboards []*sw.WlKeyboard
 	pointers  []*sw.WlPointer
+	relatives []*srp.ZwpRelativePointerV1
 	touches   []*sw.WlTouch
 	presses   [recentPresses]uint32
 	pressed   int
@@ -44,6 +46,7 @@ type clientResources struct {
 type Listener interface {
 	CursorChanged() error
 	KeyboardFocusChanged(focus *surface.Surface) error
+	PointerFocusChanged(focus *surface.Surface) error
 }
 
 type Seat struct {
@@ -72,6 +75,10 @@ func New(d *server.Display, cfg Config, listener Listener) (*Seat, error) {
 		return nil, err
 	}
 	if _, err := d.AddGlobal(scs.WpCursorShapeManagerV1Interface, cursorShapeVersion, s.bindCursorShape); err != nil {
+		s.Close()
+		return nil, err
+	}
+	if _, err := d.AddGlobal(srp.ZwpRelativePointerManagerV1Interface, relativePointerVersion, s.bindRelativePointer); err != nil {
 		s.Close()
 		return nil, err
 	}
@@ -115,7 +122,7 @@ func (s *Seat) PressSerial(c *server.Client, serial uint32) bool {
 }
 
 func (s *Seat) forget(r *clientResources) {
-	if len(r.seats) == 0 && len(r.keyboards) == 0 && len(r.pointers) == 0 && len(r.touches) == 0 {
+	if len(r.seats) == 0 && len(r.keyboards) == 0 && len(r.pointers) == 0 && len(r.relatives) == 0 && len(r.touches) == 0 {
 		s.clients = slices.DeleteFunc(s.clients, func(x *clientResources) bool { return x == r })
 	}
 }
@@ -196,6 +203,7 @@ func (s *Seat) SurfaceDestroyed(target *surface.Surface) error {
 	}
 	if s.pointer.focus == target {
 		s.pointer.focus, s.pointer.buttons = nil, nil
+		err = errors.Join(err, s.listener.PointerFocusChanged(nil))
 	}
 	if s.pointer.cursor.surface == target {
 		s.pointer.cursor = Cursor{}

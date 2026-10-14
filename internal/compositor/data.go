@@ -18,7 +18,11 @@ func (c *Compositor) KeyboardFocusChanged(s *surface.Surface) error {
 	if s != nil {
 		client = s.Client()
 	}
-	return c.data.SetFocus(client)
+	return errors.Join(c.data.SetFocus(client), c.refreshConstraint())
+}
+
+func (c *Compositor) PointerFocusChanged(*surface.Surface) error {
+	return c.refreshConstraint()
 }
 
 func (c *Compositor) Selection(k data.Kind) bool {

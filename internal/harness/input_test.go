@@ -18,6 +18,7 @@ type inputRig struct {
 	t            *testing.T
 	h            *Harness
 	c            *testclient.Client
+	seat         *cw.WlSeat
 	in           *testclient.Input
 	w            *testclient.Window
 	seen         int
@@ -31,11 +32,11 @@ func startInput(t *testing.T) *inputRig {
 
 func inputOn(t *testing.T, h *Harness) *inputRig {
 	c := testclient.Connect(t, h.Socket())
-	_, in := c.Seat()
+	seat, in := c.Seat()
 	w := c.Window("win", quadrants)
 	in.Name(w.Surface, "win")
 	c.DispatchUntil("the window to map", w.Mapped)
-	return &inputRig{t: t, h: h, c: c, in: in, w: w}
+	return &inputRig{t: t, h: h, c: c, seat: seat, in: in, w: w}
 }
 
 func (r *inputRig) inject(f func(b *headless.Backend, o *headless.Output) error) {

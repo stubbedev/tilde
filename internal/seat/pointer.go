@@ -93,7 +93,7 @@ func (s *Seat) SetPointerFocus(target *surface.Surface, x, y float64) error {
 			errs = append(errs, c.Sent(ptr.SendEnter(p.enterSerial, target.Resource(), wire.FixedFromFloat(x), wire.FixedFromFloat(y))))
 		}
 	}
-	return errors.Join(errs...)
+	return errors.Join(append(errs, s.listener.PointerFocusChanged(target))...)
 }
 
 func (s *Seat) PointerMotion(at time.Duration, x, y float64) error {

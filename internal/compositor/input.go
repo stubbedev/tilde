@@ -48,6 +48,11 @@ func (r origin) local(p point) point {
 	return point{l.X * f, l.Y * f}
 }
 
+func (r origin) global(l point) point {
+	f := float64(r.k) / float64(output.Unit)
+	return point{float64(r.at.X) + l.X/f, float64(r.at.Y) + l.Y/f}
+}
+
 func wlCaps(c backend.Capability) sw.WlSeatCapability {
 	var caps sw.WlSeatCapability
 	if c.Has(backend.Keyboard) {
@@ -104,19 +109,20 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 		}
 		return c.seat.Key(e.Code, e.Pressed, e.Time)
 	case backend.PointerMotion:
+		if err := c.seat.RelativeMotion(e.Time, e.DX, e.DY, e.UnaccelDX, e.UnaccelDY); err != nil {
+			return err
+		}
 		b := c.layoutBounds()
-		c.cursor = point{
+		return c.moveCursor(e.Time, point{
 			X: math.Min(math.Max(c.cursor.X+e.DX, float64(b.Min.X)), float64(b.Max.X)-1),
 			Y: math.Min(math.Max(c.cursor.Y+e.DY, float64(b.Min.Y)), float64(b.Max.Y)-1),
-		}
-		return c.pointerMoved(e.Time)
+		})
 	case backend.PointerMotionAbsolute:
 		p, _, ok := c.onOutput(e.Output, e.X, e.Y)
 		if !ok {
 			return nil
 		}
-		c.cursor = p
-		return c.pointerMoved(e.Time)
+		return c.moveCursor(e.Time, p)
 	case backend.PointerButton:
 		if c.drag != nil {
 			if e.Pressed {
@@ -209,6 +215,15 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 		return c.applyOutputRules()
 	}
 	return nil
+}
+
+func (c *Compositor) moveCursor(at time.Duration, next point) error {
+	next, moved := c.constrainMotion(next)
+	if !moved {
+		return nil
+	}
+	c.cursor = next
+	return errors.Join(c.pointerMoved(at), c.refreshConstraint())
 }
 
 func (c *Compositor) pointerMoved(at time.Duration) error {

@@ -119,7 +119,7 @@ func (g *regionObject) Subtract(_ *sw.WlRegion, x, y, w, h int32) error {
 	return nil
 }
 
-func regionValue(r *sw.WlRegion) (region.Region, error) {
+func RegionValue(r *sw.WlRegion) (region.Region, error) {
 	g, ok := r.Handler().(*regionObject)
 	if !ok {
 		return region.Region{}, fmt.Errorf("surface: wl_region@%d has handler %T", r.Base().ID(), r.Handler())
@@ -618,7 +618,7 @@ func (r surfaceRequests) SetOpaqueRegion(_ *sw.WlSurface, g *sw.WlRegion) error 
 	if g == nil {
 		return nil
 	}
-	v, err := regionValue(g)
+	v, err := RegionValue(g)
 	r.s.pending.opaque = v
 	return err
 }
@@ -629,7 +629,7 @@ func (r surfaceRequests) SetInputRegion(_ *sw.WlSurface, g *sw.WlRegion) error {
 	if g == nil {
 		return nil
 	}
-	v, err := regionValue(g)
+	v, err := RegionValue(g)
 	r.s.pending.input = v
 	return err
 }

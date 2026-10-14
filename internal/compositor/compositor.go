@@ -143,6 +143,8 @@ type Compositor struct {
 	wsManagers      []*wsManager
 	captures        map[*output.Output][]capture
 	captureSessions []*captureSession
+	constraints     map[*surface.Surface]*constraint
+	constraint      *constraint
 	cursorGen       uint64
 	cursorOps       frame
 	cursorShown     []*surface.Surface
@@ -186,21 +188,22 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		return nil, err
 	}
 	c := &Compositor{
-		renderer:   b.Renderer(),
-		textures:   map[*surface.Surface]*texture{},
-		imported:   map[*dmabuf.Buffer]render.Texture{},
-		shown:      map[*output.Output][]*surface.Surface{},
-		touches:    map[int32]*output.Output{},
-		labels:     map[*output.Output]map[labelKey]*label{},
-		scenes:     map[*output.Output]*scene{},
-		loop:       l,
-		display:    display,
-		pointers:   map[cursorKey]*cursorTexture{},
-		hwCursors:  map[*output.Output]*hwCursor{},
-		blanked:    map[*output.Output]bool{},
-		captures:   map[*output.Output][]capture{},
-		usable:     map[*output.Output]image.Rectangle{},
-		nextWindow: 1,
+		renderer:    b.Renderer(),
+		textures:    map[*surface.Surface]*texture{},
+		imported:    map[*dmabuf.Buffer]render.Texture{},
+		shown:       map[*output.Output][]*surface.Surface{},
+		touches:     map[int32]*output.Output{},
+		labels:      map[*output.Output]map[labelKey]*label{},
+		scenes:      map[*output.Output]*scene{},
+		loop:        l,
+		display:     display,
+		pointers:    map[cursorKey]*cursorTexture{},
+		hwCursors:   map[*output.Output]*hwCursor{},
+		blanked:     map[*output.Output]bool{},
+		captures:    map[*output.Output][]capture{},
+		constraints: map[*surface.Surface]*constraint{},
+		usable:      map[*output.Output]image.Rectangle{},
+		nextWindow:  1,
 	}
 	c.adopt(cfg, m)
 	if c.repeat.timer, err = l.AddTimer(c.repeatFired); err != nil {
@@ -246,6 +249,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if err := c.addImageCapture(display); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
+	if err := c.addPointerConstraints(display); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.data, err = data.New(display, c); err != nil {
