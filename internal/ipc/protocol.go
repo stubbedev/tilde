@@ -105,6 +105,7 @@ type Output struct {
 	Mode        Mode           `json:"mode"`
 	Workspace   wm.WorkspaceID `json:"workspace"`
 	Focused     bool           `json:"focused"`
+	Powered     bool           `json:"powered"`
 }
 
 type Workspace struct {

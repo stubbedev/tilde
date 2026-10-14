@@ -45,6 +45,8 @@ func (c *Compositor) perform(e wm.Effect) error {
 		return nil
 	case wm.BeginDrag:
 		return c.beginDrag(e.Mode)
+	case wm.Power:
+		return c.dpms(e)
 	case wm.Reload:
 		if c.reload == nil {
 			return errors.New("no config file to reload")

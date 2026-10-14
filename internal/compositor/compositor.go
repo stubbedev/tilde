@@ -19,6 +19,7 @@ import (
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/output"
+	"github.com/stubbedev/tilde/internal/outputpower"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/seat"
@@ -86,6 +87,7 @@ type Compositor struct {
 	imported        map[*dmabuf.Buffer]render.Texture
 	dmabuf          *dmabuf.Manager
 	importer        dmabufRenderer
+	power           *outputpower.Manager
 	drm             *drm.Device
 	windows         []*window
 	stack           []*window
@@ -194,6 +196,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if err := singlepixel.New(display); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
+	if c.power, err = outputpower.New(display, c); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if imp, ok := c.renderer.(dmabufRenderer); ok {

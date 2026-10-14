@@ -3,6 +3,7 @@ package wm
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -29,13 +30,28 @@ type (
 	SetSubmap struct{ Name string }
 	BeginDrag struct{ Mode DragMode }
 	Reload    struct{}
+	Power     struct {
+		Mode   PowerMode
+		Output string
+	}
 )
+
+type PowerMode uint8
+
+const (
+	PowerOn PowerMode = iota + 1
+	PowerOff
+	PowerToggle
+)
+
+var powerModes = []string{PowerOn: "on", PowerOff: "off", PowerToggle: "toggle"}
 
 func (Close) isEffect()     {}
 func (Exec) isEffect()      {}
 func (SetSubmap) isEffect() {}
 func (BeginDrag) isEffect() {}
 func (Reload) isEffect()    {}
+func (Power) isEffect()     {}
 
 type Settings struct {
 	Collapse CollapsePolicy
@@ -78,7 +94,22 @@ type (
 	DragAction       struct{ Mode DragMode }
 	ResizeAction     struct{ DX, DY int }
 	ReloadAction     struct{}
+	DPMSAction       struct {
+		Mode   PowerMode
+		Output string
+	}
 )
+
+func (a DPMSAction) String() string {
+	if a.Output == "" {
+		return "dpms " + powerModes[a.Mode]
+	}
+	return "dpms " + powerModes[a.Mode] + " " + a.Output
+}
+
+func (a DPMSAction) apply(s State, _ Settings) (State, []Effect, error) {
+	return s, []Effect{Power(a)}, nil
+}
 
 func (ReloadAction) String() string { return "reload" }
 
@@ -321,6 +352,24 @@ var Actions = []ActionSpec{
 		Name:    "kill",
 		Summary: "Ask the focused window to close.",
 		parse:   bare(KillAction{}),
+	},
+	{
+		Name: "dpms", Args: "<on|off|toggle> [output]",
+		Summary: "Turn outputs on or off, or one output by name; off outputs keep their windows and wake only on dpms on.",
+		parse: func(spec ActionSpec, args []string, _ string) (Action, error) {
+			if len(args) == 0 || len(args) > 2 {
+				return nil, badArgs(spec, "needs on, off or toggle and an optional output")
+			}
+			i := slices.Index(powerModes, args[0])
+			if i <= 0 {
+				return nil, badArgs(spec, "%q is not on, off or toggle", args[0])
+			}
+			a := DPMSAction{Mode: PowerMode(i)}
+			if len(args) == 2 {
+				a.Output = args[1]
+			}
+			return a, nil
+		},
 	},
 	{
 		Name:    "reload",

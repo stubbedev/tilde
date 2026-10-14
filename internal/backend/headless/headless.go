@@ -247,7 +247,8 @@ func (o *Output) Commit(s backend.OutputState) error {
 				return err
 			}
 		}
-	} else {
+	}
+	if !s.Enabled || s.Off {
 		o.frameRequested, o.presentPending = false, false
 	}
 	o.state = s
@@ -255,7 +256,7 @@ func (o *Output) Commit(s backend.OutputState) error {
 }
 
 func (o *Output) ScheduleFrame() error {
-	if !o.state.Enabled || o.removed {
+	if !o.state.Enabled || o.state.Off || o.removed {
 		return nil
 	}
 	o.frameRequested = true

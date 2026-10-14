@@ -194,6 +194,11 @@ func (r *recorder) OutputRemoved(o backend.Output) error {
 
 func (r *recorder) OutputChanged(backend.Output) error { return nil }
 
+func (r *recorder) OutputDamaged(o backend.Output) error {
+	r.log = append(r.log, "damaged "+o.Name())
+	return o.ScheduleFrame()
+}
+
 func (r *recorder) Frame(o backend.Output) error {
 	r.log = append(r.log, "frame")
 	f, err := o.BeginFrame()
@@ -379,5 +384,50 @@ func TestHotplugAndSessionPause(t *testing.T) {
 	r.settle()
 	if len(r.dev.commits) != 2 || r.dev.commits[1].flags&kdrm.AtomicAllowModeset == 0 {
 		t.Fatalf("after resume: %+v", r.dev.commits)
+	}
+}
+
+func TestPowerAndWake(t *testing.T) {
+	r := start(t)
+	o := r.b.Outputs()[0]
+	if err := o.ScheduleFrame(); err != nil {
+		t.Fatal(err)
+	}
+	r.settle()
+	state := o.State()
+	state.Off = true
+	if err := o.Commit(state); err != nil {
+		t.Fatal(err)
+	}
+	off := r.dev.commits[len(r.dev.commits)-1]
+	if off.flags != kdrm.AtomicAllowModeset || off.values[[2]uint32{10, propActive}] != 0 || !o.State().Off || len(o.buffers) == 0 {
+		t.Fatalf("power off commit %+v, state %+v", off, o.State())
+	}
+	before := len(r.dev.commits)
+	if err := o.ScheduleFrame(); err != nil {
+		t.Fatal(err)
+	}
+	r.settle()
+	if len(r.dev.commits) != before {
+		t.Fatal("an output that is off drew a frame")
+	}
+	state.Off = false
+	if err := o.Commit(state); err != nil {
+		t.Fatal(err)
+	}
+	r.settle()
+	on := r.dev.commits[len(r.dev.commits)-1]
+	if on.flags&kdrm.AtomicAllowModeset == 0 || on.values[[2]uint32{10, propActive}] != 1 || o.State().Off {
+		t.Fatalf("power on commit %+v", on)
+	}
+	r.dev.flip(t, 10, 5)
+	r.settle()
+	if err := r.b.Wake(); err != nil {
+		t.Fatal(err)
+	}
+	r.settle()
+	woke := r.dev.commits[len(r.dev.commits)-1]
+	if woke.flags&kdrm.AtomicAllowModeset == 0 || woke.values[[2]uint32{10, propModeID}] == 0 {
+		t.Fatalf("waking did not recommit the mode: %+v", woke)
 	}
 }

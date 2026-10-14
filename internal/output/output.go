@@ -100,6 +100,17 @@ func (m *Manager) Of(b backend.Output) *Output {
 	return nil
 }
 
+func (m *Manager) Owner(res *sw.WlOutput) *Output {
+	for _, o := range m.outputs {
+		for _, b := range o.bindings {
+			if b.wl == res {
+				return o
+			}
+		}
+	}
+	return nil
+}
+
 func (m *Manager) Outputs() []*Output {
 	return slices.Clone(m.outputs)
 }

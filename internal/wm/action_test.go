@@ -24,6 +24,8 @@ var everyAction = []Action{
 	MoveToWorkspaceAction{Target: WorkspaceTarget{Relative: -1}},
 	KillAction{},
 	ReloadAction{},
+	DPMSAction{Mode: PowerOff},
+	DPMSAction{Mode: PowerToggle, Output: "DP-1"},
 	ExecAction{Command: "foot -e sh -c 'echo hi'"},
 	MakeGroupAction{Layout: SplitV},
 	MakeGroupAction{Layout: Tabbed, Ephemeral: true},

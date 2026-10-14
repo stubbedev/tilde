@@ -209,6 +209,7 @@ type recorder struct {
 func (r *recorder) OutputAdded(backend.Output) error                     { return nil }
 func (r *recorder) OutputRemoved(backend.Output) error                   { return nil }
 func (r *recorder) OutputChanged(backend.Output) error                   { return nil }
+func (r *recorder) OutputDamaged(backend.Output) error                   { return nil }
 func (r *recorder) Frame(backend.Output) error                           { return nil }
 func (r *recorder) Presented(backend.Output, backend.Presentation) error { return nil }
 func (r *recorder) DeviceAdded(backend.Device) error                     { return nil }

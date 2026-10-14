@@ -315,13 +315,22 @@ func (b *Backend) Pause() {
 	b.paused = true
 }
 
+func (b *Backend) Wake() error {
+	var errs []error
+	for _, o := range b.outputs {
+		o.modeset = true
+		errs = append(errs, b.handler.OutputDamaged(o))
+	}
+	return errors.Join(errs...)
+}
+
 func (b *Backend) Resume() error {
 	b.paused = false
 	var errs []error
 	for _, o := range b.outputs {
 		o.modeset = true
 		o.queued = nil
-		errs = append(errs, o.ScheduleFrame())
+		errs = append(errs, b.handler.OutputDamaged(o))
 	}
 	return errors.Join(append(errs, b.scan())...)
 }
@@ -351,6 +360,7 @@ type Output struct {
 	mode           kdrm.Mode
 	modeBlob       uint32
 	enabled        bool
+	off            bool
 	modeset        bool
 	lit            bool
 	buffers        []*scanout
@@ -387,7 +397,7 @@ func (o *Output) Modes() []backend.Mode {
 }
 
 func (o *Output) State() backend.OutputState {
-	return backend.OutputState{Enabled: o.enabled, Mode: modeOf(o.mode)}
+	return backend.OutputState{Enabled: o.enabled, Mode: modeOf(o.mode), Off: o.enabled && o.off}
 }
 
 func (o *Output) setMode(m kdrm.Mode) error {
@@ -422,12 +432,36 @@ func (o *Output) Commit(s backend.OutputState) error {
 		return fmt.Errorf("drm: %s has no mode %+v", o.Name(), s.Mode)
 	}
 	if o.enabled && o.conn.Modes[i] == o.mode {
-		return nil
+		return o.setPower(!s.Off)
 	}
 	if err := o.setMode(o.conn.Modes[i]); err != nil {
 		return err
 	}
+	o.off = s.Off
 	return o.ScheduleFrame()
+}
+
+func (o *Output) setPower(on bool) error {
+	if on == !o.off {
+		return nil
+	}
+	if on {
+		o.off, o.modeset = false, true
+		return o.b.handler.OutputDamaged(o)
+	}
+	o.off, o.queued, o.front, o.frameRequested = true, nil, nil, false
+	if !o.lit {
+		return nil
+	}
+	r := &o.b.req
+	r.Reset()
+	o.add(o.crtc.id, o.crtc.props, "ACTIVE", 0)
+	o.add(o.primary.id, o.primary.props, "FB_ID", 0)
+	o.add(o.primary.id, o.primary.props, "CRTC_ID", 0)
+	if err := o.b.dev.Commit(r, kdrm.AtomicAllowModeset, 0); err != nil {
+		return fmt.Errorf("drm: power off %s: %w", o.Name(), err)
+	}
+	return nil
 }
 
 func (o *Output) disable() error {
@@ -459,7 +493,7 @@ func (o *Output) add(object uint32, props map[string]kdrm.Property, name string,
 }
 
 func (o *Output) ScheduleFrame() error {
-	if !o.enabled || o.b.paused {
+	if !o.enabled || o.off || o.b.paused {
 		return nil
 	}
 	o.frameRequested = true

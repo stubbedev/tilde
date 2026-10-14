@@ -33,6 +33,7 @@ func (r *recorder) note(s string) error {
 func (r *recorder) OutputAdded(o backend.Output) error   { return r.note("output+ " + o.Name()) }
 func (r *recorder) OutputRemoved(o backend.Output) error { return r.note("output- " + o.Name()) }
 func (r *recorder) OutputChanged(o backend.Output) error { return r.note("output~ " + o.Name()) }
+func (r *recorder) OutputDamaged(o backend.Output) error { return r.note("damaged " + o.Name()) }
 func (r *recorder) DeviceAdded(d backend.Device) error   { return r.note("device+ " + d.Name()) }
 func (r *recorder) DeviceRemoved(d backend.Device) error { return r.note("device- " + d.Name()) }
 

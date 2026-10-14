@@ -37,12 +37,7 @@ func (c *Compositor) layerOf(l *shell.LayerSurface) *layer {
 
 func (c *Compositor) layerOutput(l *shell.LayerSurface) *output.Output {
 	if res := l.Output(); res != nil {
-		for _, o := range c.outputs {
-			if slices.Contains(o.Resources(l.Surface().Client()), res) {
-				return o
-			}
-		}
-		return nil
+		return c.layout.Owner(res)
 	}
 	for _, o := range c.outputs {
 		if image.Pt(int(c.cursor.X), int(c.cursor.Y)).In(o.Logical()) {

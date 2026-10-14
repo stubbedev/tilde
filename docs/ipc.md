@@ -41,10 +41,11 @@ Requests must arrive within 5 seconds and be under 64 KiB.
 
 ```json
 {"name":"DP-1","description":"LG Electronics 27GL850","rect":{"x":0,"y":0,"width":2048,"height":1152},
- "scale":1.25,"mode":{"width":2560,"height":1440,"refresh_mhz":143912},"workspace":1,"focused":true}
+ "scale":1.25,"mode":{"width":2560,"height":1440,"refresh_mhz":143912},"workspace":1,"focused":true,"powered":true}
 ```
 
-`rect` is in logical pixels; `workspace` is the one the output shows.
+`rect` is in logical pixels; `workspace` is the one the output shows;
+`powered` is false while `dpms off` or an idle daemon has the output off.
 
 `workspaces`: a list of open workspaces, in ID order:
 
@@ -74,7 +75,7 @@ shows, the focused output, windows, focus, submap and layout.
 | `event` | Fields | When |
 | --- | --- | --- |
 | `dispatch` | `action` | An action ran, from a bind or from IPC |
-| `output` | `change` (`added`, `removed`, `changed`), `output` | An output appeared, went away, or changed its geometry, scale, mode or description |
+| `output` | `change` (`added`, `removed`, `changed`), `output` | An output appeared, went away, or changed its geometry, scale, mode, description or power |
 | `workspace` | `output`, `workspace` | An output shows another workspace |
 | `focusedoutput` | `output` | Focus moved to another output |
 | `open` | `window` (the full window) | A window mapped |

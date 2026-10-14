@@ -94,6 +94,7 @@ func (n *native) Start(h backend.Handler) error {
 func (n *native) OutputAdded(o backend.Output) error   { return n.handler.OutputAdded(o) }
 func (n *native) OutputRemoved(o backend.Output) error { return n.handler.OutputRemoved(o) }
 func (n *native) OutputChanged(o backend.Output) error { return n.handler.OutputChanged(o) }
+func (n *native) OutputDamaged(o backend.Output) error { return n.handler.OutputDamaged(o) }
 func (n *native) Frame(o backend.Output) error         { return n.handler.Frame(o) }
 func (n *native) DeviceAdded(d backend.Device) error   { return n.handler.DeviceAdded(d) }
 func (n *native) DeviceRemoved(d backend.Device) error { return n.handler.DeviceRemoved(d) }
@@ -149,6 +150,13 @@ func (n *native) DeviceResumed(d session.Device, fd int) error {
 		return nil
 	}
 	return n.Resume()
+}
+
+func (n *native) PrepareForSleep(sleeping bool) error {
+	if sleeping || n.Backend == nil {
+		return nil
+	}
+	return n.Wake()
 }
 
 func (n *native) ActiveChanged(active bool) error {

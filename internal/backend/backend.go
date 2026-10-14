@@ -30,6 +30,7 @@ type Handler interface {
 	OutputAdded(o Output) error
 	OutputRemoved(o Output) error
 	OutputChanged(o Output) error
+	OutputDamaged(o Output) error
 	Frame(o Output) error
 	Presented(o Output, p Presentation) error
 	DeviceAdded(d Device) error
@@ -57,6 +58,7 @@ func (m Mode) Interval() time.Duration {
 type OutputState struct {
 	Enabled bool
 	Mode    Mode
+	Off     bool
 }
 
 type Frame struct {

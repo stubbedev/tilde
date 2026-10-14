@@ -83,7 +83,7 @@ func TestDiff(t *testing.T) {
 	next.Submap = "resize"
 	next.Layout = Layout{Index: 1, Name: "Danish"}
 	want := []string{
-		`{"event":"output","change":"changed","output":{"name":"DP-1","description":"","rect":{"x":0,"y":0,"width":100,"height":50},"scale":2,"mode":{"width":0,"height":0,"refresh_mhz":0},"workspace":1,"focused":false}}`,
+		`{"event":"output","change":"changed","output":{"name":"DP-1","description":"","rect":{"x":0,"y":0,"width":100,"height":50},"scale":2,"mode":{"width":0,"height":0,"refresh_mhz":0},"workspace":1,"focused":false,"powered":false}}`,
 		`{"event":"workspace","output":"HDMI-A-1","workspace":3}`,
 		`{"event":"focusedoutput","output":"HDMI-A-1"}`,
 		`{"event":"urgent","window":2,"urgent":true}`,
@@ -100,7 +100,7 @@ func TestDiff(t *testing.T) {
 
 	gone := Snapshot{Outputs: []Output{dp1}}
 	want = []string{
-		`{"event":"output","change":"removed","output":{"name":"HDMI-A-1","description":"","rect":{"x":100,"y":0,"width":100,"height":50},"scale":1,"mode":{"width":0,"height":0,"refresh_mhz":0},"workspace":2,"focused":false}}`,
+		`{"event":"output","change":"removed","output":{"name":"HDMI-A-1","description":"","rect":{"x":100,"y":0,"width":100,"height":50},"scale":1,"mode":{"width":0,"height":0,"refresh_mhz":0},"workspace":2,"focused":false,"powered":false}}`,
 		`{"event":"close","window":1}`,
 		`{"event":"close","window":2}`,
 		`{"event":"focus","window":null}`,

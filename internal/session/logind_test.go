@@ -150,6 +150,13 @@ func (e *events) DeviceResumed(d Device, fd int) error {
 	return e.add("resumed")
 }
 
+func (e *events) PrepareForSleep(sleeping bool) error {
+	if sleeping {
+		return e.add("sleep")
+	}
+	return e.add("wake")
+}
+
 func (e *events) ActiveChanged(active bool) error {
 	if active {
 		return e.add("active")
@@ -224,8 +231,13 @@ func TestLogindSession(t *testing.T) {
 		}
 	}
 	f.props.SetMust(sessionIface, "Active", false)
-	waitFor(t, "the signals", func() bool { return len(ev.seen()) == 4 })
-	if got := ev.seen(); !slices.Equal(got, []string{"paused", "paused", "resumed", "inactive"}) {
+	for _, sleeping := range []bool{true, false} {
+		if err := f.conn.Emit(managerPath, managerIface+".PrepareForSleep", sleeping); err != nil {
+			t.Fatal(err)
+		}
+	}
+	waitFor(t, "the signals", func() bool { return len(ev.seen()) == 6 })
+	if got := ev.seen(); !slices.Equal(got, []string{"paused", "paused", "resumed", "inactive", "sleep", "wake"}) {
 		t.Fatalf("events %v", got)
 	}
 	waitFor(t, "the pause acknowledged", func() bool { return slices.Contains(f.seen(), "PauseDeviceComplete") })

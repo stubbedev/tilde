@@ -86,7 +86,7 @@ func TestEveryActionThroughIPC(t *testing.T) {
 	actions := []string{
 		"focus left", "move right", "makegroup tab ephemeral", "togglefloating", "togglefloating",
 		"fullscreen", "fullscreen", "resizeactive 10 0", "submap resize", "submap reset",
-		"movetoworkspace 3", "workspace 3", "workspace e-1", "exec true", "reload", "kill",
+		"movetoworkspace 3", "workspace 3", "workspace e-1", "exec true", "reload", "dpms off", "dpms toggle HEADLESS-1", "kill",
 	}
 	mouseOnly := []string{"movewindow", "resizewindow"}
 	for _, spec := range wm.Actions {

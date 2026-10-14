@@ -45,6 +45,7 @@ type Listener interface {
 	DevicePaused(d Device) error
 	DeviceResumed(d Device, fd int) error
 	ActiveChanged(active bool) error
+	PrepareForSleep(sleeping bool) error
 }
 
 type Logind struct {
@@ -111,6 +112,7 @@ func Open(l *loop.Loop, address string, getenv func(string) string, listener Lis
 	for _, opts := range [][]dbus.MatchOption{
 		{dbus.WithMatchObjectPath(path), dbus.WithMatchInterface(sessionIface)},
 		{dbus.WithMatchObjectPath(path), dbus.WithMatchInterface(propsIface), dbus.WithMatchMember("PropertiesChanged")},
+		{dbus.WithMatchObjectPath(managerPath), dbus.WithMatchInterface(managerIface), dbus.WithMatchMember("PrepareForSleep")},
 	} {
 		if err := conn.AddMatchSignal(opts...); err != nil {
 			return nil, fmt.Errorf("session: subscribe to %s: %w", path, err)
@@ -176,6 +178,12 @@ func (lg *Logind) handle(sig *dbus.Signal) error {
 			return fmt.Errorf("session: ResumeDevice: %w", err)
 		}
 		return lg.listener.DeviceResumed(d, int(fd))
+	case managerIface + ".PrepareForSleep":
+		var sleeping bool
+		if err := dbus.Store(sig.Body, &sleeping); err != nil {
+			return fmt.Errorf("session: PrepareForSleep: %w", err)
+		}
+		return lg.listener.PrepareForSleep(sleeping)
 	case propsIface + ".PropertiesChanged":
 		var iface string
 		var changed map[string]dbus.Variant

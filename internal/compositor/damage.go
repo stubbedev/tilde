@@ -135,6 +135,10 @@ func (sc *scene) presented() {
 	sc.drawn = true
 }
 
+func (sc *scene) invalidate() {
+	sc.drawn = false
+}
+
 func (sc *scene) skipped() {
 	sc.cur.ops = sc.cur.ops[:0]
 }

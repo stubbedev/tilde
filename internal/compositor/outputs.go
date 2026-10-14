@@ -116,7 +116,7 @@ func abs(v int32) int32 {
 
 func (c *Compositor) commitOutput(b backend.Output, rule OutputRule) (bool, error) {
 	current := b.State()
-	next := backend.OutputState{Enabled: !rule.Disabled, Mode: current.Mode}
+	next := backend.OutputState{Enabled: !rule.Disabled, Mode: current.Mode, Off: current.Off}
 	if next.Enabled {
 		m, err := rule.mode().choose(b.Modes(), current.Mode)
 		if err != nil {
@@ -217,7 +217,7 @@ func (c *Compositor) disable(o *output.Output) error {
 	errs := []error{c.closeLayers(o), o.Remove()}
 	delete(c.usable, o)
 	delete(c.scenes, o)
-	errs = append(errs, c.dropLabels(o))
+	errs = append(errs, c.dropLabels(o), c.power.Removed(o))
 	for _, e := range c.entered {
 		if slices.Contains(e.outputs, o) {
 			errs = append(errs, e.s.Client().Sent(e.s.Leave(o.Resources(e.s.Client()))))
@@ -236,6 +236,15 @@ func (c *Compositor) disable(o *output.Output) error {
 	c.wm = s
 	errs = append(errs, c.relayout(), c.syncAreas())
 	return errors.Join(errs...)
+}
+
+func (c *Compositor) OutputDamaged(b backend.Output) error {
+	o := c.output(b)
+	if o == nil {
+		return fmt.Errorf("compositor: damage on unknown output %s", b.Name())
+	}
+	c.sceneOf(o).invalidate()
+	return c.schedule(o)
 }
 
 func (c *Compositor) OutputChanged(b backend.Output) error {
