@@ -156,6 +156,12 @@ type Target interface {
 	Size() image.Point
 }
 
+type ReadTarget interface {
+	Target
+	Read(pix []byte, stride int) error
+	Destroy() error
+}
+
 type Texture interface {
 	Size() image.Point
 	Update(stride int, data []byte, damage Region) error

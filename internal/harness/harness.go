@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -51,6 +52,14 @@ func softBackend(l *loop.Loop) (*headless.Backend, error) {
 func StartWith(t *testing.T, configure func(*compositor.Config), modes ...backend.Mode) *Harness {
 	t.Helper()
 	return start(t, softBackend, configure, true, modes...)
+}
+
+func StartWithCursorPlanes(t *testing.T, size image.Point, configure func(*compositor.Config), modes ...backend.Mode) *Harness {
+	t.Helper()
+	return start(t, func(l *loop.Loop) (*headless.Backend, error) {
+		b := headless.New(l)
+		return b, b.SetCursorPlanes(size)
+	}, configure, true, modes...)
 }
 
 func StartUntraced(t *testing.T, modes ...backend.Mode) *Harness {

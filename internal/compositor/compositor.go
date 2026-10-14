@@ -130,6 +130,10 @@ type Compositor struct {
 	touches         map[int32]*output.Output
 	cursors         CursorConfig
 	pointers        map[cursorKey]*cursorTexture
+	hwCursors       map[*output.Output]*hwCursor
+	cursorGen       uint64
+	cursorOps       frame
+	cursorShown     []*surface.Surface
 }
 
 type entered struct {
@@ -180,6 +184,7 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		loop:       l,
 		display:    display,
 		pointers:   map[cursorKey]*cursorTexture{},
+		hwCursors:  map[*output.Output]*hwCursor{},
 		usable:     map[*output.Output]image.Rectangle{},
 		nextWindow: 1,
 	}

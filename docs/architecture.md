@@ -113,6 +113,17 @@ shell sets `__EGL_VENDOR_LIBRARY_DIRS` to Mesa's vendor and
 locally and in CI. Run them with both unset to exercise the machine's
 driver: the dmabuf test only runs where a vendor drives a render node.
 
+The pointer rides a cursor plane where the output has one (#83). The
+compositor renders the cursor image, a theme cursor or a client's cursor
+surface, into an offscreen target, and the drm backend copies it into a
+linear ARGB8888 dumb buffer, the only buffer every cursor plane takes:
+NVIDIA's cursor planes scan out linear only, and its EGL renders to no
+linear modifier. Pointer motion then moves the plane in an atomic commit of
+its own, or in the next frame's commit, and repaints nothing. An image
+larger than the plane, or a plane whose test commit refuses it, puts the
+cursor back into the frame; a refusal is logged and lasts for the output's
+lifetime.
+
 ## IPC
 
 `tildectl`, bars and scripts talk to tilde over a Unix socket at

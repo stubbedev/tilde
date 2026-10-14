@@ -210,7 +210,7 @@ func (a *fakeAlloc) renderer() render.Renderer { return a.soft }
 
 func (a *fakeAlloc) renderable(uint32) ([]uint64, error) { return []uint64{0, 7, 9}, nil }
 
-func (a *fakeAlloc) offscreen(size image.Point) (readTarget, error) {
+func (a *fakeAlloc) offscreen(size image.Point) (render.ReadTarget, error) {
 	return soft.NewBuffer(size.X, size.Y), nil
 }
 
@@ -233,6 +233,7 @@ func (a *fakeAlloc) fence() (int, error) {
 func (a *fakeAlloc) close() error { return nil }
 
 type recorder struct {
+	during   func(o backend.Output) error
 	log      []string
 	outputs  []backend.Output
 	presents []backend.Presentation
@@ -258,6 +259,11 @@ func (r *recorder) OutputDamaged(o backend.Output) error {
 
 func (r *recorder) Frame(o backend.Output) error {
 	r.log = append(r.log, "frame")
+	if r.during != nil {
+		if err := r.during(o); err != nil {
+			return err
+		}
+	}
 	f, err := o.BeginFrame()
 	if err != nil {
 		return err
@@ -613,6 +619,29 @@ func TestFramesCarryTheCursor(t *testing.T) {
 	}
 	if pix := o.cursor.pending.dumb.Pix; [4]byte(pix[:4]) != [4]byte{0, 0, 0xff, 0xff} || pix[4] != 0 {
 		t.Fatalf("the cursor buffer starts %v", pix[:8])
+	}
+}
+
+func TestCursorChangesDuringAFrameJoinIt(t *testing.T) {
+	r := start(t)
+	o := r.lit()
+	if err := r.setCursor(o, image.Point{}); err != nil {
+		t.Fatal(err)
+	}
+	r.dev.flip(t, 10, 2)
+	r.settle()
+	r.dev.commits = nil
+	cp, _ := o.CursorPlane()
+	r.rec.during = func(backend.Output) error { return cp.MoveCursor(image.Pt(9, 9)) }
+	if err := o.ScheduleFrame(); err != nil {
+		t.Fatal(err)
+	}
+	r.settle()
+	if len(r.dev.commits) != 2 || r.dev.commits[1].values[[2]uint32{40, propFB}] == 0 {
+		t.Fatalf("a move inside a frame committed %+v", r.dev.commits)
+	}
+	if _, at, _ := cursorAt(r.dev.commits[1]); at != image.Pt(9, 9) {
+		t.Fatalf("the frame put the cursor at %v", at)
 	}
 }
 

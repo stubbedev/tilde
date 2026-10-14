@@ -32,6 +32,7 @@ type syncRenderer interface {
 }
 
 func (c *Compositor) Committed(s *surface.Surface) error {
+	c.cursorCommitted(s)
 	if d := s.Damage(); !d.Empty() {
 		for _, sc := range c.scenes {
 			sc.damaged(s, d)

@@ -188,6 +188,7 @@ func (c *Compositor) enable(b backend.Output, rule OutputRule) error {
 		return err
 	}
 	c.outputs = append(c.outputs, o)
+	c.addCursorPlane(o)
 	if err := c.relayout(); err != nil {
 		return err
 	}
@@ -220,6 +221,7 @@ func (c *Compositor) disable(o *output.Output) error {
 	b := o.Backend()
 	c.outputs = slices.DeleteFunc(c.outputs, func(x *output.Output) bool { return x == o })
 	delete(c.shown, o)
+	delete(c.hwCursors, o)
 	errs := []error{c.closeLayers(o), o.Remove()}
 	delete(c.usable, o)
 	delete(c.scenes, o)

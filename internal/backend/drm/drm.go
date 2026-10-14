@@ -54,17 +54,11 @@ type scanout struct {
 	presented uint64
 }
 
-type readTarget interface {
-	render.Target
-	Read(pix []byte, stride int) error
-	Destroy() error
-}
-
 type allocator interface {
 	renderer() render.Renderer
 	renderable(format uint32) ([]uint64, error)
 	allocate(size image.Point, format uint32, modifiers []uint64) (*scanout, error)
-	offscreen(size image.Point) (readTarget, error)
+	offscreen(size image.Point) (render.ReadTarget, error)
 	fence() (int, error)
 	close() error
 }
@@ -429,6 +423,7 @@ type Output struct {
 	front          *scanout
 	frameRequested bool
 	flipping       bool
+	framing        bool
 	idleQueued     bool
 	presented      uint64
 }
@@ -580,8 +575,10 @@ func (o *Output) maybeFrame() {
 		if !o.frameRequested || !o.enabled || o.flipping || o.b.paused || o.b.closed {
 			return nil
 		}
-		o.frameRequested = false
-		return errors.Join(o.b.handler.Frame(o), o.flushCursor())
+		o.frameRequested, o.framing = false, true
+		err := o.b.handler.Frame(o)
+		o.framing = false
+		return errors.Join(err, o.flushCursor())
 	})
 }
 
@@ -699,7 +696,7 @@ func (o *Output) test(flags uint32) error {
 
 func (o *Output) flushCursor() error {
 	c := o.cursor
-	if c == nil || !c.dirty || !o.lit || o.off || o.b.paused || o.flipping || o.frameRequested || o.drawing != nil {
+	if c == nil || !c.dirty || !o.lit || o.off || o.b.paused || o.flipping || o.frameRequested || o.framing {
 		return nil
 	}
 	r := &o.b.req

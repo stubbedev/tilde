@@ -193,7 +193,7 @@ func (c *Compositor) pointerMoved(at time.Duration) error {
 	if f := c.seat.PointerFocus(); f != nil && c.seat.PointerGrabbed() {
 		if origin, ok := c.originOf(f); ok {
 			local := c.cursor.sub(origin)
-			return c.seat.PointerMotion(at, local.X, local.Y)
+			return errors.Join(c.seat.PointerMotion(at, local.X, local.Y), c.cursorMoved())
 		}
 	}
 	s, local, w := c.pointerTarget()
@@ -206,7 +206,7 @@ func (c *Compositor) pointerMoved(at time.Duration) error {
 	if w != nil && c.grabClient() == nil && (c.active != w || c.seat.Focus() != w.toplevel.Surface()) {
 		err = errors.Join(err, c.focusWindow(w))
 	}
-	return errors.Join(err, c.scheduleAll())
+	return errors.Join(err, c.cursorMoved())
 }
 
 func (c *Compositor) pointerTarget() (*surface.Surface, point, *window) {

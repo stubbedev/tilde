@@ -26,7 +26,10 @@ type inputRig struct {
 }
 
 func startInput(t *testing.T) *inputRig {
-	h := Start(t, small)
+	return inputOn(t, Start(t, small))
+}
+
+func inputOn(t *testing.T, h *Harness) *inputRig {
 	c := testclient.Connect(t, h.Socket())
 	_, in := c.Seat()
 	w := c.Window("win", quadrants)

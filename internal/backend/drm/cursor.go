@@ -8,6 +8,7 @@ import (
 
 	"github.com/stubbedev/tilde/internal/backend"
 	kdrm "github.com/stubbedev/tilde/internal/drm"
+	"github.com/stubbedev/tilde/internal/render"
 )
 
 type cursorBuffer struct {
@@ -18,7 +19,7 @@ type cursorBuffer struct {
 type cursor struct {
 	o                       *Output
 	plane                   *plane
-	target                  readTarget
+	target                  render.ReadTarget
 	buffers                 []*cursorBuffer
 	pending, queued, front  *cursorBuffer
 	hotspot, at             image.Point

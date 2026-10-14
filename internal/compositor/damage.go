@@ -40,13 +40,25 @@ func (f *frame) drawSurface(s *surface.Surface, t render.Texture, src render.FRe
 }
 
 func (f *frame) replay(p render.Pass) {
+	f.replayFrom(p, image.Point{})
+}
+
+func (f *frame) replayFrom(p render.Pass, origin image.Point) {
 	for _, op := range f.ops {
 		if op.fill {
-			p.FillRect(op.dst, op.color)
+			p.FillRect(op.dst.Sub(origin), op.color)
 			continue
 		}
-		p.DrawTexture(op.tex, op.src, op.dst, op.transform, op.alpha)
+		p.DrawTexture(op.tex, op.src, op.dst.Sub(origin), op.transform, op.alpha)
 	}
+}
+
+func (f *frame) bounds() image.Rectangle {
+	var r image.Rectangle
+	for _, op := range f.ops {
+		r = r.Union(op.dst)
+	}
+	return r
 }
 
 type scene struct {

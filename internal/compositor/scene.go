@@ -81,8 +81,16 @@ func (c *Compositor) render(o *output.Output) error {
 		shown = c.drawPopups(pass, o, c.layerPopups(e), shown)
 	}
 	shown = c.drawDragIcon(pass, o, shown)
-	shown, err := c.drawCursor(pass, o, shown)
+	placed, err := c.placeCursor(o)
 	if err != nil {
+		return err
+	}
+	if hw, ok := c.hwCursors[o]; ok {
+		hw.inFrame = !placed
+	}
+	if placed {
+		shown = append(shown, c.cursorShown...)
+	} else if shown, err = c.drawCursor(pass, o, shown); err != nil {
 		return err
 	}
 	c.shown[o] = shown

@@ -18,17 +18,18 @@ import (
 )
 
 type Backend struct {
-	loop     *loop.Loop
-	renderer render.Renderer
-	gpu      *gpuRenderer
-	handler  backend.Handler
-	outputs  []*Output
-	next     int
-	keyboard *Keyboard
-	pointer  *Pointer
-	touch    *Touch
-	switches *Switches
-	closed   bool
+	loop       *loop.Loop
+	renderer   render.Renderer
+	gpu        *gpuRenderer
+	handler    backend.Handler
+	outputs    []*Output
+	next       int
+	keyboard   *Keyboard
+	pointer    *Pointer
+	touch      *Touch
+	switches   *Switches
+	cursorSize image.Point
+	closed     bool
 }
 
 func New(l *loop.Loop) *Backend {
@@ -172,6 +173,9 @@ func (b *Backend) AddNamedOutput(name string, modes ...backend.Mode) (*Output, e
 	if err := o.resize(current.Size); err != nil {
 		return nil, err
 	}
+	if b.cursorSize != (image.Point{}) {
+		o.cursor = &Cursor{o: o}
+	}
 	var err error
 	if o.timer, err = b.loop.AddTimer(o.vblank); err != nil {
 		return nil, err
@@ -196,7 +200,11 @@ func (b *Backend) RemoveOutput(o *Output) error {
 	if b.handler != nil {
 		errs = append(errs, b.handler.OutputRemoved(o))
 	}
-	return errors.Join(append(errs, o.timer.Remove(), o.freeTarget())...)
+	errs = append(errs, o.timer.Remove(), o.freeTarget())
+	if o.cursor != nil {
+		errs = append(errs, o.cursor.destroy())
+	}
+	return errors.Join(errs...)
 }
 
 type Output struct {
@@ -218,6 +226,7 @@ type Output struct {
 	frames         uint64
 	damage         render.Region
 	removed        bool
+	cursor         *Cursor
 }
 
 func (o *Output) Name() string {
@@ -286,10 +295,6 @@ func (o *Output) BeginFrame() (backend.Frame, error) {
 	return backend.Frame{Renderer: o.backend.renderer, Target: o.target, Age: age}, nil
 }
 
-func (o *Output) CursorPlane() (backend.CursorPlane, error) {
-	return nil, backend.ErrNoCursorPlanes
-}
-
 func (o *Output) Present(damage render.Region) error {
 	if !o.inFrame {
 		return fmt.Errorf("headless: present on %s without BeginFrame", o.name)
@@ -319,8 +324,16 @@ func (o *Output) LastDamage() render.Region {
 	return slices.Clone(o.damage)
 }
 
-func (o *Output) Snapshot() *soft.Buffer {
+func (o *Output) Primary() *soft.Buffer {
 	return &soft.Buffer{Pix: slices.Clone(o.buffer.Pix), Stride: o.buffer.Stride, W: o.buffer.W, H: o.buffer.H}
+}
+
+func (o *Output) Snapshot() *soft.Buffer {
+	snap := o.Primary()
+	if o.cursor != nil {
+		o.cursor.composite(snap)
+	}
+	return snap
 }
 
 func (o *Output) arm() error {
