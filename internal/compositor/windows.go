@@ -184,9 +184,14 @@ func (c *Compositor) settle(w *window, activated bool) error {
 	return c.configure(w.toplevel, want, scale)
 }
 
+func (c *Compositor) floats(t *shell.Toplevel) (bool, image.Point) {
+	d := wm.Decide(c.rules, t.AppID(), t.Title())
+	return d.Mode == wm.RuleFloat || (t.Parent() != nil && d.Mode != wm.RuleTile), d.Size
+}
+
 func (c *Compositor) ToplevelInitialCommit(t *shell.Toplevel) error {
-	if t.Parent() != nil {
-		return c.configure(t, shell.State{States: []shell.ToplevelState{sxdg.XdgToplevelStateActivated}}, 0)
+	if float, size := c.floats(t); float {
+		return c.configure(t, shell.State{Size: size, States: []shell.ToplevelState{sxdg.XdgToplevelStateActivated}}, 0)
 	}
 	s, err := c.wm.MapWindow(c.nextWindow, c.settings.Autotile)
 	if err != nil {
@@ -201,8 +206,11 @@ func (c *Compositor) ToplevelInitialCommit(t *shell.Toplevel) error {
 	return fmt.Errorf("compositor: the window manager did not place new window %d", c.nextWindow)
 }
 
-func (c *Compositor) transientRect(t *shell.Toplevel) image.Rectangle {
-	size := t.Geometry().Size().Add(image.Pt(2*c.decor.BorderWidth, 2*c.decor.BorderWidth))
+func (c *Compositor) floatRect(t *shell.Toplevel, size image.Point) image.Rectangle {
+	if size == (image.Point{}) {
+		size = t.Geometry().Size()
+	}
+	size = size.Add(image.Pt(2*c.decor.BorderWidth, 2*c.decor.BorderWidth))
 	over := image.Rectangle{}
 	if p := c.windowOf(t.Parent()); p != nil {
 		over = p.tile
@@ -243,8 +251,8 @@ func (c *Compositor) ToplevelMapped(t *shell.Toplevel) error {
 	c.nextWindow++
 	var s wm.State
 	var err error
-	if t.Parent() != nil {
-		s, err = c.wm.MapFloating(w.id, c.transientRect(t))
+	if float, size := c.floats(t); float {
+		s, err = c.wm.MapFloating(w.id, c.floatRect(t, size))
 	} else {
 		s, err = c.wm.MapWindow(w.id, c.settings.Autotile)
 	}

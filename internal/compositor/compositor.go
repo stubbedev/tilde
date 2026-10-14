@@ -38,6 +38,7 @@ type Config struct {
 	Report func(error)
 	Decor  Decor
 	Font   *gtext.Typeface
+	Rules  []wm.Rule
 }
 
 type CursorConfig struct {
@@ -76,6 +77,7 @@ type Compositor struct {
 	bindButton  uint32
 	wm          wm.State
 	settings    wm.Settings
+	rules       []wm.Rule
 	decor       Decor
 	font        *gtext.Typeface
 	labels      map[*output.Output]map[labelKey]*label
@@ -117,6 +119,7 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		touches:    map[int32]*output.Output{},
 		cursors:    cfg.Cursor,
 		settings:   cfg.WM,
+		rules:      cfg.Rules,
 		decor:      cfg.Decor,
 		font:       cfg.Font,
 		labels:     map[*output.Output]map[labelKey]*label{},

@@ -3,6 +3,7 @@ package harness
 import (
 	"errors"
 	"image"
+	"regexp"
 	"slices"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 	cwlr "github.com/stubbedev/tilde/internal/protocol/client/wlrlayershell"
 	cxdg "github.com/stubbedev/tilde/internal/protocol/client/xdgshell"
 	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/tilde/internal/wm"
 )
 
 var (
@@ -117,4 +119,27 @@ func TestMouseDragsMoveAndResize(t *testing.T) {
 	c.DispatchUntil("a floating window", func() bool { return right.Logical == image.Pt(80, 50) })
 	drag(btnLeft, image.Pt(80, 50), image.Pt(100, 60))
 	h.Eventually("the floating window moved by the drag", showing(135, 80, blueColor))
+}
+
+func TestWindowRulesFloatAndSize(t *testing.T) {
+	steam := regexp.MustCompile(`^tilde\.testclient$`)
+	h := StartWith(t, func(cfg *compositor.Config) {
+		cfg.Rules = []wm.Rule{
+			{AppID: steam, Mode: wm.RuleFloat},
+			{AppID: steam, Title: regexp.MustCompile(`^Steam$`), Mode: wm.RuleTile},
+			{AppID: steam, Title: regexp.MustCompile(`^Friends List$`), Size: image.Pt(40, 90)},
+		}
+	}, small)
+	c := testclient.Connect(t, h.Socket())
+	main := c.Window("Steam", testclient.Fill(0, 0, 0xff))
+	c.DispatchUntil("the main window to map", main.Mapped)
+	if main.Logical != small.Size || !slices.Contains(main.States, cxdg.XdgToplevelStateTiledLeft) {
+		t.Fatalf("the main window is %v %v; the tile rule wins", main.Logical, main.States)
+	}
+	friends := c.Window("Friends List", testclient.Fill(0xff, 0, 0))
+	c.DispatchUntil("the friends list to map", friends.Mapped)
+	if friends.Logical != image.Pt(40, 90) || slices.Contains(friends.States, cxdg.XdgToplevelStateTiledLeft) {
+		t.Fatalf("the friends list is %v %v, want floating at 40x90", friends.Logical, friends.States)
+	}
+	h.Eventually("the friends list centred", showing(70, 20, blueColor))
 }
