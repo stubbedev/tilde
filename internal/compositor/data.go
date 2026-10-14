@@ -9,7 +9,6 @@ import (
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/data"
 	"github.com/stubbedev/tilde/internal/output"
-	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/surface"
 )
@@ -48,7 +47,7 @@ func (c *Compositor) dragMotion(at time.Duration) error {
 	return c.drag.Motion(s, local.X, local.Y, at)
 }
 
-func (c *Compositor) drawDragIcon(pass render.Pass, o *output.Output, shown []*surface.Surface) []*surface.Surface {
+func (c *Compositor) drawDragIcon(pass *frame, o *output.Output, shown []*surface.Surface) []*surface.Surface {
 	if c.drag == nil {
 		return shown
 	}

@@ -184,6 +184,7 @@ func (c *Compositor) disable(o *output.Output) error {
 	delete(c.shown, o)
 	errs := []error{c.closeLayers(o), o.Remove()}
 	delete(c.usable, o)
+	delete(c.scenes, o)
 	errs = append(errs, c.dropLabels(o))
 	for _, e := range c.entered {
 		if slices.Contains(e.outputs, o) {

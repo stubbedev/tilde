@@ -71,6 +71,7 @@ func (o *Output) resize(size image.Point) error {
 		return err
 	}
 	o.buffer = soft.NewBuffer(size.X, size.Y)
+	o.drawn = false
 	if o.backend.gpu == nil {
 		o.target = o.buffer
 		return nil
@@ -199,6 +200,7 @@ type Output struct {
 	state          backend.OutputState
 	buffer         *soft.Buffer
 	target         render.Target
+	drawn          bool
 	timer          *loop.Timer
 	armed          bool
 	frameRequested bool
@@ -207,6 +209,8 @@ type Output struct {
 	lastVblank     time.Duration
 	seq            uint64
 	presents       uint64
+	frames         uint64
+	damage         render.Region
 	removed        bool
 }
 
@@ -258,24 +262,30 @@ func (o *Output) ScheduleFrame() error {
 	return o.arm()
 }
 
-func (o *Output) BeginFrame() (render.Renderer, render.Target, error) {
+func (o *Output) BeginFrame() (backend.Frame, error) {
 	switch {
 	case o.removed:
-		return nil, nil, fmt.Errorf("headless: frame on removed output %s", o.name)
+		return backend.Frame{}, fmt.Errorf("headless: frame on removed output %s", o.name)
 	case !o.state.Enabled:
-		return nil, nil, fmt.Errorf("headless: frame on disabled output %s", o.name)
+		return backend.Frame{}, fmt.Errorf("headless: frame on disabled output %s", o.name)
 	case o.inFrame:
-		return nil, nil, fmt.Errorf("headless: %s already has a frame in progress", o.name)
+		return backend.Frame{}, fmt.Errorf("headless: %s already has a frame in progress", o.name)
 	}
 	o.inFrame = true
-	return o.backend.renderer, o.target, nil
+	age := 0
+	if o.drawn {
+		age = 1
+	}
+	return backend.Frame{Renderer: o.backend.renderer, Target: o.target, Age: age}, nil
 }
 
-func (o *Output) Present(render.Region) error {
+func (o *Output) Present(damage render.Region) error {
 	if !o.inFrame {
 		return fmt.Errorf("headless: present on %s without BeginFrame", o.name)
 	}
 	o.inFrame = false
+	o.drawn = true
+	o.damage = append(o.damage[:0], damage...)
 	if fb, ok := o.target.(*gles.Framebuffer); ok {
 		if err := fb.Read(o.buffer.Pix, o.buffer.Stride); err != nil {
 			return fmt.Errorf("headless: read back %s: %w", o.name, err)
@@ -288,6 +298,14 @@ func (o *Output) Present(render.Region) error {
 
 func (o *Output) Presents() uint64 {
 	return o.presents
+}
+
+func (o *Output) Frames() uint64 {
+	return o.frames
+}
+
+func (o *Output) LastDamage() render.Region {
+	return slices.Clone(o.damage)
 }
 
 func (o *Output) Snapshot() *soft.Buffer {
@@ -327,6 +345,7 @@ func (o *Output) vblank() error {
 	}
 	if o.frameRequested {
 		o.frameRequested = false
+		o.frames++
 		return h.Frame(o)
 	}
 	return nil

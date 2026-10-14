@@ -296,6 +296,10 @@ func (l *Loop) BeforeWait(f func() error) {
 	l.before = append(l.before, f)
 }
 
+func (l *Loop) Wakeups() int {
+	return l.wakeups
+}
+
 func (l *Loop) Stop() {
 	l.stopped = true
 }

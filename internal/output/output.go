@@ -126,7 +126,10 @@ func (o *Output) Logical() image.Rectangle {
 }
 
 func (o *Output) Resources(c *server.Client) []*sw.WlOutput {
-	var out []*sw.WlOutput
+	return o.AppendResources(nil, c)
+}
+
+func (o *Output) AppendResources(out []*sw.WlOutput, c *server.Client) []*sw.WlOutput {
 	for _, b := range o.bindings {
 		if b.client == c {
 			out = append(out, b.wl)

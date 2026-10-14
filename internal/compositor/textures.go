@@ -32,6 +32,11 @@ type syncRenderer interface {
 }
 
 func (c *Compositor) Committed(s *surface.Surface) error {
+	if d := s.Damage(); !d.Empty() {
+		for _, sc := range c.scenes {
+			sc.damaged(s, d)
+		}
+	}
 	if s.Attached() {
 		if err := c.attach(s); err != nil {
 			return err
@@ -146,6 +151,9 @@ func (c *Compositor) Destroyed(s *surface.Surface) error {
 	}
 	if err := c.dropTexture(s); err != nil {
 		return err
+	}
+	for _, sc := range c.scenes {
+		sc.forget(s)
 	}
 	for o, shown := range c.shown {
 		c.shown[o] = slices.DeleteFunc(shown, func(x *surface.Surface) bool { return x == s })

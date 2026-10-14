@@ -19,6 +19,7 @@ import (
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/output"
+	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/seat"
 	"github.com/stubbedev/tilde/internal/server"
@@ -73,55 +74,57 @@ func DefaultConfig(keymap *xkb.Keymap, font *gtext.Typeface) Config {
 }
 
 type Compositor struct {
-	outputs     []*output.Output
-	layout      *output.Manager
-	renderer    render.Renderer
-	surfaces    *surface.Manager
-	shm         *shm.Manager
-	seat        *seat.Seat
-	shell       *shell.Shell
-	textures    map[*surface.Surface]*texture
-	imported    map[*dmabuf.Buffer]render.Texture
-	dmabuf      *dmabuf.Manager
-	importer    dmabufRenderer
-	drm         *drm.Device
-	windows     []*window
-	stack       []*window
-	interaction *interaction
-	bindButton  uint32
-	wm          wm.State
-	settings    wm.Settings
-	rules       []wm.Rule
-	decor       Decor
-	font        *gtext.Typeface
-	labels      map[*output.Output]map[labelKey]*label
-	tabBars     []wm.TabBar
-	binds       binds.Map
-	submap      string
-	held        []uint32
-	repeat      repeat
-	report      func(error)
-	seatConfig  seat.Config
-	outputRules []OutputRule
-	disabled    []backend.Output
-	reload      func() error
-	dispatched  func(wm.Action)
-	loop        *loop.Loop
-	display     *server.Display
-	nextWindow  wm.WindowID
-	active      *window
-	consumed    []uint32
-	layers      []*layer
-	data        *data.Manager
-	drag        *data.Drag
-	usable      map[*output.Output]image.Rectangle
-	layerFocus  *shell.LayerSurface
-	shown       map[*output.Output][]*surface.Surface
-	entered     []*entered
-	cursor      point
-	touches     map[int32]*output.Output
-	cursors     CursorConfig
-	pointers    map[cursorKey]*cursorTexture
+	outputs         []*output.Output
+	layout          *output.Manager
+	renderer        render.Renderer
+	surfaces        *surface.Manager
+	shm             *shm.Manager
+	seat            *seat.Seat
+	shell           *shell.Shell
+	textures        map[*surface.Surface]*texture
+	imported        map[*dmabuf.Buffer]render.Texture
+	dmabuf          *dmabuf.Manager
+	importer        dmabufRenderer
+	drm             *drm.Device
+	windows         []*window
+	stack           []*window
+	interaction     *interaction
+	bindButton      uint32
+	wm              wm.State
+	settings        wm.Settings
+	rules           []wm.Rule
+	decor           Decor
+	font            *gtext.Typeface
+	labels          map[*output.Output]map[labelKey]*label
+	scenes          map[*output.Output]*scene
+	outputResources []*sw.WlOutput
+	tabBars         []wm.TabBar
+	binds           binds.Map
+	submap          string
+	held            []uint32
+	repeat          repeat
+	report          func(error)
+	seatConfig      seat.Config
+	outputRules     []OutputRule
+	disabled        []backend.Output
+	reload          func() error
+	dispatched      func(wm.Action)
+	loop            *loop.Loop
+	display         *server.Display
+	nextWindow      wm.WindowID
+	active          *window
+	consumed        []uint32
+	layers          []*layer
+	data            *data.Manager
+	drag            *data.Drag
+	usable          map[*output.Output]image.Rectangle
+	layerFocus      *shell.LayerSurface
+	shown           map[*output.Output][]*surface.Surface
+	entered         []*entered
+	cursor          point
+	touches         map[int32]*output.Output
+	cursors         CursorConfig
+	pointers        map[cursorKey]*cursorTexture
 }
 
 type entered struct {
@@ -167,6 +170,7 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		shown:      map[*output.Output][]*surface.Surface{},
 		touches:    map[int32]*output.Output{},
 		labels:     map[*output.Output]map[labelKey]*label{},
+		scenes:     map[*output.Output]*scene{},
 		loop:       l,
 		display:    display,
 		pointers:   map[cursorKey]*cursorTexture{},
@@ -293,11 +297,13 @@ func (c *Compositor) Outputs() []*output.Output {
 }
 
 func (c *Compositor) scheduleAll() error {
-	var errs []error
+	var err error
 	for _, o := range c.outputs {
-		errs = append(errs, c.schedule(o))
+		if e := c.schedule(o); e != nil {
+			err = errors.Join(err, e)
+		}
 	}
-	return errors.Join(errs...)
+	return err
 }
 
 func (c *Compositor) schedule(o *output.Output) error {

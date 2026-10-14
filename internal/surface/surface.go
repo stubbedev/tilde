@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"iter"
 	"slices"
 
 	sfs "github.com/stubbedev/tilde/internal/protocol/server/fractionalscale"
@@ -337,6 +338,13 @@ func (s *Surface) Opaque() region.Region {
 	return s.current.opaque
 }
 
+func (s *Surface) AcceptsInput(p image.Point) bool {
+	if !p.In(image.Rectangle{Max: s.Size()}) {
+		return false
+	}
+	return s.current.inputInfinite || s.current.input.Contains(p)
+}
+
 func (s *Surface) Input() region.Region {
 	bounds := image.Rectangle{Max: s.Size()}
 	if s.current.inputInfinite {
@@ -345,8 +353,18 @@ func (s *Surface) Input() region.Region {
 	return s.current.input.Intersect(bounds)
 }
 
-func (s *Surface) Stack() []*Surface {
-	return slices.Clone(s.order)
+func (s *Surface) Stack() iter.Seq[*Surface] {
+	return slices.Values(s.order)
+}
+
+func (s *Surface) StackTopDown() iter.Seq[*Surface] {
+	return func(yield func(*Surface) bool) {
+		for _, member := range slices.Backward(s.order) {
+			if !yield(member) {
+				return
+			}
+		}
+	}
 }
 
 func (s *Surface) Subsurface() *Subsurface {

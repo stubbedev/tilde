@@ -108,7 +108,7 @@ func (c *Compositor) evictLabels(o *output.Output) error {
 	return errors.Join(errs...)
 }
 
-func (c *Compositor) drawBorder(pass render.Pass, o *output.Output, w *window) {
+func (c *Compositor) drawBorder(pass *frame, o *output.Output, w *window) {
 	if c.decor.BorderWidth <= 0 || w.layer == wm.LayerFullscreen {
 		return
 	}
@@ -140,7 +140,7 @@ func (c *Compositor) tabColors(id wm.WindowID, active bool) TabColors {
 	return c.decor.Tab.Inactive
 }
 
-func (c *Compositor) drawTabBars(pass render.Pass, o *output.Output) error {
+func (c *Compositor) drawTabBars(pass *frame, o *output.Output) error {
 	for _, bar := range c.tabBars {
 		if !bar.Rect.Overlaps(o.Logical()) {
 			continue

@@ -27,17 +27,19 @@ func (c *Compositor) Frame(b backend.Output) error {
 	return c.updateEntered(o)
 }
 
+func (c *Compositor) sceneOf(o *output.Output) *scene {
+	sc, ok := c.scenes[o]
+	if !ok {
+		sc = newScene()
+		c.scenes[o] = sc
+	}
+	return sc
+}
+
 func (c *Compositor) render(o *output.Output) error {
-	r, target, err := o.Backend().BeginFrame()
-	if err != nil {
-		return err
-	}
-	bounds := image.Rectangle{Max: target.Size()}
-	damage := render.Region{bounds}
-	pass, err := r.Begin(target, damage)
-	if err != nil {
-		return err
-	}
+	sc := c.sceneOf(o)
+	bounds := image.Rectangle{Max: o.Backend().State().Mode.Size}
+	pass := &sc.cur
 	pass.FillRect(bounds, Background)
 	shown := c.shown[o][:0]
 	for _, e := range c.layersAt(o, belowWindows...) {
@@ -79,18 +81,48 @@ func (c *Compositor) render(o *output.Output) error {
 		shown = c.drawPopups(pass, o, c.layerPopups(e), shown)
 	}
 	shown = c.drawDragIcon(pass, o, shown)
-	shown, err = c.drawCursor(pass, o, shown)
+	shown, err := c.drawCursor(pass, o, shown)
 	if err != nil {
 		return err
 	}
 	c.shown[o] = shown
-	if err := pass.End(); err != nil {
+	if sc.diff(bounds).Empty() {
+		sc.skipped()
+		return c.unchanged(o, sc)
+	}
+	f, err := o.Backend().BeginFrame()
+	if err != nil {
 		return err
 	}
-	return o.Backend().Present(damage)
+	repaint := render.Region(sc.repaintFor(f, bounds).Rects())
+	p, err := f.Renderer.Begin(f.Target, repaint)
+	if err != nil {
+		return err
+	}
+	sc.cur.replay(p)
+	if err := p.End(); err != nil {
+		return err
+	}
+	if err := o.Backend().Present(repaint); err != nil {
+		return err
+	}
+	sc.presented()
+	return nil
 }
 
-func (c *Compositor) drawWindow(pass render.Pass, o *output.Output, w *window, shown []*surface.Surface) []*surface.Surface {
+func (c *Compositor) unchanged(o *output.Output, sc *scene) error {
+	now := backend.Now()
+	var err error
+	for _, s := range c.shown[o] {
+		c.outputResources = o.AppendResources(c.outputResources[:0], s.Client())
+		if e := errors.Join(s.Client().Sent(s.FrameDone(wire.Millis(now))), s.Client().Sent(s.Presented(c.outputResources, now, 0, sc.seq, 0))); e != nil {
+			err = errors.Join(err, e)
+		}
+	}
+	return err
+}
+
+func (c *Compositor) drawWindow(pass *frame, o *output.Output, w *window, shown []*surface.Surface) []*surface.Surface {
 	if !w.visible || !w.tile.Overlaps(o.Logical()) {
 		return shown
 	}
@@ -99,7 +131,7 @@ func (c *Compositor) drawWindow(pass render.Pass, o *output.Output, w *window, s
 	return shown
 }
 
-func (c *Compositor) drawPopups(pass render.Pass, o *output.Output, popups []placedPopup, shown []*surface.Surface) []*surface.Surface {
+func (c *Compositor) drawPopups(pass *frame, o *output.Output, popups []placedPopup, shown []*surface.Surface) []*surface.Surface {
 	for _, p := range popups {
 		if p.bounds().Overlaps(o.Logical()) {
 			shown = c.drawTree(pass, o, p.popup.Surface(), p.origin, shown)
@@ -108,8 +140,8 @@ func (c *Compositor) drawPopups(pass render.Pass, o *output.Output, popups []pla
 	return shown
 }
 
-func (c *Compositor) drawTree(pass render.Pass, o *output.Output, s *surface.Surface, at image.Point, shown []*surface.Surface) []*surface.Surface {
-	for _, member := range s.Stack() {
+func (c *Compositor) drawTree(pass *frame, o *output.Output, s *surface.Surface, at image.Point, shown []*surface.Surface) []*surface.Surface {
+	for member := range s.Stack() {
 		if member != s {
 			if sub := member.Subsurface(); sub != nil {
 				shown = c.drawTree(pass, o, member, at.Add(sub.Position()), shown)
@@ -121,7 +153,7 @@ func (c *Compositor) drawTree(pass render.Pass, o *output.Output, s *surface.Sur
 			continue
 		}
 		logical := image.Rectangle{Min: at, Max: at.Add(s.Size())}.Sub(o.Position())
-		pass.DrawTexture(tex, s.BufferSource(), o.Scale().Rect(logical), s.Transform().Invert(), 1)
+		pass.drawSurface(s, tex, s.BufferSource(), o.Scale().Rect(logical), s.Transform().Invert())
 		shown = append(shown, s)
 	}
 	return shown
@@ -163,6 +195,7 @@ func (c *Compositor) Presented(b backend.Output, p backend.Presentation) error {
 	if o == nil {
 		return nil
 	}
+	c.sceneOf(o).seq = p.Seq
 	var errs []error
 	for _, s := range c.shown[o] {
 		errs = append(errs,

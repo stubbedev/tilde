@@ -278,9 +278,10 @@ func (b *Backend) outputFor(s *cw.WlSurface) *Output {
 }
 
 type buffer struct {
-	wl     *cw.WlBuffer
-	target render.Target
-	busy   bool
+	wl        *cw.WlBuffer
+	target    render.Target
+	busy      bool
+	presented uint64
 }
 
 type swapchain interface {
@@ -307,6 +308,7 @@ type Output struct {
 	callbackPending bool
 	presentPending  bool
 	seq             uint64
+	presented       uint64
 }
 
 func (o *Output) Name() string {
@@ -422,19 +424,23 @@ func (o *Output) maybeFrame() {
 	})
 }
 
-func (o *Output) BeginFrame() (render.Renderer, render.Target, error) {
+func (o *Output) BeginFrame() (backend.Frame, error) {
 	switch {
 	case !o.configured:
-		return nil, nil, fmt.Errorf("nested: frame on %s before the host configured it", o.name)
+		return backend.Frame{}, fmt.Errorf("nested: frame on %s before the host configured it", o.name)
 	case o.drawing != nil:
-		return nil, nil, fmt.Errorf("nested: %s already has a frame in progress", o.name)
+		return backend.Frame{}, fmt.Errorf("nested: %s already has a frame in progress", o.name)
 	}
 	buf := o.freeBuffer()
 	if buf == nil {
-		return nil, nil, fmt.Errorf("nested: the host holds every buffer of %s", o.name)
+		return backend.Frame{}, fmt.Errorf("nested: the host holds every buffer of %s", o.name)
 	}
 	o.drawing = buf
-	return o.backend.chain.renderer(), buf.target, nil
+	age := 0
+	if buf.presented != 0 {
+		age = int(o.presented - buf.presented + 1) //nolint:gosec // a handful of buffers apart
+	}
+	return backend.Frame{Renderer: o.backend.chain.renderer(), Target: buf.target, Age: age}, nil
 }
 
 func (o *Output) Present(damage render.Region) error {
@@ -463,6 +469,8 @@ func (o *Output) Present(damage render.Region) error {
 		return err
 	}
 	buf.busy = true
+	o.presented++
+	buf.presented = o.presented
 	o.callbackPending = true
 	o.presentPending = true
 	return nil

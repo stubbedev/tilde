@@ -128,11 +128,14 @@ func TestFramesArePacedByRefresh(t *testing.T) {
 	frames := 0
 	r.onFrame = func(out backend.Output) {
 		frames++
-		rd, target, err := out.BeginFrame()
+		f, err := out.BeginFrame()
 		if err != nil {
 			t.Fatal(err)
 		}
-		p, err := rd.Begin(target, render.Region{image.Rect(0, 0, 64, 48)})
+		if want := min(frames-1, 1); f.Age != want {
+			t.Fatalf("frame %d has age %d, want %d", frames, f.Age, want)
+		}
+		p, err := f.Renderer.Begin(f.Target, render.Region{image.Rect(0, 0, 64, 48)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -197,8 +200,8 @@ func TestCommitResizesAndDisables(t *testing.T) {
 	if err := o.Commit(backend.OutputState{Enabled: true, Mode: small}); err != nil {
 		t.Fatal(err)
 	}
-	if _, target, err := o.BeginFrame(); err != nil || target.Size() != small.Size {
-		t.Fatalf("target %v, %v; want %v", target, err, small.Size)
+	if f, err := o.BeginFrame(); err != nil || f.Target.Size() != small.Size || f.Age != 0 {
+		t.Fatalf("frame %+v, %v; want a fresh %v target", f, err, small.Size)
 	}
 	if err := o.Present(nil); err != nil {
 		t.Fatal(err)
@@ -206,7 +209,7 @@ func TestCommitResizesAndDisables(t *testing.T) {
 	if err := o.Commit(backend.OutputState{}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := o.BeginFrame(); err == nil || !strings.Contains(err.Error(), "disabled") {
+	if _, err := o.BeginFrame(); err == nil || !strings.Contains(err.Error(), "disabled") {
 		t.Fatalf("BeginFrame on a disabled output = %v", err)
 	}
 	if err := o.ScheduleFrame(); err != nil {
@@ -265,7 +268,7 @@ func TestOutputValidationAndRemoval(t *testing.T) {
 	if r.log[len(r.log)-1] != "output- "+o.Name() {
 		t.Fatalf("log = %v", r.log)
 	}
-	if _, _, err := o.BeginFrame(); err == nil {
+	if _, err := o.BeginFrame(); err == nil {
 		t.Fatal("BeginFrame on a removed output succeeded")
 	}
 	if err := b.RemoveOutput(o); err == nil {

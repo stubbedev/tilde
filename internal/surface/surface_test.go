@@ -43,7 +43,7 @@ type recorder struct {
 }
 
 func (r *recorder) Committed(s *Surface) error {
-	c := commit{s: s, attached: s.Attached(), bufferDamage: s.BufferDamage(), size: s.Size(), damage: s.Damage(), offset: s.Offset(), scale: s.Scale(), opaque: s.Opaque(), input: s.Input(), stack: s.Stack()}
+	c := commit{s: s, attached: s.Attached(), bufferDamage: s.BufferDamage(), size: s.Size(), damage: s.Damage(), offset: s.Offset(), scale: s.Scale(), opaque: s.Opaque(), input: s.Input(), stack: slices.Collect(s.Stack())}
 	if s.Subsurface() != nil {
 		c.subPos = s.Subsurface().Position()
 	}

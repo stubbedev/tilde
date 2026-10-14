@@ -307,7 +307,7 @@ func (c *Compositor) surfaceAt(p point) (*surface.Surface, point, *window) {
 }
 
 func hitTree(s *surface.Surface, at image.Point, p point) (*surface.Surface, point) {
-	for _, member := range slices.Backward(s.Stack()) {
+	for member := range s.StackTopDown() {
 		if member != s {
 			if sub := member.Subsurface(); sub != nil {
 				if hit, local := hitTree(member, at.Add(sub.Position()), p); hit != nil {
@@ -317,7 +317,7 @@ func hitTree(s *surface.Surface, at image.Point, p point) (*surface.Surface, poi
 			continue
 		}
 		local := p.sub(at)
-		if s.Buffer() != nil && s.Input().Contains(image.Pt(int(math.Floor(local.X)), int(math.Floor(local.Y)))) {
+		if s.Buffer() != nil && s.AcceptsInput(image.Pt(int(math.Floor(local.X)), int(math.Floor(local.Y)))) {
 			return s, local
 		}
 	}
@@ -358,7 +358,7 @@ func treeOrigin(s *surface.Surface, at image.Point, target *surface.Surface) (im
 	if s == target {
 		return at, true
 	}
-	for _, member := range s.Stack() {
+	for member := range s.Stack() {
 		if member != s && member.Subsurface() != nil {
 			if origin, ok := treeOrigin(member, at.Add(member.Subsurface().Position()), target); ok {
 				return origin, true

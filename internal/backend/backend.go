@@ -59,6 +59,12 @@ type OutputState struct {
 	Mode    Mode
 }
 
+type Frame struct {
+	Renderer render.Renderer
+	Target   render.Target
+	Age      int
+}
+
 type Presentation struct {
 	Time    time.Duration
 	Refresh time.Duration
@@ -73,7 +79,7 @@ type Output interface {
 	State() OutputState
 	Commit(s OutputState) error
 	ScheduleFrame() error
-	BeginFrame() (render.Renderer, render.Target, error)
+	BeginFrame() (Frame, error)
 	Present(damage render.Region) error
 }
 

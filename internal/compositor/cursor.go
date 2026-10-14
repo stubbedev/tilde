@@ -58,7 +58,7 @@ func (c *Compositor) cursorTexture(name string, scale output.Scale) (*cursorText
 	return ct, nil
 }
 
-func (c *Compositor) drawCursor(pass render.Pass, o *output.Output, shown []*surface.Surface) ([]*surface.Surface, error) {
+func (c *Compositor) drawCursor(pass *frame, o *output.Output, shown []*surface.Surface) ([]*surface.Surface, error) {
 	if !c.seat.HasPointer() || !image.Pt(int(math.Floor(c.cursor.X)), int(math.Floor(c.cursor.Y))).In(o.Logical()) {
 		return shown, nil
 	}

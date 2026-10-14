@@ -347,7 +347,7 @@ func (xs *XdgSurface) AckConfigure(obj *sxdg.XdgSurface, serial uint32) error {
 
 func treeBounds(s *surface.Surface, at image.Point) image.Rectangle {
 	b := image.Rectangle{Min: at, Max: at.Add(s.Size())}
-	for _, child := range s.Stack() {
+	for child := range s.Stack() {
 		if child != s && child.Subsurface() != nil {
 			b = b.Union(treeBounds(child, at.Add(child.Subsurface().Position())))
 		}

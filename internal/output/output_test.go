@@ -69,8 +69,8 @@ func (f *fakeOutput) State() backend.OutputState {
 func (f *fakeOutput) Commit(backend.OutputState) error { return nil }
 func (f *fakeOutput) ScheduleFrame() error             { return nil }
 func (f *fakeOutput) Present(render.Region) error      { return nil }
-func (f *fakeOutput) BeginFrame() (render.Renderer, render.Target, error) {
-	return nil, nil, errors.New("no frames")
+func (f *fakeOutput) BeginFrame() (backend.Frame, error) {
+	return backend.Frame{}, errors.New("no frames")
 }
 
 type registry map[string]uint32

@@ -44,9 +44,18 @@ func Start(t *testing.T, modes ...backend.Mode) *Harness {
 	return StartWith(t, func(*compositor.Config) {}, modes...)
 }
 
+func softBackend(l *loop.Loop) (*headless.Backend, error) {
+	return headless.New(l), nil
+}
+
 func StartWith(t *testing.T, configure func(*compositor.Config), modes ...backend.Mode) *Harness {
 	t.Helper()
-	return start(t, func(l *loop.Loop) (*headless.Backend, error) { return headless.New(l), nil }, configure, modes...)
+	return start(t, softBackend, configure, true, modes...)
+}
+
+func StartUntraced(t *testing.T, modes ...backend.Mode) *Harness {
+	t.Helper()
+	return start(t, softBackend, func(*compositor.Config) {}, false, modes...)
 }
 
 func StartGLES(t *testing.T, configure func(*compositor.Config), modes ...backend.Mode) *Harness {
@@ -54,10 +63,10 @@ func StartGLES(t *testing.T, configure func(*compositor.Config), modes ...backen
 	testenv.GPU(t)
 	return start(t, func(l *loop.Loop) (*headless.Backend, error) {
 		return headless.NewGLES(l, gpu.PathsFromEnv(os.Getenv))
-	}, configure, modes...)
+	}, configure, true, modes...)
 }
 
-func start(t *testing.T, open func(*loop.Loop) (*headless.Backend, error), configure func(*compositor.Config), modes ...backend.Mode) *Harness {
+func start(t *testing.T, open func(*loop.Loop) (*headless.Backend, error), configure func(*compositor.Config), traced bool, modes ...backend.Mode) *Harness {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "tilde-")
 	if err != nil {
@@ -68,7 +77,11 @@ func start(t *testing.T, open func(*loop.Loop) (*headless.Backend, error), confi
 	if h.loop, err = loop.New(); err != nil {
 		t.Fatalf("harness: %v", err)
 	}
-	if h.display, err = server.New(h.loop, server.Options{RuntimeDir: dir, Trace: h.trace}); err != nil {
+	opts := server.Options{RuntimeDir: dir}
+	if traced {
+		opts.Trace = h.trace
+	}
+	if h.display, err = server.New(h.loop, opts); err != nil {
 		t.Fatalf("harness: %v", err)
 	}
 	if h.backend, err = open(h.loop); err != nil {
@@ -185,11 +198,11 @@ func (h *Harness) Rendered(i int) *soft.Buffer {
 		if i >= len(outputs) {
 			return fmt.Errorf("harness: no output %d of %d", i, len(outputs))
 		}
-		o, before = outputs[i], outputs[i].Presents()
+		o, before = outputs[i], outputs[i].Frames()
 		return o.ScheduleFrame()
 	})
 	h.Eventually(fmt.Sprintf("a new frame on output %d", i), func(*headless.Backend, *compositor.Compositor) bool {
-		return o.Presents() > before
+		return o.Frames() > before
 	})
 	return h.Snapshot(i)
 }
@@ -210,6 +223,16 @@ func (h *Harness) Snapshot(i int) *soft.Buffer {
 
 func (h *Harness) Socket() string {
 	return filepath.Join(h.RuntimeDir, h.display.Name())
+}
+
+func (h *Harness) Wakeups() int {
+	h.t.Helper()
+	var n int
+	h.Do(func(*headless.Backend, *compositor.Compositor) error {
+		n = h.loop.Wakeups()
+		return nil
+	})
+	return n
 }
 
 func (h *Harness) IPCSocket() string {
