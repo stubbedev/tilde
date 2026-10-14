@@ -56,6 +56,7 @@ func (c *Compositor) render(o *output.Output) error {
 	for _, e := range c.layers {
 		shown = c.drawPopups(pass, o, c.layerPopups(e), shown)
 	}
+	shown = c.drawDragIcon(pass, o, shown)
 	shown, err = c.drawCursor(pass, o, shown)
 	if err != nil {
 		return err

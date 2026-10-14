@@ -43,6 +43,7 @@ type clientResources struct {
 
 type Listener interface {
 	CursorChanged() error
+	KeyboardFocusChanged(focus *surface.Surface) error
 }
 
 type Seat struct {
@@ -189,9 +190,11 @@ func (s *Seat) updateCapabilities() error {
 	return errors.Join(errs...)
 }
 
-func (s *Seat) SurfaceDestroyed(target *surface.Surface) {
+func (s *Seat) SurfaceDestroyed(target *surface.Surface) error {
+	var err error
 	if s.keyboard.focus == target {
 		s.keyboard.focus = nil
+		err = s.listener.KeyboardFocusChanged(nil)
 	}
 	if s.pointer.focus == target {
 		s.pointer.focus, s.pointer.buttons = nil, nil
@@ -200,6 +203,7 @@ func (s *Seat) SurfaceDestroyed(target *surface.Surface) {
 		s.pointer.cursor = Cursor{}
 	}
 	s.touch.points = slices.DeleteFunc(s.touch.points, func(p touchPoint) bool { return p.surface == target })
+	return err
 }
 
 type seatRequests struct {

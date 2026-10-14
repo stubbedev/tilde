@@ -14,6 +14,7 @@ import (
 
 	ccs "github.com/stubbedev/tilde/internal/protocol/client/cursorshape"
 	cfs "github.com/stubbedev/tilde/internal/protocol/client/fractionalscale"
+	cps "github.com/stubbedev/tilde/internal/protocol/client/primaryselection"
 	cvp "github.com/stubbedev/tilde/internal/protocol/client/viewporter"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	cwlr "github.com/stubbedev/tilde/internal/protocol/client/wlrlayershell"
@@ -24,19 +25,22 @@ import (
 var defaultSize = image.Pt(64, 64)
 
 type Client struct {
-	t             testing.TB
-	Display       *wlclient.Display
-	Compositor    *cw.WlCompositor
-	Subcompositor *cw.WlSubcompositor
-	Shm           *cw.WlShm
-	WM            *cxdg.XdgWmBase
-	Viewporter    *cvp.WpViewporter
-	Fractional    *cfs.WpFractionalScaleManagerV1
-	CursorShape   *ccs.WpCursorShapeManagerV1
-	LayerShell    *cwlr.ZwlrLayerShellV1
-	Outputs       []*cw.WlOutput
-	registry      *cw.WlRegistry
-	globals       *registry
+	t                testing.TB
+	Display          *wlclient.Display
+	Compositor       *cw.WlCompositor
+	Subcompositor    *cw.WlSubcompositor
+	Shm              *cw.WlShm
+	WM               *cxdg.XdgWmBase
+	Viewporter       *cvp.WpViewporter
+	Fractional       *cfs.WpFractionalScaleManagerV1
+	CursorShape      *ccs.WpCursorShapeManagerV1
+	LayerShell       *cwlr.ZwlrLayerShellV1
+	DataDevices      *cw.WlDataDeviceManager
+	PrimarySelection *cps.ZwpPrimarySelectionDeviceManagerV1
+	Outputs          []*cw.WlOutput
+	registry         *cw.WlRegistry
+	globals          *registry
+	sends            int
 }
 
 type global struct{ name, version uint32 }
@@ -96,6 +100,10 @@ func Connect(t testing.TB, socket string) *Client {
 	c.must(err)
 	c.LayerShell, err = cwlr.NewZwlrLayerShellV1(d, 5)
 	c.must(err)
+	c.DataDevices, err = cw.NewWlDataDeviceManager(d, 3)
+	c.must(err)
+	c.PrimarySelection, err = cps.NewZwpPrimarySelectionDeviceManagerV1(d, 1)
+	c.must(err)
 	c.must(errors.Join(
 		reg.Bind(globals.byName["wl_compositor"].name, c.Compositor),
 		reg.Bind(globals.byName["wl_subcompositor"].name, c.Subcompositor),
@@ -105,6 +113,8 @@ func Connect(t testing.TB, socket string) *Client {
 		reg.Bind(globals.byName["wp_fractional_scale_manager_v1"].name, c.Fractional),
 		reg.Bind(globals.byName["wp_cursor_shape_manager_v1"].name, c.CursorShape),
 		reg.Bind(globals.byName["zwlr_layer_shell_v1"].name, c.LayerShell),
+		reg.Bind(globals.byName["wl_data_device_manager"].name, c.DataDevices),
+		reg.Bind(globals.byName["zwp_primary_selection_device_manager_v1"].name, c.PrimarySelection),
 	))
 	for _, name := range globals.outputs {
 		o, err := cw.NewWlOutput(d, 4, outputEvents{})

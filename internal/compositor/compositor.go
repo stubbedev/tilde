@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"github.com/stubbedev/tilde/internal/backend"
+	"github.com/stubbedev/tilde/internal/data"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/output"
 	"github.com/stubbedev/tilde/internal/render"
@@ -55,6 +56,8 @@ type Compositor struct {
 	active     *window
 	consumed   []uint32
 	layers     []*layer
+	data       *data.Manager
+	drag       *data.Drag
 	usable     map[*output.Output]image.Rectangle
 	layerFocus *shell.LayerSurface
 	shown      map[*output.Output][]*surface.Surface
@@ -91,6 +94,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.shm, err = shm.New(display, c.renderer.Formats()); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
+	if c.data, err = data.New(display, c); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.seat, err = seat.New(display, cfg.Seat, c); err != nil {

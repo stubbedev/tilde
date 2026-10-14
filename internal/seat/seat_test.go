@@ -35,8 +35,7 @@ func (s *surfaces) Committed(sf *surface.Surface) error {
 }
 
 func (s *surfaces) Destroyed(sf *surface.Surface) error {
-	s.seat.SurfaceDestroyed(sf)
-	return nil
+	return s.seat.SurfaceDestroyed(sf)
 }
 
 type env struct {
@@ -353,3 +352,5 @@ func TestCapabilitiesFollowDevices(t *testing.T) {
 type quietListener struct{}
 
 func (quietListener) CursorChanged() error { return nil }
+
+func (quietListener) KeyboardFocusChanged(*surface.Surface) error { return nil }

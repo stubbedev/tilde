@@ -54,6 +54,7 @@ func (s *Seat) SetKeyboardFocus(target *surface.Surface) error {
 		}
 	}
 	s.keyboard.focus = target
+	errs = append(errs, s.listener.KeyboardFocusChanged(target))
 	if target != nil {
 		if r := s.lookup(target.Client()); r != nil {
 			for _, kb := range r.keyboards {

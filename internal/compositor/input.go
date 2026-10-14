@@ -84,6 +84,12 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 		c.cursor = p
 		return c.pointerMoved(e.Time)
 	case backend.PointerButton:
+		if c.drag != nil {
+			if e.Pressed {
+				return nil
+			}
+			return c.drag.Drop()
+		}
 		if i := slices.Index(c.consumed, e.Button); !e.Pressed && i >= 0 {
 			c.consumed = slices.Delete(c.consumed, i, i+1)
 			return nil
@@ -146,6 +152,9 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 }
 
 func (c *Compositor) pointerMoved(at time.Duration) error {
+	if c.drag != nil {
+		return errors.Join(c.dragMotion(at), c.scheduleAll())
+	}
 	if f := c.seat.PointerFocus(); f != nil && c.seat.PointerGrabbed() {
 		if origin, ok := c.originOf(f); ok {
 			local := c.cursor.sub(origin)
@@ -174,6 +183,9 @@ func (c *Compositor) pointerTarget() (*surface.Surface, point, *window) {
 }
 
 func (c *Compositor) refreshPointer() error {
+	if c.drag != nil {
+		return c.dragMotion(backend.Now())
+	}
 	if c.seat.PointerGrabbed() {
 		return nil
 	}

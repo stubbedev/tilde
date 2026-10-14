@@ -69,7 +69,9 @@ func (c *Compositor) Texture(s *surface.Surface) render.Texture {
 }
 
 func (c *Compositor) Destroyed(s *surface.Surface) error {
-	c.seat.SurfaceDestroyed(s)
+	if err := c.seat.SurfaceDestroyed(s); err != nil {
+		return err
+	}
 	c.dropTexture(s)
 	for o, shown := range c.shown {
 		c.shown[o] = slices.DeleteFunc(shown, func(x *surface.Surface) bool { return x == s })
