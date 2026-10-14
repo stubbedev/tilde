@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/ebitengine/purego"
 )
@@ -88,6 +89,11 @@ type eglFuncs struct {
 	dupNativeFenceFD   func(dpy, sync uintptr) int32
 	waitSync           func(dpy, sync uintptr, flags int32) int32
 }
+
+var initialized = struct {
+	sync.Mutex
+	count map[uintptr]int
+}{count: map[uintptr]int{}}
 
 type Library struct {
 	egl        eglFuncs
@@ -250,9 +256,8 @@ func (l *Library) display(platform string, kind uint32, native uintptr) (*Displa
 	if dpy == 0 {
 		return nil, l.fail("eglGetPlatformDisplayEXT(" + platform + ")")
 	}
-	var major, minor int32
-	if l.egl.initialize(dpy, &major, &minor) != eglTrue {
-		return nil, l.fail("eglInitialize(" + platform + ")")
+	if err := l.initialize(dpy, platform); err != nil {
+		return nil, err
 	}
 	d := &Display{lib: l, dpy: dpy, exts: strings.Fields(l.egl.queryString(dpy, eglExtensions))}
 	for _, ext := range []string{"EGL_KHR_surfaceless_context", "EGL_KHR_no_config_context"} {
@@ -271,10 +276,18 @@ func (l *Library) display(platform string, kind uint32, native uintptr) (*Displa
 	if d.ctx = l.egl.createContext(dpy, 0, 0, &attribs[0]); d.ctx == 0 {
 		return nil, errors.Join(l.fail("eglCreateContext"), d.Close())
 	}
-	if err := d.MakeCurrent(); err != nil {
-		return nil, errors.Join(err, d.Close())
-	}
 	return d, nil
+}
+
+func (l *Library) initialize(dpy uintptr, platform string) error {
+	initialized.Lock()
+	defer initialized.Unlock()
+	var major, minor int32
+	if l.egl.initialize(dpy, &major, &minor) != eglTrue {
+		return l.fail("eglInitialize(" + platform + ")")
+	}
+	initialized.count[dpy]++
+	return nil
 }
 
 func (d *Display) Has(ext string) bool {
@@ -300,6 +313,13 @@ func (d *Display) MakeCurrent() error {
 	return nil
 }
 
+func (d *Display) Release() error {
+	if d.lib.egl.makeCurrent(d.dpy, 0, 0, 0) != eglTrue {
+		return d.lib.fail("eglMakeCurrent(none)")
+	}
+	return nil
+}
+
 func (d *Display) Device() (Device, error) {
 	if err := d.lib.requireClient("EGL_EXT_device_query"); err != nil {
 		return Device{}, err
@@ -314,15 +334,18 @@ func (d *Display) Device() (Device, error) {
 func (d *Display) Close() error {
 	var errs []error
 	if d.ctx != 0 {
-		if d.lib.egl.makeCurrent(d.dpy, 0, 0, 0) != eglTrue {
-			errs = append(errs, d.lib.fail("eglMakeCurrent(none)"))
-		}
+		errs = append(errs, d.Release())
 		if d.lib.egl.destroyContext(d.dpy, d.ctx) != eglTrue {
 			errs = append(errs, d.lib.fail("eglDestroyContext"))
 		}
 	}
-	if d.lib.egl.terminate(d.dpy) != eglTrue {
-		errs = append(errs, d.lib.fail("eglTerminate"))
+	initialized.Lock()
+	defer initialized.Unlock()
+	if initialized.count[d.dpy]--; initialized.count[d.dpy] == 0 {
+		delete(initialized.count, d.dpy)
+		if d.lib.egl.terminate(d.dpy) != eglTrue {
+			errs = append(errs, d.lib.fail("eglTerminate"))
+		}
 	}
 	return errors.Join(errs...)
 }

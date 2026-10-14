@@ -167,7 +167,7 @@ func (p *pass) FillRect(r image.Rectangle, c render.Color) {
 		p.fail(errors.New("soft: FillRect outside a pass"))
 		return
 	}
-	if c.R > c.A || c.G > c.A || c.B > c.A {
+	if !c.Premultiplied() {
 		p.fail(fmt.Errorf("soft: color %+v is not premultiplied", c))
 		return
 	}
@@ -194,23 +194,18 @@ func (p *pass) DrawTexture(t render.Texture, src render.FRect, dst image.Rectang
 	case tex.pix == nil:
 		p.fail(errors.New("soft: texture used after Destroy"))
 		return
-	case transform > render.Flipped270:
-		p.fail(fmt.Errorf("soft: invalid transform %d", transform))
-		return
-	case !(alpha >= 0 && alpha <= 1):
-		p.fail(fmt.Errorf("soft: alpha %v outside [0, 1]", alpha))
-		return
-	case !(src.W > 0 && src.H > 0 && src.X >= 0 && src.Y >= 0) || src.X+src.W > float64(tex.size.X) || src.Y+src.H > float64(tex.size.Y):
-		p.fail(fmt.Errorf("soft: source %+v outside texture %v", src, tex.size))
-		return
 	case dst.Empty():
+		return
+	}
+	if err := render.CheckDraw(tex.size, src, transform, alpha); err != nil {
+		p.fail(err)
 		return
 	}
 	a := uint32(math.Round(float64(alpha) * 255))
 	if a == 0 {
 		return
 	}
-	horizontal, vertical := axisMaps(transform)
+	horizontal, vertical := transform.Axes()
 	p.cols = sampleMap(p.cols[:0], dst.Dx(), horizontal, src, tex.size)
 	p.rows = sampleMap(p.rows[:0], dst.Dy(), vertical, src, tex.size)
 	swap := transform.SwapsAxes()
@@ -236,39 +231,14 @@ func (p *pass) DrawTexture(t render.Texture, src render.FRect, dst image.Rectang
 	}
 }
 
-type axis struct {
-	source   int
-	reversed bool
-}
-
-func axisMaps(t render.Transform) (horizontal, vertical axis) {
-	h, v := axis{0, false}, axis{1, false}
-	switch t &^ render.Flipped {
-	case render.Rotate90:
-		h, v = axis{1, false}, axis{0, true}
-	case render.Rotate180:
-		h, v = axis{0, true}, axis{1, true}
-	case render.Rotate270:
-		h, v = axis{1, true}, axis{0, false}
-	}
-	if t&render.Flipped != 0 {
-		if h.source == 0 {
-			h.reversed = !h.reversed
-		} else {
-			v.reversed = !v.reversed
-		}
-	}
-	return h, v
-}
-
-func sampleMap(out []int, n int, a axis, src render.FRect, size image.Point) []int {
+func sampleMap(out []int, n int, a render.Axis, src render.FRect, size image.Point) []int {
 	origin, extent, limit := src.X, src.W, size.X
-	if a.source == 1 {
+	if a.Source == 1 {
 		origin, extent, limit = src.Y, src.H, size.Y
 	}
 	for i := range n {
 		f := (float64(i) + 0.5) / float64(n)
-		if a.reversed {
+		if a.Reversed {
 			f = 1 - f
 		}
 		s := int(math.Floor(origin + f*extent))

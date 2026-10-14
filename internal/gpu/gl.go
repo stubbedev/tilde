@@ -46,6 +46,7 @@ const (
 	TriangleStrip                 = 0x0005
 	ArrayBuffer                   = 0x8892
 	StaticDraw                    = 0x88E4
+	StreamDraw                    = 0x88E0
 	glVendor                      = 0x1F00
 	glRenderer                    = 0x1F01
 	glVersion                     = 0x1F02
@@ -124,6 +125,7 @@ type GL struct {
 	GetAttribLocation        func(program uint32, name string) int32
 	Uniform1i                func(location, v int32)
 	Uniform1f                func(location int32, v float32)
+	Uniform2f                func(location int32, a, b float32)
 	Uniform4f                func(location int32, a, b, c, d float32)
 	uniformMatrix3fv         func(location, count int32, transpose uint8, value *float32)
 	VertexAttribPointer      func(index uint32, size int32, typ uint32, normalized uint8, stride int32, offset uintptr)
@@ -187,6 +189,7 @@ func (gl *GL) load(l *Library, path string) error {
 		{&gl.GetAttribLocation, "glGetAttribLocation"},
 		{&gl.Uniform1i, "glUniform1i"},
 		{&gl.Uniform1f, "glUniform1f"},
+		{&gl.Uniform2f, "glUniform2f"},
 		{&gl.Uniform4f, "glUniform4f"},
 		{&gl.uniformMatrix3fv, "glUniformMatrix3fv"},
 		{&gl.VertexAttribPointer, "glVertexAttribPointer"},

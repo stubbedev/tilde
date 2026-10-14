@@ -23,6 +23,9 @@ func surfaceless(t *testing.T) (*gpu.Display, *gpu.GL) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := d.MakeCurrent(); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() {
 		if err := d.Close(); err != nil {
 			t.Error(err)
@@ -160,6 +163,9 @@ func TestDevicesOpenDisplays(t *testing.T) {
 			continue
 		}
 		opened++
+		if err := d.MakeCurrent(); err != nil {
+			t.Error(err)
+		}
 		t.Logf("device %q: %s on %s", dev.RenderNode(), d.GL().Renderer(), d.Vendor())
 		if err := d.Close(); err != nil {
 			t.Error(err)
@@ -271,6 +277,9 @@ func TestGBMDisplayRendersIntoADMABUF(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer d.Close()
+	if err := d.MakeCurrent(); err != nil {
+		t.Fatal(err)
+	}
 	gl := d.GL()
 	t.Logf("%s on %s through %s", gl.Renderer(), d.Vendor(), dev.Backend())
 	formats, err := d.DMABUFFormats()
@@ -323,6 +332,29 @@ func TestGBMDisplayRendersIntoADMABUF(t *testing.T) {
 	gl.DeleteFramebuffers(1, &fb)
 	gl.DeleteRenderbuffers(1, &rb)
 	if err := gl.Check("render into a dmabuf"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDisplaysOnOneDeviceShareItsTermination(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	lib := testenv.GPU(t)
+	a, err := lib.Surfaceless()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := lib.Surfaceless()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.MakeCurrent(); err != nil {
+		t.Fatalf("closing one display ended the other: %v", err)
+	}
+	if err := b.Close(); err != nil {
 		t.Fatal(err)
 	}
 }

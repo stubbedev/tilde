@@ -3,6 +3,7 @@
 package render
 
 import (
+	"fmt"
 	"image"
 	"math"
 )
@@ -93,6 +94,31 @@ func (t Transform) FRect(r FRect, size image.Point) FRect {
 	return FRect{X: min(x0, x1), Y: min(y0, y1), W: math.Abs(x1 - x0), H: math.Abs(y1 - y0)}
 }
 
+type Axis struct {
+	Source   int
+	Reversed bool
+}
+
+func (t Transform) Axes() (horizontal, vertical Axis) {
+	h, v := Axis{0, false}, Axis{1, false}
+	switch t &^ Flipped {
+	case Rotate90:
+		h, v = Axis{1, false}, Axis{0, true}
+	case Rotate180:
+		h, v = Axis{0, true}, Axis{1, true}
+	case Rotate270:
+		h, v = Axis{1, true}, Axis{0, false}
+	}
+	if t&Flipped != 0 {
+		if h.Source == 0 {
+			h.Reversed = !h.Reversed
+		} else {
+			v.Reversed = !v.Reversed
+		}
+	}
+	return h, v
+}
+
 type Format uint8
 
 const (
@@ -104,8 +130,24 @@ type Color struct {
 	R, G, B, A uint8
 }
 
+func (c Color) Premultiplied() bool {
+	return c.R <= c.A && c.G <= c.A && c.B <= c.A
+}
+
 type FRect struct {
 	X, Y, W, H float64
+}
+
+func CheckDraw(texture image.Point, src FRect, transform Transform, alpha float32) error {
+	switch {
+	case transform > Flipped270:
+		return fmt.Errorf("render: invalid transform %d", transform)
+	case !(alpha >= 0 && alpha <= 1):
+		return fmt.Errorf("render: alpha %v outside [0, 1]", alpha)
+	case !(src.W > 0 && src.H > 0 && src.X >= 0 && src.Y >= 0) || src.X+src.W > float64(texture.X) || src.Y+src.H > float64(texture.Y):
+		return fmt.Errorf("render: source %+v outside texture %v", src, texture)
+	}
+	return nil
 }
 
 type Region []image.Rectangle
