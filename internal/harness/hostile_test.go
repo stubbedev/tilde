@@ -47,9 +47,7 @@ func TestHungClientsAreMarkedUnresponsive(t *testing.T) {
 	alive.DispatchUntil("another client's window to map", other.Mapped)
 	h.Eventually("the other window responsive", unresponsive(2, false))
 
-	if err := hung.Display.Roundtrip(); err != nil {
-		t.Fatal(err)
-	}
+	hung.Sync()
 	h.Eventually("the recovered window marked responsive", unresponsive(1, false))
 	expectEvent(t, lines, `{"event":"unresponsive","window":1,"unresponsive":false}`)
 }

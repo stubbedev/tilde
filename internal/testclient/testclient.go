@@ -157,7 +157,7 @@ func (c *Client) must(err error) {
 
 func (c *Client) Sync() {
 	c.t.Helper()
-	c.must(c.Display.Roundtrip())
+	c.must(errors.Join(c.Display.Roundtrip(), c.Display.Flush()))
 }
 
 func (c *Client) DispatchUntil(what string, cond func() bool) {
