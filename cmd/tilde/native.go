@@ -147,7 +147,10 @@ func (n *native) add(g gpuCard) error {
 	if len(n.cards) == 0 {
 		c.backend, err = drmbackend.New(n.l, c.dev, n.paths, n.vendors)
 	} else {
-		c.backend, err = drmbackend.NewSecondary(n.l, c.dev, n.primary().backend.Renderer(), n.vendors)
+		var how string
+		if c.backend, how, err = drmbackend.NewSecondary(n.l, c.dev, n.primary().backend, n.paths, n.vendors, g.render); err == nil {
+			fmt.Fprintf(os.Stderr, "tilde: %s renders the outputs of %s; they reach the screen through %s\n", n.primary().name, g.name, how)
+		}
 	}
 	if err != nil {
 		return errors.Join(fmt.Errorf("drm: %s: %w", g.name, err), c.dev.Close(), n.logind.ReleaseDevice(device))
@@ -159,9 +162,7 @@ func (n *native) add(g gpuCard) error {
 func (n *native) addSecondary(g gpuCard) {
 	if err := n.add(g); err != nil {
 		n.report(fmt.Errorf("%w; its outputs stay dark", err))
-		return
 	}
-	fmt.Fprintf(os.Stderr, "tilde: showing outputs of %s through a copy from %s\n", g.name, n.primary().name)
 }
 
 func (n *native) cardOf(d session.Device) *card {

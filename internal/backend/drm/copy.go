@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"path/filepath"
 
 	kdrm "github.com/stubbedev/tilde/internal/drm"
 	"github.com/stubbedev/tilde/internal/edid"
@@ -55,9 +56,35 @@ func (a *copyAllocator) close() error {
 	return nil
 }
 
-func NewSecondary(l *loop.Loop, dev *kdrm.Device, primary render.Renderer, vendors edid.Vendors) (*Backend, error) {
+func NewSecondary(l *loop.Loop, dev *kdrm.Device, primary *Backend, paths gpu.Paths, vendors edid.Vendors, canRender bool) (*Backend, string, error) {
 	if err := atomic(dev); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return newBackend(l, dev, &copyAllocator{dev: dev, primary: primary}, vendors)
+	alloc, how := secondaryAllocator(dev, primary, paths, canRender)
+	b, err := newBackend(l, dev, alloc, vendors)
+	if err != nil {
+		return nil, "", errors.Join(err, alloc.close())
+	}
+	return b, how, nil
+}
+
+func secondaryAllocator(dev *kdrm.Device, primary *Backend, paths gpu.Paths, canRender bool) (allocator, string) {
+	cpu := &copyAllocator{dev: dev, primary: primary.Renderer()}
+	name := filepath.Base(dev.Path())
+	if !canRender {
+		return cpu, "a CPU copy, since " + name + " has no render node"
+	}
+	p, ok := primary.alloc.(*gbmAllocator)
+	if !ok {
+		return cpu, fmt.Sprintf("a CPU copy, since the primary renders with %T, which shares no buffers", primary.alloc)
+	}
+	local, err := newGBMAllocator(dev, paths)
+	if err != nil {
+		return cpu, fmt.Sprintf("a CPU copy, since %s cannot render: %v", name, err)
+	}
+	a := &blitAllocator{primary: p, local: local}
+	if err := a.probe(); err != nil {
+		return cpu, fmt.Sprintf("a CPU copy, since the GPUs share no buffer: %v", errors.Join(err, local.close()))
+	}
+	return a, "a GPU blit on " + name
 }

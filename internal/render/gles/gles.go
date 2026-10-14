@@ -273,6 +273,17 @@ func (r *Renderer) SyncFile() (int, error) {
 	return fd, errors.Join(err, r.leave("gles: fence"))
 }
 
+func (r *Renderer) WaitFence(fd int) error {
+	if err := r.enter(); err != nil {
+		return errors.Join(err, unix.Close(fd))
+	}
+	sync, err := r.d.ImportFence(fd)
+	if err != nil {
+		return errors.Join(err, unix.Close(fd), r.leave("gles: import a fence"))
+	}
+	return errors.Join(sync.Wait(), sync.Destroy(), r.leave("gles: wait for a fence"))
+}
+
 func (r *Renderer) NativeFences() bool {
 	return r.d.Has("EGL_ANDROID_native_fence_sync")
 }
