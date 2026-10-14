@@ -81,3 +81,8 @@ const (
 	ModifierLinear  uint64 = 0
 	ModifierInvalid uint64 = 0x00ffffffffffffff
 )
+
+type FormatModifier struct {
+	Format   uint32
+	Modifier uint64
+}

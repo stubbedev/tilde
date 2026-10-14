@@ -10,14 +10,17 @@ import (
 	"time"
 
 	"github.com/stubbedev/tilde/internal/backend"
+	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/render"
+	"github.com/stubbedev/tilde/internal/render/gles"
 	"github.com/stubbedev/tilde/internal/render/soft"
 )
 
 type Backend struct {
 	loop     *loop.Loop
-	renderer *soft.Renderer
+	renderer render.Renderer
+	gpu      *gpuRenderer
 	handler  backend.Handler
 	outputs  []*Output
 	next     int
@@ -33,6 +36,60 @@ func New(l *loop.Loop) *Backend {
 	b.pointer = &Pointer{device{b, "headless-pointer", backend.Pointer}}
 	b.touch = &Touch{device{b, "headless-touch", backend.Touch}}
 	return b
+}
+
+type gpuRenderer struct {
+	lib     *gpu.Library
+	display *gpu.Display
+	gles    *gles.Renderer
+}
+
+func (g *gpuRenderer) close() error {
+	return errors.Join(g.gles.Close(), g.display.Close(), g.lib.Close())
+}
+
+func NewGLES(l *loop.Loop, paths gpu.Paths) (*Backend, error) {
+	lib, err := gpu.Load(paths)
+	if err != nil {
+		return nil, err
+	}
+	d, err := lib.Surfaceless()
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("headless: %w", err), lib.Close())
+	}
+	r, err := gles.New(d)
+	if err != nil {
+		return nil, errors.Join(err, d.Close(), lib.Close())
+	}
+	b := New(l)
+	b.renderer, b.gpu = r, &gpuRenderer{lib: lib, display: d, gles: r}
+	return b, nil
+}
+
+func (o *Output) resize(size image.Point) error {
+	if err := o.freeTarget(); err != nil {
+		return err
+	}
+	o.buffer = soft.NewBuffer(size.X, size.Y)
+	if o.backend.gpu == nil {
+		o.target = o.buffer
+		return nil
+	}
+	fb, err := o.backend.gpu.gles.NewFramebuffer(size)
+	if err != nil {
+		return fmt.Errorf("headless: %s: %w", o.name, err)
+	}
+	o.target = fb
+	return nil
+}
+
+func (o *Output) freeTarget() error {
+	fb, ok := o.target.(*gles.Framebuffer)
+	o.target = nil
+	if !ok {
+		return nil
+	}
+	return fb.Destroy()
 }
 
 func (b *Backend) Start(h backend.Handler) error {
@@ -75,6 +132,9 @@ func (b *Backend) Close() error {
 			errs = append(errs, b.handler.DeviceRemoved(d))
 		}
 	}
+	if b.gpu != nil {
+		errs = append(errs, b.gpu.close())
+	}
 	return errors.Join(errs...)
 }
 
@@ -101,7 +161,9 @@ func (b *Backend) AddOutput(modes ...backend.Mode) (*Output, error) {
 		name:    fmt.Sprintf("HEADLESS-%d", b.next),
 		modes:   slices.Clone(modes),
 		state:   backend.OutputState{Enabled: true, Mode: current},
-		buffer:  soft.NewBuffer(current.Size.X, current.Size.Y),
+	}
+	if err := o.resize(current.Size); err != nil {
+		return nil, err
 	}
 	var err error
 	if o.timer, err = b.loop.AddTimer(o.vblank); err != nil {
@@ -127,7 +189,7 @@ func (b *Backend) RemoveOutput(o *Output) error {
 	if b.handler != nil {
 		errs = append(errs, b.handler.OutputRemoved(o))
 	}
-	return errors.Join(append(errs, o.timer.Remove())...)
+	return errors.Join(append(errs, o.timer.Remove(), o.freeTarget())...)
 }
 
 type Output struct {
@@ -136,6 +198,7 @@ type Output struct {
 	modes          []backend.Mode
 	state          backend.OutputState
 	buffer         *soft.Buffer
+	target         render.Target
 	timer          *loop.Timer
 	armed          bool
 	frameRequested bool
@@ -176,7 +239,9 @@ func (o *Output) Commit(s backend.OutputState) error {
 			return fmt.Errorf("headless: %s: %w", o.name, err)
 		}
 		if s.Mode.Size != o.buffer.Size() {
-			o.buffer = soft.NewBuffer(s.Mode.Size.X, s.Mode.Size.Y)
+			if err := o.resize(s.Mode.Size); err != nil {
+				return err
+			}
 		}
 	} else {
 		o.frameRequested, o.presentPending = false, false
@@ -203,7 +268,7 @@ func (o *Output) BeginFrame() (render.Renderer, render.Target, error) {
 		return nil, nil, fmt.Errorf("headless: %s already has a frame in progress", o.name)
 	}
 	o.inFrame = true
-	return o.backend.renderer, o.buffer, nil
+	return o.backend.renderer, o.target, nil
 }
 
 func (o *Output) Present(render.Region) error {
@@ -211,6 +276,11 @@ func (o *Output) Present(render.Region) error {
 		return fmt.Errorf("headless: present on %s without BeginFrame", o.name)
 	}
 	o.inFrame = false
+	if fb, ok := o.target.(*gles.Framebuffer); ok {
+		if err := fb.Read(o.buffer.Pix, o.buffer.Stride); err != nil {
+			return fmt.Errorf("headless: read back %s: %w", o.name, err)
+		}
+	}
 	o.presentPending = true
 	o.presents++
 	return o.arm()

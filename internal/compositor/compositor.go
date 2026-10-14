@@ -14,6 +14,7 @@ import (
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/binds"
 	"github.com/stubbedev/tilde/internal/data"
+	"github.com/stubbedev/tilde/internal/dmabuf"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/output"
 	"github.com/stubbedev/tilde/internal/render"
@@ -77,6 +78,9 @@ type Compositor struct {
 	seat        *seat.Seat
 	shell       *shell.Shell
 	textures    map[*surface.Surface]*texture
+	imported    map[*dmabuf.Buffer]render.Texture
+	dmabuf      *dmabuf.Manager
+	importer    dmabufRenderer
 	windows     []*window
 	stack       []*window
 	interaction *interaction
@@ -155,6 +159,7 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 	c := &Compositor{
 		renderer:   b.Renderer(),
 		textures:   map[*surface.Surface]*texture{},
+		imported:   map[*dmabuf.Buffer]render.Texture{},
 		shown:      map[*output.Output][]*surface.Surface{},
 		touches:    map[int32]*output.Output{},
 		labels:     map[*output.Output]map[labelKey]*label{},
@@ -179,6 +184,12 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 	}
 	if err := singlepixel.New(display); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
+	}
+	if imp, ok := c.renderer.(dmabufRenderer); ok {
+		c.importer = imp
+		if c.dmabuf, err = dmabuf.New(display, imp, c); err != nil {
+			return nil, fmt.Errorf("compositor: %w", err)
+		}
 	}
 	if c.data, err = data.New(display, c); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
@@ -223,9 +234,16 @@ func (c *Compositor) dropDecor() error {
 }
 
 func (c *Compositor) Close() error {
-	err := c.dropDecor()
+	errs := []error{c.dropDecor()}
+	for b, tex := range c.imported {
+		errs = append(errs, tex.Destroy())
+		delete(c.imported, b)
+	}
+	if c.dmabuf != nil {
+		errs = append(errs, c.dmabuf.Close())
+	}
 	c.seat.Close()
-	return err
+	return errors.Join(errs...)
 }
 
 func (c *Compositor) Seat() *seat.Seat {

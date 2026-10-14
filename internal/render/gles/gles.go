@@ -3,12 +3,15 @@
 package gles
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"image"
 	"runtime"
 	"slices"
 	"strings"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/render"
@@ -217,6 +220,56 @@ func (r *Renderer) externalOnly(b gpu.DMABUF) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+func (r *Renderer) DMABUFFormats() ([]gpu.FormatModifier, error) {
+	formats, err := r.d.DMABUFFormats()
+	if err != nil {
+		return nil, err
+	}
+	var out []gpu.FormatModifier
+	for _, f := range formats {
+		mods, err := r.d.DMABUFModifiers(f)
+		if err != nil {
+			return nil, err
+		}
+		r.modifiers[f] = mods
+		out = append(out, gpu.FormatModifier{Format: f, Modifier: gpu.ModifierInvalid})
+		for _, m := range mods {
+			out = append(out, gpu.FormatModifier{Format: f, Modifier: m.Modifier})
+		}
+	}
+	slices.SortFunc(out, func(a, b gpu.FormatModifier) int {
+		if a.Format != b.Format {
+			return cmp.Compare(a.Format, b.Format)
+		}
+		return cmp.Compare(a.Modifier, b.Modifier)
+	})
+	return slices.Compact(out), nil
+}
+
+func (r *Renderer) MainDevice() (uint64, error) {
+	dev, err := r.d.Device()
+	if err != nil {
+		return 0, err
+	}
+	node := dev.RenderNode()
+	if node == "" {
+		return 0, fmt.Errorf("%w: %s has no render node", gpu.ErrUnsupported, r.gl.Renderer())
+	}
+	var st unix.Stat_t
+	if err := unix.Stat(node, &st); err != nil {
+		return 0, fmt.Errorf("gles: stat %s: %w", node, err)
+	}
+	return st.Rdev, nil
+}
+
+func (r *Renderer) CheckDMABUF(b gpu.DMABUF) error {
+	t, err := r.ImportTexture(b)
+	if err != nil {
+		return err
+	}
+	return t.Destroy()
 }
 
 func (r *Renderer) ImportTexture(b gpu.DMABUF) (render.Texture, error) {

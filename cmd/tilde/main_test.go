@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stubbedev/tilde/internal/backend/nested"
 	"github.com/stubbedev/tilde/internal/compositor"
 	"github.com/stubbedev/tilde/internal/ipc"
 	"github.com/stubbedev/tilde/internal/testenv"
@@ -52,13 +51,13 @@ func TestChooseBackend(t *testing.T) {
 func TestChooseRenderer(t *testing.T) {
 	for _, c := range []struct {
 		requested, backend string
-		want               nested.Renderer
-	}{{"", "nested", nested.GLES}, {"", "headless", nested.Soft}, {"soft", "nested", nested.Soft}, {"gles", "nested", nested.GLES}} {
+		want               rendererKind
+	}{{"", "nested", glesRenderer}, {"", "headless", softRenderer}, {"soft", "nested", softRenderer}, {"gles", "headless", glesRenderer}} {
 		if got, err := chooseRenderer(c.requested, c.backend); err != nil || got != c.want {
 			t.Errorf("chooseRenderer(%q, %q) = %v, %v; want %v", c.requested, c.backend, got, err, c.want)
 		}
 	}
-	for _, c := range [][2]string{{"gles", "headless"}, {"vulkan", "nested"}} {
+	for _, c := range [][2]string{{"vulkan", "nested"}} {
 		if _, err := chooseRenderer(c[0], c[1]); err == nil {
 			t.Errorf("chooseRenderer(%q, %q) succeeded", c[0], c[1])
 		}

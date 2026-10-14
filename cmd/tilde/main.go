@@ -73,31 +73,59 @@ func chooseBackend(requested, waylandDisplay string) (string, error) {
 	return "", fmt.Errorf("unknown backend %q (available: nested, headless)", requested)
 }
 
-func chooseRenderer(requested, backendName string) (nested.Renderer, error) {
-	switch {
-	case requested == "" && backendName == "nested", requested == "gles" && backendName == "nested":
-		return nested.GLES, nil
-	case requested == "" || requested == "soft":
-		return nested.Soft, nil
-	case requested == "gles":
-		return 0, fmt.Errorf("the %s backend renders in software only", backendName)
+type rendererKind uint8
+
+const (
+	softRenderer rendererKind = iota + 1
+	glesRenderer
+)
+
+func chooseRenderer(requested, backendName string) (rendererKind, error) {
+	switch requested {
+	case "":
+		if backendName == "nested" {
+			return glesRenderer, nil
+		}
+		return softRenderer, nil
+	case "soft":
+		return softRenderer, nil
+	case "gles":
+		return glesRenderer, nil
 	}
 	return 0, fmt.Errorf("unknown renderer %q (available: gles, soft)", requested)
 }
 
-func openBackend(name string, renderer nested.Renderer, l *loop.Loop) (backend.Backend, error) {
+func openHeadless(l *loop.Loop, renderer rendererKind, paths gpu.Paths) (*headless.Backend, error) {
+	if renderer == glesRenderer {
+		return headless.NewGLES(l, paths)
+	}
+	return headless.New(l), nil
+}
+
+func openBackend(name string, renderer rendererKind, l *loop.Loop) (backend.Backend, error) {
+	paths := gpu.PathsFromEnv(os.Getenv)
+	hint := func(err error) error {
+		if err != nil && renderer == glesRenderer {
+			return fmt.Errorf("%w (run with --renderer soft to render in software)", err)
+		}
+		return err
+	}
 	if name == "nested" {
 		host, err := wlclient.SocketPath(os.Getenv)
 		if err != nil {
 			return nil, err
 		}
-		b, err := nested.New(l, host, nested.Options{Renderer: renderer, GPU: gpu.PathsFromEnv(os.Getenv)})
-		if err != nil && renderer == nested.GLES {
-			return nil, fmt.Errorf("%w (run with --renderer soft to present through shm)", err)
+		opts := nested.Options{Renderer: nested.Soft, GPU: paths}
+		if renderer == glesRenderer {
+			opts.Renderer = nested.GLES
 		}
-		return b, err
+		b, err := nested.New(l, host, opts)
+		return b, hint(err)
 	}
-	b := headless.New(l)
+	b, err := openHeadless(l, renderer, paths)
+	if err != nil {
+		return nil, hint(err)
+	}
 	if _, err := b.AddOutput(headlessMode); err != nil {
 		return nil, errors.Join(err, b.Close())
 	}

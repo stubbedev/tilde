@@ -18,6 +18,7 @@ import (
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/backend/headless"
 	"github.com/stubbedev/tilde/internal/compositor"
+	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/ipc"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/render/soft"
@@ -45,6 +46,19 @@ func Start(t *testing.T, modes ...backend.Mode) *Harness {
 
 func StartWith(t *testing.T, configure func(*compositor.Config), modes ...backend.Mode) *Harness {
 	t.Helper()
+	return start(t, func(l *loop.Loop) (*headless.Backend, error) { return headless.New(l), nil }, configure, modes...)
+}
+
+func StartGLES(t *testing.T, configure func(*compositor.Config), modes ...backend.Mode) *Harness {
+	t.Helper()
+	testenv.GPU(t)
+	return start(t, func(l *loop.Loop) (*headless.Backend, error) {
+		return headless.NewGLES(l, gpu.PathsFromEnv(os.Getenv))
+	}, configure, modes...)
+}
+
+func start(t *testing.T, open func(*loop.Loop) (*headless.Backend, error), configure func(*compositor.Config), modes ...backend.Mode) *Harness {
+	t.Helper()
 	dir, err := os.MkdirTemp("", "tilde-")
 	if err != nil {
 		t.Fatalf("harness: runtime dir: %v", err)
@@ -57,7 +71,9 @@ func StartWith(t *testing.T, configure func(*compositor.Config), modes ...backen
 	if h.display, err = server.New(h.loop, server.Options{RuntimeDir: dir, Trace: h.trace}); err != nil {
 		t.Fatalf("harness: %v", err)
 	}
-	h.backend = headless.New(h.loop)
+	if h.backend, err = open(h.loop); err != nil {
+		t.Fatalf("harness: %v", err)
+	}
 	for _, m := range modes {
 		if _, err := h.backend.AddOutput(m); err != nil {
 			t.Fatalf("harness: %v", err)
@@ -86,13 +102,6 @@ func (h *Harness) stop() {
 	for _, c := range h.clients {
 		c.kill()
 	}
-	if h.compositor != nil {
-		defer func() {
-			if err := h.compositor.Close(); err != nil {
-				h.t.Errorf("harness: close the compositor: %v", err)
-			}
-		}()
-	}
 	if h.loop != nil && h.compositor != nil {
 		if err := h.loop.Post(func() error {
 			h.loop.Stop()
@@ -104,6 +113,9 @@ func (h *Harness) stop() {
 		}
 	}
 	var errs []error
+	if h.compositor != nil {
+		errs = append(errs, h.compositor.Close())
+	}
 	if h.ipc != nil {
 		errs = append(errs, h.ipc.Close())
 	}
