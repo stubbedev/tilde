@@ -15,6 +15,7 @@ import (
 
 	"github.com/stubbedev/tilde/internal/loop"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
+	cwlr "github.com/stubbedev/tilde/internal/protocol/client/wlrlayershell"
 	cxdg "github.com/stubbedev/tilde/internal/protocol/client/xdgshell"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
@@ -34,6 +35,8 @@ type recorder struct {
 	requests   []Request
 	constraint image.Rectangle
 	press      uint32
+	layers     []*LayerSurface
+	layerSize  func(*LayerSurface) image.Point
 }
 
 func (r *recorder) note(format string, args ...any) error {
@@ -69,7 +72,22 @@ func (r *recorder) ClientResponsive(_ *server.Client, responsive bool) error {
 	return r.note("responsive %t", responsive)
 }
 
-func (r *recorder) PopupConstraint(*Toplevel) image.Rectangle { return r.constraint }
+func (r *recorder) PopupConstraint(PopupRoot) image.Rectangle { return r.constraint }
+
+func (r *recorder) LayerCommitted(l *LayerSurface) error {
+	if !slices.Contains(r.layers, l) {
+		r.layers = append(r.layers, l)
+	}
+	if r.layerSize != nil {
+		if err := l.Configure(r.layerSize(l)); err != nil {
+			return err
+		}
+	}
+	return r.note("layer committed %t", l.Mapped())
+}
+
+func (r *recorder) LayerUnmapped(*LayerSurface) error  { return r.note("layer unmapped") }
+func (r *recorder) LayerDestroyed(*LayerSurface) error { return r.note("layer destroyed") }
 
 func (r *recorder) PopupMapped(p *Popup) error {
 	r.popups = append(r.popups, p)
@@ -189,6 +207,7 @@ type client struct {
 	wm   *cxdg.XdgWmBase
 	wmE  *wmEvents
 	seat *cw.WlSeat
+	lsh  *cwlr.ZwlrLayerShellV1
 }
 
 func (e *env) connect(wmVersion uint32) *client {
@@ -215,8 +234,11 @@ func (e *env) connect(wmVersion uint32) *client {
 	must(e.t, err)
 	c.seat, err = cw.NewWlSeat(d, 1, struct{ cw.WlSeatHandler }{})
 	must(e.t, err)
+	c.lsh, err = cwlr.NewZwlrLayerShellV1(d, 5)
+	must(e.t, err)
 	must(e.t, reg.Bind(globals["wl_compositor"], c.comp), reg.Bind(globals["wl_subcompositor"], c.sub),
-		reg.Bind(globals["wl_shm"], c.shm), reg.Bind(globals["xdg_wm_base"], c.wm), reg.Bind(globals["wl_seat"], c.seat))
+		reg.Bind(globals["wl_shm"], c.shm), reg.Bind(globals["xdg_wm_base"], c.wm), reg.Bind(globals["wl_seat"], c.seat),
+		reg.Bind(globals["zwlr_layer_shell_v1"], c.lsh))
 	c.roundtrip()
 	return c
 }

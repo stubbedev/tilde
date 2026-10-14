@@ -92,6 +92,11 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 			c.consumed = append(c.consumed, e.Button)
 			return c.shell.DismissGrab()
 		}
+		if e.Pressed {
+			if err := c.clickFocus(c.seat.PointerFocus()); err != nil {
+				return err
+			}
+		}
 		return c.seat.PointerButton(e.Time, e.Button, e.Pressed)
 	case backend.PointerAxis:
 		a := seat.Axis{Orientation: sw.WlPointerAxisVerticalScroll, Source: sw.WlPointerAxisSource(e.Source), Value: e.Value, Value120: e.Value120}
@@ -179,22 +184,59 @@ func (c *Compositor) refreshPointer() error {
 	return errors.Join(c.seat.SetPointerFocus(s, local.X, local.Y), c.seat.PointerFrame())
 }
 
+func hitPopups(popups []placedPopup, p point) (*surface.Surface, point) {
+	for _, pp := range slices.Backward(popups) {
+		if s, local := hitTree(pp.popup.Surface(), pp.origin, p); s != nil {
+			return s, local
+		}
+	}
+	return nil, point{}
+}
+
+func hitLayers(layers []*layer, p point) (*surface.Surface, point) {
+	for _, e := range slices.Backward(layers) {
+		if s, local := hitTree(e.surface.Surface(), e.bounds().Min, p); s != nil {
+			return s, local
+		}
+	}
+	return nil, point{}
+}
+
+func (c *Compositor) outputAt(p point) *output.Output {
+	for _, o := range c.outputs {
+		if image.Pt(int(math.Floor(p.X)), int(math.Floor(p.Y))).In(o.Logical()) {
+			return o
+		}
+	}
+	return nil
+}
+
 func (c *Compositor) surfaceAt(p point) (*surface.Surface, point, *window) {
+	for _, e := range slices.Backward(c.layers) {
+		if s, local := hitPopups(c.layerPopups(e), p); s != nil {
+			return s, local, nil
+		}
+	}
+	o := c.outputAt(p)
+	if s, local := hitLayers(c.layersAt(o, aboveWindows...), p); s != nil {
+		return s, local, nil
+	}
 	for _, w := range slices.Backward(c.windows) {
-		for _, pp := range slices.Backward(c.popups(w)) {
-			if s, local := hitTree(pp.popup.Surface(), pp.origin, p); s != nil {
-				return s, local, w
-			}
+		if s, local := hitPopups(c.popups(w), p); s != nil {
+			return s, local, w
 		}
 	}
 	for _, w := range slices.Backward(c.windows) {
 		if w.output == nil {
 			continue
 		}
-		origin := w.placement().Min.Sub(w.toplevel.Geometry().Min)
+		origin := c.placement(w).Min.Sub(w.toplevel.Geometry().Min)
 		if s, local := hitTree(w.toplevel.Surface(), origin, p); s != nil {
 			return s, local, w
 		}
+	}
+	if s, local := hitLayers(c.layersAt(o, belowWindows...), p); s != nil {
+		return s, local, nil
 	}
 	return nil, point{}, nil
 }
@@ -219,10 +261,23 @@ func hitTree(s *surface.Surface, at image.Point, p point) (*surface.Surface, poi
 
 func (c *Compositor) originOf(target *surface.Surface) (image.Point, bool) {
 	for _, w := range c.windows {
-		if origin, ok := treeOrigin(w.toplevel.Surface(), w.placement().Min.Sub(w.toplevel.Geometry().Min), target); ok {
+		if origin, ok := treeOrigin(w.toplevel.Surface(), c.placement(w).Min.Sub(w.toplevel.Geometry().Min), target); ok {
 			return origin, true
 		}
 		for _, pp := range c.popups(w) {
+			if origin, ok := treeOrigin(pp.popup.Surface(), pp.origin, target); ok {
+				return origin, true
+			}
+		}
+	}
+	for _, e := range c.layers {
+		if !e.shown() {
+			continue
+		}
+		if origin, ok := treeOrigin(e.surface.Surface(), e.bounds().Min, target); ok {
+			return origin, true
+		}
+		for _, pp := range c.layerPopups(e) {
 			if origin, ok := treeOrigin(pp.popup.Surface(), pp.origin, target); ok {
 				return origin, true
 			}

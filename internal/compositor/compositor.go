@@ -43,23 +43,26 @@ func DefaultConfig(keymap *xkb.Keymap) Config {
 }
 
 type Compositor struct {
-	outputs  []*output.Output
-	layout   *output.Manager
-	renderer render.Renderer
-	surfaces *surface.Manager
-	shm      *shm.Manager
-	seat     *seat.Seat
-	shell    *shell.Shell
-	textures map[*surface.Surface]*texture
-	windows  []*window
-	active   *window
-	consumed []uint32
-	shown    map[*output.Output][]*surface.Surface
-	entered  []*entered
-	cursor   point
-	touches  map[int32]*output.Output
-	cursors  CursorConfig
-	pointers map[cursorKey]*cursorTexture
+	outputs    []*output.Output
+	layout     *output.Manager
+	renderer   render.Renderer
+	surfaces   *surface.Manager
+	shm        *shm.Manager
+	seat       *seat.Seat
+	shell      *shell.Shell
+	textures   map[*surface.Surface]*texture
+	windows    []*window
+	active     *window
+	consumed   []uint32
+	layers     []*layer
+	usable     map[*output.Output]image.Rectangle
+	layerFocus *shell.LayerSurface
+	shown      map[*output.Output][]*surface.Surface
+	entered    []*entered
+	cursor     point
+	touches    map[int32]*output.Output
+	cursors    CursorConfig
+	pointers   map[cursorKey]*cursorTexture
 }
 
 type entered struct {
@@ -75,6 +78,7 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		touches:  map[int32]*output.Output{},
 		cursors:  cfg.Cursor,
 		pointers: map[cursorKey]*cursorTexture{},
+		usable:   map[*output.Output]image.Rectangle{},
 	}
 	if c.cursors.Size <= 0 {
 		return nil, fmt.Errorf("compositor: cursor size %d is not positive", c.cursors.Size)
@@ -168,6 +172,9 @@ func (c *Compositor) OutputAdded(b backend.Output) error {
 		center := o.Logical().Min.Add(o.LogicalSize().Div(2))
 		c.cursor = point{float64(center.X), float64(center.Y)}
 	}
+	if _, err := c.arrange(o); err != nil {
+		return err
+	}
 	if err := c.adoptWindows(o); err != nil {
 		return err
 	}
@@ -181,7 +188,8 @@ func (c *Compositor) OutputRemoved(b backend.Output) error {
 	}
 	c.outputs = slices.DeleteFunc(c.outputs, func(x *output.Output) bool { return x == o })
 	delete(c.shown, o)
-	errs := []error{o.Remove()}
+	errs := []error{c.closeLayers(o), o.Remove()}
+	delete(c.usable, o)
 	for _, e := range c.entered {
 		if slices.Contains(e.outputs, o) {
 			errs = append(errs, e.s.Client().Sent(e.s.Leave(o.Resources(e.s.Client()))))
@@ -205,7 +213,11 @@ func (c *Compositor) OutputChanged(b backend.Output) error {
 	if o == nil {
 		return fmt.Errorf("compositor: change of unknown output %s", b.Name())
 	}
-	return errors.Join(o.Changed(), c.relayout(), c.refit(o), c.schedule(o))
+	if err := errors.Join(o.Changed(), c.relayout()); err != nil {
+		return err
+	}
+	_, err := c.arrange(o)
+	return errors.Join(err, c.refit(o), c.schedule(o))
 }
 
 func (c *Compositor) SetOutputScale(b backend.Output, scale output.Scale) error {
@@ -216,5 +228,9 @@ func (c *Compositor) SetOutputScale(b backend.Output, scale output.Scale) error 
 	if err := o.Update(o.Position(), scale); err != nil {
 		return err
 	}
-	return errors.Join(c.relayout(), c.refit(o), c.schedule(o))
+	if err := c.relayout(); err != nil {
+		return err
+	}
+	_, err := c.arrange(o)
+	return errors.Join(err, c.refit(o), c.schedule(o))
 }

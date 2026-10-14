@@ -17,11 +17,11 @@ type window struct {
 	output   *output.Output
 }
 
-func (w *window) placement() image.Rectangle {
+func (c *Compositor) placement(w *window) image.Rectangle {
 	if w.output == nil {
 		return image.Rectangle{}
 	}
-	return w.output.Logical()
+	return c.usable[w.output].Add(w.output.Position())
 }
 
 func (c *Compositor) firstOutput() *output.Output {
@@ -42,7 +42,7 @@ func (c *Compositor) Toplevels() []*shell.Toplevel {
 func (c *Compositor) configure(t *shell.Toplevel, o *output.Output, activated bool) error {
 	var s shell.State
 	if o != nil {
-		s.Size = o.LogicalSize()
+		s.Size = c.usable[o].Size()
 		s.Bounds = s.Size
 		if err := t.Surface().Client().Sent(t.Surface().SetPreferredScale(uint32(o.Scale()))); err != nil {
 			return err
@@ -66,6 +66,9 @@ func (c *Compositor) focus(target *window) error {
 		}
 	}
 	c.active = target
+	if target != nil {
+		c.layerFocus = nil
+	}
 	if target != nil && !target.toplevel.Requested().Has(sxdg.XdgToplevelStateActivated) {
 		if err := c.configure(target.toplevel, target.output, true); err != nil {
 			return err
@@ -75,13 +78,19 @@ func (c *Compositor) focus(target *window) error {
 }
 
 func (c *Compositor) keyboardTarget() *surface.Surface {
-	if top := c.grabTop(); top != nil {
+	exclusive := c.exclusiveLayer()
+	if top := c.grabTop(); top != nil && (exclusive == nil || top.Client() == exclusive.Surface().Client()) {
 		return top
 	}
-	if c.active == nil {
-		return nil
+	switch {
+	case exclusive != nil:
+		return exclusive.Surface()
+	case c.layerFocus != nil && c.layerFocus.Mapped():
+		return c.layerFocus.Surface()
+	case c.active != nil:
+		return c.active.toplevel.Surface()
 	}
-	return c.active.toplevel.Surface()
+	return nil
 }
 
 func (c *Compositor) refocus() error {

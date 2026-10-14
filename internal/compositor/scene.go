@@ -37,19 +37,24 @@ func (c *Compositor) render(o *output.Output) error {
 	}
 	pass.FillRect(bounds, Background)
 	shown := c.shown[o][:0]
+	for _, e := range c.layersAt(o, belowWindows...) {
+		shown = c.drawTree(pass, o, e.surface.Surface(), e.bounds().Min, shown)
+	}
 	for _, w := range c.windows {
 		if w.output != o {
 			continue
 		}
-		origin := w.placement().Min.Sub(w.toplevel.Geometry().Min)
+		origin := c.placement(w).Min.Sub(w.toplevel.Geometry().Min)
 		shown = c.drawTree(pass, o, w.toplevel.Surface(), origin, shown)
 	}
 	for _, w := range c.windows {
-		for _, p := range c.popups(w) {
-			if p.bounds().Overlaps(o.Logical()) {
-				shown = c.drawTree(pass, o, p.popup.Surface(), p.origin, shown)
-			}
-		}
+		shown = c.drawPopups(pass, o, c.popups(w), shown)
+	}
+	for _, e := range c.layersAt(o, aboveWindows...) {
+		shown = c.drawTree(pass, o, e.surface.Surface(), e.bounds().Min, shown)
+	}
+	for _, e := range c.layers {
+		shown = c.drawPopups(pass, o, c.layerPopups(e), shown)
 	}
 	shown, err = c.drawCursor(pass, o, shown)
 	if err != nil {
@@ -60,6 +65,15 @@ func (c *Compositor) render(o *output.Output) error {
 		return err
 	}
 	return o.Backend().Present(damage)
+}
+
+func (c *Compositor) drawPopups(pass render.Pass, o *output.Output, popups []placedPopup, shown []*surface.Surface) []*surface.Surface {
+	for _, p := range popups {
+		if p.bounds().Overlaps(o.Logical()) {
+			shown = c.drawTree(pass, o, p.popup.Surface(), p.origin, shown)
+		}
+	}
+	return shown
 }
 
 func (c *Compositor) drawTree(pass render.Pass, o *output.Output, s *surface.Surface, at image.Point, shown []*surface.Surface) []*surface.Surface {

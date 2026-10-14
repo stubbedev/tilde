@@ -12,6 +12,7 @@ import (
 
 	"github.com/stubbedev/tilde/internal/loop"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
+	swlr "github.com/stubbedev/tilde/internal/protocol/server/wlrlayershell"
 	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/surface"
@@ -66,7 +67,10 @@ type Listener interface {
 	ToplevelChanged(t *Toplevel, c Change) error
 	ToplevelRequest(t *Toplevel, r Request) error
 	ClientResponsive(c *server.Client, responsive bool) error
-	PopupConstraint(root *Toplevel) image.Rectangle
+	PopupConstraint(root PopupRoot) image.Rectangle
+	LayerCommitted(l *LayerSurface) error
+	LayerUnmapped(l *LayerSurface) error
+	LayerDestroyed(l *LayerSurface) error
 	PopupMapped(p *Popup) error
 	PopupUnmapped(p *Popup) error
 	PressSerial(c *server.Client, serial uint32) bool
@@ -85,6 +89,9 @@ type Shell struct {
 func New(d *server.Display, l *loop.Loop, listener Listener) (*Shell, error) {
 	sh := &Shell{display: d, loop: l, listener: listener, subRoles: map[*surface.Surface]string{}, pingTimeout: PingTimeout}
 	if _, err := d.AddGlobal(sxdg.XdgWmBaseInterface, wmBaseVersion, sh.bind); err != nil {
+		return nil, err
+	}
+	if _, err := d.AddGlobal(swlr.ZwlrLayerShellV1Interface, layerShellVersion, sh.bindLayerShell); err != nil {
 		return nil, err
 	}
 	return sh, nil

@@ -11,10 +11,21 @@ import (
 	"github.com/stubbedev/tilde/internal/surface"
 )
 
+type PopupRoot interface {
+	Popups() []*Popup
+	Surface() *surface.Surface
+}
+
+type popupParent interface {
+	children() *[]*Popup
+	root() PopupRoot
+	offset() image.Point
+}
+
 type Popup struct {
 	xs         *XdgSurface
 	resource   *sxdg.XdgPopup
-	parent     *XdgSurface
+	parent     popupParent
 	rules      Positioner
 	token      *uint32
 	box        image.Rectangle
@@ -40,8 +51,7 @@ func (xs *XdgSurface) GetPopup(obj *sxdg.XdgSurface, res *sxdg.XdgPopup, parent 
 		if px.role == nil || px == xs {
 			return nil, xs.base.resource.ProtocolError(sxdg.XdgWmBaseErrorInvalidPopupParent, "the parent xdg_surface has no role")
 		}
-		p.parent = px
-		px.popups = append(px.popups, p)
+		p.adopt(px)
 	}
 	xs.role = p
 	xs.base.client.OnDestroy(res, p.destroy)
@@ -68,36 +78,54 @@ func (p *Popup) Popups() []*Popup {
 	return p.xs.Popups()
 }
 
+func (p *Popup) adopt(parent popupParent) {
+	p.parent = parent
+	list := parent.children()
+	*list = append(*list, p)
+}
+
 func (p *Popup) parentPopup() *Popup {
-	if p.parent == nil {
+	xs, ok := p.parent.(*XdgSurface)
+	if !ok {
 		return nil
 	}
-	parent, _ := p.parent.role.(*Popup)
+	parent, _ := xs.role.(*Popup)
 	return parent
 }
 
-func (p *Popup) Root() *Toplevel {
-	for x := p; ; {
-		if x.parent == nil {
-			return nil
-		}
-		switch r := x.parent.role.(type) {
-		case *Toplevel:
-			return r
-		case *Popup:
-			x = r
-		default:
-			return nil
-		}
+func (p *Popup) Root() PopupRoot {
+	if p.parent == nil {
+		return nil
 	}
+	return p.parent.root()
 }
 
 func (p *Popup) parentOffset() image.Point {
-	var off image.Point
-	for x := p.parentPopup(); x != nil; x = x.parentPopup() {
-		off = off.Add(x.box.Min)
+	if p.parent == nil {
+		return image.Point{}
 	}
-	return off
+	return p.parent.offset()
+}
+
+func (xs *XdgSurface) children() *[]*Popup {
+	return &xs.popups
+}
+
+func (xs *XdgSurface) root() PopupRoot {
+	switch r := xs.role.(type) {
+	case *Toplevel:
+		return r
+	case *Popup:
+		return r.Root()
+	}
+	return nil
+}
+
+func (xs *XdgSurface) offset() image.Point {
+	if p, ok := xs.role.(*Popup); ok {
+		return p.parentOffset().Add(p.box.Min)
+	}
+	return image.Point{}
 }
 
 func (p *Popup) ack(serial uint32) bool {
@@ -226,7 +254,8 @@ func (p *Popup) destroy() error {
 		errs = append(errs, sh.listener.GrabChanged())
 	}
 	if p.parent != nil {
-		p.parent.popups = slices.DeleteFunc(p.parent.popups, func(x *Popup) bool { return x == p })
+		list := p.parent.children()
+		*list = slices.DeleteFunc(*list, func(x *Popup) bool { return x == p })
 	}
 	p.dismissed = true
 	xs.role, xs.configured, xs.initialSent = nil, false, false

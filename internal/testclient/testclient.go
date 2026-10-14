@@ -16,6 +16,7 @@ import (
 	cfs "github.com/stubbedev/tilde/internal/protocol/client/fractionalscale"
 	cvp "github.com/stubbedev/tilde/internal/protocol/client/viewporter"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
+	cwlr "github.com/stubbedev/tilde/internal/protocol/client/wlrlayershell"
 	cxdg "github.com/stubbedev/tilde/internal/protocol/client/xdgshell"
 	"github.com/stubbedev/tilde/internal/wlclient"
 )
@@ -32,6 +33,7 @@ type Client struct {
 	Viewporter    *cvp.WpViewporter
 	Fractional    *cfs.WpFractionalScaleManagerV1
 	CursorShape   *ccs.WpCursorShapeManagerV1
+	LayerShell    *cwlr.ZwlrLayerShellV1
 	Outputs       []*cw.WlOutput
 	registry      *cw.WlRegistry
 	globals       *registry
@@ -92,6 +94,8 @@ func Connect(t testing.TB, socket string) *Client {
 	c.must(err)
 	c.CursorShape, err = ccs.NewWpCursorShapeManagerV1(d, 2)
 	c.must(err)
+	c.LayerShell, err = cwlr.NewZwlrLayerShellV1(d, 5)
+	c.must(err)
 	c.must(errors.Join(
 		reg.Bind(globals.byName["wl_compositor"].name, c.Compositor),
 		reg.Bind(globals.byName["wl_subcompositor"].name, c.Subcompositor),
@@ -100,6 +104,7 @@ func Connect(t testing.TB, socket string) *Client {
 		reg.Bind(globals.byName["wp_viewporter"].name, c.Viewporter),
 		reg.Bind(globals.byName["wp_fractional_scale_manager_v1"].name, c.Fractional),
 		reg.Bind(globals.byName["wp_cursor_shape_manager_v1"].name, c.CursorShape),
+		reg.Bind(globals.byName["zwlr_layer_shell_v1"].name, c.LayerShell),
 	))
 	for _, name := range globals.outputs {
 		o, err := cw.NewWlOutput(d, 4, outputEvents{})
@@ -217,6 +222,7 @@ type Window struct {
 	XdgSurface   *cxdg.XdgSurface
 	Toplevel     *cxdg.XdgToplevel
 	Popup        *cxdg.XdgPopup
+	Layer        *cwlr.ZwlrLayerSurfaceV1
 	Placed       image.Rectangle
 	Dismissed    bool
 	destroyed    bool
@@ -299,6 +305,9 @@ func (c *Client) Popup(parent *Window, p Placement, grab *Grab, paint Painter) *
 	w.Popup, err = w.XdgSurface.GetPopup(popupEvents{w}, parent.XdgSurface, pos)
 	c.must(err)
 	c.must(pos.Destroy())
+	if parent.Layer != nil {
+		c.must(parent.Layer.GetPopup(w.Popup))
+	}
 	if grab != nil {
 		c.must(w.Popup.Grab(grab.Seat, grab.Serial))
 	}
@@ -306,15 +315,41 @@ func (c *Client) Popup(parent *Window, p Placement, grab *Grab, paint Painter) *
 	return w
 }
 
+type LayerSpec struct {
+	Layer         cwlr.ZwlrLayerShellV1Layer
+	Anchor        cwlr.ZwlrLayerSurfaceV1Anchor
+	Size          image.Point
+	ExclusiveZone int32
+	Interactivity cwlr.ZwlrLayerSurfaceV1KeyboardInteractivity
+}
+
+func (c *Client) Layer(spec LayerSpec, paint Painter) *Window {
+	c.t.Helper()
+	w := &Window{c: c, paint: paint, BufferScale: 1, Preferred120: 120}
+	var err error
+	w.Surface, err = c.Compositor.CreateSurface(surfaceEvents{w})
+	c.must(err)
+	w.Layer, err = c.LayerShell.GetLayerSurface(layerEvents{w}, w.Surface, nil, spec.Layer, "tilde.testclient")
+	c.must(err)
+	c.must(errors.Join(
+		w.Layer.SetAnchor(spec.Anchor),
+		w.Layer.SetSize(uint32(spec.Size.X), uint32(spec.Size.Y)), //nolint:gosec // test sizes are small
+		w.Layer.SetExclusiveZone(spec.ExclusiveZone),
+		w.Layer.SetKeyboardInteractivity(spec.Interactivity),
+		w.Surface.Commit(),
+	))
+	return w
+}
+
 func (w *Window) Destroy() error {
 	w.destroyed = true
-	var role error
-	if w.Popup != nil {
-		role = w.Popup.Destroy()
-	} else {
-		role = w.Toplevel.Destroy()
+	switch {
+	case w.Layer != nil:
+		return errors.Join(w.Layer.Destroy(), w.Surface.Destroy())
+	case w.Popup != nil:
+		return errors.Join(w.Popup.Destroy(), w.XdgSurface.Destroy(), w.Surface.Destroy())
 	}
-	return errors.Join(role, w.XdgSurface.Destroy(), w.Surface.Destroy())
+	return errors.Join(w.Toplevel.Destroy(), w.XdgSurface.Destroy(), w.Surface.Destroy())
 }
 
 func (w *Window) Mapped() bool {
@@ -396,10 +431,28 @@ func (e fractionalEvents) PreferredScale(_ *cfs.WpFractionalScaleV1, scale uint3
 type xdgSurfaceEvents struct{ w *Window }
 
 func (e xdgSurfaceEvents) Configure(xs *cxdg.XdgSurface, serial uint32) error {
-	w := e.w
 	if err := xs.AckConfigure(serial); err != nil {
 		return err
 	}
+	return e.w.configured()
+}
+
+type layerEvents struct{ w *Window }
+
+func (e layerEvents) Configure(l *cwlr.ZwlrLayerSurfaceV1, serial, width, height uint32) error {
+	if err := l.AckConfigure(serial); err != nil {
+		return err
+	}
+	e.w.pending = image.Pt(int(width), int(height))
+	return e.w.configured()
+}
+
+func (e layerEvents) Closed(*cwlr.ZwlrLayerSurfaceV1) error {
+	e.w.Closed = true
+	return nil
+}
+
+func (w *Window) configured() error {
 	logical := w.pending
 	if logical.X == 0 || logical.Y == 0 {
 		logical = defaultSize

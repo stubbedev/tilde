@@ -23,6 +23,10 @@ func (c *Compositor) popups(w *window) []placedPopup {
 	if w.output == nil {
 		return nil
 	}
+	return c.popupTree(w.toplevel, c.placement(w).Min)
+}
+
+func (c *Compositor) popupTree(root shell.PopupRoot, origin image.Point) []placedPopup {
 	var out []placedPopup
 	var walk func(ps []*shell.Popup, parent image.Point)
 	walk = func(ps []*shell.Popup, parent image.Point) {
@@ -35,7 +39,7 @@ func (c *Compositor) popups(w *window) []placedPopup {
 			walk(p.Popups(), geometry)
 		}
 	}
-	walk(w.toplevel.Popups(), w.placement().Min)
+	walk(root.Popups(), origin)
 	return out
 }
 
@@ -48,12 +52,18 @@ func (c *Compositor) windowOf(t *shell.Toplevel) *window {
 	return nil
 }
 
-func (c *Compositor) PopupConstraint(root *shell.Toplevel) image.Rectangle {
-	w := c.windowOf(root)
-	if w == nil || w.output == nil {
-		return image.Rectangle{}
+func (c *Compositor) PopupConstraint(root shell.PopupRoot) image.Rectangle {
+	switch r := root.(type) {
+	case *shell.Toplevel:
+		if w := c.windowOf(r); w != nil && w.output != nil {
+			return w.output.Logical().Sub(c.placement(w).Min)
+		}
+	case *shell.LayerSurface:
+		if e := c.layerOf(r); e != nil && e.placed {
+			return e.output.Logical().Sub(e.bounds().Min)
+		}
 	}
-	return w.output.Logical().Sub(w.placement().Min)
+	return image.Rectangle{}
 }
 
 func (c *Compositor) PopupMapped(*shell.Popup) error {

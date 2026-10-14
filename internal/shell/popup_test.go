@@ -88,7 +88,7 @@ func TestPopupIsPlacedAndMapped(t *testing.T) {
 		t.Fatalf("popup configured at %v, want %v: slid left and flipped above the anchor", p.ev.boxes, want)
 	}
 	e.on(func() {
-		if len(e.rec.popups) != 1 || e.rec.popups[0].Box() != image.Rect(60, 50, 100, 80) || e.rec.popups[0].Root() != e.rec.toplevels[0] {
+		if len(e.rec.popups) != 1 || e.rec.popups[0].Box() != image.Rect(60, 50, 100, 80) || e.rec.popups[0].Root() != PopupRoot(e.rec.toplevels[0]) {
 			t.Errorf("mapped popups %v", e.rec.popups)
 		}
 	})
