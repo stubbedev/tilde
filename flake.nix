@@ -49,6 +49,10 @@
             name = "tilde-two-gpus";
             devices = ["virtio-gpu-pci" "virtio-gpu-pci"];
             outputs = ["Virtual-1" "Virtual-2"];
+            unplug = {
+              card = "card1";
+              outputs = ["Virtual-1"];
+            };
           };
           vm-display-only = import ./nix/vm.nix {
             inherit pkgs;
