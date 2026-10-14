@@ -138,6 +138,8 @@ type Compositor struct {
 	xwaylandClients func(*server.Client) bool
 	blanked         map[*output.Output]bool
 	idle            *idle.Manager
+	extLists        []*extList
+	wlrManagers     []*wlrManager
 	cursorGen       uint64
 	cursorOps       frame
 	cursorShown     []*surface.Surface
@@ -228,6 +230,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if err := c.addVirtualInput(display); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
+	if err := c.addForeignToplevels(display); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.data, err = data.New(display, c); err != nil {

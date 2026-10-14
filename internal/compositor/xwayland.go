@@ -135,7 +135,7 @@ func (c *Compositor) XWindowChanged(w *xwayland.Window) error {
 	if win := c.windowOf(xToplevel{w, c}); win != nil && w.Urgent() && win != c.active {
 		win.urgent = true
 	}
-	return errors.Join(c.refreshPointer(), c.scheduleAll())
+	return errors.Join(c.refreshPointer(), c.scheduleAll(), c.syncForeign())
 }
 
 func (c *Compositor) XWindowRequest(w *xwayland.Window, r xwayland.Request) error {

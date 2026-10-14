@@ -146,7 +146,7 @@ func (c *Compositor) reconcile() error {
 			c.layerFocus, target.urgent = nil, false
 		}
 	}
-	return errors.Join(append(errs, c.refocus(), c.refreshPointer(), c.scheduleAll())...)
+	return errors.Join(append(errs, c.refocus(), c.refreshPointer(), c.scheduleAll(), c.syncForeign())...)
 }
 
 func (c *Compositor) content(tile image.Rectangle, layer wm.PlacementLayer) image.Rectangle {
@@ -281,7 +281,7 @@ func (c *Compositor) unmapToplevel(t toplevel) error {
 
 func (c *Compositor) ToplevelCommitted(*shell.Toplevel) error { return nil }
 
-func (c *Compositor) ToplevelChanged(*shell.Toplevel, shell.Change) error { return nil }
+func (c *Compositor) ToplevelChanged(*shell.Toplevel, shell.Change) error { return c.syncForeign() }
 
 func (c *Compositor) ToplevelRequest(t *shell.Toplevel, r shell.Request) error {
 	w := c.windowOf(xdgToplevel{t})
