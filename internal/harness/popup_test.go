@@ -80,14 +80,23 @@ func TestPopupMenusGrabAndDismiss(t *testing.T) {
 	r.expect("enter win 20,20", "frame", "button 272 1", "frame", "button 272 0", "frame")
 }
 
-func TestPopupWithoutAValidSerialIsDismissed(t *testing.T) {
+func TestGrabsFromClientsWithoutInputAreRefused(t *testing.T) {
 	h := Start(t, small)
-	c := testclient.Connect(t, h.Socket())
-	seat, _ := c.Seat()
-	w := c.Window("win", quadrants)
-	c.DispatchUntil("the window to map", w.Mapped)
-	p := c.Popup(w, menuAt(image.Pt(10, 10), image.Pt(20, 20)), &testclient.Grab{Seat: seat, Serial: 12345}, testclient.Fill(0x80, 0x80, 0x80))
-	c.DispatchUntil("the popup dismissed", func() bool { return p.Dismissed })
+	background := testclient.Connect(t, h.Socket())
+	seat, _ := background.Seat()
+	hidden := background.Window("hidden", quadrants)
+	background.DispatchUntil("the background window to map", hidden.Mapped)
+	front := testclient.Connect(t, h.Socket())
+	frontSeat, _ := front.Seat()
+	w := front.Window("front", quadrants)
+	front.DispatchUntil("the front window to map", w.Mapped)
+	refused := background.Popup(hidden, menuAt(image.Pt(10, 10), image.Pt(20, 20)), &testclient.Grab{Seat: seat, Serial: 12345}, testclient.Fill(0x80, 0x80, 0x80))
+	background.DispatchUntil("the background popup dismissed", func() bool { return refused.Dismissed })
+	focused := front.Popup(w, menuAt(image.Pt(10, 10), image.Pt(20, 20)), &testclient.Grab{Seat: frontSeat, Serial: 0}, testclient.Fill(0x80, 0x80, 0x80))
+	front.DispatchUntil("the focused client's popup to map", focused.Mapped)
+	if focused.Dismissed {
+		t.Fatal("the client with keyboard and pointer focus was refused a grab")
+	}
 }
 
 func TestPopupsAreClickableWithoutAGrab(t *testing.T) {

@@ -74,8 +74,16 @@ func (c *Compositor) PopupUnmapped(*shell.Popup) error {
 	return errors.Join(c.refreshPointer(), c.scheduleAll())
 }
 
-func (c *Compositor) PressSerial(client *server.Client, serial uint32) bool {
-	return c.seat.PressSerial(client, serial)
+func (c *Compositor) GrabAllowed(client *server.Client, serial uint32) bool {
+	if c.seat.PressSerial(client, serial) {
+		return true
+	}
+	for _, s := range []*surface.Surface{c.seat.PointerFocus(), c.seat.Focus()} {
+		if s != nil && s.Client() == client {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Compositor) GrabChanged() error {

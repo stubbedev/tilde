@@ -272,7 +272,7 @@ func (p *Popup) Grab(obj *sxdg.XdgPopup, _ *sw.WlSeat, serial uint32) error {
 		return obj.ProtocolError(sxdg.XdgPopupErrorInvalidGrab, "the parent popup has no grab")
 	}
 	c := p.xs.base.client
-	if (parent != nil && parent.dismissed) || !sh.listener.PressSerial(c, serial) {
+	if (parent != nil && parent.dismissed) || !sh.listener.GrabAllowed(c, serial) {
 		return p.dismiss()
 	}
 	keep := 0

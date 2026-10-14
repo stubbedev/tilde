@@ -73,7 +73,7 @@ type Listener interface {
 	LayerDestroyed(l *LayerSurface) error
 	PopupMapped(p *Popup) error
 	PopupUnmapped(p *Popup) error
-	PressSerial(c *server.Client, serial uint32) bool
+	GrabAllowed(c *server.Client, serial uint32) bool
 	GrabChanged() error
 }
 
