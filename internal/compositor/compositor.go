@@ -135,6 +135,7 @@ type Compositor struct {
 	unmanaged       []*xwayland.Window
 	selectionWatch  func(data.Kind, data.Source) error
 	xwaylandClients func(*server.Client) bool
+	blanked         map[*output.Output]bool
 	cursorGen       uint64
 	cursorOps       frame
 	cursorShown     []*surface.Surface
@@ -189,6 +190,7 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		display:    display,
 		pointers:   map[cursorKey]*cursorTexture{},
 		hwCursors:  map[*output.Output]*hwCursor{},
+		blanked:    map[*output.Output]bool{},
 		usable:     map[*output.Output]image.Rectangle{},
 		nextWindow: 1,
 	}

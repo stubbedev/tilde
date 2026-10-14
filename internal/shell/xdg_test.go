@@ -103,6 +103,10 @@ func (r *recorder) UserActive(_ *server.Client, serial uint32) bool {
 
 func (r *recorder) GrabChanged() error { return r.note("grab changed") }
 
+func (r *recorder) LockChanged() error { return r.note("lock changed") }
+
+func (r *recorder) LockOutputSize(*sw.WlOutput) (image.Point, bool) { return image.Pt(100, 50), true }
+
 type noSurfaces struct{}
 
 func (noSurfaces) Committed(*surface.Surface) error { return nil }

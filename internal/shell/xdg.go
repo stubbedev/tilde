@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stubbedev/tilde/internal/loop"
+	sel "github.com/stubbedev/tilde/internal/protocol/server/extsessionlock"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	swlr "github.com/stubbedev/tilde/internal/protocol/server/wlrlayershell"
 	sxa "github.com/stubbedev/tilde/internal/protocol/server/xdgactivation"
@@ -77,6 +78,8 @@ type Listener interface {
 	PopupUnmapped(p *Popup) error
 	UserActive(c *server.Client, serial uint32) bool
 	GrabChanged() error
+	LockChanged() error
+	LockOutputSize(output *sw.WlOutput) (image.Point, bool)
 }
 
 type Shell struct {
@@ -87,6 +90,8 @@ type Shell struct {
 	pingTimeout time.Duration
 	grab        []*Popup
 	tokens      []token
+	lock        *SessionLock
+	locked      bool
 }
 
 func New(d *server.Display, l *loop.Loop, listener Listener) (*Shell, error) {
@@ -101,6 +106,9 @@ func New(d *server.Display, l *loop.Loop, listener Listener) (*Shell, error) {
 		return nil, err
 	}
 	if _, err := d.AddGlobal(sxa.XdgActivationV1Interface, activationVersion, sh.bindActivation); err != nil {
+		return nil, err
+	}
+	if _, err := d.AddGlobal(sel.ExtSessionLockManagerV1Interface, lockVersion, sh.bindLock); err != nil {
 		return nil, err
 	}
 	return sh, nil

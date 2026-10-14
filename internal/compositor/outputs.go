@@ -158,7 +158,7 @@ func (c *Compositor) relayout() error {
 			errs = append(errs, o.Update(at, o.Scale()))
 		}
 	}
-	return errors.Join(errs...)
+	return errors.Join(append(errs, c.shell.ReconfigureLock(), c.confirmLock())...)
 }
 
 func (c *Compositor) output(b backend.Output) *output.Output {
@@ -222,6 +222,7 @@ func (c *Compositor) disable(o *output.Output) error {
 	c.outputs = slices.DeleteFunc(c.outputs, func(x *output.Output) bool { return x == o })
 	delete(c.shown, o)
 	delete(c.hwCursors, o)
+	delete(c.blanked, o)
 	errs := []error{c.closeLayers(o), o.Remove()}
 	delete(c.usable, o)
 	delete(c.scenes, o)

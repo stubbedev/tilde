@@ -209,6 +209,17 @@ Xwayland sees the logical layout and tilde stretches X windows, which keeps
 their size but blurs them on scaled outputs. Both settings are read at
 startup; a reload does not change them.
 
+## Locking
+
+tilde speaks `ext-session-lock-v1`, so lockers such as swaylock, hyprlock or
+wayle's lock screen work. While the session is locked, nothing but the lock
+surfaces renders or receives input, and only binds flagged `locked` run.
+tilde tells the locker it is locked only after every output has drawn a
+blank frame. If the locker dies, the session stays locked on a dark red
+screen until a new locker takes over; outputs added while locked show the
+lock colour until the locker covers them. tilde does not set logind's
+`LockedHint`: the locker does, as wayle does today.
+
 ## Session
 
 `tilde --systemd` hands `env`, `WAYLAND_DISPLAY`, `DISPLAY` and `TILDE_SOCKET`

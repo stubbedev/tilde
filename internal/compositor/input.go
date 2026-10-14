@@ -295,6 +295,10 @@ func (c *Compositor) hitWindow(w *window, p point) (*surface.Surface, point) {
 }
 
 func (c *Compositor) surfaceAt(p point) (*surface.Surface, point, *window) {
+	if c.shell.Locked() {
+		s, local := c.hitLock(p)
+		return s, local, nil
+	}
 	if s, local := c.hitUnmanaged(p); s != nil {
 		return s, local, nil
 	}

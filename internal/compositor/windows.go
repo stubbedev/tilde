@@ -212,6 +212,9 @@ func (c *Compositor) focusWindow(w *window) error {
 }
 
 func (c *Compositor) keyboardTarget() *surface.Surface {
+	if c.shell.Locked() {
+		return c.lockTarget()
+	}
 	exclusive := c.exclusiveLayer()
 	if top := c.grabTop(); top != nil && (exclusive == nil || top.Client() == exclusive.Surface().Client()) {
 		return top

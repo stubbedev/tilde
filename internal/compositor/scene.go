@@ -42,46 +42,12 @@ func (c *Compositor) render(o *output.Output) error {
 	pass := &sc.cur
 	pass.FillRect(bounds, Background)
 	shown := c.shown[o][:0]
-	for _, e := range c.layersAt(o, belowWindows...) {
-		shown = c.drawTree(pass, o, e.surface.Surface(), flat(e.bounds().Min), shown)
-	}
-	for _, layer := range []wm.PlacementLayer{wm.LayerTiled, wm.LayerFloating} {
-		for _, w := range c.stack {
-			if w.layer == layer {
-				shown = c.drawWindow(pass, o, w, shown)
-			}
-		}
-		if layer == wm.LayerTiled {
-			if err := c.drawTabBars(pass, o); err != nil {
-				return err
-			}
-		}
-	}
-	for _, w := range c.stack {
-		if w.layer != wm.LayerFullscreen {
-			shown = c.drawPopups(pass, o, c.popups(w), shown)
-		}
-	}
-	for _, e := range c.layersAt(o, swlr.ZwlrLayerShellV1LayerTop) {
-		shown = c.drawTree(pass, o, e.surface.Surface(), flat(e.bounds().Min), shown)
-	}
-	for _, w := range c.stack {
-		if w.layer == wm.LayerFullscreen {
-			shown = c.drawWindow(pass, o, w, shown)
-			shown = c.drawPopups(pass, o, c.popups(w), shown)
-		}
-	}
-	if err := c.evictLabels(o); err != nil {
+	var err error
+	if c.shell.Locked() {
+		shown = c.drawLocked(pass, o, bounds, shown)
+	} else if shown, err = c.drawDesktop(pass, o, shown); err != nil {
 		return err
 	}
-	for _, e := range c.layersAt(o, swlr.ZwlrLayerShellV1LayerOverlay) {
-		shown = c.drawTree(pass, o, e.surface.Surface(), flat(e.bounds().Min), shown)
-	}
-	for _, e := range c.layers {
-		shown = c.drawPopups(pass, o, c.layerPopups(e), shown)
-	}
-	shown = c.drawUnmanaged(pass, o, shown)
-	shown = c.drawDragIcon(pass, o, shown)
 	placed, err := c.placeCursor(o)
 	if err != nil {
 		return err
@@ -97,7 +63,7 @@ func (c *Compositor) render(o *output.Output) error {
 	c.shown[o] = shown
 	if sc.diff(bounds).Empty() {
 		sc.skipped()
-		return c.unchanged(o, sc)
+		return errors.Join(c.unchanged(o, sc), c.lockBlanked(o))
 	}
 	f, err := o.Backend().BeginFrame()
 	if err != nil {
@@ -116,7 +82,51 @@ func (c *Compositor) render(o *output.Output) error {
 		return err
 	}
 	sc.presented()
-	return nil
+	return c.lockBlanked(o)
+}
+
+func (c *Compositor) drawDesktop(pass *frame, o *output.Output, shown []*surface.Surface) ([]*surface.Surface, error) {
+	for _, e := range c.layersAt(o, belowWindows...) {
+		shown = c.drawTree(pass, o, e.surface.Surface(), flat(e.bounds().Min), shown)
+	}
+	for _, layer := range []wm.PlacementLayer{wm.LayerTiled, wm.LayerFloating} {
+		for _, w := range c.stack {
+			if w.layer == layer {
+				shown = c.drawWindow(pass, o, w, shown)
+			}
+		}
+		if layer == wm.LayerTiled {
+			if err := c.drawTabBars(pass, o); err != nil {
+				return shown, err
+			}
+		}
+	}
+	for _, w := range c.stack {
+		if w.layer != wm.LayerFullscreen {
+			shown = c.drawPopups(pass, o, c.popups(w), shown)
+		}
+	}
+	for _, e := range c.layersAt(o, swlr.ZwlrLayerShellV1LayerTop) {
+		shown = c.drawTree(pass, o, e.surface.Surface(), flat(e.bounds().Min), shown)
+	}
+	for _, w := range c.stack {
+		if w.layer == wm.LayerFullscreen {
+			shown = c.drawWindow(pass, o, w, shown)
+			shown = c.drawPopups(pass, o, c.popups(w), shown)
+		}
+	}
+	if err := c.evictLabels(o); err != nil {
+		return shown, err
+	}
+	for _, e := range c.layersAt(o, swlr.ZwlrLayerShellV1LayerOverlay) {
+		shown = c.drawTree(pass, o, e.surface.Surface(), flat(e.bounds().Min), shown)
+	}
+	for _, e := range c.layers {
+		shown = c.drawPopups(pass, o, c.layerPopups(e), shown)
+	}
+	shown = c.drawUnmanaged(pass, o, shown)
+	shown = c.drawDragIcon(pass, o, shown)
+	return shown, nil
 }
 
 func (c *Compositor) unchanged(o *output.Output, sc *scene) error {

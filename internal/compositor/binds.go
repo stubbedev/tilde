@@ -35,7 +35,7 @@ func vtSwitch(keysym uint32) uint32 {
 }
 
 func (c *Compositor) match(t binds.Trigger) (binds.Bind, bool) {
-	return c.binds.Match(c.submap, c.seat.DepressedModifiers(), t, false)
+	return c.binds.Match(c.submap, c.seat.DepressedModifiers(), t, c.shell.Locked())
 }
 
 func (c *Compositor) bindKey(code uint32, pressed bool) (bool, error) {
