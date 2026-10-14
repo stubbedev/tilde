@@ -14,6 +14,7 @@ derive from them.
 | [wayland-protocols](https://gitlab.freedesktop.org/wayland/wayland-protocols) | MIT |
 | [wlr-protocols](https://gitlab.freedesktop.org/wlroots/wlr-protocols) | MIT-style, per file |
 | [wlroots](https://gitlab.freedesktop.org/wlroots/wlroots) (`virtual-keyboard-unstable-v1`) | MIT |
+| [hyprland-protocols](https://github.com/hyprwm/hyprland-protocols) (`hyprland-global-shortcuts-v1`) | BSD-3-Clause |
 
 ## Ported code
 
