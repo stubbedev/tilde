@@ -99,6 +99,24 @@ def check_lock():
     bar_drawn()
 
 
+def requests(name, request):
+    return int(machine.succeed(f"grep -c -E -e '-> {request}' /tmp/{name}.log || true").strip())
+
+
+def check_fifo():
+    dispatch("workspace", "20")
+    launch("vkcube")
+    machine.wait_until_succeeds("grep -q 'vkcube exit=' /tmp/vkcube.log", timeout=300)
+    status, ms = (int(field.split("=")[1]) for field in machine.succeed("grep 'vkcube exit=' /tmp/vkcube.log").split()[1:])
+    set_barrier = requests("vkcube", r"wp_fifo_v1[@#][0-9]+\.set_barrier")
+    wait_barrier = requests("vkcube", r"wp_fifo_v1[@#][0-9]+\.wait_barrier")
+    print(f"vkcube: 300 FIFO frames in {ms} ms, {set_barrier} set_barrier, {wait_barrier} wait_barrier")
+    assert status == 0, f"vkcube exited with {status}"
+    assert set_barrier >= 250 and wait_barrier >= 250, "Mesa's WSI did not pace FIFO frames with wp_fifo_v1"
+    errors = protocol_errors("vkcube")
+    assert not errors, f"vkcube hit a protocol error: {errors}"
+
+
 def randr(args=""):
     return as_alice(f"WAYLAND_DISPLAY={display} {params['wlr_randr']} {args}")
 
@@ -126,6 +144,7 @@ try:
     check_launcher("fuzzel")
     check_launcher("rofi")
     check_lock()
+    check_fifo()
     for name in ["waybar", "mako", "fuzzel", "rofi", "swaylock"]:
         errors = protocol_errors(name)
         assert not errors, f"{name} hit a protocol error: {errors}"

@@ -18,6 +18,13 @@
     modules-left = ["clock"];
   });
   image = "${pkgs.nixos-icons}/share/icons/hicolor/256x256/apps/nix-snowflake.png";
+  vkcube = pkgs.writeShellScript "vkcube-fifo" ''
+    set -euo pipefail
+    start=$(${pkgs.coreutils}/bin/date +%s%N)
+    status=0
+    WAYLAND_DEBUG=1 ${pkgs.vulkan-tools}/bin/vkcube --wsi wayland --present_mode 2 --c 300 || status=$?
+    echo "vkcube exit=$status ms=$(( ($(${pkgs.coreutils}/bin/date +%s%N) - start) / 1000000 ))"
+  '';
   windows = {
     foot = "${pkgs.foot}/bin/foot";
     alacritty = "${pkgs.alacritty}/bin/alacritty";
@@ -38,6 +45,7 @@
     fuzzel = "${pkgs.fuzzel}/bin/fuzzel";
     rofi = "${pkgs.rofi}/bin/rofi -show drun";
     swaylock = "${pkgs.swaylock}/bin/swaylock -c 336699";
+    vkcube = "${vkcube}";
   };
 in
   import ./vm.nix {
