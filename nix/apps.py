@@ -99,7 +99,26 @@ def check_lock():
     bar_drawn()
 
 
+def randr(args=""):
+    return as_alice(f"WAYLAND_DISPLAY={display} {params['wlr_randr']} {args}")
+
+
+def check_randr():
+    listing = machine.succeed(randr())
+    print(listing)
+    assert "Virtual-1" in listing, "wlr-randr does not list the output"
+    outputs = as_alice("tildectl outputs")
+    machine.succeed(randr("--output Virtual-1 --scale 2"))
+    machine.wait_until_succeeds(f"{outputs} | jq -e '.[0].scale == 2 and .[0].rect.width == 640'", timeout=30)
+    machine.succeed(randr("--output Virtual-1 --mode 1024x768"))
+    machine.wait_until_succeeds(f"{outputs} | jq -e '.[0].mode.width == 1024 and .[0].mode.height == 768'", timeout=30)
+    machine.succeed(randr("--output Virtual-1 --mode 1280x800 --scale 1"))
+    machine.wait_until_succeeds(f"{outputs} | jq -e '.[0].scale == 1 and .[0].mode.width == 1280'", timeout=30)
+    machine.fail(randr("--output Virtual-1 --transform 90"))
+
+
 try:
+    check_randr()
     launch("waybar")
     bar_drawn()
     check_windows()

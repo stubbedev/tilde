@@ -53,6 +53,7 @@ in
       params = builtins.toJSON {
         as_alice = run "{}";
         region = "${region}";
+        wlr_randr = "${pkgs.wlr-randr}/bin/wlr-randr";
         windows = builtins.attrNames windows;
         launchers = builtins.mapAttrs launch (windows // others);
       };
