@@ -321,6 +321,19 @@ func TestBuffersAreCheckedAndCreated(t *testing.T) {
 	if !refused.failed || refused.buffer != nil {
 		t.Fatalf("a refused import gave %+v", refused)
 	}
+	if p, err = c.linux.CreateParams(&created{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Add(memfd(t, 64*16*4), 0, 0, 256, 0, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.CreateImmed(releases{}, 64, 16, gpu.FormatXRGB8888, 0); err != nil {
+		t.Fatal(err)
+	}
+	var pe *wire.ProtocolError
+	if err := c.d.Roundtrip(); !errors.As(err, &pe) || pe.Code != uint32(cld.ZwpLinuxBufferParamsV1ErrorInvalidWlBuffer) || !strings.Contains(pe.Message, "format 0x34325258 with modifier 0x0") {
+		t.Fatalf("an immediate buffer the GPU refuses: %v", err)
+	}
 }
 
 func TestParamsErrors(t *testing.T) {

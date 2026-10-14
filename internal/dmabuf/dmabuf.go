@@ -308,7 +308,7 @@ func (p *params) check(width, height int32, format uint32, flags sld.ZwpLinuxBuf
 		return gpu.DMABUF{}, err
 	}
 	if err := p.m.importer.CheckDMABUF(b); err != nil {
-		return gpu.DMABUF{}, errors.Join(fmt.Errorf("dmabuf: import %dx%d format %#x: %w", width, height, format, err), closeAll(b))
+		return gpu.DMABUF{}, errors.Join(fmt.Errorf("dmabuf: import %dx%d format %#x with modifier %#x: %w", width, height, format, b.Modifier, err), closeAll(b))
 	}
 	return b, nil
 }
