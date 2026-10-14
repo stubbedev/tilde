@@ -72,6 +72,16 @@ Layout is a pure function from tree and area to placements. Split edges
 are rounded from cumulative ratios, so neighbours share an edge and the
 children always cover the area exactly.
 
+### Workspaces
+
+Workspaces follow Hyprland (#24). They are numbered from 1, created when
+first used, and dropped once they are empty and no longer shown; a new
+output shows the first free one. Switching to a workspace shown on another
+output moves focus to that output. `e+N` and `e-N` step through the open
+workspaces of every output in ID order, wrapping around. Outputs are
+known by name: unplugging one moves its workspaces to the focused output,
+and plugging it back returns them and shows the one it was showing.
+
 ## Dispatch
 
 One typed `Action` set and one dispatcher, in `wm` (#66). Keybinds,
