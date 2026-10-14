@@ -16,6 +16,18 @@ derive from them.
 | [wlroots](https://gitlab.freedesktop.org/wlroots/wlroots) (`virtual-keyboard-unstable-v1`) | MIT |
 | [hyprland-protocols](https://github.com/hyprwm/hyprland-protocols) (`hyprland-global-shortcuts-v1`) | BSD-3-Clause |
 
+## Patched dependencies
+
+`third_party/xgb` is a copy of the packages tilde uses from
+[jezek/xgb](https://github.com/jezek/xgb) v1.3.1 (the root package,
+`xproto`, `xfixes`, `composite`, `render` and `shape`), which `go.mod`
+replaces the module with. Upstream extension `Init` functions write the
+package-global event and error constructor maps while every connection's
+reader goroutine reads them (#120). The copy adds `xgb.RegisterExtension`,
+which writes them under a lock that the reader takes too, and routes every
+`Init` through it. Its licence, BSD-3-Clause, is kept verbatim in
+`third_party/xgb/LICENSE`.
+
 ## Ported code
 
 Code ported from Hyprland, aquamarine, hyprwayland-scanner or libwayland is

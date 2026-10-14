@@ -70,3 +70,5 @@ formatters:
         - prefix(github.com/stubbedev/tilde)
   exclusions:
     generated: lax
+    paths:
+      - third_party/

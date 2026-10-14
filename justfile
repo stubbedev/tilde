@@ -26,11 +26,13 @@ headless:
 fuzz duration="5m":
     TILDE_HEADLESS=1 go test -run='^$' -fuzz=FuzzRequests -fuzztime={{duration}} ./internal/harness/
 
-# Run every test, headless ones included, under the race detector, which
-# needs cgo; the binaries tilde ships keep CGO_ENABLED=0.
+# Run every test, headless ones included, and the patched xgb fork's under
+# the race detector, which needs cgo; the binaries tilde ships keep
+# CGO_ENABLED=0.
 race:
     CGO_ENABLED=1 go test -race -count=1 ./...
     CGO_ENABLED=1 TILDE_HEADLESS=1 go test -race -count=1 {{headless_packages}}
+    cd third_party/xgb && CGO_ENABLED=1 go test -race -count=1 ./...
 
 # Run every release gate in order: vet, lint, test, build.
 check: vet lint test build
