@@ -9,8 +9,10 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	sedc "github.com/stubbedev/tilde/internal/protocol/server/extdatacontrol"
 	sps "github.com/stubbedev/tilde/internal/protocol/server/primaryselection"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
+	swdc "github.com/stubbedev/tilde/internal/protocol/server/wlrdatacontrol"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/surface"
 	"github.com/stubbedev/tilde/internal/wire"
@@ -50,13 +52,15 @@ type devices struct {
 }
 
 type Manager struct {
-	display   *server.Display
-	listener  Listener
-	clients   []*devices
-	focus     *server.Client
-	selection [kinds]Source
-	offers    [kinds][]*selectionOffer
-	drag      *Drag
+	display       *server.Display
+	listener      Listener
+	clients       []*devices
+	focus         *server.Client
+	selection     [kinds]Source
+	offers        [kinds][]*selectionOffer
+	controls      []*controlDevice
+	controlOffers [kinds][]*selectionOffer
+	drag          *Drag
 }
 
 func New(d *server.Display, listener Listener) (*Manager, error) {
@@ -65,6 +69,12 @@ func New(d *server.Display, listener Listener) (*Manager, error) {
 		return nil, err
 	}
 	if _, err := d.AddGlobal(sps.ZwpPrimarySelectionDeviceManagerV1Interface, primaryVersion, m.bindPrimary); err != nil {
+		return nil, err
+	}
+	if _, err := d.AddGlobal(swdc.ZwlrDataControlManagerV1Interface, wlrControlVersion, m.bindWlrControl); err != nil {
+		return nil, err
+	}
+	if _, err := d.AddGlobal(sedc.ExtDataControlManagerV1Interface, extControlVersion, m.bindExtControl); err != nil {
 		return nil, err
 	}
 	return m, nil
@@ -131,7 +141,7 @@ func (m *Manager) SetSelection(k Kind, src Source) error {
 	if old != nil {
 		errs = append(errs, old.Cancel())
 	}
-	return errors.Join(append(errs, m.offerSelection(k, m.focus), m.listener.SelectionChanged(k, src))...)
+	return errors.Join(append(errs, m.offerSelection(k, m.focus), m.offerControls(k), m.listener.SelectionChanged(k, src))...)
 }
 
 func (m *Manager) offerSelection(k Kind, c *server.Client) error {
@@ -166,7 +176,7 @@ func (m *Manager) sourceGone(src Source) error {
 	for k := range kinds {
 		if m.selection[k] == src {
 			m.selection[k] = nil
-			errs = append(errs, m.offerSelection(k, m.focus), m.listener.SelectionChanged(k, nil))
+			errs = append(errs, m.offerSelection(k, m.focus), m.offerControls(k), m.listener.SelectionChanged(k, nil))
 		}
 	}
 	return errors.Join(errs...)
