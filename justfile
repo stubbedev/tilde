@@ -4,9 +4,10 @@
 default:
     @just --list
 
-# Every gate a commit must pass: formatting, the release gates, the
-# vulnerability scan and the headless harness. `devenv test` and CI run this.
-gates: fmt-check check vuln headless
+# Every gate a commit must pass: formatting, a tidy go.mod, the release
+# gates, the vulnerability scan and the headless harness. `devenv test` and CI
+# run this.
+gates: fmt-check tidy-check check vuln headless
 
 # The compositor-in-the-loop harness: boots tilde on the headless backend and
 # drives real clients against it. TILDE_HEADLESS=1 turns a missing client into
@@ -51,6 +52,10 @@ fmt:
 # formatted.
 fmt-check:
     golangci-lint fmt --diff ./...
+
+# Fail, showing the diff, when go.mod or go.sum is not tidy.
+tidy-check:
+    go mod tidy -diff
 
 # Fail when a reachable dependency has a known vulnerability.
 vuln:
