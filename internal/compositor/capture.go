@@ -25,19 +25,21 @@ type captureRenderer interface {
 	Finish() error
 }
 
+var opaque = render.Color{A: 0xff}
+
 type captureTarget interface {
-	fill(c *Compositor, size image.Point, draw func(render.Pass) error) error
+	fill(c *Compositor, k capture) error
 }
 
 type shmCapture struct{ b *shm.Buffer }
 
-func (t shmCapture) fill(c *Compositor, size image.Point, draw func(render.Pass) error) (err error) {
-	target, err := c.renderer.NewTarget(size)
+func (t shmCapture) fill(c *Compositor, k capture) (err error) {
+	target, err := c.renderer.NewTarget(k.size)
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, target.Destroy()) }()
-	if err := paint(c.renderer, target, size, draw); err != nil {
+	if err := paint(c.renderer, target, k); err != nil {
 		return err
 	}
 	return t.b.Write(func(data []byte, stride int) error { return target.Read(data, stride) })
@@ -48,30 +50,31 @@ type dmabufCapture struct {
 	r captureRenderer
 }
 
-func (t dmabufCapture) fill(c *Compositor, size image.Point, draw func(render.Pass) error) (err error) {
+func (t dmabufCapture) fill(c *Compositor, k capture) (err error) {
 	target, err := t.r.ImportTarget(t.b.DMABUF())
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, target.Destroy()) }()
-	if err := paint(c.renderer, target, size, draw); err != nil {
+	if err := paint(c.renderer, target, k); err != nil {
 		return err
 	}
 	return t.r.Finish()
 }
 
-func paint(r render.Renderer, target render.Target, size image.Point, draw func(render.Pass) error) error {
-	p, err := r.Begin(target, render.Region{image.Rectangle{Max: size}})
+func paint(r render.Renderer, target render.Target, k capture) error {
+	p, err := r.Begin(target, render.Region{image.Rectangle{Max: k.size}})
 	if err != nil {
 		return err
 	}
-	p.Clear(render.Color{A: 0xff})
-	return errors.Join(draw(p), p.End())
+	p.Clear(k.clear)
+	return errors.Join(k.draw(p), p.End())
 }
 
 type capture struct {
 	output *output.Output
 	size   image.Point
+	clear  render.Color
 	draw   func(render.Pass) error
 	target captureTarget
 	waits  func(damage *region.Set) bool
@@ -137,7 +140,7 @@ func (c *Compositor) dropCaptures(o *output.Output) error {
 }
 
 func (c *Compositor) runCapture(k capture) error {
-	err := k.target.fill(c, k.size, k.draw)
+	err := k.target.fill(c, k)
 	return k.done(backend.Now(), err)
 }
 
@@ -187,6 +190,17 @@ func (c *Compositor) cursorBounds(o *output.Output) (image.Rectangle, error) {
 		return image.Rectangle{}, err
 	}
 	return f.bounds(), nil
+}
+
+func (c *Compositor) pointerDraw(o *output.Output) func(render.Pass) error {
+	return func(p render.Pass) error {
+		var f frame
+		if _, err := c.drawCursor(&f, o, nil); err != nil {
+			return err
+		}
+		f.replayFrom(p, f.bounds().Min)
+		return nil
+	}
 }
 
 func (c *Compositor) inWindow(w *window, s *surface.Surface) bool {

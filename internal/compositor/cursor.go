@@ -181,7 +181,7 @@ func (c *Compositor) cursorMoved() error {
 		}
 		errs = append(errs, c.noteCursor(o, repaint))
 	}
-	return errors.Join(errs...)
+	return errors.Join(append(errs, c.updateCursorSessions())...)
 }
 
 func inTree(root, s *surface.Surface) bool {

@@ -111,7 +111,7 @@ func (f *screencopyFrame) copy(obj *swsc.ZwlrScreencopyFrameV1, wl *sw.WlBuffer,
 		return obj.ProtocolError(swsc.ZwlrScreencopyFrameV1ErrorInvalidBuffer, err.Error())
 	}
 	var damaged region.Set
-	k := capture{output: f.output, size: f.region.Size(), draw: f.c.outputDraw(f.output, f.region, f.cursor), target: target}
+	k := capture{output: f.output, size: f.region.Size(), clear: opaque, draw: f.c.outputDraw(f.output, f.region, f.cursor), target: target}
 	if damage {
 		k.waits = func(d *region.Set) bool {
 			addDamage(&damaged, d, f.region)

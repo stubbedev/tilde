@@ -144,6 +144,7 @@ type Compositor struct {
 	wsManagers      []*wsManager
 	captures        map[*output.Output][]capture
 	captureSessions []*captureSession
+	cursorSessions  []*cursorSession
 	constraints     map[*surface.Surface]*constraint
 	constraint      *constraint
 	keyInhibitors   map[*surface.Surface]*shortcutsInhibitor

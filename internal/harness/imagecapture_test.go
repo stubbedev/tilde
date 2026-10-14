@@ -2,16 +2,21 @@ package harness
 
 import (
 	"errors"
+	"fmt"
 	"image"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stubbedev/tilde/internal/backend/headless"
 	"github.com/stubbedev/tilde/internal/compositor"
+	ccs "github.com/stubbedev/tilde/internal/protocol/client/cursorshape"
 	cel "github.com/stubbedev/tilde/internal/protocol/client/extforeigntoplevellist"
 	ceis "github.com/stubbedev/tilde/internal/protocol/client/extimagecapturesource"
 	ceic "github.com/stubbedev/tilde/internal/protocol/client/extimagecopycapture"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/tilde/internal/testenv"
 )
 
 type captureView struct {
@@ -305,4 +310,87 @@ func TestImageCopyCaptureIntoDMABUFs(t *testing.T) {
 	if f.failed || rgbAt(target.Pix, 160*4, 20, 20) != [3]byte{0xff, 0, 0} || rgbAt(target.Pix, 160*4, 140, 80) != [3]byte{0xff, 0xff, 0} {
 		t.Fatalf("dmabuf frame %+v: %v and %v", *f, rgbAt(target.Pix, 160*4, 20, 20), rgbAt(target.Pix, 160*4, 140, 80))
 	}
+}
+
+type cursorWatch struct{ events []string }
+
+func (w *cursorWatch) Enter(*ceic.ExtImageCopyCaptureCursorSessionV1) error {
+	w.events = append(w.events, "enter")
+	return nil
+}
+
+func (w *cursorWatch) Leave(*ceic.ExtImageCopyCaptureCursorSessionV1) error {
+	w.events = append(w.events, "leave")
+	return nil
+}
+
+func (w *cursorWatch) Position(_ *ceic.ExtImageCopyCaptureCursorSessionV1, x, y int32) error {
+	w.events = append(w.events, fmt.Sprintf("position %d,%d", x, y))
+	return nil
+}
+
+func (w *cursorWatch) Hotspot(_ *ceic.ExtImageCopyCaptureCursorSessionV1, x, y int32) error {
+	w.events = append(w.events, fmt.Sprintf("hotspot %d,%d", x, y))
+	return nil
+}
+
+func TestCursorSessionsFollowThePointer(t *testing.T) {
+	theme := testenv.CursorTheme(t)
+	h := StartWith(t, func(cfg *compositor.Config) { cfg.Cursor.Theme = theme }, small, small)
+	c := testclient.Connect(t, h.Socket())
+	_, in := c.Seat()
+	w := c.Window("pointed", testclient.Fill(0x40, 0x40, 0x40))
+	c.DispatchUntil("the window to map", w.Mapped)
+	c.DispatchUntil("the pointer to enter", func() bool { return in.Serial != 0 })
+	quiesce(t, h, c, w)
+	r := newCaptureRig(t, h, c)
+	src, err := r.outputs.CreateSource(c.Outputs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	watch := &cursorWatch{}
+	k, err := r.mgr.CreatePointerCursorSession(watch, src, in.Pointer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.DispatchUntil("the cursor entering the output", func() bool { return len(watch.events) == 3 })
+	if watch.events[0] != "enter" || watch.events[1] != "position 80,50" || !strings.HasPrefix(watch.events[2], "hotspot ") {
+		t.Fatalf("cursor events %q", watch.events)
+	}
+	view := &captureView{}
+	session, err := k.GetCaptureSession(view)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.DispatchUntil("the cursor image constraints", func() bool { return view.done })
+	pix := r.first(session, view.size)
+	if !slices.ContainsFunc(pix, func(b byte) bool { return b != 0 }) {
+		t.Fatalf("the %v cursor frame is empty", view.size)
+	}
+	f, _ := r.waiting(session, view.size)
+
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+		return errors.Join(b.Pointer().MoveTo(b.Outputs()[0], 0.25, 0.2), b.Pointer().Frame())
+	})
+	c.DispatchUntil("the new position", func() bool { return slices.Contains(watch.events, "position 40,20") })
+	settle(t, h)
+	if err := c.Display.Roundtrip(); err != nil || f.ready {
+		t.Fatalf("moving the cursor produced a cursor image frame (%v)", err)
+	}
+	device, err := c.CursorShape.GetPointer(in.Pointer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := errors.Join(device.SetShape(in.Serial, ccs.WpCursorShapeDeviceV1ShapeText), c.Display.Flush()); err != nil {
+		t.Fatal(err)
+	}
+	c.DispatchUntil("a frame of the new cursor image", func() bool { return f.ready || f.failed })
+	if f.failed {
+		t.Fatalf("the cursor image frame failed: %+v", *f)
+	}
+
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+		return errors.Join(b.Pointer().MoveTo(b.Outputs()[1], 0.5, 0.5), b.Pointer().Frame())
+	})
+	c.DispatchUntil("the cursor leaving the output", func() bool { return watch.events[len(watch.events)-1] == "leave" })
 }
