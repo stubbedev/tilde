@@ -6,6 +6,7 @@ import (
 
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/shm"
+	"github.com/stubbedev/tilde/internal/singlepixel"
 	"github.com/stubbedev/tilde/internal/surface"
 )
 
@@ -32,6 +33,14 @@ func (c *Compositor) attach(s *surface.Surface) error {
 		if err := c.upload(s, b); err != nil {
 			return err
 		}
+		return b.Release()
+	case *singlepixel.Buffer:
+		tex, err := c.renderer.NewTexture(render.ARGB8888, b.Size(), 4, b.Pixel())
+		if err != nil {
+			return fmt.Errorf("compositor: upload single-pixel wl_surface@%d: %w", s.Resource().Base().ID(), err)
+		}
+		c.dropTexture(s)
+		c.textures[s] = &texture{tex: tex, format: render.ARGB8888}
 		return b.Release()
 	default:
 		return fmt.Errorf("compositor: no upload path for buffers of type %T", b)

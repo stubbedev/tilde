@@ -97,7 +97,7 @@ func (r *recorder) PopupMapped(p *Popup) error {
 
 func (r *recorder) PopupUnmapped(*Popup) error { return r.note("popup unmapped") }
 
-func (r *recorder) GrabAllowed(_ *server.Client, serial uint32) bool {
+func (r *recorder) UserActive(_ *server.Client, serial uint32) bool {
 	return r.press != 0 && serial == r.press
 }
 

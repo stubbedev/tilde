@@ -77,7 +77,8 @@ Everything lives under `internal/` except the commands.
 | `render/soft` | The CPU renderer, for headless and golden tests (#7) |
 | `render/gles` | The GLES2 renderer (#34) |
 | `gpu` | purego bindings for EGL, GLES2 and GBM (#33) |
-| `surface` | `wl_compositor`, `wl_surface`, `wl_region`, `wl_subcompositor`, `wp_viewporter`, `wp_fractional_scale_v1`: double-buffered state, subsurface trees, roles (#11, #19) |
+| `surface` | `wl_compositor`, `wl_surface`, `wl_region`, `wl_subcompositor`, `wp_viewporter`, `wp_fractional_scale_v1`, `wp_presentation`: double-buffered state, subsurface trees, roles (#11, #19) |
+| `singlepixel` | `wp_single_pixel_buffer_manager_v1`: one-pixel buffers of a solid color (#20) |
 | `region` | Pixel regions as disjoint rectangles, for damage and input and opaque regions |
 | `output` | `wl_output` and `zxdg_output_v1`: each output's mode, logical position and scale in 120ths, with rounding that keeps logical edges adjacent in device pixels (#19) |
 | `shm` | `wl_shm` pools and buffers, read fault-safely when a client truncates its pool (#12) |
@@ -85,7 +86,7 @@ Everything lives under `internal/` except the commands.
 | `data` | `wl_data_device_manager` and `zwp_primary_selection_device_manager_v1`: the clipboard and primary selection offered to the keyboard focus, and drag and drop (#18) |
 | `xcursor` | Xcursor files and theme lookup through `XCURSOR_PATH` and `Inherits`, and the built-in arrow (#14) |
 | `xkb` | Keymap compilation, sealed keymap fds and modifier state through libxkbcommon (#13) |
-| `shell` | xdg-shell and layer-shell glue between clients and `wm`: toplevels, popups placed by their positioner, explicit popup grabs (#15, #16, #48) |
+| `shell` | xdg-shell and layer-shell glue between clients and `wm`: toplevels, popups placed by their positioner, explicit popup grabs, server-side decorations, activation tokens (#15, #16, #17, #20, #48) |
 | `wm` | The pure core and the dispatcher (#21, #66) |
 | `xwm` | The X11 window manager for XWayland (#45) |
 | `config` | The typed config, its validation and reload (#30) |

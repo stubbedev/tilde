@@ -20,6 +20,7 @@ import (
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	cwlr "github.com/stubbedev/tilde/internal/protocol/client/wlrlayershell"
 	cxdg "github.com/stubbedev/tilde/internal/protocol/client/xdgshell"
+	"github.com/stubbedev/tilde/internal/wire"
 	"github.com/stubbedev/tilde/internal/wlclient"
 )
 
@@ -125,6 +126,15 @@ func Connect(t testing.TB, socket string) *Client {
 	}
 	c.must(d.Roundtrip())
 	return c
+}
+
+func (c *Client) Bind(iface string, r wire.Resource) {
+	c.t.Helper()
+	g, ok := c.globals.byName[iface]
+	if !ok {
+		c.t.Fatalf("testclient: the compositor has no %s", iface)
+	}
+	c.must(errors.Join(c.registry.Bind(g.name, r), c.Display.Flush()))
 }
 
 type outputEvents struct{}
@@ -237,6 +247,7 @@ type Window struct {
 	Placed       image.Rectangle
 	Dismissed    bool
 	destroyed    bool
+	framePending bool
 	paint        Painter
 	scaling      Scaling
 	viewport     *cvp.WpViewport
@@ -388,6 +399,7 @@ func (w *Window) draw() error {
 	if _, err := w.Surface.Frame(frameEvents{w}); err != nil {
 		return err
 	}
+	w.framePending = true
 	return errors.Join(
 		w.Surface.Attach(b.wl, 0, 0),
 		w.Surface.DamageBuffer(0, 0, int32(w.Size.X), int32(w.Size.Y)), //nolint:gosec // test buffers are small
@@ -482,6 +494,9 @@ func (w *Window) configured() error {
 			return err
 		}
 	}
+	if size == w.Size && w.buffers != nil && w.framePending {
+		return nil
+	}
 	if size != w.Size || w.buffers == nil {
 		w.Size = size
 		w.buffers = w.c.buffers(size, 2)
@@ -526,6 +541,7 @@ func (popupEvents) Repositioned(*cxdg.XdgPopup, uint32) error { return nil }
 type frameEvents struct{ w *Window }
 
 func (e frameEvents) Done(*cw.WlCallback, uint32) error {
+	e.w.framePending = false
 	e.w.Frames++
 	return e.w.draw()
 }

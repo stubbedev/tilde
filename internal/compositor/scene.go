@@ -8,6 +8,7 @@ import (
 
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/output"
+	spt "github.com/stubbedev/tilde/internal/protocol/server/presentationtime"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/surface"
 	"github.com/stubbedev/tilde/internal/wire"
@@ -134,7 +135,9 @@ func (c *Compositor) Presented(b backend.Output, p backend.Presentation) error {
 	}
 	var errs []error
 	for _, s := range c.shown[o] {
-		errs = append(errs, s.Client().Sent(s.FrameDone(wire.Millis(p.Time))))
+		errs = append(errs,
+			s.Client().Sent(s.FrameDone(wire.Millis(p.Time))),
+			s.Client().Sent(s.Presented(o.Resources(s.Client()), p.Time, p.Refresh, p.Seq, spt.WpPresentationFeedbackKindVsync)))
 	}
 	return errors.Join(errs...)
 }

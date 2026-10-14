@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	sfs "github.com/stubbedev/tilde/internal/protocol/server/fractionalscale"
+	spt "github.com/stubbedev/tilde/internal/protocol/server/presentationtime"
 	svp "github.com/stubbedev/tilde/internal/protocol/server/viewporter"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	"github.com/stubbedev/tilde/internal/region"
@@ -52,6 +53,9 @@ func New(d *server.Display, l Listener) (*Manager, error) {
 		return nil, err
 	}
 	if _, err := d.AddGlobal(sfs.WpFractionalScaleManagerV1Interface, fractionalVersion, bindFractional); err != nil {
+		return nil, err
+	}
+	if _, err := d.AddGlobal(spt.WpPresentationInterface, presentationVersion, bindPresentation); err != nil {
 		return nil, err
 	}
 	return m, nil
@@ -151,6 +155,7 @@ type state struct {
 	dest          image.Point
 	hasDest       bool
 	frames        []*sw.WlCallback
+	feedbacks     []*spt.WpPresentationFeedback
 }
 
 func (dst *state) merge(src *state) {
@@ -182,6 +187,7 @@ func (dst *state) merge(src *state) {
 	dst.damage = dst.damage.Union(src.damage)
 	dst.bufferDamage = dst.bufferDamage.Union(src.bufferDamage)
 	dst.frames = append(dst.frames, src.frames...)
+	dst.feedbacks = append(dst.feedbacks, src.feedbacks...)
 	*src = state{}
 }
 
@@ -418,6 +424,11 @@ func (s *Surface) applyCache() error {
 		s.offset = st.offset
 	}
 	st.damage, st.bufferDamage, st.offset = region.Region{}, region.Region{}, image.Point{}
+	superseded := s.current.feedbacks
+	s.current.feedbacks = nil
+	if err := s.client.Sent(discard(superseded)); err != nil {
+		return err
+	}
 	s.current.merge(st)
 	s.current.set = 0
 	s.order = slices.Clone(s.pendingOrder)
@@ -460,6 +471,8 @@ func (s *Surface) destroy() error {
 		errs = append(errs, s.client.Remove(cb.Base().ID()))
 	}
 	s.pending.frames, s.cache.frames, s.current.frames = nil, nil, nil
+	errs = append(errs, s.client.Sent(discard(append(append(s.pending.feedbacks, s.cache.feedbacks...), s.current.feedbacks...))))
+	s.pending.feedbacks, s.cache.feedbacks, s.current.feedbacks = nil, nil, nil
 	if s.sub != nil {
 		s.sub.detach()
 	}

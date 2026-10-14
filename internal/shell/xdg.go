@@ -13,6 +13,7 @@ import (
 	"github.com/stubbedev/tilde/internal/loop"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	swlr "github.com/stubbedev/tilde/internal/protocol/server/wlrlayershell"
+	sxa "github.com/stubbedev/tilde/internal/protocol/server/xdgactivation"
 	sxd "github.com/stubbedev/tilde/internal/protocol/server/xdgdecoration"
 	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
 	"github.com/stubbedev/tilde/internal/server"
@@ -74,7 +75,7 @@ type Listener interface {
 	LayerDestroyed(l *LayerSurface) error
 	PopupMapped(p *Popup) error
 	PopupUnmapped(p *Popup) error
-	GrabAllowed(c *server.Client, serial uint32) bool
+	UserActive(c *server.Client, serial uint32) bool
 	GrabChanged() error
 }
 
@@ -85,6 +86,7 @@ type Shell struct {
 	subRoles    map[*surface.Surface]string
 	pingTimeout time.Duration
 	grab        []*Popup
+	tokens      []token
 }
 
 func New(d *server.Display, l *loop.Loop, listener Listener) (*Shell, error) {
@@ -96,6 +98,9 @@ func New(d *server.Display, l *loop.Loop, listener Listener) (*Shell, error) {
 		return nil, err
 	}
 	if _, err := d.AddGlobal(sxd.ZxdgDecorationManagerV1Interface, decorationVersion, sh.bindDecoration); err != nil {
+		return nil, err
+	}
+	if _, err := d.AddGlobal(sxa.XdgActivationV1Interface, activationVersion, sh.bindActivation); err != nil {
 		return nil, err
 	}
 	return sh, nil

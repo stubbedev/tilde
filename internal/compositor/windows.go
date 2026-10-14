@@ -15,6 +15,7 @@ import (
 type window struct {
 	toplevel *shell.Toplevel
 	output   *output.Output
+	urgent   bool
 }
 
 func (c *Compositor) placement(w *window) image.Rectangle {
@@ -73,6 +74,7 @@ func (c *Compositor) focus(target *window) error {
 	c.active = target
 	if target != nil {
 		c.layerFocus = nil
+		target.urgent = false
 	}
 	if target != nil && !target.toplevel.Requested().Has(sxdg.XdgToplevelStateActivated) {
 		if err := c.configure(target.toplevel, target.output, true); err != nil {
@@ -153,6 +155,19 @@ func (c *Compositor) ToplevelCommitted(*shell.Toplevel) error { return nil }
 
 func (c *Compositor) ToplevelChanged(*shell.Toplevel, shell.Change) error { return nil }
 
-func (c *Compositor) ToplevelRequest(*shell.Toplevel, shell.Request) error { return nil }
+func (c *Compositor) ToplevelRequest(t *shell.Toplevel, r shell.Request) error {
+	if _, ok := r.(shell.Activate); !ok {
+		return nil
+	}
+	if w := c.windowOf(t); w != nil && w != c.active {
+		w.urgent = true
+	}
+	return nil
+}
+
+func (c *Compositor) Urgent(t *shell.Toplevel) bool {
+	w := c.windowOf(t)
+	return w != nil && w.urgent
+}
 
 func (c *Compositor) ClientResponsive(*server.Client, bool) error { return nil }

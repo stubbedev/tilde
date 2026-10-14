@@ -17,6 +17,7 @@ import (
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/shell"
 	"github.com/stubbedev/tilde/internal/shm"
+	"github.com/stubbedev/tilde/internal/singlepixel"
 	"github.com/stubbedev/tilde/internal/surface"
 	"github.com/stubbedev/tilde/internal/xcursor"
 	"github.com/stubbedev/tilde/internal/xkb"
@@ -94,6 +95,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.shm, err = shm.New(display, c.renderer.Formats()); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
+	if err := singlepixel.New(display); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.data, err = data.New(display, c); err != nil {

@@ -74,7 +74,7 @@ func (c *Compositor) PopupUnmapped(*shell.Popup) error {
 	return errors.Join(c.refreshPointer(), c.scheduleAll())
 }
 
-func (c *Compositor) GrabAllowed(client *server.Client, serial uint32) bool {
+func (c *Compositor) UserActive(client *server.Client, serial uint32) bool {
 	if c.seat.PressSerial(client, serial) {
 		return true
 	}
