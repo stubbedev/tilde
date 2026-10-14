@@ -11,10 +11,10 @@ gates: fmt-check tidy-check check vuln headless
 
 # The tests that need dev-shell programs: the compositor-in-the-loop harness,
 # which boots tilde on the headless backend and drives real clients against
-# it, and the session bus tests. TILDE_HEADLESS=1 turns a missing program into
-# a failure instead of a skip.
+# it, the session bus tests and the end-to-end session in cmd/tilde.
+# TILDE_HEADLESS=1 turns a missing program into a failure instead of a skip.
 headless:
-    TILDE_HEADLESS=1 go test -count=1 ./internal/harness/... ./internal/backend/nested/... ./internal/systemd/...
+    TILDE_HEADLESS=1 go test -count=1 ./internal/harness/... ./internal/backend/nested/... ./internal/systemd/... ./cmd/tilde/...
 
 # Run every release gate in order: vet, lint, test, build.
 check: vet lint test build

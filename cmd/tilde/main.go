@@ -33,7 +33,7 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "tilde:", err)
 		os.Exit(1)
 	}
@@ -231,11 +231,14 @@ func cursorConfig(getenv func(string) string) (compositor.CursorConfig, error) {
 	return cfg, nil
 }
 
-func run() (err error) {
-	path := flag.String("config", "", "config file (default: $XDG_CONFIG_HOME/tilde/config.yaml)")
-	withSystemd := flag.Bool("systemd", false, "export the session environment to D-Bus activation and the systemd user manager, and run "+systemd.Target+" while tilde runs")
-	requested := flag.String("backend", "", "output and input backend: nested or headless (default: nested when WAYLAND_DISPLAY is set, else headless)")
-	flag.Parse()
+func run(args []string) (err error) {
+	flags := flag.NewFlagSet("tilde", flag.ContinueOnError)
+	path := flags.String("config", "", "config file (default: $XDG_CONFIG_HOME/tilde/config.yaml)")
+	withSystemd := flags.Bool("systemd", false, "export the session environment to D-Bus activation and the systemd user manager, and run "+systemd.Target+" while tilde runs")
+	requested := flags.String("backend", "", "output and input backend: nested or headless (default: nested when WAYLAND_DISPLAY is set, else headless)")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
 	backendName, err := chooseBackend(*requested, os.Getenv("WAYLAND_DISPLAY"))
 	if err != nil {
 		return err
@@ -281,6 +284,18 @@ func run() (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, l.Close()) }()
+	if _, err := l.AddSignals(func(sig os.Signal) error {
+		if sig != syscall.SIGHUP {
+			l.Stop()
+			return nil
+		}
+		if err := s.reload(); err != nil {
+			fmt.Fprintln(os.Stderr, "tilde: reload:", err)
+		}
+		return nil
+	}, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP); err != nil {
+		return err
+	}
 	b, err := openBackend(backendName, l)
 	if err != nil {
 		return err
@@ -322,18 +337,6 @@ func run() (err error) {
 		if err := s.comp.Dispatch(wm.ExecAction{Command: command}); err != nil {
 			cfg.Report(fmt.Errorf("autostart: %w", err))
 		}
-	}
-	if _, err := l.AddSignals(func(sig os.Signal) error {
-		if sig != syscall.SIGHUP {
-			l.Stop()
-			return nil
-		}
-		if err := s.reload(); err != nil {
-			fmt.Fprintln(os.Stderr, "tilde: reload:", err)
-		}
-		return nil
-	}, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP); err != nil {
-		return err
 	}
 	fmt.Fprintf(os.Stderr, "tilde: listening on %s with the %s backend\n", display.Name(), backendName)
 	if err := l.Run(); !errors.Is(err, nested.ErrClosed) {

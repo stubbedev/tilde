@@ -1,15 +1,19 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stubbedev/tilde/internal/compositor"
+	"github.com/stubbedev/tilde/internal/ipc"
 	"github.com/stubbedev/tilde/internal/testenv"
 )
 
@@ -120,5 +124,111 @@ func TestSessionVars(t *testing.T) {
 	want := [][2]string{{"XDG_CURRENT_DESKTOP", "tilde"}, {"WAYLAND_DISPLAY", "wayland-1"}, {"TILDE_SOCKET", "/run/t.sock"}}
 	if !slices.Equal(got, want) {
 		t.Fatalf("%v, want %v", got, want)
+	}
+}
+
+func outputScale(t *testing.T, socket string) float64 {
+	t.Helper()
+	raw, err := ipc.Do(socket, ipc.Request{Request: ipc.KindOutputs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var outputs []ipc.Output
+	if err := json.Unmarshal(raw, &outputs); err != nil || len(outputs) != 1 {
+		t.Fatalf("outputs %s: %v", raw, err)
+	}
+	return outputs[0].Scale
+}
+
+func TestConfiguredSessionOverIPC(t *testing.T) {
+	testenv.Font(t)
+	testenv.XKBLibrary(t)
+	dir := t.TempDir()
+	runtime := filepath.Join(dir, "runtime")
+	if err := os.Mkdir(runtime, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"WAYLAND_DISPLAY", ipc.SocketEnv, "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE"} {
+		t.Setenv(name, "")
+	}
+	t.Setenv("XDG_RUNTIME_DIR", runtime)
+	path := filepath.Join(dir, "config.yaml")
+	write := func(text string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("outputs:\n  - {match: HEADLESS-1, scale: 2}\nbinds:\n  - {chord: SUPER + Q, action: kill}\n")
+	done := make(chan error, 1)
+	go func() { done <- run([]string{"--backend", "headless", "--config", path}) }()
+	getenv := func(k string) string {
+		if k == "XDG_RUNTIME_DIR" {
+			return runtime
+		}
+		return ""
+	}
+	var socket string
+	for deadline := time.Now().Add(10 * time.Second); ; {
+		var err error
+		if socket, err = ipc.FindSocket(getenv); err == nil {
+			if _, err = ipc.Do(socket, ipc.Request{Request: ipc.KindVersion}); err == nil {
+				break
+			}
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("tilde exited: %v", err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("no IPC socket: %v", err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := outputScale(t, socket); got != 2 {
+		t.Fatalf("scale %g from the config, want 2", got)
+	}
+	stream, err := ipc.Subscribe(socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+
+	write("outputs:\n  - {match: HEADLESS-1, scale: 1.5}\n")
+	if _, err := ipc.Do(socket, ipc.Request{Request: ipc.KindDispatch, Action: "reload"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := outputScale(t, socket); got != 1.5 {
+		t.Fatalf("scale %g after the reload, want 1.5", got)
+	}
+	for _, want := range []string{`{"event":"dispatch","action":"reload"}`, `{"event":"output","change":"changed"`} {
+		line, err := stream.Next()
+		if err != nil || !strings.HasPrefix(string(line), want) {
+			t.Fatalf("event %s, %v; want %s", line, err, want)
+		}
+	}
+
+	write("outputs:\n  - {match: HEADLESS-1, scale: 1.5}\nbinds:\n  - {chord: SUPER + Q, action: teleport}\n")
+	if _, err := ipc.Do(socket, ipc.Request{Request: ipc.KindDispatch, Action: "reload"}); err == nil || !strings.Contains(err.Error(), path+":4: binds[0].action") {
+		t.Fatalf("a bad config reloaded: %v", err)
+	}
+	if got := outputScale(t, socket); got != 1.5 {
+		t.Fatalf("scale %g after a rejected reload, want 1.5", got)
+	}
+
+	if err := syscall.Kill(os.Getpid(), syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("tilde ignored SIGTERM")
+	}
+	if _, err := os.Stat(socket); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("the socket outlived tilde: %v", err)
 	}
 }
