@@ -7,7 +7,6 @@ import (
 	"slices"
 
 	"github.com/stubbedev/tilde/internal/output"
-	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/shell"
 	"github.com/stubbedev/tilde/internal/surface"
@@ -15,15 +14,15 @@ import (
 )
 
 type window struct {
-	id       wm.WindowID
-	toplevel *shell.Toplevel
-	tile     image.Rectangle
-	rect     image.Rectangle
-	visible  bool
-	layer    wm.PlacementLayer
-	output   *output.Output
-	urgent   bool
-	scale    output.Scale
+	id      wm.WindowID
+	top     toplevel
+	tile    image.Rectangle
+	rect    image.Rectangle
+	visible bool
+	layer   wm.PlacementLayer
+	output  *output.Output
+	urgent  bool
+	scale   output.Scale
 }
 
 func (c *Compositor) placement(w *window) image.Rectangle {
@@ -37,9 +36,9 @@ func (c *Compositor) firstOutput() *output.Output {
 	return c.outputs[0]
 }
 
-func (c *Compositor) windowOf(t *shell.Toplevel) *window {
+func (c *Compositor) windowOf(t toplevel) *window {
 	for _, w := range c.windows {
-		if w.toplevel == t {
+		if w.top == t {
 			return w
 		}
 	}
@@ -58,7 +57,9 @@ func (c *Compositor) windowByID(id wm.WindowID) *window {
 func (c *Compositor) Toplevels() []*shell.Toplevel {
 	out := make([]*shell.Toplevel, 0, len(c.windows))
 	for _, w := range c.windows {
-		out = append(out, w.toplevel)
+		if t, ok := w.top.(xdgToplevel); ok {
+			out = append(out, t.Toplevel)
+		}
 	}
 	return out
 }
@@ -72,36 +73,12 @@ func (c *Compositor) outputAtRect(r image.Rectangle) *output.Output {
 	return nil
 }
 
-func (c *Compositor) wanted(rect image.Rectangle, layer wm.PlacementLayer, activated bool) (shell.State, output.Scale) {
-	want := shell.State{Size: rect.Size()}
-	o := c.outputAtRect(rect)
-	var scale output.Scale
-	if o != nil {
-		scale, want.Bounds = o.Scale(), c.usable[o].Size()
+func (c *Compositor) wanted(rect image.Rectangle, layer wm.PlacementLayer, activated bool) want {
+	w := want{rect: rect, layer: layer, activated: activated}
+	if o := c.outputAtRect(rect); o != nil {
+		w.placed, w.scale, w.bounds = true, o.Scale(), c.usable[o].Size()
 	}
-	switch {
-	case o == nil:
-	case layer == wm.LayerTiled:
-		want.States = append(want.States,
-			sxdg.XdgToplevelStateTiledLeft, sxdg.XdgToplevelStateTiledRight, sxdg.XdgToplevelStateTiledTop, sxdg.XdgToplevelStateTiledBottom,
-			sxdg.XdgToplevelStateConstrainedLeft, sxdg.XdgToplevelStateConstrainedRight, sxdg.XdgToplevelStateConstrainedTop, sxdg.XdgToplevelStateConstrainedBottom)
-	case layer == wm.LayerFullscreen:
-		want.States = append(want.States, sxdg.XdgToplevelStateFullscreen)
-	}
-	if activated {
-		want.States = append(want.States, sxdg.XdgToplevelStateActivated)
-	}
-	return want, scale
-}
-
-func (c *Compositor) configure(t *shell.Toplevel, want shell.State, scale output.Scale) error {
-	if scale != 0 {
-		if err := t.Surface().Client().Sent(t.Surface().SetPreferredScale(uint32(scale))); err != nil {
-			return err
-		}
-	}
-	_, err := t.Configure(want)
-	return t.Surface().Client().Sent(err)
+	return w
 }
 
 func (c *Compositor) update(s wm.State, err error) error {
@@ -176,22 +153,23 @@ func sameState(a, b shell.State) bool {
 }
 
 func (c *Compositor) settle(w *window, activated bool) error {
-	want, scale := c.wanted(w.rect, w.layer, activated)
-	if sameState(w.toplevel.Requested(), want) && w.scale == scale {
+	want := c.wanted(w.rect, w.layer, activated)
+	if w.top.settled(want) && w.scale == want.scale {
 		return nil
 	}
-	w.scale = scale
-	return c.configure(w.toplevel, want, scale)
+	w.scale = want.scale
+	return w.top.apply(want)
 }
 
-func (c *Compositor) floats(t *shell.Toplevel) (bool, image.Point) {
+func (c *Compositor) floats(t toplevel) (bool, image.Point) {
 	d := wm.Decide(c.rules, t.AppID(), t.Title())
-	return d.Mode == wm.RuleFloat || (t.Parent() != nil && d.Mode != wm.RuleTile), d.Size
+	return d.Mode == wm.RuleFloat || ((t.parent() != nil || t.prefersFloating()) && d.Mode != wm.RuleTile), d.Size
 }
 
-func (c *Compositor) ToplevelInitialCommit(t *shell.Toplevel) error {
+func (c *Compositor) ToplevelInitialCommit(st *shell.Toplevel) error {
+	t := xdgToplevel{st}
 	if float, size := c.floats(t); float {
-		return c.configure(t, shell.State{Size: size, States: []shell.ToplevelState{sxdg.XdgToplevelStateActivated}}, 0)
+		return t.apply(want{rect: image.Rectangle{Max: size}, activated: true})
 	}
 	s, err := c.wm.MapWindow(c.nextWindow, c.settings.Autotile)
 	if err != nil {
@@ -199,20 +177,19 @@ func (c *Compositor) ToplevelInitialCommit(t *shell.Toplevel) error {
 	}
 	for _, p := range s.Arrange(c.decor.reserved()).Windows {
 		if p.ID == c.nextWindow {
-			want, scale := c.wanted(c.content(p.Rect, p.Layer), p.Layer, true)
-			return c.configure(t, want, scale)
+			return t.apply(c.wanted(c.content(p.Rect, p.Layer), p.Layer, true))
 		}
 	}
 	return fmt.Errorf("compositor: the window manager did not place new window %d", c.nextWindow)
 }
 
-func (c *Compositor) floatRect(t *shell.Toplevel, size image.Point) image.Rectangle {
+func (c *Compositor) floatRect(t toplevel, size image.Point) image.Rectangle {
 	if size == (image.Point{}) {
 		size = t.Geometry().Size()
 	}
 	size = size.Add(image.Pt(2*c.decor.BorderWidth, 2*c.decor.BorderWidth))
 	over := image.Rectangle{}
-	if p := c.windowOf(t.Parent()); p != nil {
+	if p := c.windowOf(t.parent()); p != nil {
 		over = p.tile
 	} else if o := c.outputAtRect(image.Rectangle{Min: image.Pt(int(c.cursor.X), int(c.cursor.Y))}); o != nil {
 		over = c.usable[o].Add(o.Position())
@@ -237,7 +214,7 @@ func (c *Compositor) keyboardTarget() *surface.Surface {
 	case c.layerFocus != nil && c.layerFocus.Mapped():
 		return c.layerFocus.Surface()
 	case c.active != nil:
-		return c.active.toplevel.Surface()
+		return c.active.top.Surface()
 	}
 	return nil
 }
@@ -247,7 +224,11 @@ func (c *Compositor) refocus() error {
 }
 
 func (c *Compositor) ToplevelMapped(t *shell.Toplevel) error {
-	w := &window{id: c.nextWindow, toplevel: t}
+	return c.mapToplevel(xdgToplevel{t})
+}
+
+func (c *Compositor) mapToplevel(t toplevel) error {
+	w := &window{id: c.nextWindow, top: t}
 	c.nextWindow++
 	var s wm.State
 	var err error
@@ -260,7 +241,7 @@ func (c *Compositor) ToplevelMapped(t *shell.Toplevel) error {
 		return err
 	}
 	for _, p := range s.Arrange(c.decor.reserved()).Windows {
-		if o := c.outputAtRect(p.Rect); p.ID == w.id && o != nil && t.Requested().Bounds != (image.Point{}) {
+		if o := c.outputAtRect(p.Rect); p.ID == w.id && o != nil && t.scaled() {
 			w.scale = o.Scale()
 		}
 	}
@@ -269,6 +250,10 @@ func (c *Compositor) ToplevelMapped(t *shell.Toplevel) error {
 }
 
 func (c *Compositor) ToplevelUnmapped(t *shell.Toplevel) error {
+	return c.unmapToplevel(xdgToplevel{t})
+}
+
+func (c *Compositor) unmapToplevel(t toplevel) error {
 	w := c.windowOf(t)
 	if w == nil {
 		return nil
@@ -288,7 +273,7 @@ func (c *Compositor) ToplevelCommitted(*shell.Toplevel) error { return nil }
 func (c *Compositor) ToplevelChanged(*shell.Toplevel, shell.Change) error { return nil }
 
 func (c *Compositor) ToplevelRequest(t *shell.Toplevel, r shell.Request) error {
-	w := c.windowOf(t)
+	w := c.windowOf(xdgToplevel{t})
 	if w == nil {
 		return nil
 	}
@@ -311,7 +296,7 @@ func (c *Compositor) WM() wm.State {
 }
 
 func (c *Compositor) Urgent(t *shell.Toplevel) bool {
-	w := c.windowOf(t)
+	w := c.windowOf(xdgToplevel{t})
 	return w != nil && w.urgent
 }
 

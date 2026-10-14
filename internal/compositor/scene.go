@@ -134,7 +134,7 @@ func (c *Compositor) drawWindow(pass *frame, o *output.Output, w *window, shown 
 	if !w.visible || !w.tile.Overlaps(o.Logical()) {
 		return shown
 	}
-	shown = c.drawTree(pass, o, w.toplevel.Surface(), w.rect.Min.Sub(w.toplevel.Geometry().Min), shown)
+	shown = c.drawTree(pass, o, w.top.Surface(), w.rect.Min.Sub(w.top.Geometry().Min), shown)
 	c.drawBorder(pass, o, w)
 	return shown
 }

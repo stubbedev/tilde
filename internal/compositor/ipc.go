@@ -51,9 +51,9 @@ func (c *Compositor) Snapshot() ipc.Snapshot {
 		ws, _ := s.Workspace(id)
 		snap.Windows = append(snap.Windows, ipc.Window{
 			ID:         w.id,
-			AppID:      w.toplevel.AppID(),
-			Title:      w.toplevel.Title(),
-			PID:        w.toplevel.Surface().Client().Creds().Pid,
+			AppID:      w.top.AppID(),
+			Title:      w.top.Title(),
+			PID:        w.top.pid(),
 			Workspace:  id,
 			Output:     ws.Output,
 			Rect:       ipc.RectOf(w.rect),

@@ -156,7 +156,7 @@ func (c *Compositor) drawTabBars(pass *frame, o *output.Output) error {
 			}
 			title := ""
 			if w := c.windowByID(id); w != nil {
-				title = w.toplevel.Title()
+				title = w.top.Title()
 			}
 			tex, err := c.label(o, labelKey{text: title, size: dst.Size(), px: o.Scale().ToDevice(c.decor.Tab.TextHeight), colors: c.tabColors(id, i == bar.Active)})
 			if err != nil {

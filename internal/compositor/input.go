@@ -203,7 +203,7 @@ func (c *Compositor) pointerMoved(at time.Duration) error {
 	} else if s != nil {
 		err = c.seat.PointerMotion(at, local.X, local.Y)
 	}
-	if w != nil && c.grabClient() == nil && (c.active != w || c.seat.Focus() != w.toplevel.Surface()) {
+	if w != nil && c.grabClient() == nil && (c.active != w || c.seat.Focus() != w.top.Surface()) {
 		err = errors.Join(err, c.focusWindow(w))
 	}
 	return errors.Join(err, c.cursorMoved())
@@ -268,7 +268,7 @@ func (c *Compositor) hitWindow(w *window, p point) (*surface.Surface, point) {
 	if s, local := hitPopups(c.popups(w), p); s != nil {
 		return s, local
 	}
-	return hitTree(w.toplevel.Surface(), w.rect.Min.Sub(w.toplevel.Geometry().Min), p)
+	return hitTree(w.top.Surface(), w.rect.Min.Sub(w.top.Geometry().Min), p)
 }
 
 func (c *Compositor) surfaceAt(p point) (*surface.Surface, point, *window) {
@@ -302,7 +302,7 @@ func (c *Compositor) surfaceAt(p point) (*surface.Surface, point, *window) {
 		if w.layer == wm.LayerFullscreen || !w.visible {
 			continue
 		}
-		if s, local := hitTree(w.toplevel.Surface(), w.rect.Min.Sub(w.toplevel.Geometry().Min), p); s != nil {
+		if s, local := hitTree(w.top.Surface(), w.rect.Min.Sub(w.top.Geometry().Min), p); s != nil {
 			return s, local, w
 		}
 	}
@@ -335,7 +335,7 @@ func (c *Compositor) originOf(target *surface.Surface) (image.Point, bool) {
 		if !w.visible {
 			continue
 		}
-		if origin, ok := treeOrigin(w.toplevel.Surface(), c.placement(w).Min.Sub(w.toplevel.Geometry().Min), target); ok {
+		if origin, ok := treeOrigin(w.top.Surface(), c.placement(w).Min.Sub(w.top.Geometry().Min), target); ok {
 			return origin, true
 		}
 		for _, pp := range c.popups(w) {

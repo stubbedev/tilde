@@ -37,7 +37,7 @@ func (c *Compositor) perform(e wm.Effect) error {
 		if w == nil {
 			return fmt.Errorf("close unknown window %d", e.ID)
 		}
-		return w.toplevel.SendClose()
+		return w.top.close()
 	case wm.Exec:
 		return c.spawn(e.Command)
 	case wm.SetSubmap:
