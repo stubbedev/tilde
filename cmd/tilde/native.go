@@ -351,7 +351,7 @@ func (n *native) remove(c *card) error {
 	}
 	n.cards = slices.DeleteFunc(n.cards, func(x *card) bool { return x == c })
 	fmt.Fprintf(os.Stderr, "tilde: %s went away\n", c.name)
-	if err := errors.Join(c.backend.Unplug(), c.dev.Close(), n.logind.ReleaseDevice(c.device)); err != nil {
+	if err := errors.Join(c.backend.Unplug(), c.dev.Close()); err != nil {
 		n.report(fmt.Errorf("drm: let go of %s: %w", c.name, err))
 	}
 	return nil
