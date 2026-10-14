@@ -13,6 +13,8 @@
   launch = import ./launch.nix pkgs;
   animation = launch "animation" "${pkgs.weston}/bin/weston-presentation-shm";
   firefox = launch "firefox" "${pkgs.firefox}/bin/firefox --no-remote --profile /tmp/firefox file://${./screencast.html}";
+  electronApp = pkgs.runCommand "electron-share" {} "mkdir $out && cp ${./electron-share}/* $out/ && cp ${./screencast.html} $out/screencast.html";
+  electron = launch "electron" "${pkgs.electron}/bin/electron --ozone-platform=wayland ${electronApp}";
   chromium = launch "chromium" "${pkgs.chromium}/bin/chromium --use-fake-ui-for-media-stream --no-first-run --user-data-dir=/tmp/chromium file://${./screencast.html}";
   python = pkgs.python3.withPackages (ps: [ps.dbus-python ps.pygobject3]);
   frames = pkgs.runCommandCC "pw-frames" {
@@ -72,5 +74,6 @@ in
       machine.succeed("${run "mkdir -p /tmp/firefox && cp ${firefoxPrefs} /tmp/firefox/user.js"}")
       share_in_browser("firefox", "${firefox}", 1)
       share_in_browser("chromium", "${chromium}", 2)
+      share_in_browser("electron", "${electron}", 3)
     '';
   }
