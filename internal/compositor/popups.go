@@ -23,10 +23,10 @@ func (c *Compositor) popups(w *window) []placedPopup {
 	if !w.visible {
 		return nil
 	}
-	return c.popupTree(w.top, c.placement(w).Min)
+	return c.popupTree(w.top.Popups(), c.placement(w).Min)
 }
 
-func (c *Compositor) popupTree(root shell.PopupRoot, origin image.Point) []placedPopup {
+func (c *Compositor) popupTree(roots []*shell.Popup, origin image.Point) []placedPopup {
 	var out []placedPopup
 	var walk func(ps []*shell.Popup, parent image.Point)
 	walk = func(ps []*shell.Popup, parent image.Point) {
@@ -39,7 +39,7 @@ func (c *Compositor) popupTree(root shell.PopupRoot, origin image.Point) []place
 			walk(p.Popups(), geometry)
 		}
 	}
-	walk(root.Popups(), origin)
+	walk(roots, origin)
 	return out
 }
 

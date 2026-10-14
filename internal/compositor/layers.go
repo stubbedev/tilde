@@ -162,7 +162,7 @@ func (c *Compositor) layerPopups(e *layer) []placedPopup {
 	if !e.shown() {
 		return nil
 	}
-	return c.popupTree(e.surface, e.bounds().Min)
+	return c.popupTree(e.surface.Popups(), e.bounds().Min)
 }
 
 func (c *Compositor) exclusiveLayer() *shell.LayerSurface {
