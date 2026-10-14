@@ -158,6 +158,7 @@ func (w *Window) Apply(s State) error {
 		w.rect = s.Rect
 		xproto.ConfigureWindow(w.wm.x, w.id, xproto.ConfigWindowX|xproto.ConfigWindowY|xproto.ConfigWindowWidth|xproto.ConfigWindowHeight|xproto.ConfigWindowBorderWidth,
 			[]uint32{uint32(int32(s.Rect.Min.X)), uint32(int32(s.Rect.Min.Y)), uint32(s.Rect.Dx()), uint32(s.Rect.Dy()), 0}) //nolint:gosec // X geometry is 16-bit and travels as 32-bit words
+		w.wm.notifyGeometry(w)
 	}
 	if s.Fullscreen != prev.Fullscreen {
 		w.setState("_NET_WM_STATE_FULLSCREEN", s.Fullscreen)
@@ -230,6 +231,10 @@ func (m *wm) changeWindows(win xproto.Window, prop string, list []xproto.Window)
 	m.changeAtoms(win, m.atoms[prop], xproto.AtomWindow, atoms)
 }
 
+func (m *wm) frameless(id xproto.Window) {
+	m.changeAtoms(id, m.atoms["_NET_FRAME_EXTENTS"], xproto.AtomCardinal, []xproto.Atom{0, 0, 0, 0})
+}
+
 func (m *wm) window(id xproto.Window) *Window {
 	w, ok := m.windows[id]
 	if !ok {
@@ -258,6 +263,7 @@ func (m *wm) mapRequested(id xproto.Window, p props) error {
 	w := m.window(id)
 	w.props, w.managed = p, true
 	m.changeAtoms(id, m.atoms["WM_STATE"], m.atoms["WM_STATE"], []xproto.Atom{1, 0})
+	m.frameless(id)
 	xproto.MapWindow(m.x, id)
 	return nil
 }

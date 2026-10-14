@@ -5,6 +5,7 @@ import (
 	"image"
 	"net"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -294,5 +295,44 @@ func TestXWindowsCloseTheICCCMWay(t *testing.T) {
 	kill(h)
 	if ev, open := rude.event(clientTimeout); open {
 		t.Fatalf("closing a window without WM_DELETE_WINDOW sent %#v instead of killing its client", ev)
+	}
+}
+
+func TestXWindowsLearnTheirGeometryAndFrame(t *testing.T) {
+	h := StartXwayland(t, func(err error) { t.Errorf("xwayland reported: %v", err) }, small)
+	xc := xDial(t, h)
+	xc.intern("_NET_FRAME_EXTENTS", "_NET_REQUEST_FRAME_EXTENTS", "_NET_WM_WINDOW_TYPE", "_NET_WM_WINDOW_TYPE_DIALOG")
+	win, err := xproto.NewWindowId(xc.x)
+	if err != nil {
+		t.Fatal(err)
+	}
+	screen := xproto.Setup(xc.x).DefaultScreen(xc.x)
+	ask := xproto.ClientMessageEvent{Format: 32, Window: win, Type: xc.atoms["_NET_REQUEST_FRAME_EXTENTS"], Data: xproto.ClientMessageDataUnionData32New(make([]uint32, 5))}
+	for _, ck := range []interface{ Check() error }{
+		xproto.CreateWindowChecked(xc.x, screen.RootDepth, win, xc.root, 60, 35, 40, 30, 0, xproto.WindowClassInputOutput, screen.RootVisual,
+			xproto.CwBackPixel|xproto.CwEventMask, []uint32{0xffffff, xproto.EventMaskStructureNotify}),
+		xproto.ChangePropertyChecked(xc.x, xproto.PropModeReplace, win, xc.atoms["_NET_WM_WINDOW_TYPE"], xproto.AtomAtom, 32, 1, xc.atom("_NET_WM_WINDOW_TYPE_DIALOG")),
+		xproto.SendEventChecked(xc.x, false, xc.root, xproto.EventMaskSubstructureRedirect|xproto.EventMaskSubstructureNotify, string(ask.Bytes())),
+	} {
+		if err := ck.Check(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.Eventually("the requested frame extents", func(*headless.Backend, *compositor.Compositor) bool {
+		r, err := xproto.GetProperty(xc.x, false, win, xc.atoms["_NET_FRAME_EXTENTS"], xproto.AtomCardinal, 0, 4).Reply()
+		return err == nil && r.ValueLen == 4 && slices.Equal(r.Value, make([]byte, 16))
+	})
+	if err := xproto.MapWindowChecked(xc.x, win).Check(); err != nil {
+		t.Fatal(err)
+	}
+	for {
+		ev, open := xc.event(clientTimeout)
+		if !open {
+			t.Fatal("the X connection closed")
+		}
+		n, ok := ev.(xproto.ConfigureNotifyEvent)
+		if ok && n.Window == win && n.X == 60 && n.Y == 35 && n.Width == 40 && n.Height == 30 {
+			return
+		}
 	}
 }
