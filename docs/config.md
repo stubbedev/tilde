@@ -150,6 +150,11 @@ button) or `mouse_up`/`mouse_down` for the scroll wheel.
 `repeating` (the action repeats while the key is held, at the keyboard
 repeat rate).
 
+A focused window that inhibits shortcuts (virtual machines, remote desktop
+clients) receives every key, button and scroll itself; only `locked` binds
+still run, so give the bind that takes focus back from such a window the
+`locked` flag.
+
 Actions are listed in [actions.md](actions.md).
 
 ## rules

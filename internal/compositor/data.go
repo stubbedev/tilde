@@ -18,7 +18,7 @@ func (c *Compositor) KeyboardFocusChanged(s *surface.Surface) error {
 	if s != nil {
 		client = s.Client()
 	}
-	return errors.Join(c.data.SetFocus(client), c.refreshConstraint())
+	return errors.Join(c.data.SetFocus(client), c.refreshShortcutsInhibitor(), c.refreshConstraint())
 }
 
 func (c *Compositor) PointerFocusChanged(*surface.Surface) error {
