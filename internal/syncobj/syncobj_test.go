@@ -62,6 +62,39 @@ func (f fencer) SyncFile() (int, error) {
 	return fd, errors.Join(err, f.d.DestroySyncobj(s))
 }
 
+type screen struct {
+	mu   sync.Mutex
+	hold bool
+	held []func() error
+}
+
+func (s *screen) OffScreen(_ *dmabuf.Buffer, f func() error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.hold {
+		return f()
+	}
+	s.held = append(s.held, f)
+	return nil
+}
+
+func (s *screen) leave() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	errs := make([]error, 0, len(s.held))
+	for _, f := range s.held {
+		errs = append(errs, f())
+	}
+	s.held, s.hold = nil, false
+	return errors.Join(errs...)
+}
+
+func (s *screen) holding() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.held)
+}
+
 type recorder struct {
 	mu      sync.Mutex
 	commits int
@@ -84,8 +117,10 @@ func (r *recorder) count() int {
 
 type env struct {
 	t   *testing.T
+	l   *loop.Loop
 	dev *drm.Device
 	rec *recorder
+	scr *screen
 	c   *wlclient.Display
 	cmp *cw.WlCompositor
 	buf *cld.ZwpLinuxDmabufV1
@@ -118,7 +153,7 @@ func setup(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := &env{t: t, dev: dev, rec: &recorder{}}
+	e := &env{t: t, l: l, dev: dev, rec: &recorder{}, scr: &screen{}}
 	if _, err := surface.New(d, e.rec); err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +161,7 @@ func setup(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := New(d, l, dev, fencer{dev}); err != nil {
+	if _, err := New(d, l, dev, fencer{dev}, e.scr); err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)
@@ -304,6 +339,35 @@ func TestCommitsWaitForTheirAcquirePoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.waitFor("the last buffer released with its surface", func() bool { return e.signaledAt(release, 3) })
+}
+
+func TestBuffersOnScreenReleaseWhenTheyLeaveIt(t *testing.T) {
+	e := setup(t)
+	acquire, atl := e.timeline()
+	release, rtl := e.timeline()
+	s, ss := e.surface()
+	e.scr.hold = true
+	for i, b := range []*cw.WlBuffer{e.dmabuf(), e.dmabuf()} {
+		point := uint32(i + 1)
+		for _, err := range []error{ss.SetAcquirePoint(atl, 0, point), ss.SetReleasePoint(rtl, 0, point), s.Attach(b, 0, 0), s.Commit()} {
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		e.roundtrip()
+		if err := e.dev.Signal(acquire, uint64(point)); err != nil {
+			t.Fatal(err)
+		}
+		e.waitFor("the commit after its acquire point", func() bool { return e.rec.count() == i+1 })
+	}
+	e.waitFor("the replaced buffer handed to the screen", func() bool { return e.scr.holding() == 1 })
+	if e.signaledAt(release, 1) {
+		t.Fatal("a replaced buffer still on screen was released")
+	}
+	if err := e.l.Post(e.scr.leave); err != nil {
+		t.Fatal(err)
+	}
+	e.waitFor("the buffer released once off screen", func() bool { return e.signaledAt(release, 1) })
 }
 
 func TestProtocolErrors(t *testing.T) {

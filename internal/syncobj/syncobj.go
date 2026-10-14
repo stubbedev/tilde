@@ -1,7 +1,7 @@
 // Package syncobj implements wp_linux_drm_syncobj_manager_v1: explicit
 // synchronization through DRM timeline syncobjs. A commit waits for its
 // acquire point before it takes effect, and a buffer's release point signals
-// once the GPU has finished with it.
+// once the GPU has finished with it and it has left the screen.
 package syncobj
 
 import (
@@ -27,14 +27,19 @@ type Fencer interface {
 	SyncFile() (int, error)
 }
 
+type Screen interface {
+	OffScreen(b *dmabuf.Buffer, f func() error) error
+}
+
 type Manager struct {
 	loop     *loop.Loop
 	dev      *drm.Device
 	fencer   Fencer
+	screen   Screen
 	surfaces map[*surface.Surface]*syncSurface
 }
 
-func New(d *server.Display, l *loop.Loop, dev *drm.Device, f Fencer) (*Manager, error) {
+func New(d *server.Display, l *loop.Loop, dev *drm.Device, f Fencer, screen Screen) (*Manager, error) {
 	timelines, err := dev.Cap(drm.CapSyncobjTimeline)
 	if err != nil {
 		return nil, fmt.Errorf("syncobj: %w", err)
@@ -42,7 +47,7 @@ func New(d *server.Display, l *loop.Loop, dev *drm.Device, f Fencer) (*Manager, 
 	if timelines == 0 {
 		return nil, fmt.Errorf("syncobj: %s has no timeline syncobjs", dev.Path())
 	}
-	m := &Manager{loop: l, dev: dev, fencer: f, surfaces: map[*surface.Surface]*syncSurface{}}
+	m := &Manager{loop: l, dev: dev, fencer: f, screen: screen, surfaces: map[*surface.Surface]*syncSurface{}}
 	if _, err := d.AddGlobal(sls.WpLinuxDrmSyncobjManagerV1Interface, version, m.bind); err != nil {
 		return nil, err
 	}
@@ -177,9 +182,21 @@ type syncSurface struct {
 	hooks   *surface.Hooks
 	acquire *point
 	release *point
-	latched []*point
-	current *point
+	latched []latch
+	current latch
 	waits   []*wait
+}
+
+type latch struct {
+	release *point
+	buffer  *dmabuf.Buffer
+}
+
+func (ss *syncSurface) retire(l latch) error {
+	if l.release == nil {
+		return nil
+	}
+	return ss.m.screen.OffScreen(l.buffer, l.release.signalAfterGPU)
 }
 
 func (ss *syncSurface) Destroy(*sls.WpLinuxDrmSyncobjSurfaceV1) error {
@@ -210,30 +227,33 @@ func (ss *syncSurface) fail(code sls.WpLinuxDrmSyncobjSurfaceV1Error, format str
 	return ss.res.ProtocolError(code, fmt.Sprintf(format, args...))
 }
 
-func (ss *syncSurface) check(buffer surface.Buffer, attached bool) error {
+func (ss *syncSurface) check(buffer surface.Buffer, attached bool) (*dmabuf.Buffer, error) {
 	acquire, release := ss.acquire, ss.release
 	switch {
 	case (acquire != nil || release != nil) && (!attached || buffer == nil):
-		return ss.fail(sls.WpLinuxDrmSyncobjSurfaceV1ErrorNoBuffer, "acquire or release point without a buffer")
+		return nil, ss.fail(sls.WpLinuxDrmSyncobjSurfaceV1ErrorNoBuffer, "acquire or release point without a buffer")
 	case !attached || buffer == nil:
-		return nil
+		return nil, nil
 	case acquire == nil:
-		return ss.fail(sls.WpLinuxDrmSyncobjSurfaceV1ErrorNoAcquirePoint, "buffer without an acquire point")
+		return nil, ss.fail(sls.WpLinuxDrmSyncobjSurfaceV1ErrorNoAcquirePoint, "buffer without an acquire point")
 	case release == nil:
-		return ss.fail(sls.WpLinuxDrmSyncobjSurfaceV1ErrorNoReleasePoint, "buffer without a release point")
+		return nil, ss.fail(sls.WpLinuxDrmSyncobjSurfaceV1ErrorNoReleasePoint, "buffer without a release point")
 	case acquire.t == release.t && acquire.value >= release.value:
-		return ss.fail(sls.WpLinuxDrmSyncobjSurfaceV1ErrorConflictingPoints, "acquire point %d is not before release point %d on the same timeline", acquire.value, release.value)
+		return nil, ss.fail(sls.WpLinuxDrmSyncobjSurfaceV1ErrorConflictingPoints, "acquire point %d is not before release point %d on the same timeline", acquire.value, release.value)
 	}
-	if _, ok := buffer.(*dmabuf.Buffer); !ok {
-		return ss.fail(sls.WpLinuxDrmSyncobjSurfaceV1ErrorUnsupportedBuffer, "explicit sync needs a dmabuf, not %T", buffer)
+	b, ok := buffer.(*dmabuf.Buffer)
+	if !ok {
+		return nil, ss.fail(sls.WpLinuxDrmSyncobjSurfaceV1ErrorUnsupportedBuffer, "explicit sync needs a dmabuf, not %T", buffer)
 	}
-	return nil
+	return b, nil
 }
 
 func (ss *syncSurface) commit() error {
 	buffer, attached := ss.s.PendingBuffer()
+	var explicit *dmabuf.Buffer
 	if ss.res != nil {
-		if err := ss.check(buffer, attached); err != nil {
+		var err error
+		if explicit, err = ss.check(buffer, attached); err != nil {
 			return err
 		}
 	}
@@ -242,7 +262,7 @@ func (ss *syncSurface) commit() error {
 	}
 	acquire, release := ss.acquire, ss.release
 	ss.acquire, ss.release = nil, nil
-	ss.latched = append(ss.latched, release)
+	ss.latched = append(ss.latched, latch{release: release, buffer: explicit})
 	if acquire == nil {
 		return nil
 	}
@@ -272,14 +292,14 @@ func (ss *syncSurface) applied() error {
 	if len(ss.latched) == 0 {
 		return nil
 	}
-	errs := []error{ss.current.signalAfterGPU()}
+	errs := []error{ss.retire(ss.current)}
 	last := len(ss.latched) - 1
-	for _, p := range ss.latched[:last] {
-		errs = append(errs, p.signal())
+	for _, l := range ss.latched[:last] {
+		errs = append(errs, l.release.signal())
 	}
 	ss.current = ss.latched[last]
 	ss.latched = ss.latched[:0]
-	if ss.res == nil && ss.current == nil {
+	if ss.res == nil && ss.current.release == nil {
 		ss.forget()
 	}
 	return errors.Join(errs...)
@@ -289,17 +309,17 @@ func (ss *syncSurface) objectGone() error {
 	ss.res = nil
 	err := errors.Join(ss.acquire.drop(), ss.release.drop())
 	ss.acquire, ss.release = nil, nil
-	if ss.current == nil && len(ss.latched) == 0 {
+	if ss.current.release == nil && len(ss.latched) == 0 {
 		ss.forget()
 	}
 	return err
 }
 
 func (ss *syncSurface) surfaceGone() error {
-	errs := []error{ss.current.signalAfterGPU()}
-	ss.current = nil
-	for _, p := range ss.latched {
-		errs = append(errs, p.signal())
+	errs := []error{ss.retire(ss.current)}
+	ss.current = latch{}
+	for _, l := range ss.latched {
+		errs = append(errs, l.release.signal())
 	}
 	ss.latched = nil
 	for _, w := range ss.waits {

@@ -145,6 +145,7 @@ type Compositor struct {
 	captures        map[*output.Output][]capture
 	captureSessions []*captureSession
 	cursorSessions  []*cursorSession
+	scannedOut      map[*dmabuf.Buffer]*scannedOut
 	constraints     map[*surface.Surface]*constraint
 	constraint      *constraint
 	keyInhibitors   map[*surface.Surface]*shortcutsInhibitor
@@ -207,6 +208,7 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		hwCursors:     map[*output.Output]*hwCursor{},
 		blanked:       map[*output.Output]bool{},
 		captures:      map[*output.Output][]capture{},
+		scannedOut:    map[*dmabuf.Buffer]*scannedOut{},
 		constraints:   map[*surface.Surface]*constraint{},
 		keyInhibitors: map[*surface.Surface]*shortcutsInhibitor{},
 		usable:        map[*output.Output]image.Rectangle{},
@@ -324,7 +326,7 @@ func (c *Compositor) explicitSync(l *loop.Loop, display *server.Display) error {
 		c.drm = nil
 		return errors.Join(err, dev.Close())
 	}
-	if _, err := syncobj.New(display, l, c.drm, r); err != nil {
+	if _, err := syncobj.New(display, l, c.drm, r, c); err != nil {
 		return fmt.Errorf("compositor: %w", err)
 	}
 	return nil

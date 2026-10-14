@@ -112,7 +112,7 @@ func (c *Compositor) dropTexture(s *surface.Surface) error {
 	}
 	delete(c.textures, s)
 	if t.buffer != nil {
-		return s.Client().Sent(t.buffer.Release())
+		return c.releaseBuffer(t.buffer, s.Client())
 	}
 	if err := t.tex.Destroy(); err != nil {
 		return fmt.Errorf("compositor: destroy the texture of wl_surface@%d: %w", s.Resource().Base().ID(), err)
@@ -121,6 +121,7 @@ func (c *Compositor) dropTexture(s *surface.Surface) error {
 }
 
 func (c *Compositor) BufferDestroyed(b *dmabuf.Buffer) error {
+	c.scanoutBufferGone(b)
 	shown := false
 	for s, t := range c.textures {
 		if t.buffer == b {

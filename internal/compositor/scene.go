@@ -77,6 +77,14 @@ func (c *Compositor) render(o *output.Output) error {
 		sc.skipped()
 		return errors.Join(c.unchanged(o, sc), c.lockBlanked(o))
 	}
+	if direct, err := c.scanout(o, sc, bounds); err != nil || direct {
+		if err != nil {
+			return err
+		}
+		sc.presented()
+		sc.invalidate()
+		return errors.Join(c.lockBlanked(o), c.runCaptures(o))
+	}
 	f, err := o.Backend().BeginFrame()
 	if err != nil {
 		return err
