@@ -5,16 +5,26 @@ default:
     @just --list
 
 # Every gate a commit must pass: formatting, a tidy go.mod, the release
-# gates, the vulnerability scan and the headless harness. `devenv test` and CI
-# run this.
-gates: fmt-check tidy-check check vuln headless
+# gates, the vulnerability scan, the headless harness and the race detector.
+# `devenv test` and CI run this.
+gates: fmt-check tidy-check check vuln headless race
 
-# The tests that need dev-shell programs: the compositor-in-the-loop harness,
-# which boots tilde on the headless backend and drives real clients against
-# it, the session bus and GPU tests, and the end-to-end session in cmd/tilde.
-# TILDE_HEADLESS=1 turns a missing program into a failure instead of a skip.
+# The packages whose tests need dev-shell programs: the compositor-in-the-loop
+# harness, which boots tilde on the headless backend and drives real clients
+# against it, the session bus and GPU tests, and the end-to-end session in
+# cmd/tilde.
+headless_packages := "./internal/harness/... ./internal/backend/nested/... ./internal/systemd/... ./internal/session/... ./internal/drm/... ./internal/syncobj/... ./internal/gpu/... ./internal/render/gles/... ./internal/xwayland/... ./cmd/tilde/..."
+
+# Run the tests that need dev-shell programs. TILDE_HEADLESS=1 turns a missing
+# program into a failure instead of a skip.
 headless:
-    TILDE_HEADLESS=1 go test -count=1 ./internal/harness/... ./internal/backend/nested/... ./internal/systemd/... ./internal/session/... ./internal/drm/... ./internal/syncobj/... ./internal/gpu/... ./internal/render/gles/... ./internal/xwayland/... ./cmd/tilde/...
+    TILDE_HEADLESS=1 go test -count=1 {{headless_packages}}
+
+# Run every test, headless ones included, under the race detector, which
+# needs cgo; the binaries tilde ships keep CGO_ENABLED=0.
+race:
+    CGO_ENABLED=1 go test -race -count=1 ./...
+    CGO_ENABLED=1 TILDE_HEADLESS=1 go test -race -count=1 {{headless_packages}}
 
 # Run every release gate in order: vet, lint, test, build.
 check: vet lint test build

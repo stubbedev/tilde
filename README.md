@@ -79,7 +79,7 @@ criteria in its description.
 
 ```sh
 devenv shell   # Go, gopls, golangci-lint, govulncheck, just
-just gates     # formatting, vet, lint, test, build, govulncheck
+just gates     # every gate CI runs: format, lint, tests, headless harness, race detector
 ```
 
 `devenv.nix` is the whole development environment: Go pinned to the version
