@@ -252,7 +252,7 @@ func (c *Compositor) disable(o *output.Output) error {
 		return errors.Join(append(errs, err)...)
 	}
 	c.wm = s
-	errs = append(errs, c.relayout(), c.syncAreas())
+	errs = append(errs, c.relayout(), c.syncAreas(), c.fifo.Latched(nil))
 	return errors.Join(errs...)
 }
 

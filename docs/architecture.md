@@ -153,16 +153,23 @@ allocates buffers that plane can show.
 
 Each `wl_surface.commit` makes a content update (#117). Extensions attach
 what they need to the update when it is committed: gates it must pass
-before it applies (an explicit-sync acquire point) and state that becomes
-current with it (a release point, an alpha multiplier, a pointer constraint
-region). Updates apply strictly in commit order, so a held one holds back
-the ones behind it rather than being overwritten by them. A synchronized
-subsurface keeps one cached update that absorbs its commits and enters its
-queue when the parent applies.
+before it applies (an explicit-sync acquire point, a fifo barrier, a commit
+timing target) and state that becomes current with it (a release point, an
+alpha multiplier, a pointer constraint region). Updates apply strictly in
+commit order, so a held one holds back the ones behind it rather than being
+overwritten by them, which is what lets fifo queue frames instead of
+dropping them. A synchronized subsurface keeps one cached update that
+absorbs its commits and enters its queue when the parent applies.
 
 A frame latches what it draws: the presentation feedback of every surface
 it shows moves from the surface to that frame, and the output's next vblank
-reports it presented (#121).
+reports it presented (#121). An update that applies after the latch, as a fifo
+waiter does, neither discards the latched feedback nor is reported for a
+refresh that did not show it. The fifo barrier clears at that latch, at once
+when no powered output shows the surface, and when an output powers off or
+goes away. A commit timing target is due once the earliest next flip of an
+output showing the surface reaches it, or at the target time itself, which a
+timer guarantees while the outputs are idle.
 
 ## Xwayland
 
@@ -267,6 +274,8 @@ Everything lives under `internal/` except the commands.
 | `render/gles` | The GLES2 renderer (#34) |
 | `gpu` | purego bindings for EGL, GLES2 and GBM (#33) |
 | `surface` | `wl_compositor`, `wl_surface`, `wl_region`, `wl_subcompositor`, `wp_viewporter`, `wp_fractional_scale_v1`, `wp_presentation`: double-buffered state, a queue of content updates that apply in order once their gates open, subsurface trees, roles (#11, #19, #117) |
+| `fifo` | `wp_fifo_manager_v1`: a barrier an update sets when it applies and the next latching deadline clears, which a later update can wait for (#117) |
+| `committiming` | `wp_commit_timing_manager_v1`: an update waits until the next refresh of an output showing it would not present it before its target time (#117) |
 | `singlepixel` | `wp_single_pixel_buffer_manager_v1`: one-pixel buffers of a solid color (#20) |
 | `region` | Pixel regions as disjoint rectangles, for damage and input and opaque regions |
 | `output` | `wl_output` and `zxdg_output_v1`: each output's mode, logical position and scale in 120ths, with rounding that keeps logical edges adjacent in device pixels (#19) |

@@ -70,7 +70,7 @@ type scene struct {
 	history   [maxBufferAge]region.Set
 	head      int
 	drawn     bool
-	seq       uint64
+	last      backend.Presentation
 }
 
 func newScene() *scene {

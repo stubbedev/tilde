@@ -236,6 +236,16 @@
       "package": "hyprlandglobalshortcuts",
       "source": "hyprland-protocols",
       "path": "protocols/hyprland-global-shortcuts-v1.xml"
+    },
+    {
+      "package": "fifo",
+      "source": "wayland-protocols",
+      "path": "staging/fifo/fifo-v1.xml"
+    },
+    {
+      "package": "committiming",
+      "source": "wayland-protocols",
+      "path": "staging/commit-timing/commit-timing-v1.xml"
     }
   ]
 }

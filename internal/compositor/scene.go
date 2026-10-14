@@ -24,7 +24,7 @@ func (c *Compositor) Frame(b backend.Output) error {
 	if err := c.render(o); err != nil {
 		return fmt.Errorf("compositor: frame on %s: %w", b.Name(), err)
 	}
-	return errors.Join(c.updateEntered(o), c.updateInhibition())
+	return errors.Join(c.updateEntered(o), c.updateInhibition(), c.fifo.Latched(c.shown[o]))
 }
 
 func (c *Compositor) updateInhibition() error {
@@ -157,7 +157,7 @@ func (c *Compositor) unchanged(o *output.Output, sc *scene) error {
 	var err error
 	for _, s := range c.shown[o] {
 		c.outputResources = o.AppendResources(c.outputResources[:0], s.Client())
-		if e := errors.Join(s.Client().Sent(s.FrameDone(wire.Millis(now))), s.Client().Sent(s.Presented(c.outputResources, now, 0, sc.seq, 0))); e != nil {
+		if e := errors.Join(s.Client().Sent(s.FrameDone(wire.Millis(now))), s.Client().Sent(s.Presented(c.outputResources, now, 0, sc.last.Seq, 0))); e != nil {
 			err = errors.Join(err, e)
 		}
 	}
@@ -237,12 +237,12 @@ func (c *Compositor) Presented(b backend.Output, p backend.Presentation) error {
 	if o == nil {
 		return nil
 	}
-	c.sceneOf(o).seq = p.Seq
+	c.sceneOf(o).last = p
 	var errs []error
 	for _, s := range c.shown[o] {
 		errs = append(errs,
 			s.Client().Sent(s.FrameDone(wire.Millis(p.Time))),
 			s.Client().Sent(s.Presented(o.Resources(s.Client()), p.Time, p.Refresh, p.Seq, spt.WpPresentationFeedbackKindVsync)))
 	}
-	return errors.Join(errs...)
+	return errors.Join(append(errs, c.timing.Presented())...)
 }

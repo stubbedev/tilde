@@ -14,9 +14,11 @@ import (
 	"github.com/stubbedev/tilde/internal/alphamodifier"
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/binds"
+	"github.com/stubbedev/tilde/internal/committiming"
 	"github.com/stubbedev/tilde/internal/data"
 	"github.com/stubbedev/tilde/internal/dmabuf"
 	"github.com/stubbedev/tilde/internal/drm"
+	"github.com/stubbedev/tilde/internal/fifo"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/idle"
 	"github.com/stubbedev/tilde/internal/loop"
@@ -96,6 +98,8 @@ type Compositor struct {
 	power           *outputpower.Manager
 	outputConfig    *outputmanagement.Manager
 	alpha           *alphamodifier.Manager
+	fifo            *fifo.Manager
+	timing          *committiming.Manager
 	outputOverrides map[string]OutputRule
 	drm             *drm.Device
 	lidClosed       bool
@@ -250,6 +254,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.alpha, err = alphamodifier.New(display); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
+	if err := c.addPacing(l, display); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if _, err := display.AddGlobal(ssb.XdgSystemBellV1Interface, bellVersion, c.bindBell); err != nil {
