@@ -174,9 +174,12 @@ func (c *Compositor) cursorMoved() error {
 	for _, o := range c.outputs {
 		placed, err := c.placeCursor(o)
 		errs = append(errs, err)
-		if hw, ok := c.hwCursors[o]; !placed || (ok && hw.inFrame) {
+		hw, ok := c.hwCursors[o]
+		repaint := !placed || (ok && hw.inFrame)
+		if repaint {
 			errs = append(errs, c.schedule(o))
 		}
+		errs = append(errs, c.noteCursor(o, repaint))
 	}
 	return errors.Join(errs...)
 }

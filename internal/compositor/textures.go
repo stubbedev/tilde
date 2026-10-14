@@ -43,7 +43,7 @@ func (c *Compositor) Committed(s *surface.Surface) error {
 			return err
 		}
 	}
-	return c.scheduleAll()
+	return errors.Join(c.noteCommit(s), c.scheduleAll())
 }
 
 func (c *Compositor) attach(s *surface.Surface) error {

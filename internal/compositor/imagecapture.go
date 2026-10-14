@@ -19,6 +19,7 @@ import (
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/shm"
+	"github.com/stubbedev/tilde/internal/surface"
 	"github.com/stubbedev/tilde/internal/wire"
 )
 
@@ -173,6 +174,7 @@ type captureSession struct {
 	size     image.Point
 	frame    *captureFrame
 	damage   region.Set
+	cursorAt image.Rectangle
 	captured bool
 	stopped  bool
 }
@@ -217,12 +219,60 @@ func (s *captureSession) sync() error {
 }
 
 func (s *captureSession) noteDamage(o *output.Output, frame *region.Set) {
-	if s.stopped {
+	if s.stopped || s.source.output != o {
 		return
 	}
-	if to, area, ok := s.target(); ok && to == o {
+	if _, area, ok := s.target(); ok {
 		addDamage(&s.damage, frame, area)
 	}
+}
+
+func (c *Compositor) noteCommit(sf *surface.Surface) error {
+	var errs []error
+	for _, s := range c.captureSessions {
+		w := s.source.window
+		if w == nil || s.stopped || !c.inWindow(w, sf) {
+			continue
+		}
+		o, area, ok := s.target()
+		if !ok {
+			continue
+		}
+		s.damage.Add(image.Rectangle{Max: area.Size()})
+		errs = append(errs, c.wakeCaptures(o))
+	}
+	return errors.Join(errs...)
+}
+
+func (c *Compositor) noteCursor(o *output.Output, repaint bool) error {
+	var errs []error
+	for _, s := range c.captureSessions {
+		if !s.cursor || s.stopped {
+			continue
+		}
+		to, area, ok := s.target()
+		if !ok || to != o {
+			continue
+		}
+		box, err := c.cursorBounds(o)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if box == s.cursorAt {
+			continue
+		}
+		for _, r := range []image.Rectangle{s.cursorAt, box} {
+			if r = r.Intersect(area); !r.Empty() {
+				s.damage.Add(r.Sub(area.Min))
+			}
+		}
+		s.cursorAt = box
+		if s.source.window != nil || !repaint {
+			errs = append(errs, c.wakeCaptures(o))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func (s *captureSession) constraints() error {
@@ -322,6 +372,10 @@ func (f *captureFrame) Capture(obj *seic.ExtImageCopyCaptureFrameV1) error {
 		err = f.ready(at, area.Size())
 		s.captured = true
 		s.damage.Reset()
+		if s.cursor {
+			box, boxErr := s.c.cursorBounds(o)
+			s.cursorAt, err = box, errors.Join(err, boxErr)
+		}
 		return err
 	}}, waits(nil))
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/stubbedev/tilde/internal/region"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/shm"
+	"github.com/stubbedev/tilde/internal/surface"
 )
 
 var captureFormats = []render.Format{render.XRGB8888, render.ARGB8888}
@@ -90,6 +91,17 @@ func (c *Compositor) runCaptures(o *output.Output) error {
 	for _, s := range c.captureSessions {
 		s.noteDamage(o, damage)
 	}
+	return c.flushCaptures(o, damage)
+}
+
+func (c *Compositor) wakeCaptures(o *output.Output) error {
+	if !c.sceneOf(o).drawn {
+		return nil
+	}
+	return c.flushCaptures(o, &region.Set{})
+}
+
+func (c *Compositor) flushCaptures(o *output.Output, damage *region.Set) error {
 	pending := c.captures[o]
 	if len(pending) == 0 {
 		return nil
@@ -153,7 +165,7 @@ func (c *Compositor) windowRegion(w *window) image.Rectangle {
 
 func (c *Compositor) windowDraw(w *window, cursor bool) func(render.Pass) error {
 	return func(p render.Pass) error {
-		if !w.visible || w.output == nil {
+		if w.output == nil {
 			return nil
 		}
 		var f frame
@@ -167,6 +179,26 @@ func (c *Compositor) windowDraw(w *window, cursor bool) func(render.Pass) error 
 		f.replayFrom(p, c.windowRegion(w).Min)
 		return nil
 	}
+}
+
+func (c *Compositor) cursorBounds(o *output.Output) (image.Rectangle, error) {
+	var f frame
+	if _, err := c.drawCursor(&f, o, nil); err != nil {
+		return image.Rectangle{}, err
+	}
+	return f.bounds(), nil
+}
+
+func (c *Compositor) inWindow(w *window, s *surface.Surface) bool {
+	if inTree(w.top.Surface(), s) {
+		return true
+	}
+	for _, pp := range c.popups(w) {
+		if inTree(pp.popup.Surface(), s) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Compositor) captureRegion(o *output.Output, logical image.Rectangle) image.Rectangle {
