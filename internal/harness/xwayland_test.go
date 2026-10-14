@@ -226,6 +226,19 @@ func TestXWindowsAreManaged(t *testing.T) {
 	})
 }
 
+func (c *xclient) clientMessage(timeout time.Duration) xproto.ClientMessageEvent {
+	c.t.Helper()
+	for deadline := time.Now().Add(timeout); ; {
+		ev, open := c.event(time.Until(deadline))
+		if !open {
+			c.t.Fatal("the X connection closed before a client message")
+		}
+		if m, ok := ev.(xproto.ClientMessageEvent); ok {
+			return m
+		}
+	}
+}
+
 func (c *xclient) event(timeout time.Duration) (xgb.Event, bool) {
 	type result struct {
 		ev   xgb.Event
@@ -281,10 +294,9 @@ func TestXWindowsCloseTheICCCMWay(t *testing.T) {
 		return len(ws) == 1 && ws[0].Focused
 	})
 	kill(h)
-	ev, open := polite.event(clientTimeout)
-	msg, ok := ev.(xproto.ClientMessageEvent)
-	if !open || !ok || msg.Type != polite.atoms["WM_PROTOCOLS"] || xproto.Atom(msg.Data.Data32[0]) != polite.atoms["WM_DELETE_WINDOW"] {
-		t.Fatalf("closing a WM_DELETE_WINDOW window sent %#v", ev)
+	msg := polite.clientMessage(clientTimeout)
+	if msg.Type != polite.atoms["WM_PROTOCOLS"] || xproto.Atom(msg.Data.Data32[0]) != polite.atoms["WM_DELETE_WINDOW"] {
+		t.Fatalf("closing a WM_DELETE_WINDOW window sent %#v", msg)
 	}
 
 	rude := xDial(t, h)
@@ -294,8 +306,14 @@ func TestXWindowsCloseTheICCCMWay(t *testing.T) {
 		return len(ws) == 2 && ws[1].Focused
 	})
 	kill(h)
-	if ev, open := rude.event(clientTimeout); open {
-		t.Fatalf("closing a window without WM_DELETE_WINDOW sent %#v instead of killing its client", ev)
+	for {
+		ev, open := rude.event(clientTimeout)
+		if !open {
+			return
+		}
+		if m, ok := ev.(xproto.ClientMessageEvent); ok {
+			t.Fatalf("closing a window without WM_DELETE_WINDOW sent %#v instead of killing its client", m)
+		}
 	}
 }
 
@@ -404,10 +422,9 @@ func TestHungXClientsAreMarkedUnresponsive(t *testing.T) {
 		ws := windowsOf(c)
 		return len(ws) == 1 && ws[0].Focused
 	})
-	ev, open := xc.event(clientTimeout)
-	ping, ok := ev.(xproto.ClientMessageEvent)
-	if !open || !ok || ping.Type != xc.atoms["WM_PROTOCOLS"] || xproto.Atom(ping.Data.Data32[0]) != xc.atoms["_NET_WM_PING"] {
-		t.Fatalf("focusing the window sent %#v, not a _NET_WM_PING", ev)
+	ping := xc.clientMessage(clientTimeout)
+	if ping.Type != xc.atoms["WM_PROTOCOLS"] || xproto.Atom(ping.Data.Data32[0]) != xc.atoms["_NET_WM_PING"] {
+		t.Fatalf("focusing the window sent %#v, not a _NET_WM_PING", ping)
 	}
 	time.Sleep(shell.PingTimeout)
 	h.Eventually("the silent X window marked unresponsive", unresponsive(1, true))
