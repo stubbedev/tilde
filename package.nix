@@ -43,10 +43,14 @@ buildGo127Module {
   postInstall = ''
     install -Dm644 packaging/systemd/tilde-session.target $out/share/systemd/user/tilde-session.target
     install -Dm644 packaging/xdg-desktop-portal/tilde-portals.conf $out/share/xdg-desktop-portal/tilde-portals.conf
+    install -Dm644 packaging/wayland-sessions/tilde.desktop $out/share/wayland-sessions/tilde.desktop
+    substituteInPlace $out/share/wayland-sessions/tilde.desktop --replace-fail "Exec=tilde" "Exec=$out/bin/tilde"
   '';
 
   # The test suite is pure Go and safe to run in the sandbox.
   doCheck = true;
+
+  passthru.providedSessions = ["tilde"];
 
   meta = {
     description = "A pure-Go tiling Wayland compositor";

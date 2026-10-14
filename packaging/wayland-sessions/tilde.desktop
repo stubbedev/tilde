@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=tilde
+Comment=A pure-Go tiling Wayland compositor
+Exec=tilde --systemd
+Type=Application
+DesktopNames=tilde

@@ -27,6 +27,29 @@ libinput and libxkbcommon) are loaded at runtime with
 [purego](https://github.com/ebitengine/purego); everything else is Go. See
 [`docs/architecture.md`](docs/architecture.md).
 
+## Install
+
+On NixOS, add the flake as an input and enable the module:
+
+```nix
+{
+  inputs.tilde.url = "github:stubbedev/tilde";
+  outputs = {nixpkgs, tilde, ...}: {
+    nixosConfigurations.host = nixpkgs.lib.nixosSystem {
+      modules = [
+        tilde.nixosModules.default
+        {programs.tilde.enable = true;}
+      ];
+    };
+  };
+}
+```
+
+`programs.tilde.enable` installs tilde, offers it as a `tilde` session to
+display managers such as greetd (`tilde --systemd`), enables the portals that
+`tilde-portals.conf` routes to, polkit and the rest of a Wayland session. GPU
+drivers come from `/run/opengl-driver`, as for every NixOS compositor.
+
 ## Config
 
 One YAML file, `~/.config/tilde/config.yaml`; see
@@ -60,5 +83,8 @@ just gates     # formatting, vet, lint, test, build, govulncheck
 ```
 
 `devenv.nix` is the whole development environment: Go pinned to the version
-`go.mod` declares, `CGO_ENABLED=0` and `GOTOOLCHAIN=local`. The flake only
-builds the package (`nix build`).
+`go.mod` declares, `CGO_ENABLED=0` and `GOTOOLCHAIN=local`. The flake builds
+the package (`nix build`) and provides the NixOS module; `nix flake check`
+evaluates the module and runs the headless suite (`just headless`) in the
+build sandbox, with the same environment the dev shell sets
+(`nix/test-env.nix`).

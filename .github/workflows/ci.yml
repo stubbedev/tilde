@@ -32,5 +32,5 @@ jobs:
         run: nix profile add github:cachix/devenv/v2.4.0
       - name: Gates (formatting, vet, lint, test, build, govulncheck)
         run: devenv test
-      - name: Nix package
-        run: nix build -L
+      - name: Nix package and NixOS module
+        run: nix build -L . .#checks.x86_64-linux.module
