@@ -566,6 +566,23 @@ func (p *pass) draw(prog program, dst image.Rectangle) {
 	}
 }
 
+func (p *pass) Clear(c render.Color) {
+	switch {
+	case !p.active:
+		p.fail(errors.New("gles: Clear outside a pass"))
+		return
+	case !c.Premultiplied():
+		p.fail(fmt.Errorf("gles: color %+v is not premultiplied", c))
+		return
+	}
+	gl := p.owner.gl
+	gl.ClearColor(float32(c.R)/255, float32(c.G)/255, float32(c.B)/255, float32(c.A)/255)
+	for _, d := range p.damage {
+		gl.Scissor(int32(d.Min.X), int32(d.Min.Y), int32(d.Dx()), int32(d.Dy())) //nolint:gosec // inside the framebuffer
+		gl.Clear(gpu.ColorBufferBit)
+	}
+}
+
 func (p *pass) FillRect(r image.Rectangle, c render.Color) {
 	switch {
 	case !p.active:

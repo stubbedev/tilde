@@ -169,6 +169,7 @@ type Renderer interface {
 }
 
 type Pass interface {
+	Clear(c Color)
 	FillRect(r image.Rectangle, c Color)
 	DrawTexture(t Texture, src FRect, dst image.Rectangle, transform Transform, alpha float32)
 	End() error

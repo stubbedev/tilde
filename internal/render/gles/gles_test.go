@@ -285,6 +285,15 @@ func parity(t *testing.T, g *gles.Renderer) {
 	paint(t, g, fb, partial, scene(gtx))
 	paint(t, s, buf, partial, scene(stx))
 	compare(t, buf, fb, 1)
+
+	cleared := render.Region{image.Rect(3, 4, 21, 15)}
+	clear := func(p render.Pass) {
+		p.Clear(render.Color{B: 0x20, A: 0x40})
+		p.FillRect(image.Rect(0, 0, 10, 10), render.Color{R: 0x40, A: 0x80})
+	}
+	paint(t, g, fb, cleared, clear)
+	paint(t, s, buf, cleared, clear)
+	compare(t, buf, fb, 1)
 }
 
 func TestScaledDrawsKeepFlatColor(t *testing.T) {

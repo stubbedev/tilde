@@ -112,6 +112,17 @@ func TestFillRectBlendsAndClipsToDamage(t *testing.T) {
 	}
 }
 
+func TestClearReplacesTheDamageWithoutBlending(t *testing.T) {
+	r := soft.New()
+	b := soft.NewBuffer(4, 1)
+	frame(t, r, b, full(b), func(p render.Pass) { p.FillRect(bounds(b), render.Color{A: 0xff}) })
+	frame(t, r, b, render.Region{image.Rect(1, 0, 3, 1)}, func(p render.Pass) { p.Clear(render.Color{G: 0x40, A: 0x40}) })
+	want := [4][4]byte{black, px(0, 0x40, 0, 0x40), px(0, 0x40, 0, 0x40), black}
+	if got := [4][4]byte{at(b, 0, 0), at(b, 1, 0), at(b, 2, 0), at(b, 3, 0)}; got != want {
+		t.Fatalf("pixels %v, want %v: translucent green replacing black inside the damage only", got, want)
+	}
+}
+
 func TestTextureAlphaAndFormats(t *testing.T) {
 	r := soft.New()
 	translucent := newTex(t, r, render.ARGB8888, 1, 1, px(0, 0, 0x80, 0x80))

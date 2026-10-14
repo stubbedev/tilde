@@ -163,6 +163,25 @@ func scale(c byte, a uint32) byte {
 	return byte((uint32(c)*a + 127) / 255)
 }
 
+func (p *pass) Clear(c render.Color) {
+	if !p.active {
+		p.fail(errors.New("soft: Clear outside a pass"))
+		return
+	}
+	if !c.Premultiplied() {
+		p.fail(fmt.Errorf("soft: color %+v is not premultiplied", c))
+		return
+	}
+	for _, d := range p.damage {
+		for y := d.Min.Y; y < d.Max.Y; y++ {
+			row := p.buf.Pix[y*p.buf.Stride:]
+			for x := d.Min.X; x < d.Max.X; x++ {
+				row[x*4], row[x*4+1], row[x*4+2], row[x*4+3] = c.B, c.G, c.R, c.A
+			}
+		}
+	}
+}
+
 func (p *pass) FillRect(r image.Rectangle, c render.Color) {
 	if !p.active {
 		p.fail(errors.New("soft: FillRect outside a pass"))
