@@ -13,6 +13,7 @@ import (
 
 	"github.com/stubbedev/tilde/internal/backend"
 	kdrm "github.com/stubbedev/tilde/internal/drm"
+	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/render/soft"
@@ -696,5 +697,31 @@ func TestCursorPlanesBelongToOneCRTC(t *testing.T) {
 	}
 	if len(r.dev.live) != 0 {
 		t.Fatalf("dumb buffers %v outlived their output", r.dev.live)
+	}
+}
+
+func TestFramebuffersCarryModifiersOnlyWhereTheDeviceTakesThem(t *testing.T) {
+	const tiled = 0x0100000000000002
+	size := image.Pt(64, 32)
+	cases := []struct {
+		name          string
+		modifier      uint64
+		withModifiers bool
+		want          kdrm.FB
+		fails         bool
+	}{
+		{"explicit modifier on a modifier device", tiled, true, kdrm.FB{Width: 64, Height: 32, Format: scanoutFormat, Modifier: tiled, WithModifier: true}, false},
+		{"implicit layout on a modifier device", gpu.ModifierInvalid, true, kdrm.FB{Width: 64, Height: 32, Format: scanoutFormat}, false},
+		{"linear on a device without modifiers", gpu.ModifierLinear, false, kdrm.FB{Width: 64, Height: 32, Format: scanoutFormat}, false},
+		{"implicit layout on a device without modifiers", gpu.ModifierInvalid, false, kdrm.FB{Width: 64, Height: 32, Format: scanoutFormat}, false},
+		{"tiled on a device without modifiers", tiled, false, kdrm.FB{}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fb, err := framebuffer(size, scanoutFormat, tc.modifier, tc.withModifiers)
+			if (err != nil) != tc.fails || fb != tc.want {
+				t.Fatalf("framebuffer = %+v, %v", fb, err)
+			}
+		})
 	}
 }

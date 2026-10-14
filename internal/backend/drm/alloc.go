@@ -15,12 +15,13 @@ import (
 )
 
 type gbmAllocator struct {
-	dev     *kdrm.Device
-	eglLib  *gpu.Library
-	gbmLib  *gpu.GBMLibrary
-	gbm     *gpu.GBM
-	display *gpu.Display
-	gles    *gles.Renderer
+	dev       *kdrm.Device
+	modifiers bool
+	eglLib    *gpu.Library
+	gbmLib    *gpu.GBMLibrary
+	gbm       *gpu.GBM
+	display   *gpu.Display
+	gles      *gles.Renderer
 }
 
 func newGBMAllocator(dev *kdrm.Device, paths gpu.Paths) (*gbmAllocator, error) {
@@ -32,7 +33,11 @@ func newGBMAllocator(dev *kdrm.Device, paths gpu.Paths) (*gbmAllocator, error) {
 }
 
 func (a *gbmAllocator) open(paths gpu.Paths) error {
-	var err error
+	modifiers, err := a.dev.Cap(kdrm.CapAddFB2Modifiers)
+	if err != nil {
+		return fmt.Errorf("drm: ADDFB2 modifier support of %s: %w", a.dev.Path(), err)
+	}
+	a.modifiers = modifiers == 1
 	if a.gbmLib, err = gpu.LoadGBM(paths); err != nil {
 		return err
 	}
@@ -70,7 +75,10 @@ func (a *gbmAllocator) allocate(size image.Point, format uint32, modifiers []uin
 	if err != nil {
 		return nil, errors.Join(err, bo.Close())
 	}
-	fb := kdrm.FB{Width: uint32(size.X), Height: uint32(size.Y), Format: format, Modifier: bo.Modifier, WithModifier: bo.Modifier != gpu.ModifierInvalid} //nolint:gosec // scanout sizes fit
+	fb, err := framebuffer(size, format, bo.Modifier, a.modifiers)
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("drm: %s: %w", a.dev.Path(), err), target.Destroy(), bo.Close())
+	}
 	var handles []uint32
 	release := func() error {
 		var errs []error
@@ -96,6 +104,17 @@ func (a *gbmAllocator) allocate(size image.Point, format uint32, modifiers []uin
 	return &scanout{target: target, fb: id, free: func() error {
 		return errors.Join(a.dev.RemoveFB(id), release())
 	}}, nil
+}
+
+func framebuffer(size image.Point, format uint32, modifier uint64, withModifiers bool) (kdrm.FB, error) {
+	fb := kdrm.FB{Width: uint32(size.X), Height: uint32(size.Y), Format: format} //nolint:gosec // scanout sizes fit
+	switch {
+	case withModifiers && modifier != gpu.ModifierInvalid:
+		fb.Modifier, fb.WithModifier = modifier, true
+	case !withModifiers && modifier != gpu.ModifierInvalid && modifier != gpu.ModifierLinear:
+		return kdrm.FB{}, fmt.Errorf("the buffer has modifier %#x but the device takes no ADDFB2 modifiers, so only an implicit or linear layout can be scanned out", modifier)
+	}
+	return fb, nil
 }
 
 func (a *gbmAllocator) fence() (int, error) {
