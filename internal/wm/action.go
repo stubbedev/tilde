@@ -74,7 +74,15 @@ type (
 	FloatAction      struct{}
 	FullscreenAction struct{}
 	DragAction       struct{ Mode DragMode }
+	ResizeAction     struct{ DX, DY int }
 )
+
+func (a ResizeAction) String() string { return fmt.Sprintf("resizeactive %d %d", a.DX, a.DY) }
+
+func (a ResizeAction) apply(s State, _ Settings) (State, []Effect, error) {
+	next, err := s.ResizeFocused(a.DX, a.DY)
+	return next, nil, err
+}
 
 func (FloatAction) String() string      { return "togglefloating" }
 func (FullscreenAction) String() string { return "fullscreen" }
@@ -354,6 +362,21 @@ var Actions = []ActionSpec{
 		Name:    "fullscreen",
 		Summary: "Make the focused window cover its output, above the top layer, or end that.",
 		parse:   bare(FullscreenAction{}),
+	},
+	{
+		Name: "resizeactive", Args: "<dx> <dy>",
+		Summary: "Grow or shrink the focused window by pixels; tiled windows move their right or bottom edge, else their left or top one.",
+		parse: func(spec ActionSpec, args []string, _ string) (Action, error) {
+			if err := exactly(spec, args, 2); err != nil {
+				return nil, err
+			}
+			dx, errX := strconv.Atoi(args[0])
+			dy, errY := strconv.Atoi(args[1])
+			if errX != nil || errY != nil {
+				return nil, badArgs(spec, "%q and %q are not whole pixels", args[0], args[1])
+			}
+			return ResizeAction{DX: dx, DY: dy}, nil
+		},
 	},
 	{
 		Name:    "movewindow",

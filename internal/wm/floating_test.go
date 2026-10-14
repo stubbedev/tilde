@@ -86,3 +86,30 @@ func TestDropAndResizeTiled(t *testing.T) {
 		t.Fatal("a vertical resize without a vertical split changed the window")
 	}
 }
+
+func TestResizeFocused(t *testing.T) {
+	area := image.Rect(0, 0, 900, 600)
+	s := ok(t)(State{}.AddOutput("DP-1", area, area))
+	for _, id := range []WindowID{1, 2, 3} {
+		s = ok(t)(s.MapWindow(id, Autotile{}))
+	}
+	s = ok(t)(s.FocusWindow(1))
+	s = ok(t)(s.ResizeFocused(50, 0))
+	if _, rect, _ := layerOf(s, 1); rect.Dx() != 350 {
+		t.Fatalf("growing the first window by 50: %v", rect)
+	}
+	s = ok(t)(s.FocusWindow(3))
+	s = ok(t)(s.ResizeFocused(50, 0))
+	if _, rect, _ := layerOf(s, 3); rect != image.Rect(550, 0, 900, 600) {
+		t.Fatalf("the last window has no right neighbour, so it grows left: %v", rect)
+	}
+	s = ok(t)(s.ResizeFocused(0, 40))
+	if _, rect, _ := layerOf(s, 3); rect.Dy() != 600 {
+		t.Fatal("a vertical resize without a vertical split changed the window")
+	}
+	s = ok(t)(s.ToggleFloating(Autotile{}))
+	s = ok(t)(s.ResizeFocused(-10, 20))
+	if _, rect, _ := layerOf(s, 3); rect.Size() != image.Pt(440, 320) {
+		t.Fatalf("a floating 450x300 window resized by -10,20: %v", rect.Size())
+	}
+}

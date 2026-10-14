@@ -142,10 +142,47 @@ func (s State) ResizeTiled(id WindowID, d Direction, delta int) (State, error) {
 	if w == nil || !w.Tree.Contains(id) {
 		return State{}, fmt.Errorf("resize window %d: %w", id, ErrUnknownWindow)
 	}
-	tree, err := w.Tree.Resize(id, s.output(w.Output).Area, d, delta)
+	tree, _, err := w.Tree.Resize(id, s.output(w.Output).Area, d, delta)
 	if err != nil {
 		return State{}, err
 	}
 	w.Tree = tree
+	return s, nil
+}
+
+const minFloating = 32
+
+func (s State) ResizeFocused(dx, dy int) (State, error) {
+	id, ok := s.Focused()
+	if !ok {
+		return s, nil
+	}
+	s = s.clone()
+	w := s.windowWorkspace(id)
+	if i := w.floatingIndex(id); i >= 0 {
+		r := w.Floating[i].Rect
+		r.Max = image.Pt(max(r.Max.X+dx, r.Min.X+minFloating), max(r.Max.Y+dy, r.Min.Y+minFloating))
+		w.Floating[i].Rect = r
+		return s, nil
+	}
+	area := s.output(w.Output).Area
+	for _, axis := range []struct {
+		delta         int
+		ahead, behind Direction
+	}{{dx, Right, Left}, {dy, Down, Up}} {
+		if axis.delta == 0 {
+			continue
+		}
+		tree, done, err := w.Tree.Resize(id, area, axis.ahead, axis.delta)
+		if err != nil {
+			return State{}, err
+		}
+		if !done {
+			if tree, _, err = w.Tree.Resize(id, area, axis.behind, axis.delta); err != nil {
+				return State{}, err
+			}
+		}
+		w.Tree = tree
+	}
 	return s, nil
 }

@@ -338,11 +338,11 @@ func (t Tree) InsertAt(id WindowID, area image.Rectangle, at image.Point, auto A
 
 const minTile = 32
 
-func (t Tree) Resize(id WindowID, area image.Rectangle, d Direction, delta int) (Tree, error) {
+func (t Tree) Resize(id WindowID, area image.Rectangle, d Direction, delta int) (Tree, bool, error) {
 	t = t.clone()
 	groups, idx, ok := t.path(id)
 	if !ok {
-		return Tree{}, fmt.Errorf("resize window %d: %w", id, ErrUnknownWindow)
+		return Tree{}, false, fmt.Errorf("resize window %d: %w", id, ErrUnknownWindow)
 	}
 	want := SplitH
 	if d.vertical() {
@@ -360,7 +360,7 @@ func (t Tree) Resize(id WindowID, area image.Rectangle, d Direction, delta int) 
 			span = r.Dy()
 		}
 		if span <= 0 {
-			return t, nil
+			return t, false, nil
 		}
 		perPixel := float64(len(g.Children)) / float64(span)
 		floor := minTile * perPixel
@@ -369,7 +369,7 @@ func (t Tree) Resize(id WindowID, area image.Rectangle, d Direction, delta int) 
 		dr = max(dr, floor-g.Children[i].Ratio)
 		g.Children[i].Ratio += dr
 		g.Children[j].Ratio -= dr
-		return t, nil
+		return t, true, nil
 	}
-	return t, nil
+	return t, false, nil
 }

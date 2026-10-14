@@ -32,6 +32,8 @@ var everyAction = []Action{
 	FullscreenAction{},
 	DragAction{Mode: DragMove},
 	DragAction{Mode: DragResize},
+	ResizeAction{DX: 50, DY: 0},
+	ResizeAction{DX: 0, DY: -10},
 }
 
 func TestEveryActionRoundTripsThroughTheParser(t *testing.T) {
