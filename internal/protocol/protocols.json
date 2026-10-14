@@ -203,6 +203,11 @@
       "path": "staging/xdg-dialog/xdg-dialog-v1.xml"
     },
     {
+      "package": "systembell",
+      "source": "wayland-protocols",
+      "path": "staging/xdg-system-bell/xdg-system-bell-v1.xml"
+    },
+    {
       "package": "alphamodifier",
       "source": "wayland-protocols",
       "path": "staging/alpha-modifier/alpha-modifier-v1.xml"

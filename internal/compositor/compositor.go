@@ -23,6 +23,7 @@ import (
 	"github.com/stubbedev/tilde/internal/output"
 	"github.com/stubbedev/tilde/internal/outputmanagement"
 	"github.com/stubbedev/tilde/internal/outputpower"
+	ssb "github.com/stubbedev/tilde/internal/protocol/server/systembell"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/seat"
@@ -244,6 +245,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.alpha, err = alphamodifier.New(display); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
+	if _, err := display.AddGlobal(ssb.XdgSystemBellV1Interface, bellVersion, c.bindBell); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if imp, ok := c.renderer.(dmabufRenderer); ok {
