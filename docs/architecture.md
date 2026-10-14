@@ -186,7 +186,8 @@ cheap to settle.
 
 Xwayland listens on its sockets only once a window manager owns `WM_S0`, so
 tilde's window manager connects over the `-wm` socket as an X client with
-`jezek/xgb`. X requests block until Xwayland answers, and Xwayland makes
+`jezek/xgb`, built from a copy in `third_party/xgb` whose extension
+initialisation cannot race the connection's reader (#120). X requests block until Xwayland answers, and Xwayland makes
 Wayland roundtrips to tilde while answering, so that connection lives in its
 own goroutine and reaches compositor state only by posting to the loop.
 `xwayland_shell_v1` is visible to the Xwayland client alone and maps the
