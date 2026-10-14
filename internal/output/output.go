@@ -45,13 +45,22 @@ func (s Scale) ToLogical(px int) int {
 	return floorDiv(2*px*int(Unit)+int(s), 2*int(s))
 }
 
+func (s Scale) DevicePoint(p image.Point) image.Point {
+	return image.Pt(s.ToDevice(p.X), s.ToDevice(p.Y))
+}
+
+func (s Scale) LogicalPoint(p image.Point) image.Point {
+	return image.Pt(s.ToLogical(p.X), s.ToLogical(p.Y))
+}
+
 func (s Scale) Rect(r image.Rectangle) image.Rectangle {
 	return image.Rect(s.ToDevice(r.Min.X), s.ToDevice(r.Min.Y), s.ToDevice(r.Max.X), s.ToDevice(r.Max.Y))
 }
 
 type Manager struct {
-	display *server.Display
-	outputs []*Output
+	display  *server.Display
+	outputs  []*Output
+	physical func(*server.Client) bool
 }
 
 func New(d *server.Display) (*Manager, error) {
@@ -87,8 +96,41 @@ func (m *Manager) Add(b backend.Output, position image.Point, scale Scale) (*Out
 	if o.global, err = m.display.AddGlobal(sw.WlOutputInterface, outputVersion, o.bind); err != nil {
 		return nil, err
 	}
+	before := m.xScale()
 	m.outputs = append(m.outputs, o)
-	return o, nil
+	return o, m.rescaled(before, o)
+}
+
+func (m *Manager) Physical(clients func(*server.Client) bool) error {
+	m.physical = clients
+	return m.resend(func(*Output) bool { return true })
+}
+
+func (m *Manager) seesPhysical(c *server.Client) bool {
+	return m.physical != nil && m.physical(c)
+}
+
+func (m *Manager) xScale() Scale {
+	k := Unit
+	for _, o := range m.outputs {
+		k = max(k, o.scale)
+	}
+	return k
+}
+
+func (m *Manager) resend(which func(*Output) bool) error {
+	var errs []error
+	for _, o := range m.outputs {
+		if !which(o) {
+			continue
+		}
+		for _, b := range o.bindings {
+			if m.seesPhysical(b.client) {
+				errs = append(errs, b.client.Sent(o.send(b)))
+			}
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func (m *Manager) Of(b backend.Output) *Output {
@@ -136,6 +178,15 @@ func (o *Output) Logical() image.Rectangle {
 	return image.Rectangle{Min: o.position, Max: o.position.Add(o.LogicalSize())}
 }
 
+func (o *Output) XPosition() image.Point {
+	return o.m.xScale().DevicePoint(o.position)
+}
+
+func (o *Output) XRect() image.Rectangle {
+	at := o.XPosition()
+	return image.Rectangle{Min: at, Max: at.Add(o.backend.State().Mode.Size)}
+}
+
 func (o *Output) Resources(c *server.Client) []*sw.WlOutput {
 	return o.AppendResources(nil, c)
 }
@@ -150,17 +201,26 @@ func (o *Output) AppendResources(out []*sw.WlOutput, c *server.Client) []*sw.WlO
 }
 
 func (o *Output) Remove() error {
+	before := o.m.xScale()
 	o.removed = true
 	o.m.outputs = slices.DeleteFunc(o.m.outputs, func(x *Output) bool { return x == o })
-	return o.global.Remove()
+	return errors.Join(o.global.Remove(), o.m.rescaled(before, o))
+}
+
+func (m *Manager) rescaled(before Scale, done *Output) error {
+	if m.xScale() == before {
+		return nil
+	}
+	return m.resend(func(o *Output) bool { return o != done })
 }
 
 func (o *Output) Update(position image.Point, scale Scale) error {
 	if scale == 0 {
 		return fmt.Errorf("output: %s has scale 0", o.backend.Name())
 	}
+	before := o.m.xScale()
 	o.position, o.scale = position, scale
-	return o.Changed()
+	return errors.Join(o.Changed(), o.m.rescaled(before, o))
 }
 
 func (o *Output) Changed() error {
@@ -203,10 +263,18 @@ func (o *Output) bind(c *server.Client, id wire.ObjectID, version uint32) error 
 	return o.send(b)
 }
 
+func (o *Output) view(c *server.Client) (image.Rectangle, Scale) {
+	if o.m.seesPhysical(c) {
+		return o.XRect(), Unit
+	}
+	return o.Logical(), o.scale
+}
+
 func (o *Output) send(b *binding) error {
 	state := o.backend.State()
 	phys := o.backend.PhysicalSize()
-	v32, err := i32s(o.position.X, o.position.Y, phys.X, phys.Y, state.Mode.Size.X, state.Mode.Size.Y)
+	r, scale := o.view(b.client)
+	v32, err := i32s(r.Min.X, r.Min.Y, phys.X, phys.Y, state.Mode.Size.X, state.Mode.Size.Y)
 	if err != nil {
 		return err
 	}
@@ -222,7 +290,7 @@ func (o *Output) send(b *binding) error {
 	}
 	v := b.wl.Base().Version()
 	if v >= 2 {
-		if err := b.wl.SendScale(o.scale.Ceil()); err != nil {
+		if err := b.wl.SendScale(scale.Ceil()); err != nil {
 			return err
 		}
 	}
@@ -235,7 +303,7 @@ func (o *Output) send(b *binding) error {
 		}
 	}
 	for _, x := range b.xdg {
-		if err := o.sendXdg(x); err != nil {
+		if err := o.sendXdg(b.client, x); err != nil {
 			return err
 		}
 	}
@@ -245,9 +313,9 @@ func (o *Output) send(b *binding) error {
 	return nil
 }
 
-func (o *Output) sendXdg(x *sxo.ZxdgOutputV1) error {
-	size := o.LogicalSize()
-	v32, err := i32s(o.position.X, o.position.Y, size.X, size.Y)
+func (o *Output) sendXdg(c *server.Client, x *sxo.ZxdgOutputV1) error {
+	r, _ := o.view(c)
+	v32, err := i32s(r.Min.X, r.Min.Y, r.Dx(), r.Dy())
 	if err != nil {
 		return err
 	}
@@ -296,7 +364,7 @@ func (r xdgManagerRequests) GetXdgOutput(_ *sxo.ZxdgOutputManagerV1, x *sxo.Zxdg
 				b.xdg = slices.DeleteFunc(b.xdg, func(y *sxo.ZxdgOutputV1) bool { return y == x })
 				return nil
 			})
-			if err := o.sendXdg(x); err != nil {
+			if err := o.sendXdg(b.client, x); err != nil {
 				return nil, err
 			}
 			if x.Base().Version() >= 3 {

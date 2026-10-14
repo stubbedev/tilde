@@ -220,3 +220,46 @@ func TestOutputAndXdgOutputEvents(t *testing.T) {
 		t.Fatalf("xdg_output after an update: %v", got)
 	}
 }
+
+func TestPhysicalClientsSeeOutputsInXSpace(t *testing.T) {
+	l, err := loop.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	disp, err := server.New(l, server.Options{RuntimeDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer disp.Close()
+	m, err := New(disp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hidpi, err := m.Add(&fakeOutput{name: "EDP-1", mode: backend.Mode{Size: image.Pt(2560, 1440), RefreshMHz: 60000}}, image.Pt(0, 0), 240)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, err := m.Add(&fakeOutput{name: "DP-1", mode: backend.Mode{Size: image.Pt(1920, 1080), RefreshMHz: 60000}}, image.Pt(1280, 0), 120)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hidpi.XRect() != image.Rect(0, 0, 2560, 1440) || plain.XRect() != image.Rect(2560, 0, 4480, 1080) {
+		t.Fatalf("X space %v and %v", hidpi.XRect(), plain.XRect())
+	}
+	if r, s := plain.view(nil); r != plain.Logical() || s != 120 {
+		t.Fatalf("an ordinary client sees %v at scale %d", r, s)
+	}
+	if err := m.Physical(func(*server.Client) bool { return true }); err != nil {
+		t.Fatal(err)
+	}
+	if r, s := hidpi.view(nil); r != image.Rect(0, 0, 2560, 1440) || s != Unit {
+		t.Fatalf("a physical client sees the HiDPI output as %v at scale %d", r, s)
+	}
+	if err := hidpi.Update(image.Pt(0, 0), 120); err != nil {
+		t.Fatal(err)
+	}
+	if plain.XRect() != image.Rect(1280, 0, 3200, 1080) {
+		t.Fatalf("after the largest scale dropped to 1, DP-1 sits at %v in X space", plain.XRect())
+	}
+}
