@@ -266,6 +266,11 @@
       "package": "inputmethod",
       "source": "wlroots",
       "path": "protocol/input-method-unstable-v2.xml"
+    },
+    {
+      "package": "pointerwarp",
+      "source": "wayland-protocols",
+      "path": "staging/pointer-warp/pointer-warp-v1.xml"
     }
   ]
 }

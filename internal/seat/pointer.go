@@ -225,9 +225,13 @@ type pointerRequests struct {
 	c *server.Client
 }
 
+func (s *Seat) PointerEntered(c *server.Client, serial uint32) bool {
+	return s.pointer.focus != nil && s.pointer.focus.Client() == c && serial == s.pointer.enterSerial
+}
+
 func (r pointerRequests) SetCursor(obj *sw.WlPointer, serial uint32, wl *sw.WlSurface, hx, hy int32) error {
 	s := r.s
-	if s.pointer.focus == nil || s.pointer.focus.Client() != r.c || serial != s.pointer.enterSerial {
+	if !s.PointerEntered(r.c, serial) {
 		return nil
 	}
 	cur := Cursor{client: r.c, hotspot: image.Pt(int(hx), int(hy)), set: true}
