@@ -54,6 +54,15 @@
               outputs = ["Virtual-1"];
             };
           };
+          vm-configured-gpu = import ./nix/vm.nix {
+            inherit pkgs;
+            module = self.nixosModules.default;
+            name = "tilde-configured-gpu";
+            devices = ["virtio-gpu-pci" "virtio-gpu-pci"];
+            tildeConfig = "gpu: card1";
+            rendersOn = "card1";
+            outputs = ["Virtual-1" "Virtual-2"];
+          };
           vm-display-only = import ./nix/vm.nix {
             inherit pkgs;
             module = self.nixosModules.default;

@@ -45,5 +45,5 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: NixOS VMs with one GPU, two GPUs and a display-only card
-        run: nix build -L .#checks.x86_64-linux.vm .#checks.x86_64-linux.vm-two-gpus .#checks.x86_64-linux.vm-display-only
+      - name: NixOS VMs with one GPU, two GPUs, a configured primary and a display-only card
+        run: nix build -L .#checks.x86_64-linux.vm .#checks.x86_64-linux.vm-two-gpus .#checks.x86_64-linux.vm-display-only .#checks.x86_64-linux.vm-configured-gpu

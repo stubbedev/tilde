@@ -6,6 +6,8 @@
   outputs,
   kernelModules ? [],
   unplug ? null,
+  tildeConfig ? null,
+  rendersOn ? "card0",
 }: let
   user = "alice";
   uid = 1000;
@@ -18,6 +20,23 @@ in
       imports = [module];
 
       boot.kernelModules = kernelModules;
+      systemd.tmpfiles.settings = pkgs.lib.optionalAttrs (tildeConfig != null) {
+        tilde = {
+          "/home/${user}/.config".d = {
+            inherit user;
+            group = "users";
+          };
+          "/home/${user}/.config/tilde".d = {
+            inherit user;
+            group = "users";
+          };
+          "/home/${user}/.config/tilde/config.yaml"."f+" = {
+            inherit user;
+            group = "users";
+            argument = tildeConfig;
+          };
+        };
+      };
       virtualisation = {
         graphics = true;
         cores = 2;
@@ -57,6 +76,7 @@ in
             raise
         print(machine.succeed("journalctl -b --no-pager -t tilde"))
         machine.fail("journalctl -b --no-pager -t tilde | grep 'drawing the cursor in the frame'")
+        machine.succeed("journalctl -b --no-pager -t tilde | grep 'rendering on ${rendersOn},'")
         got = sorted(machine.succeed("${run "tildectl outputs"} | jq -r '.[].name'").split())
         assert got == sorted(want), f"outputs {got}, want {want}"
         display = machine.succeed("ls /run/user/${toString uid} | grep -m1 '^wayland-[0-9]*$'").strip()
