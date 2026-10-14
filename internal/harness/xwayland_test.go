@@ -129,7 +129,7 @@ func (c *xclient) window(rect image.Rectangle, pixel uint32, override bool, prop
 		switch name {
 		case "_NET_WM_NAME":
 			typ = c.atoms["UTF8_STRING"]
-		case "_NET_WM_WINDOW_TYPE", "_NET_WM_STATE":
+		case "_NET_WM_WINDOW_TYPE", "_NET_WM_STATE", "WM_PROTOCOLS":
 			typ, format = xproto.Atom(xproto.AtomAtom), 32
 		}
 		checks = append(checks, xproto.ChangePropertyChecked(c.x, xproto.PropModeReplace, win, c.atoms[name], typ, format, uint32(len(value))/uint32(format/8), value))
@@ -272,10 +272,7 @@ func TestXWindowsCloseTheICCCMWay(t *testing.T) {
 		}
 		polite.atoms[name] = r.Atom
 	}
-	win := polite.window(image.Rect(0, 0, 50, 50), 0xffffff, false, nil)
-	if err := xproto.ChangePropertyChecked(polite.x, xproto.PropModeReplace, win, polite.atoms["WM_PROTOCOLS"], xproto.AtomAtom, 32, 1, polite.atom("WM_DELETE_WINDOW")).Check(); err != nil {
-		t.Fatal(err)
-	}
+	polite.window(image.Rect(0, 0, 50, 50), 0xffffff, false, map[string][]byte{"WM_PROTOCOLS": polite.atom("WM_DELETE_WINDOW")})
 	h.Eventually("the polite window focused", func(_ *headless.Backend, c *compositor.Compositor) bool {
 		ws := windowsOf(c)
 		return len(ws) == 1 && ws[0].Focused
