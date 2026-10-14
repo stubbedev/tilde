@@ -263,6 +263,11 @@ type Window struct {
 	States       []cxdg.XdgToplevelState
 	buffers      []*buffer
 	drawn        int
+	stopped      bool
+}
+
+func (w *Window) Stop() {
+	w.stopped = true
 }
 
 func (c *Client) Window(title string, paint Painter) *Window {
@@ -561,6 +566,9 @@ func (e frameEvents) Done(cb *cw.WlCallback, _ uint32) error {
 	}
 	e.w.framePending = false
 	e.w.Frames++
+	if e.w.stopped {
+		return nil
+	}
 	return e.w.draw()
 }
 

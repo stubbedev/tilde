@@ -58,6 +58,7 @@ func TestOnlyDamageIsRepainted(t *testing.T) {
 	c := testclient.Connect(t, h.Socket())
 	w := c.Window("damage", quadrants)
 	c.DispatchUntil("the window to map", w.Mapped)
+	w.Stop()
 	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
 		p := b.Pointer()
 		return errors.Join(p.MoveTo(b.Outputs()[0], 0.9, 0.9), p.Frame())
