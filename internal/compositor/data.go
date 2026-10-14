@@ -25,6 +25,25 @@ func (c *Compositor) Selection(k data.Kind) bool {
 	return c.data.Selection(k) != nil
 }
 
+func (c *Compositor) WatchSelection(f func(data.Kind, data.Source) error) {
+	c.selectionWatch = f
+}
+
+func (c *Compositor) SelectionChanged(k data.Kind, src data.Source) error {
+	if c.selectionWatch == nil {
+		return nil
+	}
+	return c.selectionWatch(k, src)
+}
+
+func (c *Compositor) CurrentSelection(k data.Kind) data.Source {
+	return c.data.Selection(k)
+}
+
+func (c *Compositor) SetSelection(k data.Kind, src data.Source) error {
+	return c.data.SetSelection(k, src)
+}
+
 func (c *Compositor) CanDrag(origin *surface.Surface, _ uint32) bool {
 	return c.drag == nil && c.seat.PointerGrabbed() && c.seat.PointerFocus() == origin
 }

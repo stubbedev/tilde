@@ -40,6 +40,7 @@ type Listener interface {
 	CanDrag(origin *surface.Surface, serial uint32) bool
 	DragStarted(d *Drag) error
 	DragEnded(d *Drag) error
+	SelectionChanged(k Kind, src Source) error
 }
 
 type devices struct {
@@ -130,7 +131,7 @@ func (m *Manager) SetSelection(k Kind, src Source) error {
 	if old != nil {
 		errs = append(errs, old.Cancel())
 	}
-	return errors.Join(append(errs, m.offerSelection(k, m.focus))...)
+	return errors.Join(append(errs, m.offerSelection(k, m.focus), m.listener.SelectionChanged(k, src))...)
 }
 
 func (m *Manager) offerSelection(k Kind, c *server.Client) error {
@@ -165,7 +166,7 @@ func (m *Manager) sourceGone(src Source) error {
 	for k := range kinds {
 		if m.selection[k] == src {
 			m.selection[k] = nil
-			errs = append(errs, m.offerSelection(k, m.focus))
+			errs = append(errs, m.offerSelection(k, m.focus), m.listener.SelectionChanged(k, nil))
 		}
 	}
 	return errors.Join(errs...)

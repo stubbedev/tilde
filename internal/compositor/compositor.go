@@ -133,6 +133,7 @@ type Compositor struct {
 	pointers        map[cursorKey]*cursorTexture
 	hwCursors       map[*output.Output]*hwCursor
 	unmanaged       []*xwayland.Window
+	selectionWatch  func(data.Kind, data.Source) error
 	cursorGen       uint64
 	cursorOps       frame
 	cursorShown     []*surface.Surface
