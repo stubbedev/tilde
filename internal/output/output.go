@@ -23,7 +23,15 @@ const (
 
 type Scale uint32
 
-const Unit Scale = 120
+const (
+	Unit     Scale = 120
+	MinScale Scale = Unit / 4
+	MaxScale Scale = Unit * 10
+)
+
+func (s Scale) Float() float64 {
+	return float64(s) / float64(Unit)
+}
 
 func floorDiv(a, b int) int {
 	q := a / b

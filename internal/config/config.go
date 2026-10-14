@@ -394,8 +394,8 @@ func (p *parser) output(i int, r rawOutput) compositor.OutputRule {
 		}
 	}
 	if r.Scale != nil {
-		if r.Scale.V < 0.25 || r.Scale.V > 10 {
-			p.fail(r.Scale.Line, key+".scale", "%g is outside 0.25 to 10", r.Scale.V)
+		if r.Scale.V < output.MinScale.Float() || r.Scale.V > output.MaxScale.Float() {
+			p.fail(r.Scale.Line, key+".scale", "%g is outside %g to %g", r.Scale.V, output.MinScale.Float(), output.MaxScale.Float())
 		} else {
 			rule.Scale = output.Scale(math.Round(r.Scale.V * float64(output.Unit)))
 		}

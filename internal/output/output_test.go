@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stubbedev/tilde/internal/backend"
+	"github.com/stubbedev/tilde/internal/edid"
 	"github.com/stubbedev/tilde/internal/loop"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	cxo "github.com/stubbedev/tilde/internal/protocol/client/xdgoutput"
@@ -61,6 +62,7 @@ type fakeOutput struct {
 
 func (f *fakeOutput) Name() string              { return f.name }
 func (f *fakeOutput) Description() string       { return "fake " + f.name }
+func (*fakeOutput) Identity() edid.Info         { return edid.Info{} }
 func (f *fakeOutput) PhysicalSize() image.Point { return image.Pt(300, 200) }
 func (f *fakeOutput) Modes() []backend.Mode     { return []backend.Mode{f.mode} }
 func (f *fakeOutput) State() backend.OutputState {
