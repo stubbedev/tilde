@@ -51,7 +51,7 @@ type allocator interface {
 	renderer() render.Renderer
 	renderable(format uint32) ([]uint64, error)
 	allocate(size image.Point, format uint32, modifiers []uint64) (*scanout, error)
-	finish() error
+	fence() (int, error)
 	close() error
 }
 
@@ -545,7 +545,8 @@ func (o *Output) Present(render.Region) error {
 	if o.b.paused {
 		return nil
 	}
-	if err := o.b.alloc.finish(); err != nil {
+	fence, err := o.b.alloc.fence()
+	if err != nil {
 		return err
 	}
 	r := &o.b.req
@@ -568,6 +569,22 @@ func (o *Output) Present(render.Region) error {
 	o.add(o.primary.id, o.primary.props, "CRTC_Y", 0)
 	o.add(o.primary.id, o.primary.props, "CRTC_W", w)
 	o.add(o.primary.id, o.primary.props, "CRTC_H", h)
+	if fence >= 0 {
+		o.add(o.primary.id, o.primary.props, "IN_FENCE_FD", uint64(fence))
+	}
+	err = o.commit(r, flags)
+	if fence >= 0 {
+		err = errors.Join(err, unix.Close(fence))
+	}
+	if err != nil {
+		return err
+	}
+	o.modeset, o.lit = false, true
+	o.queued = s
+	return nil
+}
+
+func (o *Output) commit(r *kdrm.Request, flags uint32) error {
 	test := flags&^(kdrm.AtomicNonblock|kdrm.AtomicPageFlipEvent) | kdrm.AtomicTestOnly
 	if err := o.b.dev.Commit(r, test, 0); err != nil {
 		return fmt.Errorf("drm: test the frame for %s: %w", o.Name(), err)
@@ -575,8 +592,6 @@ func (o *Output) Present(render.Region) error {
 	if err := o.b.dev.Commit(r, flags, uint64(o.crtc.id)); err != nil {
 		return fmt.Errorf("drm: commit the frame for %s: %w", o.Name(), err)
 	}
-	o.modeset, o.lit = false, true
-	o.queued = s
 	return nil
 }
 

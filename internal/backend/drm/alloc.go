@@ -108,8 +108,11 @@ func (a *gbmAllocator) allocate(size image.Point, format uint32, modifiers []uin
 	}}, nil
 }
 
-func (a *gbmAllocator) finish() error {
-	return a.gles.Finish()
+func (a *gbmAllocator) fence() (int, error) {
+	if !a.gles.NativeFences() {
+		return -1, a.gles.Finish()
+	}
+	return a.gles.SyncFile()
 }
 
 func (a *gbmAllocator) close() error {

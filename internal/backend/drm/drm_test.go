@@ -34,6 +34,7 @@ const (
 	propActive
 	propModeID
 	propConnCRTC
+	propInFence
 	inFormatsBlob = 500
 )
 
@@ -91,7 +92,7 @@ func (f *fakeDevice) Properties(object, kind uint32) (map[string]kdrm.Property, 
 			"type": {ID: propType, Value: typ}, "FB_ID": {ID: propFB}, "CRTC_ID": {ID: propPlaneCRTC},
 			"SRC_X": {ID: propSrcX}, "SRC_Y": {ID: propSrcY}, "SRC_W": {ID: propSrcW}, "SRC_H": {ID: propSrcH},
 			"CRTC_X": {ID: propCRTCX}, "CRTC_Y": {ID: propCRTCY}, "CRTC_W": {ID: propCRTCW}, "CRTC_H": {ID: propCRTCH},
-			"IN_FORMATS": {ID: propInFormats, Value: inFormatsBlob},
+			"IN_FORMATS": {ID: propInFormats, Value: inFormatsBlob}, "IN_FENCE_FD": {ID: propInFence},
 		}, nil
 	case kdrm.ObjectCRTC:
 		return map[string]kdrm.Property{"ACTIVE": {ID: propActive}, "MODE_ID": {ID: propModeID}}, nil
@@ -155,9 +156,10 @@ func (f *fakeDevice) flip(t *testing.T, crtc uint32, seq uint32) {
 }
 
 type fakeAlloc struct {
-	next  uint32
-	freed int
-	soft  *soft.Renderer
+	next   uint32
+	freed  int
+	soft   *soft.Renderer
+	fences []int
 }
 
 func (a *fakeAlloc) renderer() render.Renderer { return a.soft }
@@ -172,8 +174,15 @@ func (a *fakeAlloc) allocate(size image.Point, _ uint32, modifiers []uint64) (*s
 	return &scanout{target: soft.NewBuffer(size.X, size.Y), fb: 900 + a.next, free: func() error { a.freed++; return nil }}, nil
 }
 
-func (a *fakeAlloc) finish() error { return nil }
-func (a *fakeAlloc) close() error  { return nil }
+func (a *fakeAlloc) fence() (int, error) {
+	fd, err := unix.Eventfd(0, unix.EFD_CLOEXEC)
+	if err != nil {
+		return -1, err
+	}
+	a.fences = append(a.fences, fd)
+	return fd, nil
+}
+func (a *fakeAlloc) close() error { return nil }
 
 type recorder struct {
 	log      []string
@@ -224,11 +233,12 @@ func (r *recorder) DeviceRemoved(backend.Device) error        { return nil }
 func (r *recorder) Input(backend.Device, backend.Event) error { return nil }
 
 type rig struct {
-	t   *testing.T
-	l   *loop.Loop
-	dev *fakeDevice
-	b   *Backend
-	rec *recorder
+	t     *testing.T
+	l     *loop.Loop
+	dev   *fakeDevice
+	alloc *fakeAlloc
+	b     *Backend
+	rec   *recorder
 }
 
 func start(t *testing.T) *rig {
@@ -243,8 +253,8 @@ func start(t *testing.T) *rig {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = l.Close() })
-	r := &rig{t: t, l: l, dev: &fakeDevice{events: p[0], write: p[1], connected: true}, rec: &recorder{}}
-	if r.b, err = newBackend(l, r.dev, &fakeAlloc{soft: soft.New()}, nil); err != nil {
+	r := &rig{t: t, l: l, dev: &fakeDevice{events: p[0], write: p[1], connected: true}, alloc: &fakeAlloc{soft: soft.New()}, rec: &recorder{}}
+	if r.b, err = newBackend(l, r.dev, r.alloc, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.b.Start(r.rec); err != nil {
@@ -294,6 +304,13 @@ func TestFramesCommitAndFlip(t *testing.T) {
 	r.settle()
 	if len(r.dev.commits) != 2 {
 		t.Fatalf("%d commits after the first frame", len(r.dev.commits))
+	}
+	fences := r.alloc.fences
+	if len(fences) != 1 || r.dev.commits[0].values[[2]uint32{40, propInFence}] != uint64(fences[0]) || r.dev.commits[1].values[[2]uint32{40, propInFence}] != uint64(fences[0]) {
+		t.Fatalf("fences %v, committed %+v", fences, r.dev.commits[1].values)
+	}
+	if _, err := unix.FcntlInt(uintptr(fences[0]), unix.F_GETFD, 0); !errors.Is(err, unix.EBADF) {
+		t.Fatalf("the fence fd stayed open after the commit: %v", err)
 	}
 	test, real := r.dev.commits[0], r.dev.commits[1]
 	if test.flags != kdrm.AtomicTestOnly|kdrm.AtomicAllowModeset || real.flags != kdrm.AtomicNonblock|kdrm.AtomicPageFlipEvent|kdrm.AtomicAllowModeset || real.userData != 10 {
