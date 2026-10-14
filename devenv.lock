@@ -161,11 +161,11 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1791995789,
-        "narHash": "sha256-b7VF0lQALgzvVSNpkXP1XxskrgbQutujhE7UGx1Ak2A=",
+        "lastModified": 1792000851,
+        "narHash": "sha256-mN+Rp78riIGv0ufjcTWHU1cvygStwNRuTfcaRUUlhbQ=",
         "owner": "stubbedev",
         "repo": "gelm",
-        "rev": "df326e0639c8bcc2331192f9ae5383ff6cd36c9f",
+        "rev": "0d1f5363c9749cba659418d300e88b6f1f665c70",
         "type": "github"
       },
       "original": {

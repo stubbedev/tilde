@@ -6,6 +6,7 @@ import (
 	"image"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/stubbedev/tilde/internal/backend/headless"
 	"github.com/stubbedev/tilde/internal/compositor"
 	"github.com/stubbedev/tilde/internal/render/soft"
+	"github.com/stubbedev/tilde/internal/shell"
 )
 
 const clientTimeout = 20 * time.Second
@@ -28,20 +30,6 @@ func mappedToplevels(n int) func(*headless.Backend, *compositor.Compositor) bool
 			}
 		}
 		return mapped >= n
-	}
-}
-
-func mappedPopups(n int) func(*headless.Backend, *compositor.Compositor) bool {
-	return func(_ *headless.Backend, c *compositor.Compositor) bool {
-		mapped := 0
-		for _, t := range c.Toplevels() {
-			for _, p := range t.Popups() {
-				if p.Mapped() {
-					mapped++
-				}
-			}
-		}
-		return mapped == n
 	}
 }
 
@@ -130,16 +118,19 @@ func TestGelmHelloMenu(t *testing.T) {
 	h.Eventually("gelm-hello to map", mappedToplevels(1))
 	h.click(0, 1024, 560, btnRight)
 	hello.Expect(t, "demo: menu open at (1024,560)", clientTimeout)
-	h.Eventually("the menu mapped with the keyboard", func(b *headless.Backend, c *compositor.Compositor) bool {
-		if !mappedPopups(1)(b, c) {
-			return false
-		}
+	var menu *shell.Popup
+	h.Eventually("the menu mapped with the keyboard", func(_ *headless.Backend, c *compositor.Compositor) bool {
 		top := c.Toplevels()[0]
-		p := top.Popups()[0]
-		return c.Seat().Focus() == p.Surface() && image.Pt(1024, 560).In(p.Box().Add(top.Geometry().Min))
+		i := slices.IndexFunc(top.Popups(), func(p *shell.Popup) bool {
+			return p.Mapped() && c.Seat().Focus() == p.Surface() && image.Pt(1024, 560).In(p.Box().Add(top.Geometry().Min))
+		})
+		if i >= 0 {
+			menu = top.Popups()[i]
+		}
+		return i >= 0
 	})
 	h.click(1, 640, 400, btnLeft)
-	h.Eventually("the menu dismissed", mappedPopups(0))
+	h.Eventually("the menu dismissed", func(*headless.Backend, *compositor.Compositor) bool { return !menu.Mapped() })
 	h.Eventually("the keyboard back on the window", func(_ *headless.Backend, c *compositor.Compositor) bool {
 		return c.Seat().Focus() == c.Toplevels()[0].Surface()
 	})
