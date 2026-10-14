@@ -62,43 +62,46 @@ func DefaultConfig(keymap *xkb.Keymap, font *gtext.Typeface) Config {
 }
 
 type Compositor struct {
-	outputs    []*output.Output
-	layout     *output.Manager
-	renderer   render.Renderer
-	surfaces   *surface.Manager
-	shm        *shm.Manager
-	seat       *seat.Seat
-	shell      *shell.Shell
-	textures   map[*surface.Surface]*texture
-	windows    []*window
-	wm         wm.State
-	settings   wm.Settings
-	decor      Decor
-	font       *gtext.Typeface
-	labels     map[*output.Output]map[labelKey]*label
-	tabBars    []wm.TabBar
-	binds      binds.Map
-	submap     string
-	held       []uint32
-	repeat     repeat
-	report     func(error)
-	seatConfig seat.Config
-	loop       *loop.Loop
-	display    *server.Display
-	nextWindow wm.WindowID
-	active     *window
-	consumed   []uint32
-	layers     []*layer
-	data       *data.Manager
-	drag       *data.Drag
-	usable     map[*output.Output]image.Rectangle
-	layerFocus *shell.LayerSurface
-	shown      map[*output.Output][]*surface.Surface
-	entered    []*entered
-	cursor     point
-	touches    map[int32]*output.Output
-	cursors    CursorConfig
-	pointers   map[cursorKey]*cursorTexture
+	outputs     []*output.Output
+	layout      *output.Manager
+	renderer    render.Renderer
+	surfaces    *surface.Manager
+	shm         *shm.Manager
+	seat        *seat.Seat
+	shell       *shell.Shell
+	textures    map[*surface.Surface]*texture
+	windows     []*window
+	stack       []*window
+	interaction *interaction
+	bindButton  uint32
+	wm          wm.State
+	settings    wm.Settings
+	decor       Decor
+	font        *gtext.Typeface
+	labels      map[*output.Output]map[labelKey]*label
+	tabBars     []wm.TabBar
+	binds       binds.Map
+	submap      string
+	held        []uint32
+	repeat      repeat
+	report      func(error)
+	seatConfig  seat.Config
+	loop        *loop.Loop
+	display     *server.Display
+	nextWindow  wm.WindowID
+	active      *window
+	consumed    []uint32
+	layers      []*layer
+	data        *data.Manager
+	drag        *data.Drag
+	usable      map[*output.Output]image.Rectangle
+	layerFocus  *shell.LayerSurface
+	shown       map[*output.Output][]*surface.Surface
+	entered     []*entered
+	cursor      point
+	touches     map[int32]*output.Output
+	cursors     CursorConfig
+	pointers    map[cursorKey]*cursorTexture
 }
 
 type entered struct {
@@ -123,6 +126,7 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		display:    display,
 		pointers:   map[cursorKey]*cursorTexture{},
 		usable:     map[*output.Output]image.Rectangle{},
+		nextWindow: 1,
 	}
 	if c.report == nil {
 		return nil, errors.New("compositor: Config.Report is nil")
@@ -243,7 +247,7 @@ func (c *Compositor) OutputAdded(b backend.Output) error {
 	if _, err := c.arrange(o); err != nil {
 		return err
 	}
-	if err := c.update(c.wm.AddOutput(b.Name(), c.usable[o].Add(o.Position()))); err != nil {
+	if err := c.update(c.wm.AddOutput(b.Name(), o.Logical(), c.usable[o].Add(o.Position()))); err != nil {
 		return err
 	}
 	return c.schedule(o)

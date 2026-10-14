@@ -39,6 +39,8 @@ func (c *Compositor) perform(e wm.Effect) error {
 	case wm.SetSubmap:
 		c.submap = e.Name
 		return nil
+	case wm.BeginDrag:
+		return c.beginDrag(e.Mode)
 	}
 	return fmt.Errorf("no handler for effect %T", e)
 }

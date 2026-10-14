@@ -248,6 +248,7 @@ type Window struct {
 	Dismissed    bool
 	destroyed    bool
 	framePending bool
+	frame        *cw.WlCallback
 	paint        Painter
 	scaling      Scaling
 	viewport     *cvp.WpViewport
@@ -269,7 +270,17 @@ func (c *Client) Window(title string, paint Painter) *Window {
 	return c.ScaledWindow(title, Unscaled, paint)
 }
 
+func (c *Client) Dialog(parent *Window, title string, paint Painter) *Window {
+	c.t.Helper()
+	return c.window(title, Unscaled, paint, parent)
+}
+
 func (c *Client) ScaledWindow(title string, scaling Scaling, paint Painter) *Window {
+	c.t.Helper()
+	return c.window(title, scaling, paint, nil)
+}
+
+func (c *Client) window(title string, scaling Scaling, paint Painter, parent *Window) *Window {
 	c.t.Helper()
 	w := &Window{c: c, paint: paint, scaling: scaling, BufferScale: 1, Preferred120: 120}
 	var err error
@@ -285,6 +296,9 @@ func (c *Client) ScaledWindow(title string, scaling Scaling, paint Painter) *Win
 	c.must(err)
 	w.Toplevel, err = w.XdgSurface.GetToplevel(toplevelEvents{w})
 	c.must(err)
+	if parent != nil {
+		c.must(w.Toplevel.SetParent(parent.Toplevel))
+	}
 	c.must(errors.Join(w.Toplevel.SetTitle(title), w.Toplevel.SetAppID("tilde.testclient"), w.Surface.Commit()))
 	return w
 }
@@ -396,10 +410,11 @@ func (w *Window) draw() error {
 	w.paint(b.pix, w.Size.X*4, w.Size, w.drawn)
 	b.busy = true
 	w.drawn++
-	if _, err := w.Surface.Frame(frameEvents{w}); err != nil {
+	cb, err := w.Surface.Frame(frameEvents{w})
+	if err != nil {
 		return err
 	}
-	w.framePending = true
+	w.frame, w.framePending = cb, true
 	return errors.Join(
 		w.Surface.Attach(b.wl, 0, 0),
 		w.Surface.DamageBuffer(0, 0, int32(w.Size.X), int32(w.Size.Y)), //nolint:gosec // test buffers are small
@@ -540,7 +555,10 @@ func (popupEvents) Repositioned(*cxdg.XdgPopup, uint32) error { return nil }
 
 type frameEvents struct{ w *Window }
 
-func (e frameEvents) Done(*cw.WlCallback, uint32) error {
+func (e frameEvents) Done(cb *cw.WlCallback, _ uint32) error {
+	if cb != e.w.frame {
+		return nil
+	}
 	e.w.framePending = false
 	e.w.Frames++
 	return e.w.draw()

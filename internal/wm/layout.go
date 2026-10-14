@@ -9,6 +9,7 @@ type Placement struct {
 	ID      WindowID
 	Rect    image.Rectangle
 	Visible bool
+	Layer   PlacementLayer
 }
 
 type TabBar struct {

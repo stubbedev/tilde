@@ -161,10 +161,7 @@ func (c *Compositor) layersAt(o *output.Output, levels ...shell.Layer) []*layer 
 	return out
 }
 
-var (
-	belowWindows = []shell.Layer{swlr.ZwlrLayerShellV1LayerBackground, swlr.ZwlrLayerShellV1LayerBottom}
-	aboveWindows = []shell.Layer{swlr.ZwlrLayerShellV1LayerTop, swlr.ZwlrLayerShellV1LayerOverlay}
-)
+var belowWindows = []shell.Layer{swlr.ZwlrLayerShellV1LayerBackground, swlr.ZwlrLayerShellV1LayerBottom}
 
 func (c *Compositor) layerPopups(e *layer) []placedPopup {
 	if !e.shown() {

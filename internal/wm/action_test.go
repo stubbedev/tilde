@@ -28,6 +28,10 @@ var everyAction = []Action{
 	MakeGroupAction{Layout: Tabbed, Ephemeral: true},
 	SubmapAction{Name: "resize"},
 	SubmapAction{},
+	FloatAction{},
+	FullscreenAction{},
+	DragAction{Mode: DragMove},
+	DragAction{Mode: DragResize},
 }
 
 func TestEveryActionRoundTripsThroughTheParser(t *testing.T) {
@@ -72,7 +76,7 @@ func TestBadActionsFailPrecisely(t *testing.T) {
 }
 
 func TestDispatch(t *testing.T) {
-	s := ok(t)(State{}.AddOutput("DP-1", left))
+	s := ok(t)(State{}.AddOutput("DP-1", left, left))
 	s = ok(t)(s.MapWindow(1, Autotile{}))
 	s = ok(t)(s.MapWindow(2, Autotile{}))
 	settings := Settings{Collapse: CollapseEmptySplits}

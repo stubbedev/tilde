@@ -226,12 +226,53 @@ func (s State) outputToward(from string, d Direction) (string, bool) {
 	return best.name, true
 }
 
+func (s State) nearest(id WindowID, d Direction) (WindowID, bool) {
+	var from image.Rectangle
+	var visible []Placement
+	for _, p := range s.Arrange(0).Windows {
+		if p.ID == id {
+			from = p.Rect
+		} else if p.Visible {
+			visible = append(visible, p)
+		}
+	}
+	c := from.Min.Add(from.Size().Div(2))
+	best, bestScore := WindowID(0), -1
+	for _, p := range visible {
+		pc := p.Rect.Min.Add(p.Rect.Size().Div(2))
+		var along, across int
+		switch d {
+		case Left:
+			along, across = from.Min.X-p.Rect.Min.X, pc.Y-c.Y
+		case Right:
+			along, across = p.Rect.Max.X-from.Max.X, pc.Y-c.Y
+		case Up:
+			along, across = from.Min.Y-p.Rect.Min.Y, pc.X-c.X
+		case Down:
+			along, across = p.Rect.Max.Y-from.Max.Y, pc.X-c.X
+		}
+		if along <= 0 {
+			continue
+		}
+		if across < 0 {
+			across = -across
+		}
+		if score := along + 2*across; bestScore < 0 || score < bestScore {
+			best, bestScore = p.ID, score
+		}
+	}
+	return best, bestScore >= 0
+}
+
 func (s State) FocusDirection(d Direction) (State, error) {
 	if w := s.activeWorkspace(); w != nil {
-		if id, ok := w.Tree.Focused(); ok {
-			next, found, err := w.Tree.Neighbor(id, d)
-			if err != nil {
-				return State{}, err
+		if id, ok := w.focused(); ok {
+			next, found := s.nearest(id, d)
+			if w.floatingIndex(id) < 0 {
+				var err error
+				if next, found, err = w.Tree.Neighbor(id, d); err != nil {
+					return State{}, err
+				}
 			}
 			if found {
 				return s.FocusWindow(next)
@@ -250,8 +291,8 @@ func (s State) MoveDirection(d Direction, policy CollapsePolicy) (State, error) 
 	if w == nil {
 		return s, nil
 	}
-	id, ok := w.Tree.Focused()
-	if !ok {
+	id, ok := w.focused()
+	if !ok || w.floatingIndex(id) >= 0 {
 		return s, nil
 	}
 	tree, moved, err := w.Tree.Move(id, d, policy)
@@ -263,4 +304,72 @@ func (s State) MoveDirection(d Direction, policy CollapsePolicy) (State, error) 
 	active.Tree = tree
 	active.record()
 	return s, nil
+}
+
+func (t Tree) InsertAt(id WindowID, area image.Rectangle, at image.Point, auto Autotile) (Tree, error) {
+	var target Placement
+	found := false
+	for _, p := range t.Arrange(area, 0).Windows {
+		if p.Visible && at.In(p.Rect) {
+			target, found = p, true
+		}
+	}
+	if !found {
+		return t.Place(id, area, auto)
+	}
+	groups, _, _ := t.path(target.ID)
+	parent := groups[len(groups)-1]
+	mid := target.Rect.Min.Add(target.Rect.Size().Div(2))
+	before := (parent.Layout == SplitH && at.X < mid.X) || (parent.Layout == SplitV && at.Y < mid.Y)
+	focused, err := t.Focus(target.ID)
+	if err != nil {
+		return Tree{}, err
+	}
+	placed, err := focused.Place(id, area, auto)
+	if err != nil || !before {
+		return placed, err
+	}
+	groups, idx, _ := placed.path(id)
+	g, i := groups[len(groups)-1], idx[len(idx)-1]
+	g.Children[i-1], g.Children[i] = g.Children[i], g.Children[i-1]
+	g.Focus = i - 1
+	return placed, nil
+}
+
+const minTile = 32
+
+func (t Tree) Resize(id WindowID, area image.Rectangle, d Direction, delta int) (Tree, error) {
+	t = t.clone()
+	groups, idx, ok := t.path(id)
+	if !ok {
+		return Tree{}, fmt.Errorf("resize window %d: %w", id, ErrUnknownWindow)
+	}
+	want := SplitH
+	if d.vertical() {
+		want = SplitV
+	}
+	for level, g := range slices.Backward(groups) {
+		i := idx[level]
+		j := step(i, d)
+		if g.Layout != want || j < 0 || j >= len(g.Children) {
+			continue
+		}
+		r := t.rectOf(area, g)
+		span := r.Dx()
+		if d.vertical() {
+			span = r.Dy()
+		}
+		if span <= 0 {
+			return t, nil
+		}
+		perPixel := float64(len(g.Children)) / float64(span)
+		floor := minTile * perPixel
+		dr := float64(delta) * perPixel
+		dr = min(dr, g.Children[j].Ratio-floor)
+		dr = max(dr, floor-g.Children[i].Ratio)
+		g.Children[i].Ratio += dr
+		g.Children[j].Ratio -= dr
+		return t, nil
+	}
+	return t, nil
 }

@@ -140,9 +140,9 @@ func TestArrangeRoundsEdgesDeterministically(t *testing.T) {
 	tree := build(t, 1, 2, 3)
 	a := tree.Arrange(image.Rect(0, 0, 100, 50), 10)
 	want := []Placement{
-		{1, image.Rect(0, 0, 33, 50), true},
-		{2, image.Rect(33, 0, 67, 50), true},
-		{3, image.Rect(67, 0, 100, 50), true},
+		{ID: 1, Rect: image.Rect(0, 0, 33, 50), Visible: true},
+		{ID: 2, Rect: image.Rect(33, 0, 67, 50), Visible: true},
+		{ID: 3, Rect: image.Rect(67, 0, 100, 50), Visible: true},
 	}
 	if !slices.Equal(a.Windows, want) || len(a.TabBars) != 0 {
 		t.Fatalf("arranged %v %v", a.Windows, a.TabBars)
@@ -153,7 +153,7 @@ func TestArrangeRoundsEdgesDeterministically(t *testing.T) {
 	if want := (TabBar{Rect: image.Rect(67, 0, 100, 10), Tabs: []WindowID{3, 4}, Active: 1}); len(a.TabBars) != 1 || a.TabBars[0].Rect != want.Rect || !slices.Equal(a.TabBars[0].Tabs, want.Tabs) || a.TabBars[0].Active != 1 {
 		t.Fatalf("tab bars %v, want %v", a.TabBars, want)
 	}
-	if got := a.Windows[2:]; got[0] != (Placement{3, image.Rect(67, 10, 100, 50), false}) || got[1] != (Placement{4, image.Rect(67, 10, 100, 50), true}) {
+	if got := a.Windows[2:]; got[0] != (Placement{ID: 3, Rect: image.Rect(67, 10, 100, 50), Visible: false}) || got[1] != (Placement{ID: 4, Rect: image.Rect(67, 10, 100, 50), Visible: true}) {
 		t.Fatalf("tabs placed %v", got)
 	}
 }

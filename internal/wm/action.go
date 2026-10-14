@@ -16,15 +16,24 @@ type Effect interface {
 	isEffect()
 }
 
+type DragMode uint8
+
+const (
+	DragMove DragMode = iota + 1
+	DragResize
+)
+
 type (
 	Close     struct{ ID WindowID }
 	Exec      struct{ Command string }
 	SetSubmap struct{ Name string }
+	BeginDrag struct{ Mode DragMode }
 )
 
 func (Close) isEffect()     {}
 func (Exec) isEffect()      {}
 func (SetSubmap) isEffect() {}
+func (BeginDrag) isEffect() {}
 
 type Settings struct {
 	Collapse CollapsePolicy
@@ -61,8 +70,34 @@ type (
 		Layout    Layout
 		Ephemeral bool
 	}
-	SubmapAction struct{ Name string }
+	SubmapAction     struct{ Name string }
+	FloatAction      struct{}
+	FullscreenAction struct{}
+	DragAction       struct{ Mode DragMode }
 )
+
+func (FloatAction) String() string      { return "togglefloating" }
+func (FullscreenAction) String() string { return "fullscreen" }
+func (a DragAction) String() string {
+	if a.Mode == DragResize {
+		return "resizewindow"
+	}
+	return "movewindow"
+}
+
+func (FloatAction) apply(s State, settings Settings) (State, []Effect, error) {
+	next, err := s.ToggleFloating(settings.Autotile)
+	return next, nil, err
+}
+
+func (FullscreenAction) apply(s State, _ Settings) (State, []Effect, error) {
+	next, err := s.ToggleFullscreen()
+	return next, nil, err
+}
+
+func (a DragAction) apply(s State, _ Settings) (State, []Effect, error) {
+	return s, []Effect{BeginDrag(a)}, nil
+}
 
 func (a FocusAction) String() string     { return "focus " + a.Dir.String() }
 func (a MoveAction) String() string      { return "move " + a.Dir.String() }
@@ -268,12 +303,7 @@ var Actions = []ActionSpec{
 	{
 		Name:    "kill",
 		Summary: "Ask the focused window to close.",
-		parse: func(spec ActionSpec, args []string, _ string) (Action, error) {
-			if err := exactly(spec, args, 0); err != nil {
-				return nil, err
-			}
-			return KillAction{}, nil
-		},
+		parse:   bare(KillAction{}),
 	},
 	{
 		Name: "exec", Args: "<command>",
@@ -315,6 +345,35 @@ var Actions = []ActionSpec{
 			return SubmapAction{Name: args[0]}, nil
 		},
 	},
+	{
+		Name:    "togglefloating",
+		Summary: "Float the focused window centred at half the output, or tile it again.",
+		parse:   bare(FloatAction{}),
+	},
+	{
+		Name:    "fullscreen",
+		Summary: "Make the focused window cover its output, above the top layer, or end that.",
+		parse:   bare(FullscreenAction{}),
+	},
+	{
+		Name:    "movewindow",
+		Summary: "Mouse binds only: drag the window under the pointer; tiled windows drop into the tree where released.",
+		parse:   bare(DragAction{Mode: DragMove}),
+	},
+	{
+		Name:    "resizewindow",
+		Summary: "Mouse binds only: resize the window under the pointer from its nearest corner; tiled windows change their split ratios.",
+		parse:   bare(DragAction{Mode: DragResize}),
+	},
+}
+
+func bare(a Action) func(ActionSpec, []string, string) (Action, error) {
+	return func(spec ActionSpec, args []string, _ string) (Action, error) {
+		if err := exactly(spec, args, 0); err != nil {
+			return nil, err
+		}
+		return a, nil
+	}
 }
 
 func ParseAction(text string) (Action, error) {

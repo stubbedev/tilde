@@ -12,3 +12,7 @@ Every keybind and `tildectl dispatch` takes one of these. This file is generated
 | `exec` | `<command>` | Run a shell command with sh -c. |
 | `makegroup` | `<h\|v\|tab> [ephemeral]` | Wrap the focused window in a new group; an ephemeral group dissolves when one window is left. |
 | `submap` | `<name\|reset>` | Switch binds to the named submap, or back to the default ones. |
+| `togglefloating` |  | Float the focused window centred at half the output, or tile it again. |
+| `fullscreen` |  | Make the focused window cover its output, above the top layer, or end that. |
+| `movewindow` |  | Mouse binds only: drag the window under the pointer; tiled windows drop into the tree where released. |
+| `resizewindow` |  | Mouse binds only: resize the window under the pointer from its nearest corner; tiled windows change their split ratios. |

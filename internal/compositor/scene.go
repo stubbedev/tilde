@@ -9,9 +9,11 @@ import (
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/output"
 	spt "github.com/stubbedev/tilde/internal/protocol/server/presentationtime"
+	swlr "github.com/stubbedev/tilde/internal/protocol/server/wlrlayershell"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/surface"
 	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/tilde/internal/wm"
 )
 
 func (c *Compositor) Frame(b backend.Output) error {
@@ -41,22 +43,34 @@ func (c *Compositor) render(o *output.Output) error {
 	for _, e := range c.layersAt(o, belowWindows...) {
 		shown = c.drawTree(pass, o, e.surface.Surface(), e.bounds().Min, shown)
 	}
-	for _, w := range c.windows {
-		if !w.visible || !w.rect.Overlaps(o.Logical()) {
-			continue
+	for _, layer := range []wm.PlacementLayer{wm.LayerTiled, wm.LayerFloating} {
+		for _, w := range c.stack {
+			if w.layer == layer {
+				shown = c.drawWindow(pass, o, w, shown)
+			}
 		}
-		origin := c.placement(w).Min.Sub(w.toplevel.Geometry().Min)
-		shown = c.drawTree(pass, o, w.toplevel.Surface(), origin, shown)
+		if layer == wm.LayerTiled {
+			if err := c.drawTabBars(pass, o); err != nil {
+				return err
+			}
+		}
 	}
-	c.drawBorders(pass, o)
-	if err := c.drawTabBars(pass, o); err != nil {
-		return err
+	for _, w := range c.stack {
+		if w.layer != wm.LayerFullscreen {
+			shown = c.drawPopups(pass, o, c.popups(w), shown)
+		}
+	}
+	for _, e := range c.layersAt(o, swlr.ZwlrLayerShellV1LayerTop) {
+		shown = c.drawTree(pass, o, e.surface.Surface(), e.bounds().Min, shown)
+	}
+	for _, w := range c.stack {
+		if w.layer == wm.LayerFullscreen {
+			shown = c.drawWindow(pass, o, w, shown)
+			shown = c.drawPopups(pass, o, c.popups(w), shown)
+		}
 	}
 	c.evictLabels(o)
-	for _, w := range c.windows {
-		shown = c.drawPopups(pass, o, c.popups(w), shown)
-	}
-	for _, e := range c.layersAt(o, aboveWindows...) {
+	for _, e := range c.layersAt(o, swlr.ZwlrLayerShellV1LayerOverlay) {
 		shown = c.drawTree(pass, o, e.surface.Surface(), e.bounds().Min, shown)
 	}
 	for _, e := range c.layers {
@@ -72,6 +86,15 @@ func (c *Compositor) render(o *output.Output) error {
 		return err
 	}
 	return o.Backend().Present(damage)
+}
+
+func (c *Compositor) drawWindow(pass render.Pass, o *output.Output, w *window, shown []*surface.Surface) []*surface.Surface {
+	if !w.visible || !w.tile.Overlaps(o.Logical()) {
+		return shown
+	}
+	shown = c.drawTree(pass, o, w.toplevel.Surface(), w.rect.Min.Sub(w.toplevel.Geometry().Min), shown)
+	c.drawBorder(pass, o, w)
+	return shown
 }
 
 func (c *Compositor) drawPopups(pass render.Pass, o *output.Output, popups []placedPopup, shown []*surface.Surface) []*surface.Surface {

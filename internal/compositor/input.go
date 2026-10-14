@@ -11,8 +11,10 @@ import (
 	"github.com/stubbedev/tilde/internal/binds"
 	"github.com/stubbedev/tilde/internal/output"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
+	swlr "github.com/stubbedev/tilde/internal/protocol/server/wlrlayershell"
 	"github.com/stubbedev/tilde/internal/seat"
 	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/tilde/internal/wm"
 )
 
 type point struct {
@@ -96,6 +98,9 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 		}
 		if i := slices.Index(c.consumed, e.Button); !e.Pressed && i >= 0 {
 			c.consumed = slices.Delete(c.consumed, i, i+1)
+			if c.interaction != nil && c.interaction.button == e.Button {
+				return c.endDrag()
+			}
 			return nil
 		}
 		if e.Pressed && !c.seat.PointerGrabbed() && c.outsideGrab(c.seat.PointerFocus()) {
@@ -104,6 +109,7 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 		}
 		if b, ok := c.match(binds.Button{Code: e.Button}); e.Pressed && ok {
 			c.consumed = append(c.consumed, e.Button)
+			c.bindButton = e.Button
 			c.run(b.Action)
 			return nil
 		}
@@ -171,6 +177,9 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 }
 
 func (c *Compositor) pointerMoved(at time.Duration) error {
+	if c.interaction != nil {
+		return errors.Join(c.dragMoved(), c.scheduleAll())
+	}
 	if c.drag != nil {
 		return errors.Join(c.dragMotion(at), c.scheduleAll())
 	}
@@ -202,6 +211,9 @@ func (c *Compositor) pointerTarget() (*surface.Surface, point, *window) {
 }
 
 func (c *Compositor) refreshPointer() error {
+	if c.interaction != nil {
+		return nil
+	}
 	if c.drag != nil {
 		return c.dragMotion(backend.Now())
 	}
@@ -242,6 +254,16 @@ func (c *Compositor) outputAt(p point) *output.Output {
 	return nil
 }
 
+func (c *Compositor) hitWindow(w *window, p point) (*surface.Surface, point) {
+	if !w.visible {
+		return nil, point{}
+	}
+	if s, local := hitPopups(c.popups(w), p); s != nil {
+		return s, local
+	}
+	return hitTree(w.toplevel.Surface(), w.rect.Min.Sub(w.toplevel.Geometry().Min), p)
+}
+
 func (c *Compositor) surfaceAt(p point) (*surface.Surface, point, *window) {
 	for _, e := range slices.Backward(c.layers) {
 		if s, local := hitPopups(c.layerPopups(e), p); s != nil {
@@ -249,20 +271,31 @@ func (c *Compositor) surfaceAt(p point) (*surface.Surface, point, *window) {
 		}
 	}
 	o := c.outputAt(p)
-	if s, local := hitLayers(c.layersAt(o, aboveWindows...), p); s != nil {
+	if s, local := hitLayers(c.layersAt(o, swlr.ZwlrLayerShellV1LayerOverlay), p); s != nil {
 		return s, local, nil
 	}
-	for _, w := range slices.Backward(c.windows) {
-		if s, local := hitPopups(c.popups(w), p); s != nil {
-			return s, local, w
+	for _, w := range slices.Backward(c.stack) {
+		if w.layer == wm.LayerFullscreen {
+			if s, local := c.hitWindow(w, p); s != nil {
+				return s, local, w
+			}
 		}
 	}
-	for _, w := range slices.Backward(c.windows) {
-		if !w.visible {
+	if s, local := hitLayers(c.layersAt(o, swlr.ZwlrLayerShellV1LayerTop), p); s != nil {
+		return s, local, nil
+	}
+	for _, w := range slices.Backward(c.stack) {
+		if w.layer != wm.LayerFullscreen {
+			if s, local := hitPopups(c.popups(w), p); s != nil {
+				return s, local, w
+			}
+		}
+	}
+	for _, w := range slices.Backward(c.stack) {
+		if w.layer == wm.LayerFullscreen || !w.visible {
 			continue
 		}
-		origin := c.placement(w).Min.Sub(w.toplevel.Geometry().Min)
-		if s, local := hitTree(w.toplevel.Surface(), origin, p); s != nil {
+		if s, local := hitTree(w.toplevel.Surface(), w.rect.Min.Sub(w.toplevel.Geometry().Min), p); s != nil {
 			return s, local, w
 		}
 	}

@@ -105,29 +105,24 @@ func (c *Compositor) evictLabels(o *output.Output) {
 	}
 }
 
-func (c *Compositor) drawBorders(pass render.Pass, o *output.Output) {
-	if c.decor.BorderWidth <= 0 {
+func (c *Compositor) drawBorder(pass render.Pass, o *output.Output, w *window) {
+	if c.decor.BorderWidth <= 0 || w.layer == wm.LayerFullscreen {
 		return
 	}
-	for _, w := range c.windows {
-		if !w.visible || !w.tile.Overlaps(o.Logical()) {
-			continue
-		}
-		color := c.decor.InactiveBorder
-		if w == c.active {
-			color = c.decor.ActiveBorder
-		}
-		outer := o.Scale().Rect(w.tile.Sub(o.Position()))
-		inner := o.Scale().Rect(w.rect.Sub(o.Position()))
-		for _, strip := range []image.Rectangle{
-			{Min: outer.Min, Max: image.Pt(outer.Max.X, inner.Min.Y)},
-			{Min: image.Pt(outer.Min.X, inner.Max.Y), Max: outer.Max},
-			{Min: image.Pt(outer.Min.X, inner.Min.Y), Max: image.Pt(inner.Min.X, inner.Max.Y)},
-			{Min: image.Pt(inner.Max.X, inner.Min.Y), Max: image.Pt(outer.Max.X, inner.Max.Y)},
-		} {
-			if !strip.Empty() {
-				pass.FillRect(strip, color)
-			}
+	color := c.decor.InactiveBorder
+	if w == c.active {
+		color = c.decor.ActiveBorder
+	}
+	outer := o.Scale().Rect(w.tile.Sub(o.Position()))
+	inner := o.Scale().Rect(w.rect.Sub(o.Position()))
+	for _, strip := range []image.Rectangle{
+		{Min: outer.Min, Max: image.Pt(outer.Max.X, inner.Min.Y)},
+		{Min: image.Pt(outer.Min.X, inner.Max.Y), Max: outer.Max},
+		{Min: image.Pt(outer.Min.X, inner.Min.Y), Max: image.Pt(inner.Min.X, inner.Max.Y)},
+		{Min: image.Pt(inner.Max.X, inner.Min.Y), Max: image.Pt(outer.Max.X, inner.Max.Y)},
+	} {
+		if !strip.Empty() {
+			pass.FillRect(strip, color)
 		}
 	}
 }
