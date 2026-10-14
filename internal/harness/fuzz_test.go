@@ -59,6 +59,20 @@ func (r *rawClient) send(object wire.ObjectID, opcode wire.Opcode, encode func(*
 	return e.End()
 }
 
+func (r *rawClient) wait(events int16, deadline time.Time) (bool, error) {
+	pfd := []unix.PollFd{{Fd: int32(r.conn.FD()), Events: events}}
+	for {
+		n, err := unix.Poll(pfd, max(int(time.Until(deadline).Milliseconds()), 0))
+		switch {
+		case errors.Is(err, unix.EINTR):
+			continue
+		case err != nil:
+			return false, err
+		}
+		return n > 0, nil
+	}
+}
+
 func (r *rawClient) receive(deadline time.Time) (*wire.Message, error) {
 	var filled error
 	for {
@@ -69,12 +83,11 @@ func (r *rawClient) receive(deadline time.Time) (*wire.Message, error) {
 		if filled != nil {
 			return nil, filled
 		}
-		pfd := []unix.PollFd{{Fd: int32(r.conn.FD()), Events: unix.POLLIN}}
-		n, err := unix.Poll(pfd, int(time.Until(deadline).Milliseconds()))
+		ready, err := r.wait(unix.POLLIN, deadline)
 		if err != nil {
 			return nil, err
 		}
-		if n == 0 {
+		if !ready {
 			return nil, errTimedOut
 		}
 		filled = r.conn.Fill()

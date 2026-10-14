@@ -163,8 +163,7 @@ func TestClientsThatNeverReadAreDisconnected(t *testing.T) {
 			err = r.conn.Flush()
 		}
 		if errors.Is(err, wire.ErrWouldBlock) || errors.Is(err, wire.ErrOutputFull) {
-			pfd := []unix.PollFd{{Fd: int32(r.conn.FD()), Events: unix.POLLOUT}}
-			if _, err := unix.Poll(pfd, 100); err != nil {
+			if _, err := r.wait(unix.POLLOUT, time.Now().Add(100*time.Millisecond)); err != nil {
 				t.Fatal(err)
 			}
 			continue
