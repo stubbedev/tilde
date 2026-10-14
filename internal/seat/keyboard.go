@@ -16,6 +16,54 @@ import (
 type keyboardState struct {
 	focus   *surface.Surface
 	pressed []uint32
+	grab    KeyboardGrab
+	grabbed []uint32
+}
+
+type KeyboardGrab interface {
+	Keymap(fd int, size uint32) error
+	RepeatInfo(rate, delay int32) error
+	Key(serial, ms, code uint32, pressed bool) error
+	Modifiers(serial uint32, m xkb.Modifiers) error
+}
+
+func (s *Seat) Grab(g KeyboardGrab) error {
+	s.keyboard.grab = g
+	return errors.Join(g.Keymap(s.cfg.Keymap.FD(), s.cfg.Keymap.Size()), g.RepeatInfo(s.cfg.RepeatRate, s.cfg.RepeatDelay), g.Modifiers(s.display.NextSerial(), s.state.Modifiers()))
+}
+
+func (s *Seat) Ungrab(g KeyboardGrab) error {
+	if s.keyboard.grab != g {
+		return nil
+	}
+	s.keyboard.grab = nil
+	c, kbs := s.focusedKeyboards()
+	var errs []error
+	for _, kb := range kbs {
+		errs = append(errs, s.sendModifiers(c, kb))
+	}
+	return errors.Join(errs...)
+}
+
+func (s *Seat) grabKey(code uint32, pressed, modsChanged bool, at time.Duration) (bool, error) {
+	k := &s.keyboard
+	i := slices.Index(k.grabbed, code)
+	switch {
+	case pressed && k.grab != nil:
+		k.grabbed = append(k.grabbed, code)
+	case !pressed && i >= 0:
+		k.grabbed = slices.Delete(k.grabbed, i, i+1)
+		if k.grab == nil {
+			return true, nil
+		}
+	default:
+		return false, nil
+	}
+	err := k.grab.Key(s.display.NextSerial(), wire.Millis(at), code, pressed)
+	if modsChanged {
+		err = errors.Join(err, k.grab.Modifiers(s.display.NextSerial(), s.state.Modifiers()))
+	}
+	return true, err
 }
 
 func (s *Seat) Focus() *surface.Surface {
@@ -82,6 +130,9 @@ func (s *Seat) Key(code uint32, pressed bool, at time.Duration) error {
 		k.pressed = slices.Delete(k.pressed, i, i+1)
 	}
 	modsChanged := s.state.Key(code, pressed)
+	if grabbed, err := s.grabKey(code, pressed, modsChanged, at); grabbed {
+		return err
+	}
 	if k.focus == nil {
 		return nil
 	}
@@ -140,6 +191,9 @@ func (s *Seat) Reconfigure(p Pending) error {
 	s.state, s.cfg = p.state, p.cfg
 	clear(s.keymaps)
 	var errs []error
+	if g := s.keyboard.grab; g != nil {
+		errs = append(errs, g.Keymap(s.cfg.Keymap.FD(), s.cfg.Keymap.Size()), g.RepeatInfo(s.cfg.RepeatRate, s.cfg.RepeatDelay))
+	}
 	for _, r := range s.clients {
 		focused := s.keyboard.focus != nil && s.keyboard.focus.Client() == r.client
 		for _, kb := range r.keyboards {

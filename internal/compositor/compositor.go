@@ -22,6 +22,7 @@ import (
 	"github.com/stubbedev/tilde/internal/gammacontrol"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/idle"
+	"github.com/stubbedev/tilde/internal/inputmethod"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/output"
 	"github.com/stubbedev/tilde/internal/outputmanagement"
@@ -106,6 +107,7 @@ type Compositor struct {
 	timing          *committiming.Manager
 	tearingHints    *tearingcontrol.Manager
 	tearing         bool
+	inputMethods    *inputmethod.Manager
 	outputOverrides map[string]OutputRule
 	drm             *drm.Device
 	lidClosed       bool
@@ -305,6 +307,10 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.seat, err = seat.New(display, cfg.Seat, c); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
+	if c.inputMethods, err = inputmethod.New(display, c.seat, c); err != nil {
+		c.seat.Close()
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.shell, err = shell.New(display, l, c); err != nil {

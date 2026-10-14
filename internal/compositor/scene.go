@@ -147,6 +147,10 @@ func (c *Compositor) drawDesktop(pass *frame, o *output.Output, shown []*surface
 	for _, e := range c.layers {
 		shown = c.drawPopups(pass, o, c.layerPopups(e), shown)
 	}
+	shown, err := c.drawInputPopups(pass, o, shown)
+	if err != nil {
+		return shown, err
+	}
 	shown = c.drawUnmanaged(pass, o, shown)
 	shown = c.drawDragIcon(pass, o, shown)
 	return shown, nil
