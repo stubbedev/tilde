@@ -56,6 +56,7 @@ type Seat struct {
 	everCaps sw.WlSeatCapability
 	clients  []*clientResources
 	keyboard keyboardState
+	keymaps  map[*sw.WlKeyboard]*VirtualKeyboard
 	pointer  pointerState
 	touch    touchState
 }
@@ -65,7 +66,7 @@ func New(d *server.Display, cfg Config, listener Listener) (*Seat, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Seat{display: d, listener: listener, cfg: p.cfg, state: p.state, devices: map[sw.WlSeatCapability]int{}}
+	s := &Seat{display: d, listener: listener, cfg: p.cfg, state: p.state, devices: map[sw.WlSeatCapability]int{}, keymaps: map[*sw.WlKeyboard]*VirtualKeyboard{}}
 	if _, err := d.AddGlobal(sw.WlSeatInterface, seatVersion, s.bind); err != nil {
 		s.Close()
 		return nil, err

@@ -98,7 +98,7 @@ func (s *Seat) Key(code uint32, pressed bool, at time.Duration) error {
 	serial := s.eventSerial(c, pressed)
 	var errs []error
 	for _, kb := range r.keyboards {
-		errs = append(errs, c.Sent(kb.SendKey(serial, ms, code, state)))
+		errs = append(errs, s.useKeymap(c, kb, nil), c.Sent(kb.SendKey(serial, ms, code, state)))
 		if modsChanged {
 			errs = append(errs, s.sendModifiers(c, kb))
 		}
@@ -138,6 +138,7 @@ func (s *Seat) Reconfigure(p Pending) error {
 	}
 	s.state.Close()
 	s.state, s.cfg = p.state, p.cfg
+	clear(s.keymaps)
 	var errs []error
 	for _, r := range s.clients {
 		focused := s.keyboard.focus != nil && s.keyboard.focus.Client() == r.client
@@ -158,6 +159,10 @@ func (r seatRequests) GetKeyboard(obj *sw.WlSeat, kb *sw.WlKeyboard) (sw.WlKeybo
 	}
 	res := s.resources(r.c)
 	track(s, res, &res.keyboards, kb)
+	r.c.OnDestroy(kb, func() error {
+		delete(s.keymaps, kb)
+		return nil
+	})
 	if err := s.sendKeyboardConfig(kb); err != nil {
 		return nil, err
 	}

@@ -227,6 +227,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 	if c.idle, err = idle.New(display, l, backend.Now, c.updateInhibition); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
+	if err := c.addVirtualInput(display); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
 	if c.data, err = data.New(display, c); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
