@@ -195,7 +195,8 @@ tilde sets `env` in its own environment at startup, before it starts
 anything, so every program it runs inherits it. `XDG_CURRENT_DESKTOP=tilde`
 and `XDG_SESSION_TYPE=wayland` are set unless `env` overrides them.
 `WAYLAND_DISPLAY`, `DISPLAY` and `TILDE_SOCKET` belong to tilde and cannot be
-set here. Each `autostart` command runs once with `sh -c`, after the display
+set here. `XCURSOR_THEME`, `XCURSOR_SIZE` and `XCURSOR_PATH` set here choose the
+pointer for tilde as well as for its clients. Each `autostart` command runs once with `sh -c`, after the display
 and the IPC socket are up. A reload changes neither.
 
 ## xwayland

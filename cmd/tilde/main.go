@@ -216,7 +216,6 @@ type source struct {
 	path     string
 	explicit bool
 	lib      *xkb.Library
-	cursor   compositor.CursorConfig
 	getenv   func(string) string
 }
 
@@ -268,7 +267,6 @@ func (s source) load() (loaded, error) {
 	if err != nil {
 		return loaded{}, errors.Join(err, keymap.Close())
 	}
-	cfg.Cursor = s.cursor
 	return loaded{cfg: cfg, keymap: keymap, env: file.Env, autostart: file.Autostart, input: file.Input, xwayland: file.Xwayland, zero: file.ZeroScaling, gpu: file.GPU}, nil
 }
 
@@ -284,6 +282,7 @@ func sessionVars(env [][2]string, getenv func(string) string) [][2]string {
 
 type reloader struct {
 	source
+	cursor         compositor.CursorConfig
 	comp           *compositor.Compositor
 	exit           func() error
 	keymap         *xkb.Keymap
@@ -295,13 +294,22 @@ func (s *reloader) reload() error {
 	if err != nil {
 		return err
 	}
-	next.cfg.Reload, next.cfg.Exit = s.reload, s.exit
+	next.cfg.Reload, next.cfg.Exit, next.cfg.Cursor = s.reload, s.exit, s.cursor
 	if err := s.comp.Reconfigure(next.cfg); err != nil {
 		return errors.Join(err, next.keymap.Close())
 	}
 	old := s.keymap
 	s.keymap = next.keymap
 	return errors.Join(old.Close(), s.configureInput(next.input))
+}
+
+func withEnv(env [][2]string, getenv func(string) string) func(string) string {
+	return func(name string) string {
+		if i := slices.IndexFunc(env, func(kv [2]string) bool { return kv[0] == name }); i >= 0 {
+			return env[i][1]
+		}
+		return getenv(name)
+	}
 }
 
 func cursorConfig(getenv func(string) string) (compositor.CursorConfig, error) {
@@ -356,11 +364,7 @@ func run(args []string) (err error) {
 		return err
 	}
 	defer lib.Close()
-	cursor, err := cursorConfig(os.Getenv)
-	if err != nil {
-		return err
-	}
-	s := &reloader{path: *path, explicit: *path != "", lib: lib, cursor: cursor, getenv: os.Getenv}
+	s := &reloader{path: *path, explicit: *path != "", lib: lib, getenv: os.Getenv}
 	if !s.explicit {
 		if s.path, err = configPath(os.Getenv); err != nil {
 			return err
@@ -372,7 +376,11 @@ func run(args []string) (err error) {
 	}
 	s.keymap = first.keymap
 	defer func() { err = errors.Join(err, s.keymap.Close()) }()
+	if s.cursor, err = cursorConfig(withEnv(first.env, os.Getenv)); err != nil {
+		return err
+	}
 	cfg := first.cfg
+	cfg.Cursor = s.cursor
 	cfg.Reload = s.reload
 	for _, kv := range first.env {
 		if err := os.Setenv(kv[0], kv[1]); err != nil {

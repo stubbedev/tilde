@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stubbedev/tilde/internal/compositor"
 	"github.com/stubbedev/tilde/internal/ipc"
 	"github.com/stubbedev/tilde/internal/testenv"
 )
@@ -108,7 +107,7 @@ func TestFontPath(t *testing.T) {
 func testSource(t *testing.T, path string, explicit bool) source {
 	t.Helper()
 	testenv.Font(t)
-	return source{path: path, explicit: explicit, lib: testenv.XKBLibrary(t), cursor: compositor.CursorConfig{Size: 24}, getenv: os.Getenv}
+	return source{path: path, explicit: explicit, lib: testenv.XKBLibrary(t), getenv: os.Getenv}
 }
 
 func TestLoadingTheConfig(t *testing.T) {
@@ -118,8 +117,8 @@ func TestLoadingTheConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a missing default config: %v", err)
 	}
-	if len(first.cfg.Binds) == 0 || first.cfg.Cursor.Size != 24 || len(first.env) == 0 {
-		t.Errorf("the built-in config gave %d binds, cursor %+v, env %v", len(first.cfg.Binds), first.cfg.Cursor, first.env)
+	if len(first.cfg.Binds) == 0 || len(first.env) == 0 {
+		t.Errorf("the built-in config gave %d binds, env %v", len(first.cfg.Binds), first.env)
 	}
 	if err := first.keymap.Close(); err != nil {
 		t.Fatal(err)
@@ -140,6 +139,19 @@ func TestLoadingTheConfig(t *testing.T) {
 	}
 	if _, err := testSource(t, layout, true).load(); err == nil || !strings.Contains(err.Error(), "no-such-layout") {
 		t.Errorf("an unknown layout: %v", err)
+	}
+}
+
+func TestTheConfigEnvChoosesTheCursor(t *testing.T) {
+	process := func(name string) string {
+		return map[string]string{"XCURSOR_SIZE": "32", "XCURSOR_PATH": t.TempDir()}[name]
+	}
+	cursor, err := cursorConfig(withEnv([][2]string{{"XCURSOR_SIZE", "48"}}, process))
+	if err != nil || cursor.Size != 48 {
+		t.Fatalf("cursor %+v (%v), want the size 48 the config env sets over the process's 32", cursor, err)
+	}
+	if cursor, err := cursorConfig(withEnv(nil, process)); err != nil || cursor.Size != 32 {
+		t.Fatalf("cursor %+v (%v), want the process's size 32 without a config env", cursor, err)
 	}
 }
 
