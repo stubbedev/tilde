@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/stubbedev/tilde/internal/edid"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/render"
 )
@@ -93,6 +94,7 @@ type CursorPlane interface {
 type Output interface {
 	Name() string
 	Description() string
+	Identity() edid.Info
 	PhysicalSize() image.Point
 	Modes() []Mode
 	State() OutputState

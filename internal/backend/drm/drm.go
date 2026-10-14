@@ -331,7 +331,7 @@ func (b *Backend) add(c kdrm.Connector) error {
 	if err != nil {
 		return err
 	}
-	o := &Output{b: b, conn: c, props: props, crtc: cr, primary: p, description: c.Name()}
+	o := &Output{b: b, conn: c, props: props, crtc: cr, primary: p}
 	if blob, ok := props["EDID"]; ok && blob.Value != 0 {
 		data, err := b.dev.Blob(uint32(blob.Value)) //nolint:gosec // property blob IDs are 32-bit
 		if err != nil {
@@ -341,7 +341,7 @@ func (b *Backend) add(c kdrm.Connector) error {
 		if err != nil {
 			return fmt.Errorf("drm: %s: %w", c.Name(), err)
 		}
-		o.description = info.Description()
+		o.identity = info
 	}
 	cr.output, p.taken = o, true
 	if cp := b.free(cursorPlane, cr); cp != nil {
@@ -467,7 +467,7 @@ func (b *Backend) Close() error {
 
 type Output struct {
 	b              *Backend
-	description    string
+	identity       edid.Info
 	conn           kdrm.Connector
 	props          map[string]kdrm.Property
 	crtc           *crtc
@@ -495,7 +495,14 @@ func (o *Output) Name() string {
 }
 
 func (o *Output) Description() string {
-	return o.description
+	if d := o.identity.Description(); d != "" {
+		return d
+	}
+	return o.Name()
+}
+
+func (o *Output) Identity() edid.Info {
+	return o.identity
 }
 
 func (o *Output) PhysicalSize() image.Point {

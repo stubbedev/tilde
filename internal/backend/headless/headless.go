@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stubbedev/tilde/internal/backend"
+	"github.com/stubbedev/tilde/internal/edid"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/render"
@@ -239,6 +240,10 @@ func (o *Output) Name() string {
 
 func (o *Output) Description() string {
 	return "Headless output " + o.name
+}
+
+func (*Output) Identity() edid.Info {
+	return edid.Info{}
 }
 
 func (o *Output) PhysicalSize() image.Point {
