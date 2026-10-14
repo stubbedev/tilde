@@ -13,16 +13,26 @@ const (
 	RuleTile
 )
 
+type RuleTearing uint8
+
+const (
+	TearingUnset RuleTearing = iota
+	TearingAllow
+	TearingDeny
+)
+
 type Rule struct {
-	AppID *regexp.Regexp
-	Title *regexp.Regexp
-	Mode  RuleMode
-	Size  image.Point
+	AppID   *regexp.Regexp
+	Title   *regexp.Regexp
+	Mode    RuleMode
+	Size    image.Point
+	Tearing RuleTearing
 }
 
 type Decision struct {
-	Mode RuleMode
-	Size image.Point
+	Mode    RuleMode
+	Size    image.Point
+	Tearing RuleTearing
 }
 
 func (r Rule) matches(appID, title string) bool {
@@ -40,6 +50,9 @@ func Decide(rules []Rule, appID, title string) Decision {
 		}
 		if r.Size != (image.Point{}) {
 			d.Size = r.Size
+		}
+		if r.Tearing != TearingUnset {
+			d.Tearing = r.Tearing
 		}
 	}
 	return d

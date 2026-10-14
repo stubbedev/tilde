@@ -92,9 +92,12 @@ type plane struct {
 	taken     bool
 }
 
+var _ backend.Scanner = (*Output)(nil)
+
 type Backend struct {
 	loop      *loop.Loop
 	modifiers bool
+	async     bool
 	number    uint64
 	vendors   edid.Vendors
 	dev       device
@@ -119,6 +122,11 @@ func newBackend(l *loop.Loop, dev device, alloc allocator, vendors edid.Vendors)
 		return nil, fmt.Errorf("drm: ADDFB2 modifier support: %w", err)
 	}
 	b.modifiers = modifiers == 1
+	async, err := dev.Cap(kdrm.CapAtomicAsyncFlip)
+	if err != nil && !errors.Is(err, unix.EINVAL) {
+		return nil, fmt.Errorf("drm: atomic async page flip support: %w", err)
+	}
+	b.async = async == 1
 	if b.number, err = dev.Number(); err != nil {
 		return nil, err
 	}
@@ -489,6 +497,7 @@ type Output struct {
 	idleQueued     bool
 	presented      uint64
 	gamma          gamma
+	torn           bool
 }
 
 func (o *Output) Name() string {
@@ -701,7 +710,7 @@ func (o *Output) Present(render.Region) error {
 	if err != nil {
 		return err
 	}
-	o.modeset, o.lit, o.flipping = false, true, true
+	o.modeset, o.lit, o.flipping, o.torn = false, true, true, false
 	o.queued = s
 	return nil
 }
@@ -710,7 +719,7 @@ func (o *Output) ScanoutFormats() gpu.ScanoutTarget {
 	return gpu.ScanoutTarget{Device: o.b.number, Formats: o.primary.clients}
 }
 
-func (o *Output) Scanout(d gpu.DMABUF, release func() error) (bool, error) {
+func (o *Output) Scanout(d gpu.DMABUF, release func() error, tear bool) (bool, error) {
 	if !o.enabled || o.off || o.b.paused || o.modeset || o.drawing != nil || o.flipping || d.Size != modeOf(o.mode).Size {
 		return false, nil
 	}
@@ -720,18 +729,36 @@ func (o *Output) Scanout(d gpu.DMABUF, release func() error) (bool, error) {
 	}
 	s := &scanout{client: true, fb: fb, free: func() error { return errors.Join(remove(), release()) }, drop: release}
 	flags := uint32(kdrm.AtomicNonblock | kdrm.AtomicPageFlipEvent)
-	o.frame(s, -1)
-	if o.test(flags) != nil {
-		return false, remove()
+	torn := tear && o.tearable(fb, flags|kdrm.AtomicPageFlipAsync)
+	if torn {
+		flags |= kdrm.AtomicPageFlipAsync
+	} else {
+		o.frame(s, -1)
+		if o.test(flags) != nil {
+			return false, remove()
+		}
 	}
 	if err := o.b.dev.Commit(&o.b.req, flags, uint64(o.crtc.id)); err != nil {
 		return false, errors.Join(fmt.Errorf("drm: commit a client buffer on %s: %w", o.Name(), err), remove())
 	}
-	if o.cursor != nil {
+	if o.cursor != nil && !torn {
 		o.cursor.sent()
 	}
-	o.lit, o.flipping, o.queued = true, true, s
+	o.lit, o.flipping, o.queued, o.torn = true, true, s, torn
+	if torn {
+		return true, nil
+	}
 	return true, o.gammaSent()
+}
+
+func (o *Output) tearable(fb uint32, flags uint32) bool {
+	if !o.b.async || o.front == nil || o.gamma.dirty || o.cursor != nil && o.cursor.dirty {
+		return false
+	}
+	r := &o.b.req
+	r.Reset()
+	o.add(o.primary.id, o.primary.props, "FB_ID", uint64(fb))
+	return o.test(flags) == nil
 }
 
 func (o *Output) submit(s *scanout, fence int, flags uint32) error {
@@ -839,7 +866,7 @@ func (o *Output) flipped(e kdrm.FlipEvent) error {
 	o.presented++
 	o.front.presented = o.presented
 	t := time.Duration(e.Sec)*time.Second + time.Duration(e.Usec)*time.Microsecond
-	errs = append(errs, o.b.handler.Presented(o, backend.Presentation{Time: t, Refresh: modeOf(o.mode).Interval(), Seq: uint64(e.Sequence)}))
+	errs = append(errs, o.b.handler.Presented(o, backend.Presentation{Time: t, Refresh: modeOf(o.mode).Interval(), Seq: uint64(e.Sequence), Torn: o.torn}))
 	o.maybeFrame()
 	return errors.Join(append(errs, o.flushCursor(), o.flushGamma())...)
 }

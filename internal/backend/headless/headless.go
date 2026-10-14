@@ -208,6 +208,11 @@ func (b *Backend) RemoveOutput(o *Output) error {
 	return errors.Join(errs...)
 }
 
+var (
+	_ backend.Scanner = (*Output)(nil)
+	_ backend.Gamma   = (*Output)(nil)
+)
+
 type Output struct {
 	backend        *Backend
 	name           string
@@ -234,6 +239,8 @@ type Output struct {
 	queuedRelease  func() error
 	gammaSize      int
 	gamma          []uint16
+	queuedTorn     bool
+	torn           uint64
 }
 
 func (o *Output) SetGammaSize(n int) {
@@ -338,7 +345,7 @@ func (o *Output) Present(damage render.Region) error {
 			return fmt.Errorf("headless: read back %s: %w", o.name, err)
 		}
 	}
-	o.presentPending = true
+	o.presentPending, o.queuedTorn = true, false
 	o.presents++
 	return o.arm()
 }
@@ -362,14 +369,21 @@ func (o *Output) ShowsClientBuffer() bool {
 	return o.shownRelease != nil || o.queuedRelease != nil
 }
 
-func (o *Output) Scanout(d gpu.DMABUF, release func() error) (bool, error) {
+func (o *Output) Scanout(d gpu.DMABUF, release func() error, tear bool) (bool, error) {
 	if o.scanout == nil || !slices.Contains(o.scanout.Formats, gpu.FormatModifier{Format: d.Format, Modifier: d.Modifier}) || o.removed || !o.state.Enabled || o.state.Off || o.inFrame || o.presentPending || d.Size != o.state.Mode.Size {
 		return false, nil
 	}
-	o.queuedRelease, o.presentPending, o.drawn = release, true, false
+	o.queuedRelease, o.presentPending, o.drawn, o.queuedTorn = release, true, false, tear
 	o.presents++
 	o.scanouts++
+	if tear {
+		o.torn++
+	}
 	return true, o.arm()
+}
+
+func (o *Output) Torn() uint64 {
+	return o.torn
 }
 
 func (o *Output) Presents() uint64 {
@@ -430,7 +444,9 @@ func (o *Output) vblank() error {
 				return err
 			}
 		}
-		if err := h.Presented(o, backend.Presentation{Time: now, Refresh: o.state.Mode.Interval(), Seq: o.seq}); err != nil {
+		torn := o.queuedTorn
+		o.queuedTorn = false
+		if err := h.Presented(o, backend.Presentation{Time: now, Refresh: o.state.Mode.Interval(), Seq: o.seq, Torn: torn}); err != nil {
 			return err
 		}
 	}

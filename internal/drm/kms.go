@@ -19,6 +19,7 @@ const (
 	CapAddFB2Modifiers     = 0x10
 	CapCRTCInVblankEvent   = 0x12
 	CapTimestampMonotonic  = 0x6
+	CapAtomicAsyncFlip     = 0x15
 	ClientCapUniversal     = 2
 	ClientCapAtomic        = 3
 	ClientCapCursorHotspot = 6
@@ -29,6 +30,7 @@ const (
 	ModeFlagInterlace      = 1 << 4
 	ModeFlagDoubleScan     = 1 << 5
 	AtomicPageFlipEvent    = 0x01
+	AtomicPageFlipAsync    = 0x02
 	AtomicTestOnly         = 0x0100
 	AtomicNonblock         = 0x0200
 	AtomicAllowModeset     = 0x0400

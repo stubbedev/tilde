@@ -174,7 +174,9 @@ rules:
 
 `app_id` and `title` are regular expressions ([RE2](https://github.com/google/re2/wiki/Syntax));
 a rule needs at least one. `float: true` or `tile: true` decides where a new
-window goes; `size: <w>x<h>` sizes it when it floats. Later rules override
+window goes; `size: <w>x<h>` sizes it when it floats. `tearing: true` or
+`tearing: false` overrides what the window asks for through
+`wp_tearing_control_v1` (see [tearing](#tearing)). Later rules override
 earlier ones.
 
 X11 windows match `app_id` against the class half of `WM_CLASS` (`Steam`,
@@ -221,6 +223,23 @@ scaled to 1.5 they look smaller unless they scale themselves (`GDK_SCALE`,
 Xwayland sees the logical layout and tilde stretches X windows, which keeps
 their size but blurs them on scaled outputs. Both settings are read at
 startup; a reload does not change them.
+
+## tearing
+
+```yaml
+tearing: true
+rules:
+  - {app_id: ^cs2$, tearing: true}
+```
+
+Off by default. With `tearing: true`, a window that fills an output and
+scans out directly is presented with an async page flip, so frames show the
+moment they are ready and may tear, when it asks for that through
+`wp_tearing_control_v1` (Mesa's Vulkan `IMMEDIATE` present mode does) or a
+rule says `tearing: true`. A rule with `tearing: false` keeps a window on
+vblank whatever it asks. Drivers without atomic async flips (Linux before
+6.8), and frames that change more than the buffer, flip at vblank as
+usual.
 
 ## gpu
 

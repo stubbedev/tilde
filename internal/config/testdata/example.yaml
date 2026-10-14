@@ -61,6 +61,11 @@ rules:
   - app_id: ^steam$
     title: ^Friends List$
     size: 400x900
+  - app_id: ^cs2$
+    tearing: true
+  - app_id: ^steam$
+    tearing: false
+tearing: true
 env:
   XDG_CURRENT_DESKTOP: Hyprland
 autostart:

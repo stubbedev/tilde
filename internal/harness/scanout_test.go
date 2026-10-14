@@ -35,9 +35,9 @@ type scanoutScene struct {
 	w *testclient.Window
 }
 
-func fullscreenScanout(t *testing.T) *scanoutScene {
+func fullscreenScanout(t *testing.T, configure func(*compositor.Config)) *scanoutScene {
 	t.Helper()
-	h := StartGLES(t, func(*compositor.Config) {}, small)
+	h := StartGLES(t, configure, small)
 	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
 		b.Outputs()[0].AllowScanout(primaryPlane)
 		return nil
@@ -69,7 +69,7 @@ func (s *scanoutScene) show(t *testing.T, name string, b *testclient.DMABUF) {
 }
 
 func TestFullscreenDMABUFsScanOutDirectly(t *testing.T) {
-	s := fullscreenScanout(t)
+	s := fullscreenScanout(t, func(*compositor.Config) {})
 	h, c := s.h, s.c
 	show := func(name string, b *testclient.DMABUF) { t.Helper(); s.show(t, name, b) }
 	first := c.DMABUF(image.Pt(160, 100), testclient.Fill(0xff, 0, 0))
@@ -95,7 +95,7 @@ func TestFullscreenDMABUFsScanOutDirectly(t *testing.T) {
 }
 
 func TestDestroyingAReplacedBufferStillOnScreenSendsNoRelease(t *testing.T) {
-	s := fullscreenScanout(t)
+	s := fullscreenScanout(t, func(*compositor.Config) {})
 	gone := s.c.DMABUF(image.Pt(160, 100), testclient.Fill(0, 0, 0xff))
 	s.show(t, "the dmabuf", gone)
 	next := s.c.DMABUF(image.Pt(160, 100), testclient.Fill(0xff, 0xff, 0))
@@ -112,7 +112,7 @@ func TestDestroyingAReplacedBufferStillOnScreenSendsNoRelease(t *testing.T) {
 }
 
 func TestAFullscreenSurfaceIsOfferedThePlaneFormats(t *testing.T) {
-	s := fullscreenScanout(t)
+	s := fullscreenScanout(t, func(*compositor.Config) {})
 	var game *surface.Surface
 	var got gpu.ScanoutTarget
 	s.h.Do(func(_ *headless.Backend, c *compositor.Compositor) error {

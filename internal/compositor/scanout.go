@@ -45,7 +45,7 @@ func (c *Compositor) scanout(o *output.Output, sc *scene, bounds image.Rectangle
 	if d.Size != bounds.Size() || op.src != (render.FRect{W: float64(d.Size.X), H: float64(d.Size.Y)}) || !slices.Contains(opaqueFormats, d.Format) {
 		return false, nil
 	}
-	shown, err := out.Scanout(d, func() error { return c.leftScreen(b) })
+	shown, err := out.Scanout(d, func() error { return c.leftScreen(b) }, c.tears(op.surface))
 	if err != nil || !shown {
 		return false, err
 	}

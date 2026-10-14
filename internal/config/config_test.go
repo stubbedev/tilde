@@ -67,8 +67,14 @@ func TestExampleConfig(t *testing.T) {
 	if len(cfg.Binds) != 5 || cfg.Binds[3].Submap != "resize" || !cfg.Binds[3].Flags.Repeating || cfg.Binds[3].Action != (wm.ResizeAction{DX: 10}) {
 		t.Errorf("binds %+v", cfg.Binds)
 	}
-	if d := wm.Decide(cfg.Rules, "steam", "Friends List"); d != (wm.Decision{Mode: wm.RuleFloat, Size: image.Pt(400, 900)}) {
+	if d := wm.Decide(cfg.Rules, "steam", "Friends List"); d != (wm.Decision{Mode: wm.RuleFloat, Size: image.Pt(400, 900), Tearing: wm.TearingDeny}) {
 		t.Errorf("rules decide %+v", d)
+	}
+	if d := wm.Decide(cfg.Rules, "cs2", "Counter-Strike 2"); d != (wm.Decision{Tearing: wm.TearingAllow}) {
+		t.Errorf("rules decide %+v for cs2", d)
+	}
+	if !cfg.Tearing {
+		t.Error("tearing: true left tearing off")
 	}
 	if !slices.Equal(cfg.Env, [][2]string{{"XDG_CURRENT_DESKTOP", "Hyprland"}, {"XDG_SESSION_TYPE", "wayland"}}) || !slices.Equal(cfg.Autostart, []string{"waybar"}) || cfg.Font != "/usr/share/fonts/DejaVuSans.ttf" {
 		t.Errorf("env %v autostart %v font %q", cfg.Env, cfg.Autostart, cfg.Font)
@@ -85,6 +91,9 @@ func TestEmptyConfigIsTheDefaults(t *testing.T) {
 	}
 	if !cfg.Xwayland || !cfg.ZeroScaling {
 		t.Fatal("Xwayland or its zero scaling is off by default")
+	}
+	if cfg.Tearing {
+		t.Fatal("tearing is on by default")
 	}
 	if cfg.GPU != "" {
 		t.Fatalf("a primary GPU %q chosen without config", cfg.GPU)

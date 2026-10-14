@@ -55,6 +55,8 @@ type fakeDevice struct {
 	connected     bool
 	refuseCursor  bool
 	refuseGamma   bool
+	refuseAsync   bool
+	asyncFlips    bool
 	commits       []commit
 	blobs         uint32
 	blobData      map[uint32][]byte
@@ -81,6 +83,11 @@ func (f *fakeDevice) Cap(c uint64) (uint64, error) {
 		return 64, nil
 	case kdrm.CapAddFB2Modifiers:
 		return 1, nil
+	case kdrm.CapAtomicAsyncFlip:
+		if f.asyncFlips {
+			return 1, nil
+		}
+		return 0, unix.EINVAL
 	}
 	return 0, fmt.Errorf("unknown cap %#x", c)
 }
@@ -224,7 +231,7 @@ func (f *fakeDevice) Commit(r *kdrm.Request, flags uint32, userData uint64) erro
 	c := commit{flags: flags, userData: userData, values: map[[2]uint32]uint64{}}
 	r.Each(func(object, property uint32, value uint64) { c.values[[2]uint32{object, property}] = value })
 	f.commits = append(f.commits, c)
-	if f.refuseCursor && c.values[[2]uint32{43, propFB}] != 0 || f.refuseGamma && c.values[[2]uint32{10, propGammaLUT}] != 0 {
+	if f.refuseCursor && c.values[[2]uint32{43, propFB}] != 0 || f.refuseGamma && c.values[[2]uint32{10, propGammaLUT}] != 0 || f.refuseAsync && flags&kdrm.AtomicPageFlipAsync != 0 {
 		return unix.EINVAL
 	}
 	return nil
@@ -838,7 +845,7 @@ func TestClientBuffersScanOutUntilTheNextFlip(t *testing.T) {
 	o := r.lit()
 	released := 0
 	client := gpu.DMABUF{Size: image.Pt(1920, 1080), Format: scanoutFormat, Modifier: gpu.ModifierLinear, Planes: []gpu.Plane{{FD: 7, Stride: 1920 * 4}}}
-	ok, err := o.Scanout(client, func() error { released++; return nil })
+	ok, err := o.Scanout(client, func() error { released++; return nil }, false)
 	if err != nil || !ok {
 		t.Fatalf("Scanout = %t, %v", ok, err)
 	}
@@ -847,7 +854,7 @@ func TestClientBuffersScanOutUntilTheNextFlip(t *testing.T) {
 	if shown.flags&kdrm.AtomicTestOnly != 0 || r.dev.scanouts[uint32(fb)] != primeHandles+7 {
 		t.Fatalf("the client buffer went out as framebuffer %d with flags %#x", fb, shown.flags)
 	}
-	if again, err := o.Scanout(client, func() error { return nil }); again || err != nil {
+	if again, err := o.Scanout(client, func() error { return nil }, false); again || err != nil {
 		t.Fatalf("a second scanout during the flip = %t, %v", again, err)
 	}
 	r.dev.flip(t, 10, 2)
@@ -864,7 +871,7 @@ func TestClientBuffersScanOutUntilTheNextFlip(t *testing.T) {
 	if released != 1 {
 		t.Fatalf("the client buffer was released %d times after a frame replaced it", released)
 	}
-	if ok, err := o.Scanout(gpu.DMABUF{Size: image.Pt(640, 480), Format: scanoutFormat}, func() error { return nil }); ok || err != nil {
+	if ok, err := o.Scanout(gpu.DMABUF{Size: image.Pt(640, 480), Format: scanoutFormat}, func() error { return nil }, false); ok || err != nil {
 		t.Fatalf("a buffer that does not fill the mode scanned out: %t, %v", ok, err)
 	}
 }
@@ -951,5 +958,49 @@ func TestGammaLUTsReachTheCRTC(t *testing.T) {
 	}
 	if err := o.SetGamma([]uint16{1, 2, 3}); err == nil {
 		t.Fatal("ramps of the wrong size were accepted")
+	}
+}
+
+func TestTearingScanoutsFlipAsync(t *testing.T) {
+	r := boot(t, func(d *fakeDevice) allocator {
+		d.asyncFlips = true
+		return &fakeAlloc{soft: soft.New()}
+	})
+	o := r.lit()
+	client := func(fd int) gpu.DMABUF {
+		return gpu.DMABUF{Size: image.Pt(1920, 1080), Format: scanoutFormat, Modifier: gpu.ModifierLinear, Planes: []gpu.Plane{{FD: fd, Stride: 1920 * 4}}}
+	}
+	scanout := func(fd int, tear bool) commit {
+		t.Helper()
+		if ok, err := o.Scanout(client(fd), func() error { return nil }, tear); err != nil || !ok {
+			t.Fatalf("Scanout = %t, %v", ok, err)
+		}
+		return r.dev.commits[len(r.dev.commits)-1]
+	}
+	torn := scanout(7, true)
+	if torn.flags != kdrm.AtomicNonblock|kdrm.AtomicPageFlipEvent|kdrm.AtomicPageFlipAsync {
+		t.Fatalf("a tearing scanout committed with flags %#x", torn.flags)
+	}
+	if len(torn.values) != 1 || r.dev.scanouts[uint32(torn.values[[2]uint32{40, propFB}])] != primeHandles+7 {
+		t.Fatalf("an async flip carried %v, want the primary plane's FB_ID alone", torn.values)
+	}
+	r.dev.flip(t, 10, 2)
+	r.settle()
+	if p := r.rec.presents[len(r.rec.presents)-1]; !p.Torn {
+		t.Fatalf("the async flip was presented as %+v, not torn", p)
+	}
+
+	if vsync := scanout(8, false); vsync.flags&kdrm.AtomicPageFlipAsync != 0 {
+		t.Fatal("a scanout that does not tear flipped async")
+	}
+	r.dev.flip(t, 10, 3)
+	r.settle()
+	if p := r.rec.presents[len(r.rec.presents)-1]; p.Torn {
+		t.Fatal("a vblank flip was presented as torn")
+	}
+
+	r.dev.refuseAsync = true
+	if refused := scanout(9, true); refused.flags&kdrm.AtomicPageFlipAsync != 0 || refused.values[[2]uint32{40, propSrcW}] == 0 {
+		t.Fatalf("an async flip the driver refuses did not fall back to a full vblank flip: %+v", refused)
 	}
 }

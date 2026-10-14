@@ -275,6 +275,7 @@ Everything lives under `internal/` except the commands.
 | `render/gles` | The GLES2 renderer (#34) |
 | `gpu` | purego bindings for EGL, GLES2 and GBM (#33) |
 | `surface` | `wl_compositor`, `wl_surface`, `wl_region`, `wl_subcompositor`, `wp_viewporter`, `wp_fractional_scale_v1`, `wp_presentation`: double-buffered state, a queue of content updates that apply in order once their gates open, subsurface trees, roles (#11, #19, #117) |
+| `tearingcontrol` | `wp_tearing_control_manager_v1`: the vsync or async presentation hint, which travels with its content update; with `tearing` on, a fullscreen direct scanout of a surface that asks or a rule allows goes out as an async page flip of the primary plane's `FB_ID` alone (#122) |
 | `fifo` | `wp_fifo_manager_v1`: a barrier an update sets when it applies and the next latching deadline clears, which a later update can wait for (#117) |
 | `committiming` | `wp_commit_timing_manager_v1`: an update waits until the next refresh of an output showing it would not present it before its target time (#117) |
 | `gammacontrol` | `zwlr_gamma_control_manager_v1`: one client per output sets its gamma ramps, which the drm backend tests and writes to the CRTC's `GAMMA_LUT`; the identity returns when the client lets go (#123) |

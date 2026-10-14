@@ -36,6 +36,7 @@ import (
 	"github.com/stubbedev/tilde/internal/singlepixel"
 	"github.com/stubbedev/tilde/internal/surface"
 	"github.com/stubbedev/tilde/internal/syncobj"
+	"github.com/stubbedev/tilde/internal/tearingcontrol"
 	"github.com/stubbedev/tilde/internal/wm"
 	"github.com/stubbedev/tilde/internal/xcursor"
 	"github.com/stubbedev/tilde/internal/xkb"
@@ -57,6 +58,7 @@ type Config struct {
 	Reload   func() error
 	Exit     func() error
 	SwitchVT func(vt uint32) error
+	Tearing  bool
 }
 
 type CursorConfig struct {
@@ -102,6 +104,8 @@ type Compositor struct {
 	alpha           *alphamodifier.Manager
 	fifo            *fifo.Manager
 	timing          *committiming.Manager
+	tearingHints    *tearingcontrol.Manager
+	tearing         bool
 	outputOverrides map[string]OutputRule
 	drm             *drm.Device
 	lidClosed       bool
@@ -201,7 +205,7 @@ func validate(cfg Config) (binds.Map, error) {
 func (c *Compositor) adopt(cfg Config, m binds.Map) {
 	c.cursors, c.settings, c.rules, c.decor, c.font = cfg.Cursor, cfg.WM, cfg.Rules, cfg.Decor, cfg.Font
 	c.report, c.seatConfig, c.outputRules, c.reload, c.exit, c.binds = cfg.Report, cfg.Seat, cfg.Outputs, cfg.Reload, cfg.Exit, m
-	c.switchVT = cfg.SwitchVT
+	c.switchVT, c.tearing = cfg.SwitchVT, cfg.Tearing
 }
 
 func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (*Compositor, error) {

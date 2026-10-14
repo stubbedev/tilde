@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/stubbedev/tilde/internal/backend"
 	kdrm "github.com/stubbedev/tilde/internal/drm"
 )
+
+var _ backend.Gamma = (*Output)(nil)
 
 type gamma struct {
 	current uint32

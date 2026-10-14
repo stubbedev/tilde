@@ -238,11 +238,15 @@ func (c *Compositor) Presented(b backend.Output, p backend.Presentation) error {
 		return nil
 	}
 	c.sceneOf(o).last = p
+	kind := spt.WpPresentationFeedbackKindVsync
+	if p.Torn {
+		kind = 0
+	}
 	var errs []error
 	for _, s := range c.shown[o] {
 		errs = append(errs,
 			s.Client().Sent(s.FrameDone(wire.Millis(p.Time))),
-			s.Client().Sent(s.Presented(o.Resources(s.Client()), p.Time, p.Refresh, p.Seq, spt.WpPresentationFeedbackKindVsync)))
+			s.Client().Sent(s.Presented(o.Resources(s.Client()), p.Time, p.Refresh, p.Seq, kind)))
 	}
 	return errors.Join(append(errs, c.timing.Presented())...)
 }

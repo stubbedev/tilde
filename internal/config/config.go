@@ -118,6 +118,7 @@ type rawConfig struct {
 	Autostart []At[string]          `yaml:"autostart"`
 	Xwayland  rawXwayland           `yaml:"xwayland"`
 	GPU       *At[string]           `yaml:"gpu"`
+	Tearing   bool                  `yaml:"tearing"`
 }
 
 type rawXwayland struct {
@@ -199,11 +200,12 @@ type rawBind struct {
 }
 
 type rawRule struct {
-	AppID *At[string] `yaml:"app_id"`
-	Title *At[string] `yaml:"title"`
-	Float bool        `yaml:"float"`
-	Tile  bool        `yaml:"tile"`
-	Size  *At[string] `yaml:"size"`
+	AppID   *At[string] `yaml:"app_id"`
+	Title   *At[string] `yaml:"title"`
+	Float   bool        `yaml:"float"`
+	Tile    bool        `yaml:"tile"`
+	Size    *At[string] `yaml:"size"`
+	Tearing *bool       `yaml:"tearing"`
 }
 
 type Error struct {
@@ -246,6 +248,7 @@ type Config struct {
 	Xwayland    bool
 	ZeroScaling bool
 	GPU         string
+	Tearing     bool
 }
 
 var mocha = map[string]render.Color{
@@ -524,6 +527,13 @@ func (p *parser) rule(i int, at At[rawRule]) wm.Rule {
 			rule.Size = size
 		}
 	}
+	switch {
+	case r.Tearing == nil:
+	case *r.Tearing:
+		rule.Tearing = wm.TearingAllow
+	default:
+		rule.Tearing = wm.TearingDeny
+	}
 	if rule.AppID == nil && rule.Title == nil {
 		p.fail(at.Line, key, "matches every window; give app_id or title")
 	}
@@ -582,6 +592,7 @@ func Parse(file string, data []byte) (Config, error) {
 		WM:          compositor.DefaultSettings(),
 		Xwayland:    raw.Xwayland.Enabled == nil || *raw.Xwayland.Enabled,
 		ZeroScaling: raw.Xwayland.ZeroScaling == nil || *raw.Xwayland.ZeroScaling,
+		Tearing:     raw.Tearing,
 	}
 	if raw.Tabs.Font != nil {
 		cfg.Font = raw.Tabs.Font.V
@@ -658,6 +669,6 @@ func (c Config) Compositor(keymap *xkb.Keymap, font *gtext.Typeface) (compositor
 	}
 	cfg := compositor.DefaultConfig(keymap, font)
 	cfg.Seat.RepeatRate, cfg.Seat.RepeatDelay = c.RepeatRate, c.RepeatDelay
-	cfg.WM, cfg.Binds, cfg.Decor, cfg.Rules, cfg.Outputs = c.WM, b, c.Decor, c.Rules, c.Outputs
+	cfg.WM, cfg.Binds, cfg.Decor, cfg.Rules, cfg.Outputs, cfg.Tearing = c.WM, b, c.Decor, c.Rules, c.Outputs, c.Tearing
 	return cfg, nil
 }

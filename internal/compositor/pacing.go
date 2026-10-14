@@ -10,6 +10,8 @@ import (
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/tilde/internal/tearingcontrol"
+	"github.com/stubbedev/tilde/internal/wm"
 )
 
 func (c *Compositor) addPacing(l *loop.Loop, display *server.Display) error {
@@ -17,8 +19,29 @@ func (c *Compositor) addPacing(l *loop.Loop, display *server.Display) error {
 	if c.fifo, err = fifo.New(display, c.showing); err != nil {
 		return err
 	}
-	c.timing, err = committiming.New(display, l, committiming.Clock{Now: backend.Now, NextFlip: c.nextFlip})
+	if c.timing, err = committiming.New(display, l, committiming.Clock{Now: backend.Now, NextFlip: c.nextFlip}); err != nil {
+		return err
+	}
+	c.tearingHints, err = tearingcontrol.New(display)
 	return err
+}
+
+func (c *Compositor) tears(s *surface.Surface) bool {
+	if !c.tearing {
+		return false
+	}
+	for _, w := range c.windows {
+		if w.top.Surface() == s {
+			switch wm.Decide(c.rules, w.top.AppID(), w.top.Title()).Tearing {
+			case wm.TearingAllow:
+				return true
+			case wm.TearingDeny:
+				return false
+			}
+			return c.tearingHints.Async(s)
+		}
+	}
+	return false
 }
 
 func (c *Compositor) showing(s *surface.Surface) bool {

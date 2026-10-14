@@ -251,6 +251,11 @@
       "package": "wlrgammacontrol",
       "source": "wlr-protocols",
       "path": "unstable/wlr-gamma-control-unstable-v1.xml"
+    },
+    {
+      "package": "tearingcontrol",
+      "source": "wayland-protocols",
+      "path": "staging/tearing-control/tearing-control-v1.xml"
     }
   ]
 }

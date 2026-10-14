@@ -74,12 +74,13 @@ type Presentation struct {
 	Time    time.Duration
 	Refresh time.Duration
 	Seq     uint64
+	Torn    bool
 }
 
 var ErrNoCursorPlanes = errors.New("backend: this backend draws the cursor in the frame")
 
 type Scanner interface {
-	Scanout(b gpu.DMABUF, release func() error) (bool, error)
+	Scanout(b gpu.DMABUF, release func() error, tear bool) (bool, error)
 	ScanoutFormats() gpu.ScanoutTarget
 }
 
