@@ -17,6 +17,7 @@ import (
 	"github.com/stubbedev/tilde/internal/dmabuf"
 	"github.com/stubbedev/tilde/internal/drm"
 	"github.com/stubbedev/tilde/internal/gpu"
+	"github.com/stubbedev/tilde/internal/idle"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/output"
 	"github.com/stubbedev/tilde/internal/outputpower"
@@ -136,6 +137,7 @@ type Compositor struct {
 	selectionWatch  func(data.Kind, data.Source) error
 	xwaylandClients func(*server.Client) bool
 	blanked         map[*output.Output]bool
+	idle            *idle.Manager
 	cursorGen       uint64
 	cursorOps       frame
 	cursorShown     []*surface.Surface
@@ -221,6 +223,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 	}
 	if err := c.explicitSync(l, display); err != nil {
 		return nil, errors.Join(err, c.Close())
+	}
+	if c.idle, err = idle.New(display, l, backend.Now, c.updateInhibition); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.data, err = data.New(display, c); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)

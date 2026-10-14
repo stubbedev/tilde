@@ -92,6 +92,11 @@ func (c *Compositor) onOutput(o backend.Output, x, y float64) (point, *output.Ou
 }
 
 func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
+	if _, lid := e.(backend.Switch); !lid {
+		if err := c.idle.Activity(); err != nil {
+			return err
+		}
+	}
 	switch e := e.(type) {
 	case backend.Key:
 		if bound, err := c.bindKey(e.Code, e.Pressed); bound || err != nil {

@@ -24,7 +24,18 @@ func (c *Compositor) Frame(b backend.Output) error {
 	if err := c.render(o); err != nil {
 		return fmt.Errorf("compositor: frame on %s: %w", b.Name(), err)
 	}
-	return c.updateEntered(o)
+	return errors.Join(c.updateEntered(o), c.updateInhibition())
+}
+
+func (c *Compositor) updateInhibition() error {
+	for _, i := range c.idle.Inhibitors() {
+		for _, shown := range c.shown {
+			if slices.Contains(shown, i.Surface()) {
+				return c.idle.SetInhibited(true)
+			}
+		}
+	}
+	return c.idle.SetInhibited(false)
 }
 
 func (c *Compositor) sceneOf(o *output.Output) *scene {
