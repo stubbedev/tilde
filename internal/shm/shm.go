@@ -97,6 +97,7 @@ type pool struct {
 	resource *sw.WlShmPool
 	fd       int
 	mapping  []byte
+	writable []byte
 	refs     int
 }
 
@@ -105,7 +106,7 @@ func (p *pool) unref() error {
 	if p.refs > 0 {
 		return nil
 	}
-	errs := []error{unix.Munmap(p.mapping), unix.Close(p.fd)}
+	errs := []error{unix.Munmap(p.mapping), p.dropWritable(), unix.Close(p.fd)}
 	p.mapping, p.fd = nil, -1
 	if err := errors.Join(errs...); err != nil {
 		return fmt.Errorf("shm: release pool: %w", err)
@@ -142,11 +143,32 @@ func (p *pool) Resize(obj *sw.WlShmPool, size int32) error {
 	if err != nil {
 		return shmError(obj, sw.WlShmErrorInvalidFD, "cannot map the pool at %d bytes: %v", size, err)
 	}
-	if err := unix.Munmap(p.mapping); err != nil {
+	if err := errors.Join(unix.Munmap(p.mapping), p.dropWritable()); err != nil {
 		return fmt.Errorf("shm: unmap the old pool mapping: %w", err)
 	}
 	p.mapping = mapping
 	return nil
+}
+
+func (p *pool) dropWritable() error {
+	if p.writable == nil {
+		return nil
+	}
+	err := unix.Munmap(p.writable)
+	p.writable = nil
+	return err
+}
+
+func (p *pool) writableMapping() ([]byte, error) {
+	if p.writable != nil {
+		return p.writable, nil
+	}
+	m, err := unix.Mmap(p.fd, 0, len(p.mapping), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	if err != nil {
+		return nil, fmt.Errorf("shm: map the pool for writing: %w", err)
+	}
+	p.writable = m
+	return m, nil
 }
 
 type Buffer struct {
@@ -174,7 +196,19 @@ func (b *Buffer) Release() error {
 	return b.resource.SendRelease()
 }
 
+func (b *Buffer) Write(f func(data []byte, stride int) error) (err error) {
+	m, err := b.pool.writableMapping()
+	if err != nil {
+		return err
+	}
+	return b.guard(m, f)
+}
+
 func (b *Buffer) Read(f func(data []byte, stride int) error) (err error) {
+	return b.guard(b.pool.mapping, f)
+}
+
+func (b *Buffer) guard(mapping []byte, f func(data []byte, stride int) error) (err error) {
 	old := debug.SetPanicOnFault(true)
 	defer debug.SetPanicOnFault(old)
 	defer func() {
@@ -186,5 +220,5 @@ func (b *Buffer) Read(f func(data []byte, stride int) error) (err error) {
 			err = shmError(b.resource, sw.WlShmErrorInvalidFD, "error accessing the buffer's pool at %#x: the client shrank its file", fault.Addr())
 		}
 	}()
-	return f(b.pool.mapping[b.offset:b.offset+b.stride*b.size.Y], b.stride)
+	return f(mapping[b.offset:b.offset+b.stride*b.size.Y], b.stride)
 }
