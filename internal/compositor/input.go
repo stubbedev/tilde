@@ -124,7 +124,7 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 		}
 		return c.moveCursor(e.Time, p)
 	case backend.PointerButton:
-		if c.drag != nil {
+		if c.pointerDrag() {
 			if e.Pressed {
 				return nil
 			}
@@ -184,27 +184,45 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 		if s == nil {
 			return nil
 		}
-		c.touches[e.ID] = out
+		c.touches[e.ID] = touchAt{output: out, at: p}
 		return c.seat.TouchDown(e.Time, e.ID, s, local.X, local.Y)
 	case backend.TouchMotion:
-		out, ok := c.touches[e.ID]
+		t, ok := c.touches[e.ID]
+		if !ok {
+			return nil
+		}
+		r := t.output.Logical()
+		t.at = point{float64(r.Min.X) + e.X*float64(r.Dx()), float64(r.Min.Y) + e.Y*float64(r.Dy())}
+		c.touches[e.ID] = t
+		if c.touchDrag(e.ID) {
+			return errors.Join(c.dragMotion(e.Time), c.scheduleAll())
+		}
 		s := c.seat.TouchSurface(e.ID)
-		if !ok || s == nil {
+		if s == nil {
 			return nil
 		}
 		org, found := c.originOf(s)
 		if !found {
 			return nil
 		}
-		r := out.Logical()
-		local := org.local(point{float64(r.Min.X) + e.X*float64(r.Dx()), float64(r.Min.Y) + e.Y*float64(r.Dy())})
+		local := org.local(t.at)
 		return c.seat.TouchMotion(e.Time, e.ID, local.X, local.Y)
 	case backend.TouchUp:
+		if c.touchDrag(e.ID) {
+			c.seat.DropTouch(e.ID)
+			err := c.drag.Drop()
+			delete(c.touches, e.ID)
+			return err
+		}
 		delete(c.touches, e.ID)
 		return c.seat.TouchUp(e.Time, e.ID)
 	case backend.TouchCancel:
+		var err error
+		if c.drag != nil && c.dragBy.touch {
+			err = c.drag.Cancel()
+		}
 		clear(c.touches)
-		return c.seat.TouchCancel()
+		return errors.Join(err, c.seat.TouchCancel())
 	case backend.TouchFrame:
 		return c.seat.TouchFrame()
 	case backend.Switch:
@@ -230,7 +248,7 @@ func (c *Compositor) pointerMoved(at time.Duration) error {
 	if c.interaction != nil {
 		return errors.Join(c.dragMoved(), c.scheduleAll())
 	}
-	if c.drag != nil {
+	if c.pointerDrag() {
 		return errors.Join(c.dragMotion(at), c.scheduleAll())
 	}
 	if f := c.seat.PointerFocus(); f != nil && c.seat.PointerGrabbed() {
@@ -264,7 +282,7 @@ func (c *Compositor) refreshPointer() error {
 	if c.interaction != nil {
 		return nil
 	}
-	if c.drag != nil {
+	if c.pointerDrag() {
 		return c.dragMotion(backend.Now())
 	}
 	if c.seat.PointerGrabbed() {

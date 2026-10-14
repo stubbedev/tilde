@@ -4,6 +4,7 @@ import (
 	"errors"
 	"image"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stubbedev/tilde/internal/backend/headless"
@@ -171,6 +172,61 @@ func TestDragAndDropBetweenClients(t *testing.T) {
 		t.Fatalf("source events %v", dragged.Log)
 	}
 	zone.seen(t, "the pointer back on the zone", func() bool { return slices.Contains(zone.in.Log, "enter zone 20,10") })
+}
+
+func TestDragAndDropStartedByTouch(t *testing.T) {
+	h := Start(t, small)
+	a := join(t, h, "a")
+	zone := dropZone(t, h)
+	touch := func(f func(t *headless.Touch, o *headless.Output) error) {
+		h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+			return errors.Join(f(b.Touch(), b.Outputs()[0]), b.Touch().Frame())
+		})
+	}
+	touch(func(t *headless.Touch, o *headless.Output) error { return t.Down(3, o, 20.0/160, 50.0/100) })
+	a.seen(t, "the touch down on a", func() bool { return slices.Contains(a.in.Log, "down 3 a 20,50") })
+	dragged := a.c.DataSource(map[string]string{"text/uri-list": "file:///tmp/t"})
+	icon := a.c.Surface()
+	if err := errors.Join(
+		dragged.Data.SetActions(cw.WlDataDeviceManagerDndActionCopy),
+		a.cb.Device.StartDrag(dragged.Data, a.w.Surface, icon, a.in.Press),
+		icon.Attach(a.c.Buffer(image.Pt(6, 6), 0, testclient.Fill(0x80, 0x80, 0x80)), 0, 0),
+		icon.Commit(),
+	); err != nil {
+		t.Fatal(err)
+	}
+	a.seen(t, "the drag entering a", func() bool { return a.cb.Drag != nil })
+	h.Eventually("the drag icon at the touch point", showing(22, 52, gray))
+
+	touch(func(t *headless.Touch, _ *headless.Output) error { return t.Motion(3, 140.0/160, 10.0/100) })
+	zone.seen(t, "the drag entering the zone", func() bool { return zone.cb.Drag != nil })
+	h.Eventually("the drag icon following the touch point", showing(142, 12, gray))
+	mime := "text/uri-list"
+	if err := errors.Join(
+		zone.cb.Drag.Data.Accept(zone.cb.Serial, &mime),
+		zone.cb.Drag.Data.SetActions(cw.WlDataDeviceManagerDndActionCopy, cw.WlDataDeviceManagerDndActionCopy),
+		zone.c.Display.Flush(),
+	); err != nil {
+		t.Fatal(err)
+	}
+	a.seen(t, "the source told the target", func() bool { return slices.Contains(dragged.Log, "target text/uri-list") })
+	touch(func(t *headless.Touch, _ *headless.Output) error { return t.Up(3) })
+	zone.seen(t, "the drop", func() bool { return slices.Contains(zone.cb.Log, "drop") })
+	got := zone.c.Receive(func(fd int) error { return zone.cb.Drag.Data.Receive(mime, fd) }, a.c)
+	if got != "file:///tmp/t" {
+		t.Fatalf("dropped %q", got)
+	}
+	if slices.ContainsFunc(a.in.Log, func(e string) bool { return strings.HasPrefix(e, "touch_motion 3") || e == "up 3" }) {
+		t.Fatalf("the origin saw the touch point after the drag took it: %v", a.in.Log)
+	}
+
+	touch(func(t *headless.Touch, o *headless.Output) error { return t.Down(4, o, 20.0/160, 50.0/100) })
+	a.seen(t, "a second touch down on a", func() bool { return slices.Contains(a.in.Log, "down 4 a 20,50") })
+	stale := a.c.DataSource(map[string]string{"text/plain": "x"})
+	if err := a.cb.Device.StartDrag(stale.Data, a.w.Surface, nil, a.in.Press-1); err != nil {
+		t.Fatal(err)
+	}
+	a.seen(t, "a drag with another serial refused", func() bool { return slices.Contains(stale.Log, "cancelled") })
 }
 
 func TestDragWithoutATakerIsCancelled(t *testing.T) {

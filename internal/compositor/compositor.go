@@ -124,12 +124,13 @@ type Compositor struct {
 	layers          []*layer
 	data            *data.Manager
 	drag            *data.Drag
+	dragBy          dragInput
 	usable          map[*output.Output]image.Rectangle
 	layerFocus      *shell.LayerSurface
 	shown           map[*output.Output][]*surface.Surface
 	entered         []*entered
 	cursor          point
-	touches         map[int32]*output.Output
+	touches         map[int32]touchAt
 	cursors         CursorConfig
 	pointers        map[cursorKey]*cursorTexture
 	hwCursors       map[*output.Output]*hwCursor
@@ -194,7 +195,7 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		textures:      map[*surface.Surface]*texture{},
 		imported:      map[*dmabuf.Buffer]render.Texture{},
 		shown:         map[*output.Output][]*surface.Surface{},
-		touches:       map[int32]*output.Output{},
+		touches:       map[int32]touchAt{},
 		labels:        map[*output.Output]map[labelKey]*label{},
 		scenes:        map[*output.Output]*scene{},
 		loop:          l,

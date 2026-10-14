@@ -14,6 +14,7 @@ import (
 type touchPoint struct {
 	id      int32
 	surface *surface.Surface
+	serial  uint32
 }
 
 type touchState struct {
@@ -28,6 +29,19 @@ func (s *Seat) TouchSurface(id int32) *surface.Surface {
 		}
 	}
 	return nil
+}
+
+func (s *Seat) TouchBySerial(target *surface.Surface, serial uint32) (int32, bool) {
+	for _, p := range s.touch.points {
+		if p.surface == target && p.serial == serial {
+			return p.id, true
+		}
+	}
+	return 0, false
+}
+
+func (s *Seat) DropTouch(id int32) {
+	s.touch.points = slices.DeleteFunc(s.touch.points, func(p touchPoint) bool { return p.id == id })
 }
 
 func (s *Seat) touchesOf(target *surface.Surface) (*server.Client, []*sw.WlTouch) {
@@ -45,9 +59,9 @@ func (s *Seat) TouchDown(at time.Duration, id int32, target *surface.Surface, x,
 	if s.TouchSurface(id) != nil {
 		return nil
 	}
-	s.touch.points = append(s.touch.points, touchPoint{id: id, surface: target})
 	c, touches := s.touchesOf(target)
 	serial := s.eventSerial(c, true)
+	s.touch.points = append(s.touch.points, touchPoint{id: id, surface: target, serial: serial})
 	var errs []error
 	for _, t := range touches {
 		errs = append(errs, c.Sent(t.SendDown(serial, wire.Millis(at), target.Resource(), id, wire.FixedFromFloat(x), wire.FixedFromFloat(y))))
@@ -73,7 +87,7 @@ func (s *Seat) TouchUp(at time.Duration, id int32) error {
 	if target == nil {
 		return nil
 	}
-	s.touch.points = slices.DeleteFunc(s.touch.points, func(p touchPoint) bool { return p.id == id })
+	s.DropTouch(id)
 	c, touches := s.touchesOf(target)
 	var errs []error
 	for _, t := range touches {

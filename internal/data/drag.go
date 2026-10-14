@@ -19,6 +19,7 @@ type Drag struct {
 	client     *server.Client
 	source     *dataSource
 	origin     *surface.Surface
+	serial     uint32
 	icon       *surface.Surface
 	iconOffset image.Point
 	focus      *surface.Surface
@@ -41,13 +42,13 @@ func (i dragIcon) Committed(s *surface.Surface) error {
 	return nil
 }
 
-func (m *Manager) startDrag(dev *sw.WlDataDevice, s *dataSource, origin, icon *surface.Surface) error {
+func (m *Manager) startDrag(dev *sw.WlDataDevice, s *dataSource, origin, icon *surface.Surface, serial uint32) error {
 	if old := m.drag; old != nil && !old.dropped {
-		if err := old.cancel(); err != nil {
+		if err := old.Cancel(); err != nil {
 			return err
 		}
 	}
-	d := &Drag{m: m, client: origin.Client(), source: s, origin: origin, icon: icon}
+	d := &Drag{m: m, client: origin.Client(), source: s, origin: origin, serial: serial, icon: icon}
 	if icon != nil {
 		if err := icon.SetRole(dragIcon{d}); err != nil {
 			return dev.ProtocolError(sw.WlDataDeviceErrorRole, err.Error())
@@ -72,6 +73,10 @@ func (d *Drag) Icon() (*surface.Surface, image.Point) {
 
 func (d *Drag) Origin() *surface.Surface {
 	return d.origin
+}
+
+func (d *Drag) Serial() uint32 {
+	return d.serial
 }
 
 func (d *Drag) Active() bool {
@@ -243,7 +248,7 @@ func (d *Drag) Drop() error {
 	}
 	o := d.acceptedOffer()
 	if o == nil {
-		return d.cancel()
+		return d.Cancel()
 	}
 	d.dropped, d.offer = true, o
 	var errs []error
@@ -274,7 +279,7 @@ func (d *Drag) release() {
 	}
 }
 
-func (d *Drag) cancel() error {
+func (d *Drag) Cancel() error {
 	if d.done {
 		return nil
 	}

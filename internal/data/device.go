@@ -108,7 +108,7 @@ func (s *dataSource) destroy() error {
 	s.destroyed = true
 	errs := []error{s.m.sourceGone(s)}
 	if d := s.m.drag; d != nil && d.source == s {
-		errs = append(errs, d.cancel())
+		errs = append(errs, d.Cancel())
 	}
 	return errors.Join(errs...)
 }
@@ -181,7 +181,7 @@ func (d dataDevice) StartDrag(obj *sw.WlDataDevice, res *sw.WlDataSource, origin
 		}
 		return nil
 	}
-	return d.m.startDrag(obj, s, from, iconSurface)
+	return d.m.startDrag(obj, s, from, iconSurface, serial)
 }
 
 type dataOffer struct {
@@ -261,5 +261,5 @@ func (o *dataOffer) Destroy(*sw.WlDataOffer) error {
 	if o.resource.Base().Version() < 3 {
 		return d.finish()
 	}
-	return d.cancel()
+	return d.Cancel()
 }
