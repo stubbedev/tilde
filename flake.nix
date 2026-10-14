@@ -36,6 +36,10 @@
         };
 
         checks = {
+          vm = import ./nix/vm.nix {
+            inherit pkgs;
+            module = self.nixosModules.default;
+          };
           headless = pkgs.callPackage ./nix/headless.nix {
             tilde = self.packages.${system}.tilde;
             gelm = gelm.packages.${system}.gelm;

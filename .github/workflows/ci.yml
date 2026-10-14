@@ -34,3 +34,16 @@ jobs:
         run: devenv test
       - name: Nix package and NixOS module
         run: nix build -L . .#checks.x86_64-linux.module
+
+  vm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: NixOS VM with the native DRM backend
+        run: nix build -L .#checks.x86_64-linux.vm

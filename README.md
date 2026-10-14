@@ -87,4 +87,6 @@ just gates     # every gate CI runs: format, lint, tests, headless harness, race
 the package (`nix build`) and provides the NixOS module; `nix flake check`
 evaluates the module and runs the headless suite (`just headless`) in the
 build sandbox, with the same environment the dev shell sets
-(`nix/test-env.nix`).
+(`nix/test-env.nix`). `checks.vm` boots the NixOS module in a VM with a
+virtio-gpu card, where greetd starts `tilde --systemd` on the native DRM
+backend; it needs KVM and runs as its own CI job.
