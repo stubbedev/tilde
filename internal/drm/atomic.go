@@ -59,3 +59,9 @@ func (d *Device) Commit(r *Request, flags uint32, userData uint64) error {
 	pin.Unpin()
 	return err
 }
+
+func (r *Request) Each(f func(object, property uint32, value uint64)) {
+	for _, e := range r.entries {
+		f(e.object, e.property, e.value)
+	}
+}

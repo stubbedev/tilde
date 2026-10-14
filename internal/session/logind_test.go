@@ -195,8 +195,8 @@ func TestLogindSession(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	if !lg.Active() {
-		t.Fatal("the session is not active")
+	if !lg.Active() || lg.Seat() != "seat0" {
+		t.Fatalf("active %v on seat %q", lg.Active(), lg.Seat())
 	}
 	fd, dev, err := lg.TakeDevice(os.DevNull)
 	if err != nil || fd < 0 || dev != (Device{Major: 1, Minor: 3}) {

@@ -53,6 +53,10 @@ func Open(path string) (*Device, error) {
 	return &Device{fd: fd, path: path}, nil
 }
 
+func FromFD(fd int, path string) *Device {
+	return &Device{fd: fd, path: path}
+}
+
 func (d *Device) Close() error {
 	if err := unix.Close(d.fd); err != nil {
 		return fmt.Errorf("drm: close %s: %w", d.path, err)

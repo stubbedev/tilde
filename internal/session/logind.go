@@ -56,6 +56,7 @@ type Logind struct {
 	signals  chan *dbus.Signal
 	done     chan struct{}
 	active   bool
+	seatID   string
 }
 
 func SystemBus(getenv func(string) string) string {
@@ -100,7 +101,7 @@ func Open(l *loop.Loop, address string, getenv func(string) string, listener Lis
 	if err := lg.property(lg.session, sessionIface, "Seat", &seat); err != nil {
 		return nil, err
 	}
-	lg.seat = conn.Object(login1, seat.Path)
+	lg.seat, lg.seatID = conn.Object(login1, seat.Path), seat.ID
 	if err := lg.property(lg.session, sessionIface, "Active", &lg.active); err != nil {
 		return nil, err
 	}
@@ -129,6 +130,10 @@ func (lg *Logind) property(obj dbus.BusObject, iface, name string, out any) erro
 		return fmt.Errorf("session: decode %s.%s: %w", iface, name, err)
 	}
 	return nil
+}
+
+func (lg *Logind) Seat() string {
+	return lg.seatID
 }
 
 func (lg *Logind) Active() bool {

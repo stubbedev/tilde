@@ -31,35 +31,44 @@ func TestParseDebug(t *testing.T) {
 
 func TestChooseBackend(t *testing.T) {
 	cases := []struct {
-		requested, display, want string
+		requested, display string
+		want               backendKind
 	}{
-		{"", "wayland-1", "nested"},
-		{"", "", "headless"},
-		{"headless", "wayland-1", "headless"},
-		{"nested", "", "nested"},
+		{"", "wayland-1", nestedBackend},
+		{"", "", drmBackend},
+		{"headless", "wayland-1", headlessBackend},
+		{"nested", "", nestedBackend},
+		{"drm", "wayland-1", drmBackend},
 	}
 	for _, c := range cases {
 		if got, err := chooseBackend(c.requested, c.display); err != nil || got != c.want {
-			t.Errorf("chooseBackend(%q, %q) = %q, %v; want %q", c.requested, c.display, got, err, c.want)
+			t.Errorf("chooseBackend(%q, %q) = %v, %v; want %v", c.requested, c.display, got, err, c.want)
 		}
 	}
-	if _, err := chooseBackend("drm", ""); err == nil {
+	if _, err := chooseBackend("vnc", ""); err == nil {
 		t.Error("an unknown backend was accepted")
+	}
+	if drmBackend.String() != "drm" {
+		t.Errorf("drm backend is called %q", drmBackend)
 	}
 }
 
 func TestChooseRenderer(t *testing.T) {
 	for _, c := range []struct {
-		requested, backend string
-		want               rendererKind
-	}{{"", "nested", glesRenderer}, {"", "headless", softRenderer}, {"soft", "nested", softRenderer}, {"gles", "headless", glesRenderer}} {
+		requested string
+		backend   backendKind
+		want      rendererKind
+	}{{"", nestedBackend, glesRenderer}, {"", headlessBackend, softRenderer}, {"", drmBackend, glesRenderer}, {"soft", nestedBackend, softRenderer}, {"gles", headlessBackend, glesRenderer}} {
 		if got, err := chooseRenderer(c.requested, c.backend); err != nil || got != c.want {
-			t.Errorf("chooseRenderer(%q, %q) = %v, %v; want %v", c.requested, c.backend, got, err, c.want)
+			t.Errorf("chooseRenderer(%q, %v) = %v, %v; want %v", c.requested, c.backend, got, err, c.want)
 		}
 	}
-	for _, c := range [][2]string{{"vulkan", "nested"}} {
-		if _, err := chooseRenderer(c[0], c[1]); err == nil {
-			t.Errorf("chooseRenderer(%q, %q) succeeded", c[0], c[1])
+	for _, c := range []struct {
+		requested string
+		backend   backendKind
+	}{{"vulkan", nestedBackend}, {"soft", drmBackend}} {
+		if _, err := chooseRenderer(c.requested, c.backend); err == nil {
+			t.Errorf("chooseRenderer(%q, %v) succeeded", c.requested, c.backend)
 		}
 	}
 }

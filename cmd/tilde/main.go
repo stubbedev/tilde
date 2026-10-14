@@ -60,17 +60,36 @@ func parseDebug(s string) (debug, error) {
 
 var headlessMode = backend.Mode{Size: image.Pt(1920, 1080), RefreshMHz: 60000, Preferred: true}
 
-func chooseBackend(requested, waylandDisplay string) (string, error) {
-	switch requested {
-	case "":
-		if waylandDisplay != "" {
-			return "nested", nil
+type backendKind uint8
+
+const (
+	nestedBackend backendKind = iota + 1
+	headlessBackend
+	drmBackend
+)
+
+var backendNames = map[string]backendKind{"nested": nestedBackend, "headless": headlessBackend, "drm": drmBackend}
+
+func (k backendKind) String() string {
+	for name, kind := range backendNames {
+		if kind == k {
+			return name
 		}
-		return "headless", nil
-	case "nested", "headless":
-		return requested, nil
 	}
-	return "", fmt.Errorf("unknown backend %q (available: nested, headless)", requested)
+	return fmt.Sprintf("backend%d", k)
+}
+
+func chooseBackend(requested, waylandDisplay string) (backendKind, error) {
+	if requested == "" {
+		if waylandDisplay != "" {
+			return nestedBackend, nil
+		}
+		return drmBackend, nil
+	}
+	if k, ok := backendNames[requested]; ok {
+		return k, nil
+	}
+	return 0, fmt.Errorf("unknown backend %q (available: drm, nested, headless)", requested)
 }
 
 type rendererKind uint8
@@ -80,14 +99,17 @@ const (
 	glesRenderer
 )
 
-func chooseRenderer(requested, backendName string) (rendererKind, error) {
+func chooseRenderer(requested string, kind backendKind) (rendererKind, error) {
 	switch requested {
 	case "":
-		if backendName == "nested" {
-			return glesRenderer, nil
+		if kind == headlessBackend {
+			return softRenderer, nil
 		}
-		return softRenderer, nil
+		return glesRenderer, nil
 	case "soft":
+		if kind == drmBackend {
+			return 0, errors.New("the drm backend renders with GLES")
+		}
 		return softRenderer, nil
 	case "gles":
 		return glesRenderer, nil
@@ -102,7 +124,24 @@ func openHeadless(l *loop.Loop, renderer rendererKind, paths gpu.Paths) (*headle
 	return headless.New(l), nil
 }
 
-func openBackend(name string, renderer rendererKind, l *loop.Loop) (backend.Backend, error) {
+type opened struct {
+	backend.Backend
+	switchVT func(vt uint32) error
+}
+
+func openBackend(kind backendKind, renderer rendererKind, l *loop.Loop) (opened, error) {
+	if kind == drmBackend {
+		n, err := openNative(l, os.Getenv)
+		if err != nil {
+			return opened{}, err
+		}
+		return opened{Backend: n, switchVT: n.logind.SwitchTo}, nil
+	}
+	b, err := openOther(kind, renderer, l)
+	return opened{Backend: b}, err
+}
+
+func openOther(kind backendKind, renderer rendererKind, l *loop.Loop) (backend.Backend, error) {
 	paths := gpu.PathsFromEnv(os.Getenv)
 	hint := func(err error) error {
 		if err != nil && renderer == glesRenderer {
@@ -110,7 +149,7 @@ func openBackend(name string, renderer rendererKind, l *loop.Loop) (backend.Back
 		}
 		return err
 	}
-	if name == "nested" {
+	if kind == nestedBackend {
 		host, err := wlclient.SocketPath(os.Getenv)
 		if err != nil {
 			return nil, err
@@ -234,13 +273,13 @@ func sessionVars(env [][2]string, getenv func(string) string) [][2]string {
 	return out
 }
 
-type session struct {
+type reloader struct {
 	source
 	comp   *compositor.Compositor
 	keymap *xkb.Keymap
 }
 
-func (s *session) reload() error {
+func (s *reloader) reload() error {
 	next, err := s.load()
 	if err != nil {
 		return err
@@ -281,15 +320,15 @@ func run(args []string) (err error) {
 	path := flags.String("config", "", "config file (default: $XDG_CONFIG_HOME/tilde/config.yaml)")
 	withSystemd := flags.Bool("systemd", false, "export the session environment to D-Bus activation and the systemd user manager, and run "+systemd.Target+" while tilde runs")
 	rendererName := flags.String("renderer", "", "gles or soft (default: gles for the nested backend, soft for headless)")
-	requested := flags.String("backend", "", "output and input backend: nested or headless (default: nested when WAYLAND_DISPLAY is set, else headless)")
+	requested := flags.String("backend", "", "output and input backend: drm, nested or headless (default: nested when WAYLAND_DISPLAY is set, else drm)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	backendName, err := chooseBackend(*requested, os.Getenv("WAYLAND_DISPLAY"))
+	kind, err := chooseBackend(*requested, os.Getenv("WAYLAND_DISPLAY"))
 	if err != nil {
 		return err
 	}
-	renderer, err := chooseRenderer(*rendererName, backendName)
+	renderer, err := chooseRenderer(*rendererName, kind)
 	if err != nil {
 		return err
 	}
@@ -310,7 +349,7 @@ func run(args []string) (err error) {
 	if err != nil {
 		return err
 	}
-	s := &session{path: *path, explicit: *path != "", lib: lib, cursor: cursor, getenv: os.Getenv}
+	s := &reloader{path: *path, explicit: *path != "", lib: lib, cursor: cursor, getenv: os.Getenv}
 	if !s.explicit {
 		if s.path, err = configPath(os.Getenv); err != nil {
 			return err
@@ -346,10 +385,11 @@ func run(args []string) (err error) {
 	}, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP); err != nil {
 		return err
 	}
-	b, err := openBackend(backendName, renderer, l)
+	b, err := openBackend(kind, renderer, l)
 	if err != nil {
 		return err
 	}
+	cfg.SwitchVT = b.switchVT
 	defer func() { err = errors.Join(err, b.Close()) }()
 	display, err := server.New(l, server.Options{RuntimeDir: os.Getenv("XDG_RUNTIME_DIR"), Trace: trace})
 	if err != nil {
@@ -388,7 +428,7 @@ func run(args []string) (err error) {
 			cfg.Report(fmt.Errorf("autostart: %w", err))
 		}
 	}
-	fmt.Fprintf(os.Stderr, "tilde: listening on %s with the %s backend\n", display.Name(), backendName)
+	fmt.Fprintf(os.Stderr, "tilde: listening on %s with the %s backend\n", display.Name(), kind)
 	if err := l.Run(); !errors.Is(err, nested.ErrClosed) {
 		return err
 	}
