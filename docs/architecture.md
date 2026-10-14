@@ -145,6 +145,16 @@ own goroutine and reaches compositor state only by posting to the loop.
 `xwayland_shell_v1` is visible to the Xwayland client alone and maps the
 `WL_SURFACE_SERIAL` of each X window to its `wl_surface` on commit.
 
+`CLIPBOARD` and `PRIMARY` are bridged both ways (#46). When a Wayland client
+sets a selection, the window manager takes the X selection with targets
+interned from the offered mime types (`text/plain;charset=utf-8` is
+`UTF8_STRING`, `text/plain` is `TEXT`, other types keep their name) and
+answers X requests by reading the Wayland source. When an X client that has
+focus takes a selection, XFixes reports it, the window manager reads its
+`TARGETS` and offers the matching mime types as a Wayland source. Transfers
+larger than 64 KiB use INCR in both directions, and every pipe has a 30
+second deadline. Drag and drop between X and Wayland is not bridged.
+
 ## IPC
 
 `tildectl`, bars and scripts talk to tilde over a Unix socket at

@@ -19,6 +19,7 @@ import (
 	"github.com/jezek/xgb/xproto"
 	"golang.org/x/sys/unix"
 
+	"github.com/stubbedev/tilde/internal/data"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/surface"
@@ -307,10 +308,29 @@ func (s *Server) manage(p *process, conn net.Conn) {
 			c.x.Close()
 			return nil
 		}
-		p.wm = &wm{x: c.x, root: c.root, atoms: c.atoms, windows: map[xproto.Window]*Window{}, shell: s.shell, listener: s.opts.Listener}
-		return nil
+		m := &wm{
+			x: c.x, root: c.root, sel: c.sel, atoms: c.atoms, windows: map[xproto.Window]*Window{}, shell: s.shell,
+			listener: s.opts.Listener, client: p.client, outgoing: map[outKey]*outgoing{},
+			post: func(f func() error) { _ = s.loop.Post(f) },
+		}
+		for _, k := range []data.Kind{data.Clipboard, data.Primary} {
+			m.selections[k] = &selection{kind: k, atom: c.atoms[[]string{"CLIPBOARD", "PRIMARY"}[k]]}
+		}
+		p.wm = m
+		var errs []error
+		for _, k := range []data.Kind{data.Clipboard, data.Primary} {
+			errs = append(errs, m.selectionChanged(k, s.opts.Listener.CurrentSelection(k)))
+		}
+		return errors.Join(errs...)
 	})
 	c.run()
+}
+
+func (s *Server) SelectionChanged(k data.Kind, src data.Source) error {
+	if s.proc == nil || s.proc.wm == nil {
+		return nil
+	}
+	return s.proc.wm.selectionChanged(k, src)
 }
 
 func (s *Server) associated(serial uint64, sf *surface.Surface) error {

@@ -426,6 +426,7 @@ func run(args []string) (err error) {
 			return fmt.Errorf("%w (or turn it off with xwayland.enabled: false)", err)
 		}
 		defer func() { err = errors.Join(err, xw.Close()) }()
+		s.comp.WatchSelection(xw.SelectionChanged)
 		exports = append(exports, [2]string{"DISPLAY", xw.Display()})
 	}
 	for _, kv := range exports {

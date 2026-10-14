@@ -10,6 +10,8 @@ import (
 	"github.com/jezek/xgb"
 	"github.com/jezek/xgb/xproto"
 
+	"github.com/stubbedev/tilde/internal/data"
+	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/surface"
 )
 
@@ -18,6 +20,8 @@ type Listener interface {
 	XWindowUnmapped(w *Window) error
 	XWindowChanged(w *Window) error
 	XWindowRequest(w *Window, r Request) error
+	CurrentSelection(k data.Kind) data.Source
+	SetSelection(k data.Kind, src data.Source) error
 }
 
 type Request interface {
@@ -70,14 +74,20 @@ type Window struct {
 }
 
 type wm struct {
-	x        *xgb.Conn
-	root     xproto.Window
-	atoms    atoms
-	windows  map[xproto.Window]*Window
-	shell    *Shell
-	listener Listener
-	focused  xproto.Window
-	clients  []xproto.Window
+	x          *xgb.Conn
+	root       xproto.Window
+	sel        xproto.Window
+	atoms      atoms
+	windows    map[xproto.Window]*Window
+	shell      *Shell
+	listener   Listener
+	client     *server.Client
+	post       func(func() error)
+	focused    xproto.Window
+	clients    []xproto.Window
+	selections [2]*selection
+	incoming   []*incoming
+	outgoing   map[outKey]*outgoing
 }
 
 func (w *Window) Surface() *surface.Surface {
@@ -164,7 +174,7 @@ func (w *Window) setState(name string, on bool) {
 	if on {
 		w.props.states = append(w.props.states, atom)
 	}
-	w.wm.changeAtoms(w.id, "_NET_WM_STATE", xproto.AtomAtom, w.props.states)
+	w.wm.changeAtoms(w.id, w.wm.atoms["_NET_WM_STATE"], xproto.AtomAtom, w.props.states)
 }
 
 func (w *Window) Close() error {
@@ -204,12 +214,12 @@ func (m *wm) activate(w *Window, on bool) {
 	m.changeWindows(m.root, "_NET_ACTIVE_WINDOW", []xproto.Window{w.id})
 }
 
-func (m *wm) changeAtoms(win xproto.Window, prop string, typ xproto.Atom, list []xproto.Atom) {
+func (m *wm) changeAtoms(win xproto.Window, prop, typ xproto.Atom, list []xproto.Atom) {
 	data := make([]byte, 0, 4*len(list))
 	for _, a := range list {
 		data = binary.LittleEndian.AppendUint32(data, uint32(a))
 	}
-	xproto.ChangeProperty(m.x, xproto.PropModeReplace, win, m.atoms[prop], typ, 32, uint32(len(list)), data) //nolint:gosec // property lists are short
+	xproto.ChangeProperty(m.x, xproto.PropModeReplace, win, prop, typ, 32, uint32(len(list)), data) //nolint:gosec // property lists are short
 }
 
 func (m *wm) changeWindows(win xproto.Window, prop string, list []xproto.Window) {
@@ -217,7 +227,7 @@ func (m *wm) changeWindows(win xproto.Window, prop string, list []xproto.Window)
 	for i, w := range list {
 		atoms[i] = xproto.Atom(w)
 	}
-	m.changeAtoms(win, prop, xproto.AtomWindow, atoms)
+	m.changeAtoms(win, m.atoms[prop], xproto.AtomWindow, atoms)
 }
 
 func (m *wm) window(id xproto.Window) *Window {
@@ -247,7 +257,7 @@ func (m *wm) destroyed(id xproto.Window) error {
 func (m *wm) mapRequested(id xproto.Window, p props) error {
 	w := m.window(id)
 	w.props, w.managed = p, true
-	m.changeAtoms(id, "WM_STATE", m.atoms["WM_STATE"], []xproto.Atom{1, 0})
+	m.changeAtoms(id, m.atoms["WM_STATE"], m.atoms["WM_STATE"], []xproto.Atom{1, 0})
 	xproto.MapWindow(m.x, id)
 	return nil
 }
@@ -268,7 +278,7 @@ func (m *wm) unmapped(id xproto.Window) error {
 	}
 	w.mapped = false
 	if w.managed {
-		m.changeAtoms(id, "WM_STATE", m.atoms["WM_STATE"], []xproto.Atom{0, 0})
+		m.changeAtoms(id, m.atoms["WM_STATE"], m.atoms["WM_STATE"], []xproto.Atom{0, 0})
 	}
 	return m.hide(w)
 }

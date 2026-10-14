@@ -8,14 +8,16 @@ import (
 	"io"
 	"log"
 	"net"
-	"sync"
 
 	"github.com/jezek/xgb"
 	"github.com/jezek/xgb/composite"
+	"github.com/jezek/xgb/xfixes"
 	"github.com/jezek/xgb/xproto"
 )
 
-var quietXGB sync.Once
+func init() {
+	xgb.Logger = log.New(io.Discard, "", 0)
+}
 
 type atoms map[string]xproto.Atom
 
@@ -26,6 +28,7 @@ var atomNames = []string{
 	"_NET_WM_STATE", "_NET_WM_STATE_FULLSCREEN", "_NET_WM_STATE_MODAL",
 	"_NET_WM_WINDOW_TYPE", "_NET_WM_WINDOW_TYPE_NORMAL", "_NET_WM_WINDOW_TYPE_DIALOG", "_NET_WM_WINDOW_TYPE_UTILITY",
 	"_NET_WM_WINDOW_TYPE_SPLASH", "_NET_WM_WINDOW_TYPE_TOOLBAR",
+	"CLIPBOARD", "PRIMARY", "TARGETS", "INCR", "_WL_SELECTION", "_WL_TARGETS",
 }
 
 var supported = []string{
@@ -59,12 +62,12 @@ type xconn struct {
 	atoms  atoms
 	root   xproto.Window
 	check  xproto.Window
+	sel    xproto.Window
 	post   func(func(*wm) error)
 	report func(error)
 }
 
 func claim(conn net.Conn) (*xconn, error) {
-	quietXGB.Do(func() { xgb.Logger = log.New(io.Discard, "", 0) })
 	x, err := xgb.NewConnNet(conn)
 	if err != nil {
 		return nil, fmt.Errorf("connect as the window manager: %w", err)
@@ -82,6 +85,12 @@ func (c *xconn) own() error {
 	if err := composite.Init(x); err != nil {
 		return fmt.Errorf("the Composite extension: %w", err)
 	}
+	if err := xfixes.Init(x); err != nil {
+		return fmt.Errorf("the XFixes extension: %w", err)
+	}
+	if _, err := xfixes.QueryVersion(x, 5, 0).Reply(); err != nil {
+		return fmt.Errorf("the XFixes version: %w", err)
+	}
 	screen := xproto.Setup(x).DefaultScreen(x)
 	c.root = screen.Root
 	var err error
@@ -91,6 +100,10 @@ func (c *xconn) own() error {
 	if c.check, err = xproto.NewWindowId(x); err != nil {
 		return fmt.Errorf("allocate the window manager's window: %w", err)
 	}
+	if c.sel, err = xproto.NewWindowId(x); err != nil {
+		return fmt.Errorf("allocate the selection window: %w", err)
+	}
+	owner := uint32(xfixes.SelectionEventMaskSetSelectionOwner | xfixes.SelectionEventMaskSelectionWindowDestroy | xfixes.SelectionEventMaskSelectionClientClose)
 	id := binary.LittleEndian.AppendUint32(nil, uint32(c.check))
 	var support []byte
 	for _, name := range supported {
@@ -108,6 +121,9 @@ func (c *xconn) own() error {
 		xproto.ChangePropertyChecked(x, xproto.PropModeReplace, c.root, c.atoms["_NET_SUPPORTED"], xproto.AtomAtom, 32, uint32(len(supported)), support), //nolint:gosec // a short constant list
 		xproto.SetSelectionOwnerChecked(x, c.check, c.atoms["WM_S0"], xproto.TimeCurrentTime),
 		xproto.SetSelectionOwnerChecked(x, c.check, c.atoms["_NET_WM_CM_S0"], xproto.TimeCurrentTime),
+		xproto.CreateWindowChecked(x, 0, c.sel, c.root, -100, -100, 1, 1, 0, xproto.WindowClassInputOnly, screen.RootVisual, xproto.CwEventMask, []uint32{xproto.EventMaskPropertyChange}),
+		xfixes.SelectSelectionInputChecked(x, c.sel, c.atoms["CLIPBOARD"], owner),
+		xfixes.SelectSelectionInputChecked(x, c.sel, c.atoms["PRIMARY"], owner),
 	}
 	errs := make([]error, 0, len(checks))
 	for _, ck := range checks {
@@ -164,15 +180,94 @@ func (c *xconn) handle(ev xgb.Event) {
 		rect := rectOf(e.X, e.Y, e.Width, e.Height)
 		c.post(func(m *wm) error { return m.configureRequested(e.Window, rect, e.ValueMask) })
 	case xproto.PropertyNotifyEvent:
-		if !c.watches(e.Atom) {
-			return
-		}
-		if p, ok := c.props(e.Window); ok {
-			c.post(func(m *wm) error { return m.propertyChanged(e.Window, p) })
-		}
+		c.property(e)
 	case xproto.ClientMessageEvent:
 		c.message(e)
+	case xfixes.SelectionNotifyEvent:
+		c.post(func(m *wm) error { return m.selectionOwned(e.Selection, e.Owner, e.SelectionTimestamp) })
+	case xproto.SelectionNotifyEvent:
+		c.converted(e)
+	case xproto.SelectionRequestEvent:
+		c.post(func(m *wm) error { return m.requested(e) })
 	}
+}
+
+func (c *xconn) property(e xproto.PropertyNotifyEvent) {
+	switch {
+	case e.Window == c.sel && e.State == xproto.PropertyNewValue && e.Atom == c.atoms["_WL_SELECTION"]:
+		if r, ok := c.read(e.Window, e.Atom); ok {
+			c.post(func(m *wm) error { return m.chunk(r.Type, r.Value) })
+		}
+		return
+	case e.State == xproto.PropertyDelete:
+		c.post(func(m *wm) error { return m.propertyDeleted(e.Window, e.Atom) })
+	}
+	if !c.watches(e.Atom) {
+		return
+	}
+	if p, ok := c.props(e.Window); ok {
+		c.post(func(m *wm) error { return m.propertyChanged(e.Window, p) })
+	}
+}
+
+func (c *xconn) read(win xproto.Window, property xproto.Atom) (*xproto.GetPropertyReply, bool) {
+	r, err := xproto.GetProperty(c.x, false, win, property, xproto.GetPropertyTypeAny, 0, maxSelection/4+1).Reply()
+	if err != nil {
+		c.report(fmt.Errorf("xwayland: read the selection property: %w", err))
+		return nil, false
+	}
+	return r, true
+}
+
+func (c *xconn) converted(e xproto.SelectionNotifyEvent) {
+	if e.Requestor != c.sel {
+		return
+	}
+	if e.Target == c.atoms["TARGETS"] {
+		offered := map[string]xproto.Atom{}
+		if e.Property != 0 {
+			if r, ok := c.read(c.sel, e.Property); ok {
+				offered = c.mimes(r.Value)
+			}
+		}
+		c.post(func(m *wm) error { return m.targetsOffered(e.Selection, offered) })
+		return
+	}
+	if e.Property == 0 {
+		c.post(func(m *wm) error { return m.converted(e.Target, 0, nil, false) })
+		return
+	}
+	r, ok := c.read(c.sel, e.Property)
+	c.post(func(m *wm) error {
+		if !ok {
+			return m.converted(e.Target, 0, nil, false)
+		}
+		return m.converted(e.Target, r.Type, r.Value, true)
+	})
+}
+
+func (c *xconn) mimes(value []byte) map[string]xproto.Atom {
+	list, err := atomList(value, "TARGETS")
+	if err != nil {
+		c.report(fmt.Errorf("xwayland: the X selection's targets: %w", err))
+		return nil
+	}
+	cookies := make([]xproto.GetAtomNameCookie, len(list))
+	for i, a := range list {
+		cookies[i] = xproto.GetAtomName(c.x, a)
+	}
+	out := make(map[string]xproto.Atom, len(list))
+	for i, ck := range cookies {
+		r, err := ck.Reply()
+		if err != nil {
+			c.report(fmt.Errorf("xwayland: name of target atom %d: %w", list[i], err))
+			continue
+		}
+		if mime, ok := mimeOf(r.Name); ok {
+			out[mime] = list[i]
+		}
+	}
+	return out
 }
 
 func (c *xconn) watches(a xproto.Atom) bool {
