@@ -142,6 +142,8 @@ func (c *cursor) add() {
 	}
 	at := c.at.Sub(c.hotspot)
 	o.place(p, c.pending.fb, image.Rectangle{Min: at, Max: at.Add(o.b.cursor)}, -1)
+	o.add(p.id, p.props, "HOTSPOT_X", uint64(int64(c.hotspot.X))) //nolint:gosec // signed plane properties travel as two's complement
+	o.add(p.id, p.props, "HOTSPOT_Y", uint64(int64(c.hotspot.Y))) //nolint:gosec // signed plane properties travel as two's complement
 }
 
 func (c *cursor) sent() {

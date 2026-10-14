@@ -56,6 +56,7 @@ in
             print(machine.execute("journalctl -b --no-pager -t tilde -t greetd")[1])
             raise
         print(machine.succeed("journalctl -b --no-pager -t tilde"))
+        machine.fail("journalctl -b --no-pager -t tilde | grep 'drawing the cursor in the frame'")
         got = sorted(machine.succeed("${run "tildectl outputs"} | jq -r '.[].name'").split())
         assert got == sorted(want), f"outputs {got}, want {want}"
         display = machine.succeed("ls /run/user/${toString uid} | grep -m1 '^wayland-[0-9]*$'").strip()

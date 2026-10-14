@@ -21,6 +21,7 @@ const (
 	CapTimestampMonotonic  = 0x6
 	ClientCapUniversal     = 2
 	ClientCapAtomic        = 3
+	ClientCapCursorHotspot = 6
 	ObjectCRTC             = 0xcccccccc
 	ObjectConnector        = 0xc0c0c0c0
 	ObjectPlane            = 0xeeeeeeee

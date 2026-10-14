@@ -6,6 +6,8 @@ import (
 	"image"
 	"slices"
 
+	"golang.org/x/sys/unix"
+
 	kdrm "github.com/stubbedev/tilde/internal/drm"
 	"github.com/stubbedev/tilde/internal/edid"
 	"github.com/stubbedev/tilde/internal/gpu"
@@ -151,6 +153,9 @@ func atomic(dev *kdrm.Device) error {
 		if err := dev.SetClientCap(c, 1); err != nil {
 			return fmt.Errorf("drm: %s needs atomic KMS: %w", dev.Path(), err)
 		}
+	}
+	if err := dev.SetClientCap(kdrm.ClientCapCursorHotspot, 1); err != nil && !errors.Is(err, unix.EINVAL) && !errors.Is(err, unix.EOPNOTSUPP) {
+		return fmt.Errorf("drm: cursor hotspots on %s: %w", dev.Path(), err)
 	}
 	return nil
 }

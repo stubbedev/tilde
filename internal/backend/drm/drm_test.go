@@ -36,6 +36,8 @@ const (
 	propModeID
 	propConnCRTC
 	propInFence
+	propHotspotX
+	propHotspotY
 	inFormatsBlob = 500
 )
 
@@ -106,12 +108,16 @@ func (f *fakeDevice) Properties(object, kind uint32) (map[string]kdrm.Property, 
 		if object == 40 || object == 41 {
 			typ, formats = 1, inFormatsBlob
 		}
-		return map[string]kdrm.Property{
+		props := map[string]kdrm.Property{
 			"type": {ID: propType, Value: typ}, "FB_ID": {ID: propFB}, "CRTC_ID": {ID: propPlaneCRTC},
 			"SRC_X": {ID: propSrcX}, "SRC_Y": {ID: propSrcY}, "SRC_W": {ID: propSrcW}, "SRC_H": {ID: propSrcH},
 			"CRTC_X": {ID: propCRTCX}, "CRTC_Y": {ID: propCRTCY}, "CRTC_W": {ID: propCRTCW}, "CRTC_H": {ID: propCRTCH},
 			"IN_FORMATS": {ID: propInFormats, Value: formats}, "IN_FENCE_FD": {ID: propInFence},
-		}, nil
+		}
+		if object == 43 {
+			props["HOTSPOT_X"], props["HOTSPOT_Y"] = kdrm.Property{ID: propHotspotX}, kdrm.Property{ID: propHotspotY}
+		}
+		return props, nil
 	case kdrm.ObjectCRTC:
 		return map[string]kdrm.Property{"ACTIVE": {ID: propActive}, "MODE_ID": {ID: propModeID}}, nil
 	case kdrm.ObjectConnector:
@@ -577,6 +583,9 @@ func TestCursorPlaneMovesWithoutFrames(t *testing.T) {
 	}
 	if fb, at, _ := cursorAt(shown); fb == 0 || at != image.Pt(-4, -6) || shown.values[[2]uint32{43, propCRTCW}] != 64 || shown.values[[2]uint32{43, propPlaneCRTC}] != 10 {
 		t.Fatalf("cursor fb %d at %v in %+v", fb, at, shown.values)
+	}
+	if shown.values[[2]uint32{43, propHotspotX}] != 4 || shown.values[[2]uint32{43, propHotspotY}] != 6 {
+		t.Fatalf("the cursor plane got hotspot %d,%d, not 4,6", shown.values[[2]uint32{43, propHotspotX}], shown.values[[2]uint32{43, propHotspotY}])
 	}
 	cp, _ := o.CursorPlane()
 	for _, at := range []image.Point{image.Pt(100, 50), image.Pt(120, 70)} {
