@@ -28,7 +28,7 @@ type native struct {
 	report  func(error)
 }
 
-func openNative(l *loop.Loop, getenv func(string) string, report func(error)) (n *native, err error) {
+func openNative(l *loop.Loop, getenv func(string) string, input session.InputConfig, report func(error)) (n *native, err error) {
 	n = &native{report: report}
 	if n.logind, err = session.Open(l, session.SystemBus(getenv), getenv, n); err != nil {
 		return nil, err
@@ -64,7 +64,7 @@ func openNative(l *loop.Loop, getenv func(string) string, report func(error)) (n
 	if n.Backend, err = drmbackend.New(l, n.dev, gpu.PathsFromEnv(getenv), vendors); err != nil {
 		return nil, err
 	}
-	if n.input, err = session.OpenLibinput(l, session.LibinputPath(getenv), n.logind, nil, report); err != nil {
+	if n.input, err = session.OpenLibinput(l, session.LibinputPath(getenv), n.logind, input, report); err != nil {
 		return nil, err
 	}
 	if n.monitor, err = session.Watch(l, n.logind.Seat(), []session.Subsystem{session.DRM, session.Input}, n.udev); err != nil {

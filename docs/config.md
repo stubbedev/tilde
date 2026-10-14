@@ -47,6 +47,43 @@ and touchpad while the lid is closed.
 | `repeat_rate` | Repeats per second; 0 turns repeat off. Default 50 |
 | `repeat_delay` | Milliseconds before repeat starts. Default 300 |
 
+## input.pointer, input.touchpad and input.devices
+
+`input.touchpad` applies to touchpads (devices that can tap), `input.pointer` to
+every other pointing device. `input.devices` maps a libinput device name, as
+`libinput list-devices` prints it, to settings that override both for that
+device.
+
+```yaml
+input:
+  pointer:
+    accel_profile: flat
+  touchpad:
+    tap: true
+    natural_scroll: true
+  devices:
+    "Logitech MX Master 3":
+      scroll_factor: 0.5
+```
+
+| Key | Value |
+| --- | --- |
+| `tap`, `drag_lock` | Tap to click, and keep a tap-and-drag going after the finger lifts |
+| `natural_scroll` | Content follows the fingers |
+| `disable_while_typing` | Ignore the touchpad while the keyboard is in use |
+| `middle_emulation` | Pressing left and right together is a middle click |
+| `click_method` | `button_areas`, `clickfinger` or `none` |
+| `scroll_method` | `two_finger`, `edge`, `on_button_down` or `none` |
+| `accel_profile` | `adaptive` or `flat` |
+| `accel_speed` | -1 to 1 |
+| `scroll_factor` | Multiplies scroll distances; above 0, up to 100. Default 1 |
+
+An unset key keeps libinput's default for the device, and a reload that drops a
+key restores that default. A device that lacks a setting from `input.pointer`
+or `input.touchpad` skips it; one that lacks a setting named for it under
+`input.devices` is reported. These settings apply with the drm backend; nested,
+the host compositor configures the devices.
+
 ## Colours
 
 A colour is a palette name or `#rrggbb[aa]`. The palette starts as

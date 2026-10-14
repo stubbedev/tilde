@@ -28,6 +28,7 @@ import (
 	"github.com/stubbedev/tilde/internal/output"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/seat"
+	"github.com/stubbedev/tilde/internal/session"
 	"github.com/stubbedev/tilde/internal/wm"
 	"github.com/stubbedev/tilde/internal/xkb"
 )
@@ -126,7 +127,23 @@ type rawOutput struct {
 }
 
 type rawInput struct {
-	Keyboard rawKeyboard `yaml:"keyboard"`
+	Keyboard rawKeyboard          `yaml:"keyboard"`
+	Pointer  rawDevice            `yaml:"pointer"`
+	Touchpad rawDevice            `yaml:"touchpad"`
+	Devices  map[string]rawDevice `yaml:"devices"`
+}
+
+type rawDevice struct {
+	Tap                *bool        `yaml:"tap"`
+	DragLock           *bool        `yaml:"drag_lock"`
+	NaturalScroll      *bool        `yaml:"natural_scroll"`
+	DisableWhileTyping *bool        `yaml:"disable_while_typing"`
+	MiddleEmulation    *bool        `yaml:"middle_emulation"`
+	ClickMethod        *At[string]  `yaml:"click_method"`
+	ScrollMethod       *At[string]  `yaml:"scroll_method"`
+	AccelProfile       *At[string]  `yaml:"accel_profile"`
+	AccelSpeed         *At[float64] `yaml:"accel_speed"`
+	ScrollFactor       *At[float64] `yaml:"scroll_factor"`
 }
 
 type rawKeyboard struct {
@@ -210,6 +227,7 @@ type Config struct {
 	Keyboard    xkb.Names
 	RepeatRate  int32
 	RepeatDelay int32
+	Input       session.InputConfig
 	Outputs     []compositor.OutputRule
 	Decor       compositor.Decor
 	Font        string
@@ -365,6 +383,62 @@ func (p *parser) output(i int, r rawOutput) compositor.OutputRule {
 	return rule
 }
 
+var (
+	clickMethods  = map[string]session.ClickMethod{"none": session.ClickNone, "button_areas": session.ClickButtonAreas, "clickfinger": session.ClickFinger}
+	scrollMethods = map[string]session.ScrollMethod{"none": session.ScrollNone, "two_finger": session.ScrollTwoFinger, "edge": session.ScrollEdge, "on_button_down": session.ScrollOnButtonDown}
+	accelProfiles = map[string]session.AccelProfile{"flat": session.AccelFlat, "adaptive": session.AccelAdaptive}
+)
+
+func choice[T any](p *parser, a *At[string], key string, names map[string]T) *T {
+	if a == nil {
+		return nil
+	}
+	v, ok := names[a.V]
+	if !ok {
+		p.fail(a.Line, key, "%q is not one of %s", a.V, strings.Join(slices.Sorted(maps.Keys(names)), ", "))
+		return nil
+	}
+	return &v
+}
+
+func (p *parser) between(a *At[float64], key string, lo, hi float64, open bool) *float64 {
+	if a == nil {
+		return nil
+	}
+	if a.V > hi || a.V < lo || (open && a.V == lo) || math.IsNaN(a.V) {
+		bound := "from"
+		if open {
+			bound = "above"
+		}
+		p.fail(a.Line, key, "%g is not %s %g to %g", a.V, bound, lo, hi)
+		return nil
+	}
+	return &a.V
+}
+
+func (p *parser) device(r rawDevice, key string) session.DeviceConfig {
+	return session.DeviceConfig{
+		Tap: r.Tap, DragLock: r.DragLock, NaturalScroll: r.NaturalScroll,
+		DisableWhileTyping: r.DisableWhileTyping, MiddleEmulation: r.MiddleEmulation,
+		ClickMethod:  choice(p, r.ClickMethod, key+".click_method", clickMethods),
+		ScrollMethod: choice(p, r.ScrollMethod, key+".scroll_method", scrollMethods),
+		AccelProfile: choice(p, r.AccelProfile, key+".accel_profile", accelProfiles),
+		AccelSpeed:   p.between(r.AccelSpeed, key+".accel_speed", -1, 1, false),
+		ScrollFactor: p.between(r.ScrollFactor, key+".scroll_factor", 0, 100, true),
+	}
+}
+
+func (p *parser) input(r rawInput) session.InputConfig {
+	c := session.InputConfig{Pointer: p.device(r.Pointer, "input.pointer"), Touchpad: p.device(r.Touchpad, "input.touchpad")}
+	if len(r.Devices) > 0 {
+		c.Devices = make(map[string]session.DeviceConfig, len(r.Devices))
+	}
+	for _, name := range slices.Sorted(maps.Keys(r.Devices)) {
+		c.Devices[name] = p.device(r.Devices[name], fmt.Sprintf("input.devices.%q", name))
+	}
+	return c
+}
+
 func (p *parser) tabColors(r *rawTabColors, key string, fallback compositor.TabColors) compositor.TabColors {
 	if r == nil {
 		return fallback
@@ -470,6 +544,7 @@ func Parse(file string, data []byte) (Config, error) {
 		},
 		RepeatRate:  p.repeat(raw.Input.Keyboard.RepeatRate, "input.keyboard.repeat_rate", seat.DefaultRepeatRate),
 		RepeatDelay: p.repeat(raw.Input.Keyboard.RepeatDelay, "input.keyboard.repeat_delay", seat.DefaultRepeatDelay),
+		Input:       p.input(raw.Input),
 		Decor: compositor.Decor{
 			BorderWidth:    p.positive(raw.Borders.Width, "borders.width", def.BorderWidth, true),
 			ActiveBorder:   p.optColor(raw.Borders.Active, "borders.active", def.ActiveBorder),

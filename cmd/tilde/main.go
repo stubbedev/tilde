@@ -26,6 +26,7 @@ import (
 	"github.com/stubbedev/tilde/internal/ipc"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/server"
+	"github.com/stubbedev/tilde/internal/session"
 	"github.com/stubbedev/tilde/internal/systemd"
 	"github.com/stubbedev/tilde/internal/wlclient"
 	"github.com/stubbedev/tilde/internal/wm"
@@ -126,19 +127,22 @@ func openHeadless(l *loop.Loop, renderer rendererKind, paths gpu.Paths) (*headle
 
 type opened struct {
 	backend.Backend
-	switchVT func(vt uint32) error
+	switchVT       func(vt uint32) error
+	configureInput func(session.InputConfig) error
 }
 
-func openBackend(kind backendKind, renderer rendererKind, l *loop.Loop, report func(error)) (opened, error) {
+func hostInput(session.InputConfig) error { return nil }
+
+func openBackend(kind backendKind, renderer rendererKind, l *loop.Loop, input session.InputConfig, report func(error)) (opened, error) {
 	if kind == drmBackend {
-		n, err := openNative(l, os.Getenv, report)
+		n, err := openNative(l, os.Getenv, input, report)
 		if err != nil {
 			return opened{}, err
 		}
-		return opened{Backend: n, switchVT: n.logind.SwitchTo}, nil
+		return opened{Backend: n, switchVT: n.logind.SwitchTo, configureInput: n.input.Reconfigure}, nil
 	}
 	b, err := openOther(kind, renderer, l)
-	return opened{Backend: b}, err
+	return opened{Backend: b, configureInput: hostInput}, err
 }
 
 func openOther(kind backendKind, renderer rendererKind, l *loop.Loop) (backend.Backend, error) {
@@ -232,6 +236,7 @@ type loaded struct {
 	keymap    *xkb.Keymap
 	env       [][2]string
 	autostart []string
+	input     session.InputConfig
 }
 
 func (s source) load() (loaded, error) {
@@ -260,7 +265,7 @@ func (s source) load() (loaded, error) {
 		return loaded{}, errors.Join(err, keymap.Close())
 	}
 	cfg.Cursor = s.cursor
-	return loaded{cfg: cfg, keymap: keymap, env: file.Env, autostart: file.Autostart}, nil
+	return loaded{cfg: cfg, keymap: keymap, env: file.Env, autostart: file.Autostart, input: file.Input}, nil
 }
 
 func sessionVars(env [][2]string, getenv func(string) string) [][2]string {
@@ -275,8 +280,9 @@ func sessionVars(env [][2]string, getenv func(string) string) [][2]string {
 
 type reloader struct {
 	source
-	comp   *compositor.Compositor
-	keymap *xkb.Keymap
+	comp           *compositor.Compositor
+	keymap         *xkb.Keymap
+	configureInput func(session.InputConfig) error
 }
 
 func (s *reloader) reload() error {
@@ -290,7 +296,7 @@ func (s *reloader) reload() error {
 	}
 	old := s.keymap
 	s.keymap = next.keymap
-	return old.Close()
+	return errors.Join(old.Close(), s.configureInput(next.input))
 }
 
 func cursorConfig(getenv func(string) string) (compositor.CursorConfig, error) {
@@ -385,11 +391,11 @@ func run(args []string) (err error) {
 	}, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP); err != nil {
 		return err
 	}
-	b, err := openBackend(kind, renderer, l, cfg.Report)
+	b, err := openBackend(kind, renderer, l, first.input, cfg.Report)
 	if err != nil {
 		return err
 	}
-	cfg.SwitchVT = b.switchVT
+	cfg.SwitchVT, s.configureInput = b.switchVT, b.configureInput
 	defer func() { err = errors.Join(err, b.Close()) }()
 	display, err := server.New(l, server.Options{RuntimeDir: os.Getenv("XDG_RUNTIME_DIR"), Trace: trace})
 	if err != nil {

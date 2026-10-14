@@ -13,6 +13,7 @@ import (
 	"github.com/stubbedev/tilde/internal/output"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/seat"
+	"github.com/stubbedev/tilde/internal/session"
 	"github.com/stubbedev/tilde/internal/testenv"
 	"github.com/stubbedev/tilde/internal/wm"
 )
@@ -40,6 +41,16 @@ func TestExampleConfig(t *testing.T) {
 	}
 	if cfg.Keyboard.Layout != "us,dk,es" || cfg.RepeatRate != 40 || cfg.RepeatDelay != 250 {
 		t.Errorf("keyboard %+v repeat %d %d", cfg.Keyboard, cfg.RepeatRate, cfg.RepeatDelay)
+	}
+	in := cfg.Input
+	if *in.Pointer.AccelProfile != session.AccelFlat || *in.Pointer.AccelSpeed != -0.5 || *in.Pointer.ScrollFactor != 1.5 || in.Pointer.Tap != nil {
+		t.Errorf("pointer %+v", in.Pointer)
+	}
+	if !*in.Touchpad.Tap || !*in.Touchpad.NaturalScroll || *in.Touchpad.ClickMethod != session.ClickFinger || *in.Touchpad.ScrollMethod != session.ScrollTwoFinger || in.Touchpad.AccelSpeed != nil {
+		t.Errorf("touchpad %+v", in.Touchpad)
+	}
+	if mx := in.Devices["Logitech MX Master 3"]; len(in.Devices) != 1 || *mx.AccelProfile != session.AccelAdaptive || !*mx.NaturalScroll {
+		t.Errorf("devices %+v", in.Devices)
 	}
 	if cfg.Decor.BorderWidth != 2 || cfg.Decor.ActiveBorder != (render.Color{R: 0xff, G: 0x88, A: 0xff}) || cfg.Decor.Tab.Height != 18 || cfg.Decor.Tab.Urgent.Text != (render.Color{A: 0xff}) {
 		t.Errorf("decor %+v", cfg.Decor)
@@ -69,6 +80,9 @@ func TestEmptyConfigIsTheDefaults(t *testing.T) {
 	if !slices.Equal(cfg.Env, [][2]string{{"XDG_CURRENT_DESKTOP", "tilde"}, {"XDG_SESSION_TYPE", "wayland"}}) {
 		t.Fatalf("session env %v", cfg.Env)
 	}
+	if cfg.Input.Devices != nil || cfg.Input.Pointer != (session.DeviceConfig{}) || cfg.Input.Touchpad != (session.DeviceConfig{}) {
+		t.Fatalf("input %+v", cfg.Input)
+	}
 	if cfg.Decor != compositor.DefaultDecor() || cfg.WM != compositor.DefaultSettings() || cfg.RepeatRate != 50 || cfg.RepeatDelay != 300 {
 		t.Fatalf("defaults %+v", cfg)
 	}
@@ -94,6 +108,12 @@ func TestErrorsNameFileLineAndKey(t *testing.T) {
 		"outputs:\n  - match: DP-1\n    scale: 20\n":               "t.yaml:3: outputs[0].scale: 20 is outside",
 		"tabs:\n  height: 0\n":                                     "t.yaml:2: tabs.height: 0 is not a positive number",
 		"palette:\n  accent: orange\n":                             `t.yaml:2: palette.accent: "orange" is not #rrggbb[aa]`,
+		"input:\n  touchpad:\n    tapping: true\n":                 "t.yaml:3: input.touchpad.tapping: unknown key (known: accel_profile, accel_speed,",
+		"input:\n  devices:\n    mouse:\n      speed: 1\n":         `t.yaml:4: input.devices.mouse.speed: unknown key`,
+		"input:\n  touchpad:\n    click_method: tap\n":             `t.yaml:3: input.touchpad.click_method: "tap" is not one of button_areas, clickfinger, none`,
+		"input:\n  pointer:\n    accel_speed: 2\n":                 "t.yaml:3: input.pointer.accel_speed: 2 is not from -1 to 1",
+		"input:\n  pointer:\n    scroll_factor: 0\n":               "t.yaml:3: input.pointer.scroll_factor: 0 is not above 0 to 100",
+		"input:\n  devices:\n    mouse:\n      accel_profile: x\n": `t.yaml:4: input.devices."mouse".accel_profile: "x" is not one of adaptive, flat`,
 	}
 	for text, want := range cases {
 		_, err := Parse("t.yaml", []byte(text))

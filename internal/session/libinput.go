@@ -3,6 +3,7 @@ package session
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 	"unsafe"
@@ -90,15 +91,31 @@ type libinputFuncs struct {
 	switchTime     func(sev uintptr) uint64
 	switchKind     func(sev uintptr) int32
 	switchState    func(sev uintptr) int32
+	tapFingers     func(dev uintptr) int32
 	tap            func(dev uintptr, enable int32) int32
+	tapDefault     func(dev uintptr) int32
 	dragLock       func(dev uintptr, enable int32) int32
-	naturalScroll  func(dev uintptr, enable int32) int32
+	dragDefault    func(dev uintptr) int32
+	hasNatural     func(dev uintptr) int32
+	natural        func(dev uintptr, enable int32) int32
+	naturalDefault func(dev uintptr) int32
+	hasDWT         func(dev uintptr) int32
 	dwt            func(dev uintptr, enable int32) int32
+	dwtDefault     func(dev uintptr) int32
+	hasMiddle      func(dev uintptr) int32
 	middle         func(dev uintptr, enable int32) int32
-	clickMethod    func(dev uintptr, method uint32) int32
-	scrollMethod   func(dev uintptr, method uint32) int32
-	accelProfile   func(dev uintptr, profile uint32) int32
+	middleDefault  func(dev uintptr) int32
+	clickMethods   func(dev uintptr) ClickMethod
+	clickMethod    func(dev uintptr, method ClickMethod) int32
+	clickDefault   func(dev uintptr) ClickMethod
+	scrollMethods  func(dev uintptr) ScrollMethod
+	scrollMethod   func(dev uintptr, method ScrollMethod) int32
+	scrollDefault  func(dev uintptr) ScrollMethod
+	hasAccel       func(dev uintptr) int32
+	accelProfile   func(dev uintptr, profile AccelProfile) int32
+	profileDefault func(dev uintptr) AccelProfile
 	accelSpeed     func(dev uintptr, speed float64) int32
+	speedDefault   func(dev uintptr) float64
 }
 
 type Opener interface {
@@ -124,40 +141,12 @@ func (PlainOpener) ReleaseDevice(Device) error {
 	return nil
 }
 
-type ClickMethod uint32
-
-const (
-	ClickButtonAreas ClickMethod = 1 << 0
-	ClickFinger      ClickMethod = 1 << 1
-)
-
-type ScrollMethod uint32
-
-const (
-	ScrollTwoFinger    ScrollMethod = 1 << 0
-	ScrollEdge         ScrollMethod = 1 << 1
-	ScrollOnButtonDown ScrollMethod = 1 << 2
-)
-
-type AccelProfile uint32
-
-const (
-	AccelFlat     AccelProfile = 1 << 0
-	AccelAdaptive AccelProfile = 1 << 1
-)
-
-type DeviceConfig struct {
-	Tap, DragLock, NaturalScroll, DisableWhileTyping, MiddleEmulation *bool
-	ClickMethod                                                       *ClickMethod
-	ScrollMethod                                                      *ScrollMethod
-	AccelProfile                                                      *AccelProfile
-	AccelSpeed                                                        *float64
-}
-
 type InputDevice struct {
-	name string
-	caps backend.Capability
-	h    uintptr
+	name         string
+	caps         backend.Capability
+	h            uintptr
+	touchpad     bool
+	scrollFactor float64
 }
 
 func (d *InputDevice) Name() string                     { return d.name }
@@ -169,7 +158,7 @@ type Libinput struct {
 	li      uintptr
 	id      uintptr
 	opener  Opener
-	config  func(name string) DeviceConfig
+	config  InputConfig
 	report  func(error)
 	handler backend.Handler
 	src     *loop.Source
@@ -242,7 +231,7 @@ func closeRestricted(fd int32, userData uintptr) {
 	}
 }
 
-func OpenLibinput(l *loop.Loop, path string, opener Opener, config func(string) DeviceConfig, report func(error)) (*Libinput, error) {
+func OpenLibinput(l *loop.Loop, path string, opener Opener, config InputConfig, report func(error)) (*Libinput, error) {
 	lib, err := purego.Dlopen(path, purego.RTLD_NOW|purego.RTLD_LOCAL)
 	if err != nil {
 		return nil, fmt.Errorf("session: load libinput from %s (set %s to its path): %w", path, LibinputEnv, err)
@@ -316,15 +305,31 @@ func (in *Libinput) bind(path string) error {
 		{&f.switchTime, "libinput_event_switch_get_time_usec"},
 		{&f.switchKind, "libinput_event_switch_get_switch"},
 		{&f.switchState, "libinput_event_switch_get_switch_state"},
+		{&f.tapFingers, "libinput_device_config_tap_get_finger_count"},
 		{&f.tap, "libinput_device_config_tap_set_enabled"},
+		{&f.tapDefault, "libinput_device_config_tap_get_default_enabled"},
 		{&f.dragLock, "libinput_device_config_tap_set_drag_lock_enabled"},
-		{&f.naturalScroll, "libinput_device_config_scroll_set_natural_scroll_enabled"},
+		{&f.dragDefault, "libinput_device_config_tap_get_default_drag_lock_enabled"},
+		{&f.hasNatural, "libinput_device_config_scroll_has_natural_scroll"},
+		{&f.natural, "libinput_device_config_scroll_set_natural_scroll_enabled"},
+		{&f.naturalDefault, "libinput_device_config_scroll_get_default_natural_scroll_enabled"},
+		{&f.hasDWT, "libinput_device_config_dwt_is_available"},
 		{&f.dwt, "libinput_device_config_dwt_set_enabled"},
+		{&f.dwtDefault, "libinput_device_config_dwt_get_default_enabled"},
+		{&f.hasMiddle, "libinput_device_config_middle_emulation_is_available"},
 		{&f.middle, "libinput_device_config_middle_emulation_set_enabled"},
+		{&f.middleDefault, "libinput_device_config_middle_emulation_get_default_enabled"},
+		{&f.clickMethods, "libinput_device_config_click_get_methods"},
 		{&f.clickMethod, "libinput_device_config_click_set_method"},
+		{&f.clickDefault, "libinput_device_config_click_get_default_method"},
+		{&f.scrollMethods, "libinput_device_config_scroll_get_methods"},
 		{&f.scrollMethod, "libinput_device_config_scroll_set_method"},
+		{&f.scrollDefault, "libinput_device_config_scroll_get_default_method"},
+		{&f.hasAccel, "libinput_device_config_accel_is_available"},
 		{&f.accelProfile, "libinput_device_config_accel_set_profile"},
+		{&f.profileDefault, "libinput_device_config_accel_get_default_profile"},
 		{&f.accelSpeed, "libinput_device_config_accel_set_speed"},
+		{&f.speedDefault, "libinput_device_config_accel_get_default_speed"},
 	} {
 		if _, err := purego.Dlsym(in.lib, s.name); err != nil {
 			return fmt.Errorf("session: %s lacks %s: %w", path, s.name, err)
@@ -411,7 +416,7 @@ func (in *Libinput) event(ev uintptr) error {
 	h := f.eventDevice(ev)
 	switch typ := f.eventType(ev); typ {
 	case evDeviceAdded:
-		d := &InputDevice{name: f.deviceName(h), h: f.deviceRef(h)}
+		d := &InputDevice{name: f.deviceName(h), h: f.deviceRef(h), touchpad: f.tapFingers(h) > 0, scrollFactor: 1}
 		for c, flag := range map[int32]backend.Capability{capKeyboard: backend.Keyboard, capPointer: backend.Pointer, capTouch: backend.Touch} {
 			if f.deviceHasCap(h, c) != 0 {
 				d.caps |= flag
@@ -435,7 +440,7 @@ func (in *Libinput) event(ev uintptr) error {
 	if !ok {
 		return nil
 	}
-	in.out = in.translate(in.out[:0], ev)
+	in.out = in.translate(in.out[:0], d, ev)
 	for _, e := range in.out {
 		if err := in.handler.Input(d, e); err != nil {
 			return err
@@ -448,7 +453,7 @@ func pointerFrame(out []backend.Event, at time.Duration) []backend.Event {
 	return append(out, backend.PointerFrame{Time: at})
 }
 
-func (in *Libinput) translate(out []backend.Event, ev uintptr) []backend.Event {
+func (in *Libinput) translate(out []backend.Event, d *InputDevice, ev uintptr) []backend.Event {
 	f := &in.fn
 	switch typ := f.eventType(ev); typ {
 	case evKeyboardKey:
@@ -477,9 +482,9 @@ func (in *Libinput) translate(out []backend.Event, ev uintptr) []backend.Event {
 			if f.hasAxis(p, a.axis) == 0 {
 				continue
 			}
-			ax := backend.PointerAxis{Time: at, Orientation: a.orientation, Source: source, Value: f.scrollValue(p, a.axis)}
+			ax := backend.PointerAxis{Time: at, Orientation: a.orientation, Source: source, Value: f.scrollValue(p, a.axis) * d.scrollFactor}
 			if typ == evScrollWheel {
-				ax.Value120 = int32(f.scrollV120(p, a.axis))
+				ax.Value120 = int32(math.Round(f.scrollV120(p, a.axis) * d.scrollFactor))
 			}
 			out = append(out, ax)
 		}
@@ -508,55 +513,6 @@ func (in *Libinput) translate(out []backend.Event, ev uintptr) []backend.Event {
 		return append(out, backend.Switch{Time: usec(f.switchTime(s)), Kind: kind, On: f.switchState(s) == 1})
 	}
 	return out
-}
-
-func boolInt(b bool) int32 {
-	if b {
-		return 1
-	}
-	return 0
-}
-
-func (in *Libinput) configure(d *InputDevice) error {
-	if in.config == nil {
-		return nil
-	}
-	c := in.config(d.name)
-	f := &in.fn
-	var errs []error
-	set := func(name string, status int32) {
-		if status != configStatusSuccess {
-			errs = append(errs, fmt.Errorf("session: %s does not take %s (status %d)", d.name, name, status))
-		}
-	}
-	if c.Tap != nil {
-		set("tap", f.tap(d.h, boolInt(*c.Tap)))
-	}
-	if c.DragLock != nil {
-		set("drag_lock", f.dragLock(d.h, boolInt(*c.DragLock)))
-	}
-	if c.NaturalScroll != nil {
-		set("natural_scroll", f.naturalScroll(d.h, boolInt(*c.NaturalScroll)))
-	}
-	if c.DisableWhileTyping != nil {
-		set("disable_while_typing", f.dwt(d.h, boolInt(*c.DisableWhileTyping)))
-	}
-	if c.MiddleEmulation != nil {
-		set("middle_emulation", f.middle(d.h, boolInt(*c.MiddleEmulation)))
-	}
-	if c.ClickMethod != nil {
-		set("click_method", f.clickMethod(d.h, uint32(*c.ClickMethod)))
-	}
-	if c.ScrollMethod != nil {
-		set("scroll_method", f.scrollMethod(d.h, uint32(*c.ScrollMethod)))
-	}
-	if c.AccelProfile != nil {
-		set("accel_profile", f.accelProfile(d.h, uint32(*c.AccelProfile)))
-	}
-	if c.AccelSpeed != nil {
-		set("accel_speed", f.accelSpeed(d.h, *c.AccelSpeed))
-	}
-	return errors.Join(errs...)
 }
 
 func (in *Libinput) Close() error {

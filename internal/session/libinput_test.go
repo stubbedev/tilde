@@ -31,7 +31,7 @@ func libinput(t *testing.T, opener Opener) *Libinput {
 	}
 	t.Cleanup(func() { _ = l.Close() })
 	path := LibinputPath(os.Getenv)
-	in, err := OpenLibinput(l, path, opener, nil, func(err error) { t.Errorf("reported: %v", err) })
+	in, err := OpenLibinput(l, path, opener, InputConfig{}, func(err error) { t.Errorf("reported: %v", err) })
 	if err != nil {
 		if _, statErr := os.Stat(path); statErr != nil {
 			testenv.Require(t, "libinput")
@@ -81,7 +81,7 @@ func TestLibinputRejectsNonInputDevices(t *testing.T) {
 	if err := in.Add(os.DevNull); err == nil {
 		t.Fatal("/dev/null was added as an input device")
 	}
-	if _, err := OpenLibinput(nil, "/nonexistent/libinput.so.10", PlainOpener{}, nil, nil); err == nil || !strings.Contains(err.Error(), LibinputEnv) {
+	if _, err := OpenLibinput(nil, "/nonexistent/libinput.so.10", PlainOpener{}, InputConfig{}, nil); err == nil || !strings.Contains(err.Error(), LibinputEnv) {
 		t.Fatalf("a missing library: %v", err)
 	}
 }

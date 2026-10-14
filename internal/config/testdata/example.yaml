@@ -14,6 +14,19 @@ input:
     options: grp:alt_shift_toggle
     repeat_rate: 40
     repeat_delay: 250
+  pointer:
+    accel_profile: flat
+    accel_speed: -0.5
+    scroll_factor: 1.5
+  touchpad:
+    tap: true
+    natural_scroll: true
+    click_method: clickfinger
+    scroll_method: two_finger
+  devices:
+    "Logitech MX Master 3":
+      accel_profile: adaptive
+      natural_scroll: true
 palette:
   accent: "#ff8800"
 borders:
