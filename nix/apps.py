@@ -81,13 +81,13 @@ def check_notification():
     wait_for_region(880, BAR, 400, 200, f"$1 != \"{digest}\"", 60)
 
 
-def check_launcher():
+def check_launcher(name):
     digest, _, _ = region(0, BAR, 1280, 800 - BAR)
-    launch("fuzzel")
+    launch(name)
     wait_for_region(0, BAR, 1280, 800 - BAR, f"$1 != \"{digest}\"", 120)
     machine.sleep(2)
     machine.send_key("esc")
-    machine.wait_until_fails("pgrep -u alice fuzzel", timeout=60)
+    machine.wait_until_fails(f"pgrep -u alice {name}", timeout=60)
 
 
 def check_lock():
@@ -123,9 +123,10 @@ try:
     bar_drawn()
     check_windows()
     check_notification()
-    check_launcher()
+    check_launcher("fuzzel")
+    check_launcher("rofi")
     check_lock()
-    for name in ["waybar", "mako", "fuzzel", "swaylock"]:
+    for name in ["waybar", "mako", "fuzzel", "rofi", "swaylock"]:
         errors = protocol_errors(name)
         assert not errors, f"{name} hit a protocol error: {errors}"
 except Exception:

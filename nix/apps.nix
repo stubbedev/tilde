@@ -29,12 +29,14 @@
     mpv = "${pkgs.mpv}/bin/mpv --no-config --vo=gpu --gpu-context=wayland --gpu-sw --loop=inf av://lavfi:testsrc=size=640x360:rate=30";
     xterm = "${pkgs.xterm}/bin/xterm";
     xeyes = "${pkgs.xorg.xeyes}/bin/xeyes";
+    pcmanfm = "${pkgs.pcmanfm}/bin/pcmanfm";
   };
   others = {
     waybar = "${pkgs.waybar}/bin/waybar --config ${waybarConfig}";
     mako = "${pkgs.mako}/bin/mako";
     notify = "${pkgs.libnotify}/bin/notify-send tilde hello";
     fuzzel = "${pkgs.fuzzel}/bin/fuzzel";
+    rofi = "${pkgs.rofi}/bin/rofi -show drun";
     swaylock = "${pkgs.swaylock}/bin/swaylock -c 336699";
   };
 in
