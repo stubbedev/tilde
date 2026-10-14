@@ -20,6 +20,12 @@ headless_packages := "./internal/harness/... ./internal/backend/nested/... ./int
 headless:
     TILDE_HEADLESS=1 go test -count=1 {{headless_packages}}
 
+# Fuzz the compositor with raw clients that bind every global and send
+# requests with valid headers and arbitrary arguments. The gates run only the
+# seed corpus; this explores for as long as asked.
+fuzz duration="5m":
+    TILDE_HEADLESS=1 go test -run='^$' -fuzz=FuzzRequests -fuzztime={{duration}} ./internal/harness/
+
 # Run every test, headless ones included, under the race detector, which
 # needs cgo; the binaries tilde ships keep CGO_ENABLED=0.
 race:
