@@ -188,6 +188,11 @@
       "path": "unstable/wlr-output-power-management-unstable-v1.xml"
     },
     {
+      "package": "wlroutputmanagement",
+      "source": "wlr-protocols",
+      "path": "unstable/wlr-output-management-unstable-v1.xml"
+    },
+    {
       "package": "virtualkeyboard",
       "source": "wlroots",
       "path": "protocol/virtual-keyboard-unstable-v1.xml"

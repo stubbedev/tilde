@@ -4,11 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"maps"
 	"slices"
 	"strings"
 
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/output"
+	"github.com/stubbedev/tilde/internal/outputmanagement"
 )
 
 type OutputRule struct {
@@ -40,11 +42,18 @@ func internalPanel(name string) bool {
 	return strings.HasPrefix(name, "eDP")
 }
 
-func (c *Compositor) outputRule(b backend.Output) OutputRule {
-	var rule OutputRule
-	if i := slices.IndexFunc(c.outputRules, func(r OutputRule) bool { return r.matches(b) }); i >= 0 {
-		rule = c.outputRules[i]
+func (c *Compositor) configuredRule(b backend.Output) OutputRule {
+	if rule, ok := c.outputOverrides[b.Name()]; ok {
+		return rule
 	}
+	if i := slices.IndexFunc(c.outputRules, func(r OutputRule) bool { return r.matches(b) }); i >= 0 {
+		return c.outputRules[i]
+	}
+	return OutputRule{}
+}
+
+func (c *Compositor) outputRule(b backend.Output) OutputRule {
+	rule := c.configuredRule(b)
 	if c.lidClosed && internalPanel(b.Name()) {
 		rule.Disabled = true
 	}
@@ -158,7 +167,7 @@ func (c *Compositor) relayout() error {
 			errs = append(errs, o.Update(at, o.Scale()))
 		}
 	}
-	return errors.Join(append(errs, c.shell.ReconfigureLock(), c.confirmLock())...)
+	return errors.Join(append(errs, c.shell.ReconfigureLock(), c.confirmLock(), c.outputConfig.Changed())...)
 }
 
 func (c *Compositor) output(b backend.Output) *output.Output {
@@ -177,7 +186,7 @@ func (c *Compositor) OutputAdded(b backend.Output) error {
 	}
 	if !b.State().Enabled {
 		c.disabled = append(c.disabled, b)
-		return nil
+		return c.outputConfig.Changed()
 	}
 	return c.enable(b, rule)
 }
@@ -208,7 +217,7 @@ func (c *Compositor) enable(b backend.Output, rule OutputRule) error {
 func (c *Compositor) OutputRemoved(b backend.Output) error {
 	if i := slices.Index(c.disabled, b); i >= 0 {
 		c.disabled = slices.Delete(c.disabled, i, i+1)
-		return nil
+		return c.outputConfig.Changed()
 	}
 	o := c.output(b)
 	if o == nil {
@@ -245,6 +254,66 @@ func (c *Compositor) disable(o *output.Output) error {
 	c.wm = s
 	errs = append(errs, c.relayout(), c.syncAreas())
 	return errors.Join(errs...)
+}
+
+func (c *Compositor) Heads() []outputmanagement.Head {
+	heads := make([]outputmanagement.Head, 0, len(c.outputs)+len(c.disabled))
+	for _, o := range c.outputs {
+		b := o.Backend()
+		heads = append(heads, outputmanagement.Head{Output: b, Enabled: true, Mode: b.State().Mode, Position: o.Position(), Scale: o.Scale()})
+	}
+	for _, b := range c.disabled {
+		heads = append(heads, outputmanagement.Head{Output: b})
+	}
+	slices.SortFunc(heads, func(a, b outputmanagement.Head) int { return strings.Compare(a.Output.Name(), b.Output.Name()) })
+	return heads
+}
+
+func (c *Compositor) Configure(heads []outputmanagement.HeadConfig, apply bool) error {
+	overrides := maps.Clone(c.outputOverrides)
+	if overrides == nil {
+		overrides = map[string]OutputRule{}
+	}
+	lit := false
+	for _, h := range heads {
+		b := h.Output
+		rule := c.configuredRule(b)
+		rule.Disabled = !h.Enabled
+		if h.Mode != nil {
+			rule.Mode = ExactMode{Size: h.Mode.Size, RefreshMHz: h.Mode.RefreshMHz}
+		}
+		if h.Position != nil {
+			at := *h.Position
+			rule.Position = &at
+		}
+		if h.Scale != 0 {
+			rule.Scale = h.Scale
+		}
+		overrides[b.Name()] = rule
+		if !h.Enabled {
+			continue
+		}
+		lit = true
+		if _, err := rule.mode().choose(b.Modes(), b.State().Mode); err != nil {
+			return fmt.Errorf("compositor: output %s: %w", b.Name(), err)
+		}
+		if s := rule.scale(); s < output.MinScale || s > output.MaxScale {
+			return fmt.Errorf("compositor: output %s: scale %g is outside %g to %g", b.Name(), s.Float(), output.MinScale.Float(), output.MaxScale.Float())
+		}
+	}
+	if !lit {
+		return errors.New("compositor: a configuration that turns off every output would leave nothing on screen")
+	}
+	if !apply {
+		return nil
+	}
+	previous := c.outputOverrides
+	c.outputOverrides = overrides
+	if err := c.applyOutputRules(); err != nil {
+		c.outputOverrides = previous
+		return errors.Join(err, c.applyOutputRules())
+	}
+	return nil
 }
 
 func (c *Compositor) OutputDamaged(b backend.Output) error {

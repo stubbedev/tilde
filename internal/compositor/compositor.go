@@ -20,6 +20,7 @@ import (
 	"github.com/stubbedev/tilde/internal/idle"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/output"
+	"github.com/stubbedev/tilde/internal/outputmanagement"
 	"github.com/stubbedev/tilde/internal/outputpower"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	"github.com/stubbedev/tilde/internal/render"
@@ -90,6 +91,8 @@ type Compositor struct {
 	dmabuf          *dmabuf.Manager
 	importer        dmabufRenderer
 	power           *outputpower.Manager
+	outputConfig    *outputmanagement.Manager
+	outputOverrides map[string]OutputRule
 	drm             *drm.Device
 	lidClosed       bool
 	windows         []*window
@@ -235,6 +238,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 	if c.power, err = outputpower.New(display, c); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
+	if c.outputConfig, err = outputmanagement.New(display, c); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
 	if imp, ok := c.renderer.(dmabufRenderer); ok {
 		c.importer = imp
 		if c.dmabuf, err = dmabuf.New(display, imp, c); err != nil {
@@ -291,6 +297,7 @@ func (c *Compositor) Reconfigure(cfg Config) error {
 		return fmt.Errorf("compositor: %w", err)
 	}
 	c.adopt(cfg, m)
+	c.outputOverrides = nil
 	c.submap = ""
 	c.repeat.active = false
 	if err := errors.Join(c.dropDecor(), c.seat.Reconfigure(pending), c.repeat.timer.Disarm(), c.applyOutputRules(), c.scheduleAll()); err != nil {

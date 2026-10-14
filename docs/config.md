@@ -34,6 +34,13 @@ A list of rules. Each output takes the first rule that matches it.
 A mode the output does not have is reported, and the output keeps its current
 mode.
 
+Display tools such as wlr-randr, kanshi, wdisplays and nwg-displays change
+outputs while tilde runs, through wlr-output-management. Their changes take the
+place of these rules for the outputs they name until the config is reloaded,
+which applies the rules again. tilde refuses a configuration that rotates an
+output, turns on adaptive sync, uses a mode the output does not list, or turns
+every output off.
+
 While the laptop lid is closed, internal panels (`eDP-*`) are off whatever the
 rules say, and their workspaces move to the other outputs; opening the lid
 brings the panel back under its rule. libinput turns off the internal keyboard
