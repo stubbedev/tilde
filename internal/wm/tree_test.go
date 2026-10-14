@@ -223,7 +223,7 @@ func TestRandomOperationsKeepTheTreeValid(t *testing.T) {
 		next := WindowID(1)
 		for step := range 60 {
 			var err error
-			switch op := rng.IntN(6); {
+			switch op := rng.IntN(8); {
 			case op <= 1 || len(live) == 0:
 				tree, err = tree.Insert(next, Layout(1+rng.IntN(2)))
 				live = append(live, next)
@@ -234,6 +234,8 @@ func TestRandomOperationsKeepTheTreeValid(t *testing.T) {
 				live = slices.Delete(live, i, i+1)
 			case op == 3:
 				tree, err = tree.Focus(live[rng.IntN(len(live))])
+			case op >= 6:
+				tree, _, err = tree.Move(live[rng.IntN(len(live))], Direction(1+rng.IntN(4)), CollapsePolicy(rng.IntN(3)))
 			default:
 				tree, err = tree.Wrap(live[rng.IntN(len(live))], Layout(1+rng.IntN(3)), rng.IntN(2) == 0)
 			}

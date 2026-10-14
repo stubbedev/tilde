@@ -17,10 +17,22 @@ type Output struct {
 }
 
 type Workspace struct {
-	ID     WorkspaceID
-	Output string
-	Tree   Tree
-	home   string
+	ID      WorkspaceID
+	Output  string
+	Tree    Tree
+	home    string
+	history []WindowID
+}
+
+func (w *Workspace) record() {
+	id, ok := w.Tree.Focused()
+	if !ok {
+		return
+	}
+	if n := len(w.history); n > 0 && w.history[n-1] == id {
+		return
+	}
+	w.history = append(slices.DeleteFunc(w.history, func(x WindowID) bool { return x == id }), id)
 }
 
 type State struct {
@@ -38,11 +50,15 @@ var (
 func (s State) clone() State {
 	c := State{
 		outputs:    slices.Clone(s.outputs),
-		workspaces: slices.Clone(s.workspaces),
+		workspaces: make([]Workspace, len(s.workspaces)),
 		focused:    s.focused,
 		remembered: make(map[string]WorkspaceID, len(s.remembered)),
 	}
 	maps.Copy(c.remembered, s.remembered)
+	for i, w := range s.workspaces {
+		w.history = slices.Clone(w.history)
+		c.workspaces[i] = w
+	}
 	return c
 }
 
@@ -287,6 +303,7 @@ func (s State) MapWindow(id WindowID) (State, error) {
 		return State{}, err
 	}
 	w.Tree = tree
+	w.record()
 	return s, nil
 }
 
@@ -296,9 +313,16 @@ func (s State) UnmapWindow(id WindowID) (State, error) {
 	if w == nil {
 		return State{}, fmt.Errorf("unmap window %d: %w", id, ErrUnknownWindow)
 	}
+	focused, _ := w.Tree.Focused()
 	tree, err := w.Tree.Remove(id)
 	if err != nil {
 		return State{}, err
+	}
+	w.history = slices.DeleteFunc(w.history, func(x WindowID) bool { return x == id })
+	if n := len(w.history); focused == id && n > 0 {
+		if tree, err = tree.Focus(w.history[n-1]); err != nil {
+			return State{}, err
+		}
 	}
 	w.Tree = tree
 	s.dropIfIdle(w.ID)
@@ -316,6 +340,7 @@ func (s State) FocusWindow(id WindowID) (State, error) {
 		return State{}, err
 	}
 	w.Tree = tree
+	w.record()
 	s.activate(w.ID)
 	return s, nil
 }
@@ -372,6 +397,8 @@ func (s State) MoveToWorkspace(id WorkspaceID) (State, error) {
 		return State{}, err
 	}
 	from.Tree = tree
+	from.history = slices.DeleteFunc(from.history, func(x WindowID) bool { return x == win })
+	from.record()
 	to := s.workspace(id)
 	if to == nil {
 		to = s.create(id, s.focused)
@@ -383,6 +410,7 @@ func (s State) MoveToWorkspace(id WorkspaceID) (State, error) {
 	if to.Tree, err = to.Tree.Insert(win, rootLayout(area)); err != nil {
 		return State{}, err
 	}
+	to.record()
 	return s, nil
 }
 
