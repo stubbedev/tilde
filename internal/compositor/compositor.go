@@ -19,6 +19,7 @@ import (
 	"github.com/stubbedev/tilde/internal/shm"
 	"github.com/stubbedev/tilde/internal/singlepixel"
 	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/tilde/internal/wm"
 	"github.com/stubbedev/tilde/internal/xcursor"
 	"github.com/stubbedev/tilde/internal/xkb"
 )
@@ -54,6 +55,8 @@ type Compositor struct {
 	shell      *shell.Shell
 	textures   map[*surface.Surface]*texture
 	windows    []*window
+	wm         wm.State
+	nextWindow wm.WindowID
 	active     *window
 	consumed   []uint32
 	layers     []*layer
@@ -185,7 +188,7 @@ func (c *Compositor) OutputAdded(b backend.Output) error {
 	if _, err := c.arrange(o); err != nil {
 		return err
 	}
-	if err := c.adoptWindows(o); err != nil {
+	if err := c.update(c.wm.AddOutput(b.Name(), c.usable[o].Add(o.Position()))); err != nil {
 		return err
 	}
 	return c.schedule(o)
@@ -211,10 +214,12 @@ func (c *Compositor) OutputRemoved(b backend.Output) error {
 			w.output = nil
 		}
 	}
-	errs = append(errs, c.relayout())
-	if len(c.outputs) > 0 {
-		errs = append(errs, c.adoptWindows(c.outputs[0]))
+	s, err := c.wm.RemoveOutput(b.Name())
+	if err != nil {
+		return errors.Join(append(errs, err)...)
 	}
+	c.wm = s
+	errs = append(errs, c.relayout(), c.syncAreas())
 	return errors.Join(errs...)
 }
 
@@ -227,7 +232,7 @@ func (c *Compositor) OutputChanged(b backend.Output) error {
 		return err
 	}
 	_, err := c.arrange(o)
-	return errors.Join(err, c.refit(o), c.schedule(o))
+	return errors.Join(err, c.syncAreas(), c.schedule(o))
 }
 
 func (c *Compositor) SetOutputScale(b backend.Output, scale output.Scale) error {
@@ -242,5 +247,5 @@ func (c *Compositor) SetOutputScale(b backend.Output, scale output.Scale) error 
 		return err
 	}
 	_, err := c.arrange(o)
-	return errors.Join(err, c.refit(o), c.schedule(o))
+	return errors.Join(err, c.syncAreas(), c.schedule(o))
 }

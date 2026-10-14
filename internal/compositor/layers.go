@@ -89,7 +89,7 @@ func (c *Compositor) arrange(o *output.Output) (bool, error) {
 func (c *Compositor) rearrange(o *output.Output) error {
 	changed, err := c.arrange(o)
 	if changed {
-		err = errors.Join(err, c.refit(o))
+		err = errors.Join(err, c.syncAreas())
 	}
 	return err
 }

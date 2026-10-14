@@ -20,7 +20,7 @@ func (p placedPopup) bounds() image.Rectangle {
 }
 
 func (c *Compositor) popups(w *window) []placedPopup {
-	if w.output == nil {
+	if !w.visible {
 		return nil
 	}
 	return c.popupTree(w.toplevel, c.placement(w).Min)
@@ -43,19 +43,10 @@ func (c *Compositor) popupTree(root shell.PopupRoot, origin image.Point) []place
 	return out
 }
 
-func (c *Compositor) windowOf(t *shell.Toplevel) *window {
-	for _, w := range c.windows {
-		if w.toplevel == t {
-			return w
-		}
-	}
-	return nil
-}
-
 func (c *Compositor) PopupConstraint(root shell.PopupRoot) image.Rectangle {
 	switch r := root.(type) {
 	case *shell.Toplevel:
-		if w := c.windowOf(r); w != nil && w.output != nil {
+		if w := c.windowOf(r); w != nil && w.visible && w.output != nil {
 			return w.output.Logical().Sub(c.placement(w).Min)
 		}
 	case *shell.LayerSurface:

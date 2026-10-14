@@ -42,7 +42,7 @@ func (c *Compositor) render(o *output.Output) error {
 		shown = c.drawTree(pass, o, e.surface.Surface(), e.bounds().Min, shown)
 	}
 	for _, w := range c.windows {
-		if w.output != o {
+		if !w.visible || !w.rect.Overlaps(o.Logical()) {
 			continue
 		}
 		origin := c.placement(w).Min.Sub(w.toplevel.Geometry().Min)

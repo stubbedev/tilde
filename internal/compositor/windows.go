@@ -2,6 +2,7 @@ package compositor
 
 import (
 	"errors"
+	"fmt"
 	"image"
 	"slices"
 
@@ -10,19 +11,28 @@ import (
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/shell"
 	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/tilde/internal/wm"
 )
 
+type configured struct {
+	size      image.Point
+	bounds    image.Point
+	scale     output.Scale
+	activated bool
+}
+
 type window struct {
+	id       wm.WindowID
 	toplevel *shell.Toplevel
+	rect     image.Rectangle
+	visible  bool
 	output   *output.Output
 	urgent   bool
+	scale    output.Scale
 }
 
 func (c *Compositor) placement(w *window) image.Rectangle {
-	if w.output == nil {
-		return image.Rectangle{}
-	}
-	return c.usable[w.output].Add(w.output.Position())
+	return w.rect
 }
 
 func (c *Compositor) firstOutput() *output.Output {
@@ -30,6 +40,24 @@ func (c *Compositor) firstOutput() *output.Output {
 		return nil
 	}
 	return c.outputs[0]
+}
+
+func (c *Compositor) windowOf(t *shell.Toplevel) *window {
+	for _, w := range c.windows {
+		if w.toplevel == t {
+			return w
+		}
+	}
+	return nil
+}
+
+func (c *Compositor) windowByID(id wm.WindowID) *window {
+	for _, w := range c.windows {
+		if w.id == id {
+			return w
+		}
+	}
+	return nil
 }
 
 func (c *Compositor) Toplevels() []*shell.Toplevel {
@@ -40,48 +68,121 @@ func (c *Compositor) Toplevels() []*shell.Toplevel {
 	return out
 }
 
-func (c *Compositor) configure(t *shell.Toplevel, o *output.Output, activated bool) error {
-	var s shell.State
-	if o != nil {
-		s.Size = c.usable[o].Size()
-		s.Bounds = s.Size
-		if err := t.Surface().Client().Sent(t.Surface().SetPreferredScale(uint32(o.Scale()))); err != nil {
-			return err
+func (c *Compositor) outputAtRect(r image.Rectangle) *output.Output {
+	for _, o := range c.outputs {
+		if r.Min.In(o.Logical()) {
+			return o
 		}
 	}
-	if o != nil {
+	return nil
+}
+
+func (c *Compositor) configure(t *shell.Toplevel, want configured) error {
+	s := shell.State{Size: want.size, Bounds: want.bounds}
+	if want.scale != 0 {
+		if err := t.Surface().Client().Sent(t.Surface().SetPreferredScale(uint32(want.scale))); err != nil {
+			return err
+		}
 		s.States = append(s.States,
 			sxdg.XdgToplevelStateTiledLeft, sxdg.XdgToplevelStateTiledRight, sxdg.XdgToplevelStateTiledTop, sxdg.XdgToplevelStateTiledBottom,
 			sxdg.XdgToplevelStateConstrainedLeft, sxdg.XdgToplevelStateConstrainedRight, sxdg.XdgToplevelStateConstrainedTop, sxdg.XdgToplevelStateConstrainedBottom)
 	}
-	if activated {
+	if want.activated {
 		s.States = append(s.States, sxdg.XdgToplevelStateActivated)
 	}
 	_, err := t.Configure(s)
 	return t.Surface().Client().Sent(err)
 }
 
-func (c *Compositor) ToplevelInitialCommit(t *shell.Toplevel) error {
-	return c.configure(t, c.firstOutput(), true)
+func (c *Compositor) wanted(rect image.Rectangle, activated bool) configured {
+	want := configured{size: rect.Size(), activated: activated}
+	if o := c.outputAtRect(rect); o != nil {
+		want.scale, want.bounds = o.Scale(), c.usable[o].Size()
+	}
+	return want
 }
 
-func (c *Compositor) focus(target *window) error {
-	if prev := c.active; prev != nil && prev != target {
-		if err := c.configure(prev.toplevel, prev.output, false); err != nil {
-			return err
+func (c *Compositor) update(s wm.State, err error) error {
+	if err != nil {
+		return err
+	}
+	c.wm = s
+	return c.reconcile()
+}
+
+func (c *Compositor) syncAreas() error {
+	s := c.wm
+	for _, o := range c.outputs {
+		area := c.usable[o].Add(o.Position())
+		for _, have := range s.Outputs() {
+			if have.Name == o.Backend().Name() && have.Area != area {
+				var err error
+				if s, err = s.SetArea(have.Name, area); err != nil {
+					return err
+				}
+			}
 		}
 	}
-	c.active = target
-	if target != nil {
-		c.layerFocus = nil
-		target.urgent = false
+	return c.update(s, nil)
+}
+
+func (c *Compositor) reconcile() error {
+	focused, hasFocus := c.wm.Focused()
+	var errs []error
+	for _, p := range c.wm.Arrange(0).Windows {
+		w := c.windowByID(p.ID)
+		if w == nil {
+			return fmt.Errorf("compositor: the window manager placed unknown window %d", p.ID)
+		}
+		moved := p.Rect != w.rect
+		w.rect, w.visible = p.Rect, p.Visible
+		if o := c.outputAtRect(p.Rect); o != nil {
+			w.output = o
+		}
+		if moved && w.visible {
+			errs = append(errs, c.reconstrain(w))
+		}
+		errs = append(errs, c.settle(w, hasFocus && focused == w.id))
 	}
-	if target != nil && !target.toplevel.Requested().Has(sxdg.XdgToplevelStateActivated) {
-		if err := c.configure(target.toplevel, target.output, true); err != nil {
-			return err
+	var target *window
+	if hasFocus {
+		target = c.windowByID(focused)
+	}
+	if target != c.active {
+		c.active = target
+		if target != nil {
+			c.layerFocus, target.urgent = nil, false
 		}
 	}
-	return c.refocus()
+	return errors.Join(append(errs, c.refocus(), c.refreshPointer(), c.scheduleAll())...)
+}
+
+func (c *Compositor) settle(w *window, activated bool) error {
+	want := c.wanted(w.rect, activated)
+	r := w.toplevel.Requested()
+	if r.Size == want.size && r.Bounds == want.bounds && r.Has(sxdg.XdgToplevelStateActivated) == want.activated && w.scale == want.scale {
+		return nil
+	}
+	w.scale = want.scale
+	return c.configure(w.toplevel, want)
+}
+
+func (c *Compositor) ToplevelInitialCommit(t *shell.Toplevel) error {
+	s, err := c.wm.MapWindow(c.nextWindow)
+	if err != nil {
+		return err
+	}
+	for _, p := range s.Arrange(0).Windows {
+		if p.ID == c.nextWindow {
+			return c.configure(t, c.wanted(p.Rect, true))
+		}
+	}
+	return fmt.Errorf("compositor: the window manager did not place new window %d", c.nextWindow)
+}
+
+func (c *Compositor) focusWindow(w *window) error {
+	c.layerFocus = nil
+	return c.update(c.wm.FocusWindow(w.id))
 }
 
 func (c *Compositor) keyboardTarget() *surface.Surface {
@@ -105,50 +206,31 @@ func (c *Compositor) refocus() error {
 }
 
 func (c *Compositor) ToplevelMapped(t *shell.Toplevel) error {
-	w := &window{toplevel: t, output: c.firstOutput()}
-	c.windows = append(c.windows, w)
-	if err := c.focus(w); err != nil {
+	w := &window{id: c.nextWindow, toplevel: t}
+	c.nextWindow++
+	s, err := c.wm.MapWindow(w.id)
+	if err != nil {
 		return err
 	}
-	return errors.Join(c.refreshPointer(), c.scheduleAll())
+	for _, p := range s.Arrange(0).Windows {
+		if o := c.outputAtRect(p.Rect); p.ID == w.id && o != nil && t.Requested().Bounds != (image.Point{}) {
+			w.scale = o.Scale()
+		}
+	}
+	c.windows = append(c.windows, w)
+	return c.update(s, nil)
 }
 
 func (c *Compositor) ToplevelUnmapped(t *shell.Toplevel) error {
-	c.windows = slices.DeleteFunc(c.windows, func(w *window) bool { return w.toplevel == t })
-	if c.active != nil && c.active.toplevel == t {
+	w := c.windowOf(t)
+	if w == nil {
+		return nil
+	}
+	c.windows = slices.DeleteFunc(c.windows, func(x *window) bool { return x == w })
+	if c.active == w {
 		c.active = nil
-		var next *window
-		if n := len(c.windows); n > 0 {
-			next = c.windows[n-1]
-		}
-		if err := c.focus(next); err != nil {
-			return err
-		}
 	}
-	return errors.Join(c.refreshPointer(), c.scheduleAll())
-}
-
-func (c *Compositor) adoptWindows(o *output.Output) error {
-	for _, w := range c.windows {
-		if w.output == nil {
-			w.output = o
-			if err := errors.Join(c.configure(w.toplevel, o, c.active == w), c.reconstrain(w)); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (c *Compositor) refit(o *output.Output) error {
-	for _, w := range c.windows {
-		if w.output == o {
-			if err := errors.Join(c.configure(w.toplevel, o, c.active == w), c.reconstrain(w)); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+	return c.update(c.wm.UnmapWindow(w.id))
 }
 
 func (c *Compositor) ToplevelCommitted(*shell.Toplevel) error { return nil }

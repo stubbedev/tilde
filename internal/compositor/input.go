@@ -169,7 +169,7 @@ func (c *Compositor) pointerMoved(at time.Duration) error {
 		err = c.seat.PointerMotion(at, local.X, local.Y)
 	}
 	if w != nil && c.grabClient() == nil && (c.active != w || c.seat.Focus() != w.toplevel.Surface()) {
-		err = errors.Join(err, c.focus(w))
+		err = errors.Join(err, c.focusWindow(w))
 	}
 	return errors.Join(err, c.scheduleAll())
 }
@@ -239,7 +239,7 @@ func (c *Compositor) surfaceAt(p point) (*surface.Surface, point, *window) {
 		}
 	}
 	for _, w := range slices.Backward(c.windows) {
-		if w.output == nil {
+		if !w.visible {
 			continue
 		}
 		origin := c.placement(w).Min.Sub(w.toplevel.Geometry().Min)
@@ -273,6 +273,9 @@ func hitTree(s *surface.Surface, at image.Point, p point) (*surface.Surface, poi
 
 func (c *Compositor) originOf(target *surface.Surface) (image.Point, bool) {
 	for _, w := range c.windows {
+		if !w.visible {
+			continue
+		}
 		if origin, ok := treeOrigin(w.toplevel.Surface(), c.placement(w).Min.Sub(w.toplevel.Geometry().Min), target); ok {
 			return origin, true
 		}
