@@ -47,6 +47,31 @@ the standard library. The protocol glue translates both ways: client
 requests and backend input into `wm` events, and `wm` effects into protocol
 events and render state.
 
+### Container tree
+
+Each workspace is a tree in the hy3 model (#21): a root group (split
+horizontally when the area is wider than tall), split groups that divide
+their area by child ratios that always sum to the child count, tab groups
+that show one child below a tab bar, and windows as leaves. These rules
+were read from hy3 at the pinned commit; its code is not ported.
+
+- A new window goes right after the focused window, in the same group, and
+  takes focus.
+- Removing a child shares its ratio among its siblings. Focus moves to the
+  previous sibling, or to the next one when the removed child came first.
+- Removing a window collapses only invalid groups, walking up from where
+  the window was: an emptied group goes away; a group left with one child
+  collapses into that child when it is an active ephemeral group, a split
+  holding a split, or a tab group holding a tab group of one tab. The root
+  group keeps a lone window. hy3's configurable `node_collapse_policy`
+  (2, empty splits, as configured today) applies only to moves (#23).
+- An ephemeral group made around one window is staged, becomes active once
+  it holds two children, and then dissolves when it drops back to one.
+
+Layout is a pure function from tree and area to placements. Split edges
+are rounded from cumulative ratios, so neighbours share an edge and the
+children always cover the area exactly.
+
 ## Dispatch
 
 One typed `Action` set and one dispatcher, in `wm` (#66). Keybinds,
