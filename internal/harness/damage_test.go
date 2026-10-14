@@ -22,20 +22,21 @@ func area(r render.Region) int {
 	return n
 }
 
-func settle(t *testing.T, h *Harness) {
-	t.Helper()
-	var presents uint64
+func presentCount(h *Harness) uint64 {
+	var n uint64
 	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
-		presents = b.Outputs()[0].Presents()
+		n = b.Outputs()[0].Presents()
 		return nil
 	})
+	return n
+}
+
+func settle(t *testing.T, h *Harness) {
+	t.Helper()
+	presents := presentCount(h)
 	for deadline := time.Now().Add(clientTimeout); ; {
 		time.Sleep(50 * time.Millisecond)
-		var now uint64
-		h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
-			now = b.Outputs()[0].Presents()
-			return nil
-		})
+		now := presentCount(h)
 		if now == presents {
 			return
 		}
@@ -44,6 +45,23 @@ func settle(t *testing.T, h *Harness) {
 		}
 		presents = now
 	}
+}
+
+func quiesce(t *testing.T, h *Harness, c *testclient.Client, w *testclient.Window) {
+	t.Helper()
+	w.Stop()
+	for range 5 {
+		settle(t, h)
+		before := presentCount(h)
+		if err := c.Display.Roundtrip(); err != nil {
+			t.Fatal(err)
+		}
+		settle(t, h)
+		if presentCount(h) == before {
+			return
+		}
+	}
+	t.Fatal("the client kept redrawing")
 }
 
 type frameDone struct{ done *bool }
@@ -65,11 +83,7 @@ func TestOnlyDamageIsRepainted(t *testing.T) {
 	})
 	settle(t, h)
 
-	var presents uint64
-	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
-		presents = b.Outputs()[0].Presents()
-		return nil
-	})
+	presents := presentCount(h)
 	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
 		p := b.Pointer()
 		return errors.Join(p.Move(40, 0), p.Frame())
@@ -84,10 +98,7 @@ func TestOnlyDamageIsRepainted(t *testing.T) {
 		return nil
 	})
 	settle(t, h)
-	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
-		presents = b.Outputs()[0].Presents()
-		return nil
-	})
+	presents = presentCount(h)
 	update := c.Buffer(w.Size, 1, testclient.Fill(0x10, 0x20, 0x30))
 	for _, err := range []error{w.Surface.Attach(update, 0, 0), w.Surface.DamageBuffer(100, 50, 10, 20), w.Surface.Commit()} {
 		if err != nil {

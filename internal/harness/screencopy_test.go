@@ -14,7 +14,7 @@ type copyFrame struct {
 	size          image.Point
 	stride        uint32
 	ready, failed bool
-	damaged       bool
+	damage        image.Rectangle
 	bufferDone    bool
 }
 
@@ -37,8 +37,8 @@ func (f *copyFrame) Failed(*cwsc.ZwlrScreencopyFrameV1) error {
 	return nil
 }
 
-func (f *copyFrame) Damage(*cwsc.ZwlrScreencopyFrameV1, uint32, uint32, uint32, uint32) error {
-	f.damaged = true
+func (f *copyFrame) Damage(_ *cwsc.ZwlrScreencopyFrameV1, x, y, w, h uint32) error {
+	f.damage = f.damage.Union(image.Rect(int(x), int(y), int(x+w), int(y+h)))
 	return nil
 }
 
@@ -107,6 +107,7 @@ func TestScreencopyCapturesOutputsAndRegions(t *testing.T) {
 		t.Fatalf("region capture %+v: %v", *f, rgbAt(pix, int(f.stride), 5, 5))
 	}
 
+	quiesce(t, h, c, w)
 	f, _ = screenshot(t, c, mgr, image.Rectangle{}, true)
 	settle(t, h)
 	if err := c.Display.Roundtrip(); err != nil || f.ready {
@@ -116,7 +117,7 @@ func TestScreencopyCapturesOutputsAndRegions(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.DispatchUntil("the damage capture", func() bool { return f.ready })
-	if !f.damaged {
-		t.Fatal("a damage capture reported no damage")
+	if !image.Rect(0, 0, 10, 10).In(f.damage) || f.damage == image.Rect(0, 0, 160, 100) {
+		t.Fatalf("a damage capture reported %v", f.damage)
 	}
 }

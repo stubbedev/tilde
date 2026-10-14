@@ -146,7 +146,7 @@ func (c *Compositor) reconcile() error {
 			c.layerFocus, target.urgent = nil, false
 		}
 	}
-	return errors.Join(append(errs, c.refocus(), c.refreshPointer(), c.scheduleAll(), c.syncForeign(), c.syncWorkspaces())...)
+	return errors.Join(append(errs, c.refocus(), c.refreshPointer(), c.scheduleAll(), c.syncForeign(), c.syncWorkspaces(), c.syncCaptureSessions())...)
 }
 
 func (c *Compositor) content(tile image.Rectangle, layer wm.PlacementLayer) image.Rectangle {

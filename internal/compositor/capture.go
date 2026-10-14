@@ -7,22 +7,78 @@ import (
 	"time"
 
 	"github.com/stubbedev/tilde/internal/backend"
+	"github.com/stubbedev/tilde/internal/dmabuf"
+	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/output"
+	"github.com/stubbedev/tilde/internal/region"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/shm"
 )
 
+var captureFormats = []render.Format{render.XRGB8888, render.ARGB8888}
+
+type captureRenderer interface {
+	ImportTarget(b gpu.DMABUF) (render.ReadTarget, error)
+	RenderableModifiers(format uint32) ([]uint64, error)
+	MainDevice() (uint64, error)
+	Finish() error
+}
+
+type captureTarget interface {
+	fill(c *Compositor, size image.Point, draw func(render.Pass) error) error
+}
+
+type shmCapture struct{ b *shm.Buffer }
+
+func (t shmCapture) fill(c *Compositor, size image.Point, draw func(render.Pass) error) (err error) {
+	target, err := c.renderer.NewTarget(size)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, target.Destroy()) }()
+	if err := paint(c.renderer, target, size, draw); err != nil {
+		return err
+	}
+	return t.b.Write(func(data []byte, stride int) error { return target.Read(data, stride) })
+}
+
+type dmabufCapture struct {
+	b *dmabuf.Buffer
+	r captureRenderer
+}
+
+func (t dmabufCapture) fill(c *Compositor, size image.Point, draw func(render.Pass) error) (err error) {
+	target, err := t.r.ImportTarget(t.b.DMABUF())
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, target.Destroy()) }()
+	if err := paint(c.renderer, target, size, draw); err != nil {
+		return err
+	}
+	return t.r.Finish()
+}
+
+func paint(r render.Renderer, target render.Target, size image.Point, draw func(render.Pass) error) error {
+	p, err := r.Begin(target, render.Region{image.Rectangle{Max: size}})
+	if err != nil {
+		return err
+	}
+	p.Clear(render.Color{A: 0xff})
+	return errors.Join(draw(p), p.End())
+}
+
 type capture struct {
 	output *output.Output
-	region image.Rectangle
-	cursor bool
-	buffer *shm.Buffer
+	size   image.Point
+	draw   func(render.Pass) error
+	target captureTarget
+	waits  func(damage *region.Set) bool
 	done   func(at time.Duration, err error) error
 }
 
 func (c *Compositor) queueCapture(k capture, waitForDamage bool) error {
-	sc := c.sceneOf(k.output)
-	if sc.drawn && !waitForDamage {
+	if c.sceneOf(k.output).drawn && !waitForDamage {
 		return c.runCapture(k)
 	}
 	c.captures[k.output] = append(c.captures[k.output], k)
@@ -30,6 +86,10 @@ func (c *Compositor) queueCapture(k capture, waitForDamage bool) error {
 }
 
 func (c *Compositor) runCaptures(o *output.Output) error {
+	damage := &c.sceneOf(o).damage
+	for _, s := range c.captureSessions {
+		s.noteDamage(o, damage)
+	}
 	pending := c.captures[o]
 	if len(pending) == 0 {
 		return nil
@@ -37,9 +97,21 @@ func (c *Compositor) runCaptures(o *output.Output) error {
 	delete(c.captures, o)
 	errs := make([]error, 0, len(pending))
 	for _, k := range pending {
+		if k.waits != nil && k.waits(damage) {
+			c.captures[o] = append(c.captures[o], k)
+			continue
+		}
 		errs = append(errs, c.runCapture(k))
 	}
 	return errors.Join(errs...)
+}
+
+func addDamage(dst, frame *region.Set, area image.Rectangle) {
+	for _, r := range frame.Rects() {
+		if r = r.Intersect(area); !r.Empty() {
+			dst.Add(r.Sub(area.Min))
+		}
+	}
 }
 
 func (c *Compositor) dropCaptures(o *output.Output) error {
@@ -53,37 +125,48 @@ func (c *Compositor) dropCaptures(o *output.Output) error {
 }
 
 func (c *Compositor) runCapture(k capture) error {
-	err := c.captureInto(k)
+	err := k.target.fill(c, k.size, k.draw)
 	return k.done(backend.Now(), err)
 }
 
-func (c *Compositor) captureInto(k capture) (err error) {
-	size := k.region.Size()
-	target, err := c.renderer.NewTarget(size)
-	if err != nil {
-		return err
-	}
-	defer func() { err = errors.Join(err, target.Destroy()) }()
-	p, err := c.renderer.Begin(target, render.Region{image.Rectangle{Max: size}})
-	if err != nil {
-		return err
-	}
-	p.Clear(render.Color{A: 0xff})
-	last := c.sceneOf(k.output).prev
-	(&frame{ops: last.ops[:last.cursorFrom]}).replayFrom(p, k.region.Min)
-	if k.cursor {
-		cursor := frame{ops: last.ops[last.cursorFrom:]}
-		if len(cursor.ops) == 0 {
-			if _, err := c.drawCursor(&cursor, k.output, nil); err != nil {
-				return errors.Join(err, p.End())
+func (c *Compositor) outputDraw(o *output.Output, region image.Rectangle, cursor bool) func(render.Pass) error {
+	return func(p render.Pass) error {
+		last := c.sceneOf(o).prev
+		(&frame{ops: last.ops[:last.cursorFrom]}).replayFrom(p, region.Min)
+		if !cursor {
+			return nil
+		}
+		ops := frame{ops: last.ops[last.cursorFrom:]}
+		if len(ops.ops) == 0 {
+			if _, err := c.drawCursor(&ops, o, nil); err != nil {
+				return err
 			}
 		}
-		cursor.replayFrom(p, k.region.Min)
+		ops.replayFrom(p, region.Min)
+		return nil
 	}
-	if err := p.End(); err != nil {
-		return err
+}
+
+func (c *Compositor) windowRegion(w *window) image.Rectangle {
+	return w.output.Scale().Rect(w.rect.Sub(w.output.Position()))
+}
+
+func (c *Compositor) windowDraw(w *window, cursor bool) func(render.Pass) error {
+	return func(p render.Pass) error {
+		if !w.visible || w.output == nil {
+			return nil
+		}
+		var f frame
+		c.drawTree(&f, w.output, w.top.Surface(), c.windowOrigin(w), nil)
+		c.drawPopups(&f, w.output, c.popups(w), nil)
+		if cursor {
+			if _, err := c.drawCursor(&f, w.output, nil); err != nil {
+				return err
+			}
+		}
+		f.replayFrom(p, c.windowRegion(w).Min)
+		return nil
 	}
-	return k.buffer.Write(func(data []byte, stride int) error { return target.Read(data, stride) })
 }
 
 func (c *Compositor) captureRegion(o *output.Output, logical image.Rectangle) image.Rectangle {
@@ -94,17 +177,25 @@ func (c *Compositor) captureRegion(o *output.Output, logical image.Rectangle) im
 	return o.Scale().Rect(logical).Intersect(bounds)
 }
 
-func validCaptureBuffer(b *shm.Buffer, size image.Point, formats []render.Format) error {
-	switch {
-	case b == nil:
-		return errors.New("not a shared-memory buffer")
-	case b.Size() != size:
-		return fmt.Errorf("the buffer is %v, the capture is %v", b.Size(), size)
+func shmTarget(b *shm.Buffer, size image.Point, formats []render.Format) (captureTarget, error) {
+	if b.Size() != size {
+		return nil, fmt.Errorf("the buffer is %v, the capture is %v", b.Size(), size)
 	}
 	for _, f := range formats {
 		if b.Format() == f {
-			return nil
+			return shmCapture{b}, nil
 		}
 	}
-	return fmt.Errorf("format %d cannot hold a capture", b.Format())
+	return nil, fmt.Errorf("format %d cannot hold a capture", b.Format())
+}
+
+func (c *Compositor) dmabufTarget(b *dmabuf.Buffer, size image.Point) (captureTarget, error) {
+	r, ok := c.renderer.(captureRenderer)
+	switch {
+	case !ok:
+		return nil, errors.New("this renderer cannot draw into dmabufs")
+	case b.Size() != size:
+		return nil, fmt.Errorf("the buffer is %v, the capture is %v", b.Size(), size)
+	}
+	return dmabufCapture{b, r}, nil
 }

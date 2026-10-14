@@ -142,6 +142,7 @@ type Compositor struct {
 	wlrManagers     []*wlrManager
 	wsManagers      []*wsManager
 	captures        map[*output.Output][]capture
+	captureSessions []*captureSession
 	cursorGen       uint64
 	cursorOps       frame
 	cursorShown     []*surface.Surface
@@ -242,6 +243,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if err := c.addScreencopy(display); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
+	if err := c.addImageCapture(display); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.data, err = data.New(display, c); err != nil {

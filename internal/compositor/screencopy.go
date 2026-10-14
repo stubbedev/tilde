@@ -9,6 +9,7 @@ import (
 	"github.com/stubbedev/tilde/internal/output"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	swsc "github.com/stubbedev/tilde/internal/protocol/server/wlrscreencopy"
+	"github.com/stubbedev/tilde/internal/region"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/shm"
@@ -101,11 +102,23 @@ func (f *screencopyFrame) copy(obj *swsc.ZwlrScreencopyFrameV1, wl *sw.WlBuffer,
 		return obj.ProtocolError(swsc.ZwlrScreencopyFrameV1ErrorAlreadyUsed, "the frame was already copied")
 	}
 	f.used = true
-	b, _ := wl.Handler().(*shm.Buffer)
-	if err := validCaptureBuffer(b, f.region.Size(), []render.Format{render.XRGB8888}); err != nil {
+	b, ok := wl.Handler().(*shm.Buffer)
+	if !ok {
+		return obj.ProtocolError(swsc.ZwlrScreencopyFrameV1ErrorInvalidBuffer, "not a shared-memory buffer")
+	}
+	target, err := shmTarget(b, f.region.Size(), []render.Format{render.XRGB8888})
+	if err != nil {
 		return obj.ProtocolError(swsc.ZwlrScreencopyFrameV1ErrorInvalidBuffer, err.Error())
 	}
-	return f.c.queueCapture(capture{output: f.output, region: f.region, cursor: f.cursor, buffer: b, done: func(at time.Duration, err error) error {
+	var damaged region.Set
+	k := capture{output: f.output, size: f.region.Size(), draw: f.c.outputDraw(f.output, f.region, f.cursor), target: target}
+	if damage {
+		k.waits = func(d *region.Set) bool {
+			addDamage(&damaged, d, f.region)
+			return damaged.Empty()
+		}
+	}
+	k.done = func(at time.Duration, err error) error {
 		if err != nil {
 			f.c.report(fmt.Errorf("compositor: screencopy of %s: %w", f.output.Backend().Name(), err))
 			if f.dead {
@@ -113,24 +126,17 @@ func (f *screencopyFrame) copy(obj *swsc.ZwlrScreencopyFrameV1, wl *sw.WlBuffer,
 			}
 			return f.cl.Sent(f.res.SendFailed())
 		}
-		size := f.region.Size()
-		sec := uint64(max(at, 0) / time.Second)
 		if f.dead {
 			return nil
 		}
-		return f.cl.Sent(errors.Join(
-			f.res.SendFlags(0),
-			damageEvent(f, damage, size),
-			f.res.SendReady(uint32(sec>>32), uint32(sec), uint32(at%time.Second)), //nolint:gosec // split as the protocol asks
-		))
-	}}, damage)
-}
-
-func damageEvent(f *screencopyFrame, damage bool, size image.Point) error {
-	if !damage {
-		return nil
+		errs := []error{f.res.SendFlags(0)}
+		for _, r := range damaged.Rects() {
+			errs = append(errs, f.res.SendDamage(uint32(r.Min.X), uint32(r.Min.Y), uint32(r.Dx()), uint32(r.Dy()))) //nolint:gosec // damage lies inside the capture
+		}
+		sec := uint64(max(at, 0) / time.Second)
+		return f.cl.Sent(errors.Join(append(errs, f.res.SendReady(uint32(sec>>32), uint32(sec), uint32(at%time.Second)))...)) //nolint:gosec // split as the protocol asks
 	}
-	return f.res.SendDamage(0, 0, uint32(size.X), uint32(size.Y)) //nolint:gosec // capture sizes are positive
+	return f.c.queueCapture(k, damage)
 }
 
 func (*screencopyFrame) Destroy(*swsc.ZwlrScreencopyFrameV1) error {

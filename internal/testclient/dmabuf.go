@@ -46,6 +46,7 @@ func (m *dmabufModifiers) Modifier(_ *cld.ZwpLinuxDmabufV1, format, hi, lo uint3
 
 type DMABUF struct {
 	WL       *cw.WlBuffer
+	Pix      []byte
 	Released bool
 }
 
@@ -54,47 +55,49 @@ func (b *DMABUF) Release(*cw.WlBuffer) error {
 	return nil
 }
 
-func udmabuf(size int, paint func([]byte)) (fd int, err error) {
+func udmabuf(size int, paint func([]byte)) (fd int, mapping []byte, err error) {
 	dev, err := os.OpenFile("/dev/udmabuf", os.O_RDWR, 0)
 	if err != nil {
-		return -1, err
+		return -1, nil, err
 	}
 	defer dev.Close()
 	size = (size + os.Getpagesize() - 1) &^ (os.Getpagesize() - 1)
 	memfd, err := unix.MemfdCreate("testclient-dmabuf", unix.MFD_CLOEXEC|unix.MFD_ALLOW_SEALING)
 	if err != nil {
-		return -1, err
+		return -1, nil, err
 	}
 	defer func() { err = errors.Join(err, unix.Close(memfd)) }()
 	if err := unix.Ftruncate(memfd, int64(size)); err != nil {
-		return -1, err
+		return -1, nil, err
 	}
 	m, err := unix.Mmap(memfd, 0, size, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
 	if err != nil {
-		return -1, err
+		return -1, nil, err
 	}
 	paint(m)
-	if err := unix.Munmap(m); err != nil {
-		return -1, err
-	}
 	if _, err := unix.FcntlInt(uintptr(memfd), unix.F_ADD_SEALS, unix.F_SEAL_SHRINK); err != nil {
-		return -1, err
+		return -1, nil, errors.Join(err, unix.Munmap(m))
 	}
 	args := udmabufCreateArgs{memfd: uint32(memfd), flags: udmabufCloexec, size: uint64(size)}           //nolint:gosec // file descriptors and page-rounded sizes fit
 	r, _, errno := unix.Syscall(unix.SYS_IOCTL, dev.Fd(), udmabufCreate, uintptr(unsafe.Pointer(&args))) //nolint:gosec // UDMABUF_CREATE reads this struct during the call
 	if errno != 0 {
-		return -1, errno
+		return -1, nil, errors.Join(errno, unix.Munmap(m))
 	}
-	return int(r), nil
+	return int(r), m, nil
 }
 
 func (c *Client) DMABUF(size image.Point, paint Painter) *DMABUF {
 	c.t.Helper()
 	stride := size.X * 4
-	fd, err := udmabuf(stride*size.Y, func(m []byte) { paint(m[:stride*size.Y], stride, size, 0) })
+	fd, mapping, err := udmabuf(stride*size.Y, func(m []byte) { paint(m[:stride*size.Y], stride, size, 0) })
 	if err != nil {
 		c.t.Skipf("testclient: no udmabuf to share memory as a dmabuf: %v", err)
 	}
+	c.t.Cleanup(func() {
+		if err := unix.Munmap(mapping); err != nil {
+			c.t.Errorf("testclient: unmapping a dmabuf: %v", err)
+		}
+	})
 	defer func() { c.must(unix.Close(fd)) }()
 	g, ok := c.globals.byName["zwp_linux_dmabuf_v1"]
 	if !ok {
@@ -116,7 +119,7 @@ func (c *Client) DMABUF(size image.Point, paint Painter) *DMABUF {
 	params, err := linux.CreateParams(paramsEvents{})
 	c.must(err)
 	c.must(params.Add(fd, 0, 0, uint32(stride), uint32(modifier>>32), uint32(modifier))) //nolint:gosec // test buffers are small
-	b := &DMABUF{}
+	b := &DMABUF{Pix: mapping[:stride*size.Y]}
 	b.WL, err = params.CreateImmed(b, int32(size.X), int32(size.Y), xrgb8888, 0) //nolint:gosec // test buffers are small
 	c.must(err)
 	c.must(errors.Join(params.Destroy(), linux.Destroy()))
