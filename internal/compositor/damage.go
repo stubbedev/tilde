@@ -36,8 +36,8 @@ func (f *frame) DrawTexture(t render.Texture, src render.FRect, dst image.Rectan
 	f.ops = append(f.ops, drawOp{tex: t, src: src, dst: dst, transform: transform, alpha: alpha})
 }
 
-func (f *frame) drawSurface(s *surface.Surface, t render.Texture, src render.FRect, dst image.Rectangle, transform render.Transform) {
-	f.ops = append(f.ops, drawOp{tex: t, src: src, dst: dst, transform: transform, alpha: 1, surface: s, size: s.Size()})
+func (f *frame) drawSurface(s *surface.Surface, t render.Texture, src render.FRect, dst image.Rectangle, transform render.Transform, alpha float32) {
+	f.ops = append(f.ops, drawOp{tex: t, src: src, dst: dst, transform: transform, alpha: alpha, surface: s, size: s.Size()})
 }
 
 func (f *frame) replay(p render.Pass) {

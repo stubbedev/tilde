@@ -11,6 +11,7 @@ import (
 
 	gtext "github.com/stubbedev/gelm/render"
 
+	"github.com/stubbedev/tilde/internal/alphamodifier"
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/binds"
 	"github.com/stubbedev/tilde/internal/data"
@@ -92,6 +93,7 @@ type Compositor struct {
 	importer        dmabufRenderer
 	power           *outputpower.Manager
 	outputConfig    *outputmanagement.Manager
+	alpha           *alphamodifier.Manager
 	outputOverrides map[string]OutputRule
 	drm             *drm.Device
 	lidClosed       bool
@@ -239,6 +241,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.outputConfig, err = outputmanagement.New(display, c); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
+	if c.alpha, err = alphamodifier.New(display); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if imp, ok := c.renderer.(dmabufRenderer); ok {

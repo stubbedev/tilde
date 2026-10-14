@@ -203,6 +203,11 @@
       "path": "staging/xdg-dialog/xdg-dialog-v1.xml"
     },
     {
+      "package": "alphamodifier",
+      "source": "wayland-protocols",
+      "path": "staging/alpha-modifier/alpha-modifier-v1.xml"
+    },
+    {
       "package": "pointergestures",
       "source": "wayland-protocols",
       "path": "unstable/pointer-gestures/pointer-gestures-unstable-v1.xml"
