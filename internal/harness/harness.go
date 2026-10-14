@@ -161,20 +161,20 @@ func (h *Harness) stop() {
 		}
 	}
 	var errs []error
-	if h.compositor != nil {
-		errs = append(errs, h.compositor.Close())
+	if h.xwayland != nil {
+		errs = append(errs, h.xwayland.Close())
 	}
 	if h.ipc != nil {
 		errs = append(errs, h.ipc.Close())
 	}
-	if h.xwayland != nil {
-		errs = append(errs, h.xwayland.Close())
-	}
-	if h.backend != nil {
-		errs = append(errs, h.backend.Close())
+	if h.compositor != nil {
+		errs = append(errs, h.compositor.Close())
 	}
 	if h.display != nil {
 		errs = append(errs, h.display.Close())
+	}
+	if h.backend != nil {
+		errs = append(errs, h.backend.Close())
 	}
 	if h.loop != nil {
 		errs = append(errs, h.loop.Close())
