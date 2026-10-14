@@ -679,3 +679,57 @@ func TestPreferredScale(t *testing.T) {
 	must(t, err)
 	e.protocolError(uint32(sfs.WpFractionalScaleManagerV1ErrorFractionalScaleExists))
 }
+
+func TestHoldsDelayCommitsUntilReleased(t *testing.T) {
+	e := setup(t, 6)
+	s := e.surface()
+	if err := s.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	e.roundtrip()
+	server := e.last(s).s
+	var holds []*Hold
+	applied := 0
+	hooks := &Hooks{
+		Commit:  func() error { holds = append(holds, server.Hold()); return nil },
+		Applied: func() error { applied++; return nil },
+	}
+	e.on(func() { server.AddHooks(hooks) })
+	for _, x := range []int32{0, 10} {
+		if err := errors.Join(s.Damage(x, 0, 5, 5), s.Commit()); err != nil {
+			t.Fatal(err)
+		}
+		e.roundtrip()
+	}
+	if n := len(e.commits()); n != 1 {
+		t.Fatalf("%d commits took effect while held", n-1)
+	}
+	e.on(func() {
+		if err := holds[1].Release(); err != nil {
+			t.Error(err)
+		}
+	})
+	if n := len(e.commits()); n != 1 {
+		t.Fatal("a commit took effect with a hold outstanding")
+	}
+	e.on(func() {
+		if err := errors.Join(holds[0].Release(), holds[0].Release()); err != nil {
+			t.Error(err)
+		}
+		server.RemoveHooks(hooks)
+	})
+	commits := e.commits()
+	if len(commits) != 2 || applied != 1 {
+		t.Fatalf("%d commits and %d applied hooks after the holds were released", len(commits), applied)
+	}
+	if d := commits[1].damage; d.Area() != 50 || !d.Contains(image.Pt(1, 1)) || !d.Contains(image.Pt(11, 1)) {
+		t.Fatalf("the held commits applied damage %v, want both rectangles", d.Rects())
+	}
+	if err := errors.Join(s.Damage(0, 0, 1, 1), s.Commit()); err != nil {
+		t.Fatal(err)
+	}
+	e.roundtrip()
+	if n := len(e.commits()); n != 3 || applied != 1 {
+		t.Fatalf("after removing the hooks: %d commits, %d applied hooks", n, applied)
+	}
+}

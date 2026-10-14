@@ -212,6 +212,48 @@ type Surface struct {
 	fractional   *fractional
 	preferred    uint32
 	destroyed    bool
+	hooks        []*Hooks
+	holds        int
+}
+
+type Hooks struct {
+	Commit  func() error
+	Applied func() error
+}
+
+func (s *Surface) AddHooks(h *Hooks) {
+	s.hooks = append(s.hooks, h)
+}
+
+func (s *Surface) RemoveHooks(h *Hooks) {
+	s.hooks = slices.DeleteFunc(s.hooks, func(x *Hooks) bool { return x == h })
+}
+
+func (s *Surface) PendingBuffer() (Buffer, bool) {
+	return s.pending.buffer, s.pending.set&fieldBuffer != 0
+}
+
+type Hold struct {
+	s    *Surface
+	done bool
+}
+
+func (s *Surface) Hold() *Hold {
+	s.holds++
+	return &Hold{s: s}
+}
+
+func (h *Hold) Release() error {
+	if h.done {
+		return nil
+	}
+	h.done = true
+	s := h.s
+	s.holds--
+	if s.holds > 0 || s.destroyed || s.synchronized() {
+		return nil
+	}
+	return s.applyCache()
 }
 
 func From(r *sw.WlSurface) (*Surface, error) {
@@ -403,9 +445,16 @@ func (s *Surface) commit() error {
 	if err := s.checkSize(); err != nil {
 		return err
 	}
+	for _, h := range slices.Clone(s.hooks) {
+		if h.Commit != nil {
+			if err := h.Commit(); err != nil {
+				return err
+			}
+		}
+	}
 	s.cache.merge(&s.pending)
 	s.cached = true
-	if s.synchronized() {
+	if s.synchronized() || s.holds > 0 {
 		return nil
 	}
 	return s.applyCache()
@@ -445,8 +494,15 @@ func (s *Surface) applyCache() error {
 	if err := s.manager.listener.Committed(s); err != nil {
 		return err
 	}
+	for _, h := range slices.Clone(s.hooks) {
+		if h.Applied != nil {
+			if err := h.Applied(); err != nil {
+				return err
+			}
+		}
+	}
 	for _, child := range s.order {
-		if child != s && child.synchronized() {
+		if child != s && child.synchronized() && child.holds == 0 {
 			if err := child.applyCache(); err != nil {
 				return err
 			}
