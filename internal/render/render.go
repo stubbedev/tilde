@@ -171,6 +171,7 @@ type Texture interface {
 type Renderer interface {
 	Formats() []Format
 	NewTexture(format Format, size image.Point, stride int, data []byte) (Texture, error)
+	NewTarget(size image.Point) (ReadTarget, error)
 	Begin(target Target, damage Region) (Pass, error)
 }
 

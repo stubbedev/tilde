@@ -402,6 +402,10 @@ func (r *Renderer) NewFramebuffer(size image.Point) (*Framebuffer, error) {
 	return f, f.complete()
 }
 
+func (r *Renderer) NewTarget(size image.Point) (render.ReadTarget, error) {
+	return r.NewFramebuffer(size)
+}
+
 func (r *Renderer) ImportFramebuffer(b gpu.DMABUF) (*Framebuffer, error) {
 	img, err := r.d.ImportDMABUF(b)
 	if err != nil {

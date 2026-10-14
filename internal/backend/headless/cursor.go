@@ -58,16 +58,11 @@ func (c *Cursor) BeginCursor() (backend.Frame, error) {
 		return backend.Frame{}, fmt.Errorf("headless: %s already has a cursor image in progress", c.o.name)
 	}
 	if c.target == nil {
-		size := c.CursorSize()
-		if g := c.o.backend.gpu; g != nil {
-			fb, err := g.gles.NewFramebuffer(size)
-			if err != nil {
-				return backend.Frame{}, fmt.Errorf("headless: cursor target for %s: %w", c.o.name, err)
-			}
-			c.target = fb
-		} else {
-			c.target = soft.NewBuffer(size.X, size.Y)
+		t, err := c.o.backend.renderer.NewTarget(c.CursorSize())
+		if err != nil {
+			return backend.Frame{}, fmt.Errorf("headless: cursor target for %s: %w", c.o.name, err)
 		}
+		c.target = t
 	}
 	c.drawing = true
 	return backend.Frame{Renderer: c.o.backend.renderer, Target: c.target}, nil

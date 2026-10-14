@@ -58,7 +58,6 @@ type allocator interface {
 	renderer() render.Renderer
 	renderable(format uint32) ([]uint64, error)
 	allocate(size image.Point, format uint32, modifiers []uint64) (*scanout, error)
-	offscreen(size image.Point) (render.ReadTarget, error)
 	fence() (int, error)
 	close() error
 }

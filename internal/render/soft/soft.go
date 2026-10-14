@@ -119,6 +119,13 @@ func (r *Renderer) NewTexture(format render.Format, size image.Point, stride int
 	return t, nil
 }
 
+func (r *Renderer) NewTarget(size image.Point) (render.ReadTarget, error) {
+	if size.X <= 0 || size.Y <= 0 {
+		return nil, fmt.Errorf("soft: cannot make a %v target", size)
+	}
+	return NewBuffer(size.X, size.Y), nil
+}
+
 func (r *Renderer) Begin(target render.Target, damage render.Region) (render.Pass, error) {
 	buf, ok := target.(*Buffer)
 	if !ok {

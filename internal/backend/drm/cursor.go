@@ -55,7 +55,7 @@ func (c *cursor) BeginCursor() (backend.Frame, error) {
 func (c *cursor) allocate() error {
 	b := c.o.b
 	if c.target == nil {
-		t, err := b.alloc.offscreen(b.cursor)
+		t, err := b.alloc.renderer().NewTarget(b.cursor)
 		if err != nil {
 			return fmt.Errorf("drm: cursor target for %s: %w", c.o.Name(), err)
 		}

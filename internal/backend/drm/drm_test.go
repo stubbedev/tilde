@@ -210,10 +210,6 @@ func (a *fakeAlloc) renderer() render.Renderer { return a.soft }
 
 func (a *fakeAlloc) renderable(uint32) ([]uint64, error) { return []uint64{0, 7, 9}, nil }
 
-func (a *fakeAlloc) offscreen(size image.Point) (render.ReadTarget, error) {
-	return soft.NewBuffer(size.X, size.Y), nil
-}
-
 func (a *fakeAlloc) allocate(size image.Point, _ uint32, modifiers []uint64) (*scanout, error) {
 	if !slices.Equal(modifiers, []uint64{0, 7}) {
 		return nil, fmt.Errorf("allocated with modifiers %v", modifiers)
