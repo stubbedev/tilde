@@ -87,8 +87,9 @@ start issue:
         echo "start: issue must be a number, got '$issue'" >&2
         exit 1
     fi
-    item=$(gh project item-list 3 --owner stubbedev --limit 1000 --format json \
-        --jq ".items[] | select(.content.number == $issue) | .id")
+    item=$(gh api graphql -F number="$issue" \
+        -f query='query($number: Int!) { repository(owner: "stubbedev", name: "tilde") { issue(number: $number) { projectItems(first: 20) { nodes { id project { number } } } } } }' \
+        --jq '.data.repository.issue.projectItems.nodes[] | select(.project.number == 3) | .id')
     if [[ -z "$item" ]]; then
         echo "start: issue #$issue is not on the tilde board; add it with: gh project item-add 3 --owner stubbedev --url https://github.com/stubbedev/tilde/issues/$issue" >&2
         exit 1
