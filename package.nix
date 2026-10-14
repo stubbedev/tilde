@@ -16,7 +16,7 @@ buildGo127Module {
 
   # Pins the module dependencies in go.sum. When they change, set this to
   # lib.fakeHash, run `nix build` and put the reported got: hash here.
-  vendorHash = "sha256-He4DPejp6/mP9VOsn1+fsvHbeTDJgufkqL0oEqfTCMw=";
+  vendorHash = "sha256-SM2hYVqbbQJQtME6Tmc6jfl0hHsb1q+qqZc/2iedi4Y=";
 
   subPackages = ["cmd/tilde" "cmd/tildectl"];
 
@@ -28,6 +28,10 @@ buildGo127Module {
   ];
 
   env.CGO_ENABLED = 0;
+
+  postInstall = ''
+    install -Dm644 packaging/systemd/tilde-session.target $out/share/systemd/user/tilde-session.target
+  '';
 
   # The test suite is pure Go and safe to run in the sandbox.
   doCheck = true;

@@ -55,7 +55,7 @@ func TestExampleConfig(t *testing.T) {
 	if d := wm.Decide(cfg.Rules, "steam", "Friends List"); d != (wm.Decision{Mode: wm.RuleFloat, Size: image.Pt(400, 900)}) {
 		t.Errorf("rules decide %+v", d)
 	}
-	if !slices.Equal(cfg.Env, [][2]string{{"XDG_CURRENT_DESKTOP", "tilde"}}) || !slices.Equal(cfg.Autostart, []string{"waybar"}) || cfg.Font != "/usr/share/fonts/DejaVuSans.ttf" {
+	if !slices.Equal(cfg.Env, [][2]string{{"XDG_CURRENT_DESKTOP", "Hyprland"}, {"XDG_SESSION_TYPE", "wayland"}}) || !slices.Equal(cfg.Autostart, []string{"waybar"}) || cfg.Font != "/usr/share/fonts/DejaVuSans.ttf" {
 		t.Errorf("env %v autostart %v font %q", cfg.Env, cfg.Autostart, cfg.Font)
 	}
 }
@@ -64,6 +64,9 @@ func TestEmptyConfigIsTheDefaults(t *testing.T) {
 	cfg, err := Parse("empty.yaml", nil)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if !slices.Equal(cfg.Env, [][2]string{{"XDG_CURRENT_DESKTOP", "tilde"}, {"XDG_SESSION_TYPE", "wayland"}}) {
+		t.Fatalf("session env %v", cfg.Env)
 	}
 	if cfg.Decor != compositor.DefaultDecor() || cfg.WM != compositor.DefaultSettings() || cfg.RepeatRate != 50 || cfg.RepeatDelay != 300 {
 		t.Fatalf("defaults %+v", cfg)
@@ -77,6 +80,8 @@ func TestErrorsNameFileLineAndKey(t *testing.T) {
 		"submaps:\n  r:\n    - {chord: Q, action: kill, x: 1}\n":   "t.yaml:3: submaps.r[0].x: unknown key",
 		"tabs:\n  urgent:\n    fg: red\n":                          "t.yaml:3: tabs.urgent.fg: unknown key (known: background, text)",
 		"rules:\n  - {app_id: a, floating: true}\n":                "t.yaml:2: rules[0].floating: unknown key",
+		"env:\n  TILDE_SOCKET: /x\n":                               "t.yaml:2: env.TILDE_SOCKET: is set by tilde",
+		"env:\n  A=B: c\n":                                         "t.yaml:2: env.A=B: is not a valid environment variable",
 		"tabs:\n  height: tall\n":                                  "t.yaml: yaml: unmarshal errors:\n  line 2: cannot unmarshal",
 		"borders:\n  active: chartreuse\n":                         `t.yaml:2: borders.active: "chartreuse" is neither`,
 		"binds:\n  - chord: SUPER + Q\n    action: teleport\n":     `t.yaml:3: binds[0].action: bad action: unknown action "teleport"`,

@@ -1,6 +1,12 @@
 # The built-in config, used when ~/.config/tilde/config.yaml does not exist.
 # Copy it there to change it; docs/config.md describes every key.
 
+env:
+  QT_QPA_PLATFORM: wayland;xcb
+  GDK_BACKEND: wayland,x11
+  ELECTRON_OZONE_PLATFORM_HINT: auto
+  _JAVA_AWT_WM_NONREPARENTING: "1"
+
 binds:
   - {chord: SUPER + Return, action: exec foot}
   - {chord: SUPER + Q, action: kill}

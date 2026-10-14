@@ -1,0 +1,6 @@
+[Unit]
+Description=tilde compositor session
+Documentation=https://github.com/stubbedev/tilde
+BindsTo=graphical-session.target
+Wants=graphical-session-pre.target
+After=graphical-session-pre.target

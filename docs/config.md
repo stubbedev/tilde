@@ -127,10 +127,27 @@ earlier ones.
 
 ```yaml
 env:
-  XDG_CURRENT_DESKTOP: tilde
+  QT_QPA_PLATFORM: wayland;xcb
 autostart:
   - waybar
 ```
 
-`env` is set before anything starts, and every `autostart` command runs once
-with `sh -c`.
+tilde sets `env` in its own environment at startup, before it starts
+anything, so every program it runs inherits it. `XDG_CURRENT_DESKTOP=tilde`
+and `XDG_SESSION_TYPE=wayland` are set unless `env` overrides them.
+`WAYLAND_DISPLAY`, `DISPLAY` and `TILDE_SOCKET` belong to tilde and cannot be
+set here. Each `autostart` command runs once with `sh -c`, after the display
+and the IPC socket are up. A reload changes neither.
+
+## Session
+
+`tilde --systemd` hands `env`, `WAYLAND_DISPLAY`, `DISPLAY` and `TILDE_SOCKET`
+to D-Bus activation and the systemd user manager. It then starts
+`tilde-session.target`, which binds `graphical-session.target`, so user
+services that want a graphical session start with tilde. On exit tilde stops
+the target and removes those variables from the user manager again. D-Bus
+cannot unset a variable, so the activation environment keeps them.
+
+A display manager session should run `tilde --systemd`. Leave the flag off
+when running tilde nested in another session, which owns
+`graphical-session.target`.

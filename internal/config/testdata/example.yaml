@@ -48,6 +48,6 @@ rules:
     title: ^Friends List$
     size: 400x900
 env:
-  XDG_CURRENT_DESKTOP: tilde
+  XDG_CURRENT_DESKTOP: Hyprland
 autostart:
   - waybar

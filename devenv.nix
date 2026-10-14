@@ -35,6 +35,7 @@ in {
     weston
     foot
     wl-clipboard
+    dbus
     gelm
     alacritty-swrast
   ];

@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -24,7 +25,9 @@ import (
 	"github.com/stubbedev/tilde/internal/ipc"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/server"
+	"github.com/stubbedev/tilde/internal/systemd"
 	"github.com/stubbedev/tilde/internal/wlclient"
+	"github.com/stubbedev/tilde/internal/wm"
 	"github.com/stubbedev/tilde/internal/xcursor"
 	"github.com/stubbedev/tilde/internal/xkb"
 )
@@ -140,18 +143,25 @@ func (s source) read() (string, []byte, error) {
 	return "", nil, fmt.Errorf("read the config: %w", err)
 }
 
-func (s source) load() (compositor.Config, *xkb.Keymap, error) {
+type loaded struct {
+	cfg       compositor.Config
+	keymap    *xkb.Keymap
+	env       [][2]string
+	autostart []string
+}
+
+func (s source) load() (loaded, error) {
 	name, data, err := s.read()
 	if err != nil {
-		return compositor.Config{}, nil, err
+		return loaded{}, err
 	}
 	file, err := config.Parse(name, data)
 	if err != nil {
-		return compositor.Config{}, nil, err
+		return loaded{}, err
 	}
 	font, err := loadFont(fontPath(file.Font, s.getenv))
 	if err != nil {
-		return compositor.Config{}, nil, err
+		return loaded{}, err
 	}
 	names := file.Keyboard
 	if names == (xkb.Names{}) {
@@ -159,14 +169,24 @@ func (s source) load() (compositor.Config, *xkb.Keymap, error) {
 	}
 	keymap, err := s.lib.Compile(names)
 	if err != nil {
-		return compositor.Config{}, nil, err
+		return loaded{}, err
 	}
 	cfg, err := file.Compositor(keymap, font)
 	if err != nil {
-		return compositor.Config{}, nil, errors.Join(err, keymap.Close())
+		return loaded{}, errors.Join(err, keymap.Close())
 	}
 	cfg.Cursor = s.cursor
-	return cfg, keymap, nil
+	return loaded{cfg: cfg, keymap: keymap, env: file.Env, autostart: file.Autostart}, nil
+}
+
+func sessionVars(env [][2]string, getenv func(string) string) [][2]string {
+	out := slices.Clone(env)
+	for _, name := range []string{"WAYLAND_DISPLAY", "DISPLAY", ipc.SocketEnv} {
+		if v := getenv(name); v != "" {
+			out = append(out, [2]string{name, v})
+		}
+	}
+	return out
 }
 
 type session struct {
@@ -176,16 +196,16 @@ type session struct {
 }
 
 func (s *session) reload() error {
-	cfg, keymap, err := s.load()
+	next, err := s.load()
 	if err != nil {
 		return err
 	}
-	cfg.Reload = s.reload
-	if err := s.comp.Reconfigure(cfg); err != nil {
-		return errors.Join(err, keymap.Close())
+	next.cfg.Reload = s.reload
+	if err := s.comp.Reconfigure(next.cfg); err != nil {
+		return errors.Join(err, next.keymap.Close())
 	}
 	old := s.keymap
-	s.keymap = keymap
+	s.keymap = next.keymap
 	return old.Close()
 }
 
@@ -213,6 +233,7 @@ func cursorConfig(getenv func(string) string) (compositor.CursorConfig, error) {
 
 func run() (err error) {
 	path := flag.String("config", "", "config file (default: $XDG_CONFIG_HOME/tilde/config.yaml)")
+	withSystemd := flag.Bool("systemd", false, "export the session environment to D-Bus activation and the systemd user manager, and run "+systemd.Target+" while tilde runs")
 	requested := flag.String("backend", "", "output and input backend: nested or headless (default: nested when WAYLAND_DISPLAY is set, else headless)")
 	flag.Parse()
 	backendName, err := chooseBackend(*requested, os.Getenv("WAYLAND_DISPLAY"))
@@ -242,13 +263,19 @@ func run() (err error) {
 			return err
 		}
 	}
-	cfg, keymap, err := s.load()
+	first, err := s.load()
 	if err != nil {
 		return err
 	}
-	s.keymap = keymap
+	s.keymap = first.keymap
 	defer func() { err = errors.Join(err, s.keymap.Close()) }()
+	cfg := first.cfg
 	cfg.Reload = s.reload
+	for _, kv := range first.env {
+		if err := os.Setenv(kv[0], kv[1]); err != nil {
+			return fmt.Errorf("set %s from the config: %w", kv[0], err)
+		}
+	}
 	l, err := loop.New()
 	if err != nil {
 		return err
@@ -278,9 +305,22 @@ func run() (err error) {
 	}
 	defer func() { err = errors.Join(err, srv.Close()) }()
 	s.comp.OnDispatch(srv.Dispatched)
-	for name, value := range map[string]string{"WAYLAND_DISPLAY": display.Name(), ipc.SocketEnv: socket} {
-		if err := os.Setenv(name, value); err != nil {
-			return fmt.Errorf("export %s: %w", name, err)
+	for _, kv := range [][2]string{{"WAYLAND_DISPLAY", display.Name()}, {ipc.SocketEnv, socket}} {
+		if err := os.Setenv(kv[0], kv[1]); err != nil {
+			return fmt.Errorf("export %s: %w", kv[0], err)
+		}
+	}
+	if *withSystemd {
+		sess, startErr := systemd.Start(os.Getenv("DBUS_SESSION_BUS_ADDRESS"), sessionVars(first.env, os.Getenv))
+		if startErr != nil {
+			cfg.Report(fmt.Errorf("start %s: %w", systemd.Target, startErr))
+		} else {
+			defer func() { err = errors.Join(err, sess.Close()) }()
+		}
+	}
+	for _, command := range first.autostart {
+		if err := s.comp.Dispatch(wm.ExecAction{Command: command}); err != nil {
+			cfg.Report(fmt.Errorf("autostart: %w", err))
 		}
 	}
 	if _, err := l.AddSignals(func(sig os.Signal) error {

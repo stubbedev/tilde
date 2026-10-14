@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -84,31 +85,40 @@ func testSource(t *testing.T, path string, explicit bool) source {
 func TestLoadingTheConfig(t *testing.T) {
 	dir := t.TempDir()
 	missing := filepath.Join(dir, "missing.yaml")
-	cfg, keymap, err := testSource(t, missing, false).load()
+	first, err := testSource(t, missing, false).load()
 	if err != nil {
 		t.Fatalf("a missing default config: %v", err)
 	}
-	if len(cfg.Binds) == 0 || cfg.Cursor.Size != 24 {
-		t.Errorf("the built-in config gave %d binds, cursor %+v", len(cfg.Binds), cfg.Cursor)
+	if len(first.cfg.Binds) == 0 || first.cfg.Cursor.Size != 24 || len(first.env) == 0 {
+		t.Errorf("the built-in config gave %d binds, cursor %+v, env %v", len(first.cfg.Binds), first.cfg.Cursor, first.env)
 	}
-	if err := keymap.Close(); err != nil {
+	if err := first.keymap.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := testSource(t, missing, true).load(); !errors.Is(err, fs.ErrNotExist) {
+	if _, err := testSource(t, missing, true).load(); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("a missing --config file: %v", err)
 	}
 	bad := filepath.Join(dir, "bad.yaml")
 	if err := os.WriteFile(bad, []byte("binds:\n  - chord: SUPER + Nope\n    action: kill\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := testSource(t, bad, true).load(); err == nil || !strings.HasPrefix(err.Error(), bad+":2: chord: bad chord") {
+	if _, err := testSource(t, bad, true).load(); err == nil || !strings.HasPrefix(err.Error(), bad+":2: chord: bad chord") {
 		t.Errorf("an unknown key: %v", err)
 	}
 	layout := filepath.Join(dir, "layout.yaml")
 	if err := os.WriteFile(layout, []byte("input:\n  keyboard:\n    layout: no-such-layout\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := testSource(t, layout, true).load(); err == nil || !strings.Contains(err.Error(), "no-such-layout") {
+	if _, err := testSource(t, layout, true).load(); err == nil || !strings.Contains(err.Error(), "no-such-layout") {
 		t.Errorf("an unknown layout: %v", err)
+	}
+}
+
+func TestSessionVars(t *testing.T) {
+	env := map[string]string{"WAYLAND_DISPLAY": "wayland-1", "TILDE_SOCKET": "/run/t.sock"}
+	got := sessionVars([][2]string{{"XDG_CURRENT_DESKTOP", "tilde"}}, func(k string) string { return env[k] })
+	want := [][2]string{{"XDG_CURRENT_DESKTOP", "tilde"}, {"WAYLAND_DISPLAY", "wayland-1"}, {"TILDE_SOCKET", "/run/t.sock"}}
+	if !slices.Equal(got, want) {
+		t.Fatalf("%v, want %v", got, want)
 	}
 }

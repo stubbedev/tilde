@@ -25,12 +25,17 @@ import (
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/binds"
 	"github.com/stubbedev/tilde/internal/compositor"
+	"github.com/stubbedev/tilde/internal/ipc"
 	"github.com/stubbedev/tilde/internal/output"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/seat"
 	"github.com/stubbedev/tilde/internal/wm"
 	"github.com/stubbedev/tilde/internal/xkb"
 )
+
+var reservedEnv = []string{"WAYLAND_DISPLAY", "DISPLAY", ipc.SocketEnv}
+
+var sessionEnv = map[string]string{"XDG_CURRENT_DESKTOP": "tilde", "XDG_SESSION_TYPE": "wayland"}
 
 //go:embed default.yaml
 var Default []byte
@@ -498,8 +503,21 @@ func Parse(file string, data []byte) (Config, error) {
 	for i, r := range raw.Rules {
 		cfg.Rules = append(cfg.Rules, p.rule(i, r))
 	}
+	env := maps.Clone(sessionEnv)
 	for _, name := range slices.Sorted(maps.Keys(raw.Env)) {
-		cfg.Env = append(cfg.Env, [2]string{name, raw.Env[name].V})
+		value := raw.Env[name]
+		if name == "" || strings.ContainsAny(name, "=\x00") || strings.ContainsRune(value.V, 0) {
+			p.fail(value.Line, "env."+name, "is not a valid environment variable")
+			continue
+		}
+		if slices.Contains(reservedEnv, name) {
+			p.fail(value.Line, "env."+name, "is set by tilde")
+			continue
+		}
+		env[name] = value.V
+	}
+	for _, name := range slices.Sorted(maps.Keys(env)) {
+		cfg.Env = append(cfg.Env, [2]string{name, env[name]})
 	}
 	for _, a := range raw.Autostart {
 		cfg.Autostart = append(cfg.Autostart, a.V)
