@@ -190,7 +190,8 @@ and the IPC socket are up. A reload changes neither.
 
 ```yaml
 xwayland:
-  enabled: false
+  enabled: true
+  zero_scaling: true
 ```
 
 X11 programs run through Xwayland. tilde takes a free X display (`:0` and
@@ -198,8 +199,15 @@ up, skipping displays whose lock in `/tmp` belongs to a live process),
 listens on its sockets, and exports `DISPLAY`; Xwayland itself starts only
 when the first X client connects, so a session without X programs never
 runs it. If Xwayland exits, the next X client starts it again. `enabled:
-false` leaves `DISPLAY` unset and binds no X sockets. The setting is read at
-startup; a reload does not change it.
+false` leaves `DISPLAY` unset and binds no X sockets.
+
+With `zero_scaling: true` (the default), X programs see every output at its
+physical resolution with scale 1 and draw at full sharpness; on an output
+scaled to 1.5 they look smaller unless they scale themselves (`GDK_SCALE`,
+`QT_SCALE_FACTOR`, Steam's and JetBrains' own settings). With `false`,
+Xwayland sees the logical layout and tilde stretches X windows, which keeps
+their size but blurs them on scaled outputs. Both settings are read at
+startup; a reload does not change them.
 
 ## Session
 

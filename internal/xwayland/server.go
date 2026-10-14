@@ -80,7 +80,7 @@ func Listen(l *loop.Loop, d *server.Display, opts Options) (*Server, error) {
 		return nil, err
 	}
 	s := &Server{loop: l, display: d, opts: opts, socks: socks}
-	if s.shell, err = newShell(d, s.isXwayland, s.associated, s.dissociated); err != nil {
+	if s.shell, err = newShell(d, s.IsClient, s.associated, s.dissociated); err != nil {
 		return nil, errors.Join(err, socks.close())
 	}
 	if err := s.arm(); err != nil {
@@ -108,7 +108,7 @@ func (s *Server) Running() bool {
 	return s.proc != nil && s.proc.up
 }
 
-func (s *Server) isXwayland(c *server.Client) bool {
+func (s *Server) IsClient(c *server.Client) bool {
 	return s.proc != nil && s.proc.client == c
 }
 

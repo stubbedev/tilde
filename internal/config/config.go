@@ -120,7 +120,8 @@ type rawConfig struct {
 }
 
 type rawXwayland struct {
-	Enabled *bool `yaml:"enabled"`
+	Enabled     *bool `yaml:"enabled"`
+	ZeroScaling *bool `yaml:"zero_scaling"`
 }
 
 type rawOutput struct {
@@ -242,6 +243,7 @@ type Config struct {
 	Env         [][2]string
 	Autostart   []string
 	Xwayland    bool
+	ZeroScaling bool
 }
 
 var mocha = map[string]render.Color{
@@ -565,8 +567,9 @@ func Parse(file string, data []byte) (Config, error) {
 				Urgent:      p.tabColors(raw.Tabs.Urgent, "tabs.urgent", def.Tab.Urgent),
 			},
 		},
-		WM:       compositor.DefaultSettings(),
-		Xwayland: raw.Xwayland.Enabled == nil || *raw.Xwayland.Enabled,
+		WM:          compositor.DefaultSettings(),
+		Xwayland:    raw.Xwayland.Enabled == nil || *raw.Xwayland.Enabled,
+		ZeroScaling: raw.Xwayland.ZeroScaling == nil || *raw.Xwayland.ZeroScaling,
 	}
 	if raw.Tabs.Font != nil {
 		cfg.Font = raw.Tabs.Font.V

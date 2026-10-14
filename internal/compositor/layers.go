@@ -182,11 +182,11 @@ func (c *Compositor) layerOwning(s *surface.Surface) *shell.LayerSurface {
 		return nil
 	}
 	for _, e := range c.layers {
-		if _, ok := treeOrigin(e.surface.Surface(), image.Point{}, s); ok {
+		if _, ok := treeOrigin(e.surface.Surface(), flat(image.Point{}), s); ok {
 			return e.surface
 		}
 		for _, p := range c.layerPopups(e) {
-			if _, ok := treeOrigin(p.popup.Surface(), image.Point{}, s); ok {
+			if _, ok := treeOrigin(p.popup.Surface(), flat(image.Point{}), s); ok {
 				return e.surface
 			}
 		}

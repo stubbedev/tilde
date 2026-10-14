@@ -2,6 +2,7 @@ package harness
 
 import (
 	"encoding/binary"
+	"errors"
 	"image"
 	"net"
 	"path/filepath"
@@ -335,4 +336,61 @@ func TestXWindowsLearnTheirGeometryAndFrame(t *testing.T) {
 			return
 		}
 	}
+}
+
+func TestXWindowsRenderUnscaledOnHiDPIOutputs(t *testing.T) {
+	h := StartXwayland(t, func(err error) { t.Errorf("xwayland reported: %v", err) }, scaled)
+	h.Do(func(b *headless.Backend, c *compositor.Compositor) error {
+		return c.SetOutputScale(b.Outputs()[0], 180)
+	})
+	xc := xDial(t, h)
+	h.Eventually("Xwayland's root in physical pixels", func(*headless.Backend, *compositor.Compositor) bool {
+		return xc.geometry(xc.root) == image.Rect(0, 0, 240, 150)
+	})
+	win := xc.window(image.Rect(0, 0, 50, 50), 0xff0000, false, map[string][]byte{"WM_CLASS": []byte("hidpi\x00HiDPI\x00")})
+	h.Eventually("the X window tiled in physical pixels", func(_ *headless.Backend, c *compositor.Compositor) bool {
+		ws := windowsOf(c)
+		return len(ws) == 1 && ws[0].Rect == ipc.Rect{Width: 160, Height: 100} && xc.geometry(win) == image.Rect(0, 0, 240, 150)
+	})
+	h.Eventually("the X window filling the output pixel for pixel", func(b *headless.Backend, _ *compositor.Compositor) bool {
+		snap := b.Outputs()[0].Primary()
+		return pixel(snap, 0, 0) == [3]byte{0xff, 0, 0} && pixel(snap, 239, 149) == [3]byte{0xff, 0, 0}
+	})
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+		return errors.Join(b.Pointer().MoveTo(b.Outputs()[0], 0.5, 0.5), b.Pointer().Frame())
+	})
+	h.Eventually("the X pointer in physical pixels", func(*headless.Backend, *compositor.Compositor) bool {
+		p, err := xproto.QueryPointer(xc.x, win).Reply()
+		return err == nil && p.WinX == 120 && p.WinY == 75
+	})
+}
+
+func TestXWindowsMapAcrossMixedScales(t *testing.T) {
+	h := StartXwayland(t, func(err error) { t.Errorf("xwayland reported: %v", err) }, scaled, small)
+	h.Do(func(b *headless.Backend, c *compositor.Compositor) error {
+		return c.SetOutputScale(b.Outputs()[0], 180)
+	})
+	xc := xDial(t, h)
+	h.Eventually("both outputs in X space", func(*headless.Backend, *compositor.Compositor) bool {
+		return xc.geometry(xc.root) == image.Rect(0, 0, 400, 150)
+	})
+	left := xc.window(image.Rect(0, 0, 50, 50), 0xff0000, false, nil)
+	h.Eventually("the first X window on the HiDPI output", func(*headless.Backend, *compositor.Compositor) bool {
+		return xc.geometry(left) == image.Rect(0, 0, 240, 150)
+	})
+	h.Do(func(_ *headless.Backend, c *compositor.Compositor) error {
+		a, err := wm.ParseAction("focus right")
+		if err != nil {
+			return err
+		}
+		return c.Dispatch(a)
+	})
+	right := xc.window(image.Rect(0, 0, 50, 50), 0x00ff00, false, nil)
+	h.Eventually("the second X window on the plain output, right of the first in X space", func(*headless.Backend, *compositor.Compositor) bool {
+		return xc.geometry(right) == image.Rect(240, 0, 400, 100)
+	})
+	h.Eventually("each window drawn on its own output", func(b *headless.Backend, _ *compositor.Compositor) bool {
+		outs := b.Outputs()
+		return pixel(outs[0].Primary(), 239, 149) == [3]byte{0xff, 0, 0} && pixel(outs[1].Primary(), 159, 99) == [3]byte{0, 0xff, 0}
+	})
 }

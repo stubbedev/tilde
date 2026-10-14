@@ -145,6 +145,14 @@ own goroutine and reaches compositor state only by posting to the loop.
 `xwayland_shell_v1` is visible to the Xwayland client alone and maps the
 `WL_SURFACE_SERIAL` of each X window to its `wl_surface` on commit.
 
+With zero scaling (#47), the Xwayland client alone sees each output in
+physical pixels with scale 1, placed at its layout position times the
+largest output scale, so outputs never overlap in X space whatever their
+scales. A window's X geometry is its layout rectangle mapped through the
+output it is on, and its surface tree is drawn and hit at that output's
+scale, so the X buffer lands pixel for pixel and pointer coordinates reach
+Xwayland in X pixels.
+
 `CLIPBOARD` and `PRIMARY` are bridged both ways (#46). When a Wayland client
 sets a selection, the window manager takes the X selection with targets
 interned from the offered mime types (`text/plain;charset=utf-8` is

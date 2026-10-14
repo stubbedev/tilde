@@ -25,6 +25,29 @@ func (p point) sub(o image.Point) point {
 	return point{p.X - float64(o.X), p.Y - float64(o.Y)}
 }
 
+type origin struct {
+	at image.Point
+	k  output.Scale
+}
+
+func flat(at image.Point) origin {
+	return origin{at: at, k: output.Unit}
+}
+
+func (r origin) size(surface image.Point) image.Point {
+	return r.k.LogicalPoint(surface)
+}
+
+func (r origin) child(offset image.Point) origin {
+	return origin{at: r.at.Add(r.k.LogicalPoint(offset)), k: r.k}
+}
+
+func (r origin) local(p point) point {
+	l := p.sub(r.at)
+	f := float64(r.k) / float64(output.Unit)
+	return point{l.X * f, l.Y * f}
+}
+
 func wlCaps(c backend.Capability) sw.WlSeatCapability {
 	var caps sw.WlSeatCapability
 	if c.Has(backend.Keyboard) {
@@ -158,12 +181,12 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 		if !ok || s == nil {
 			return nil
 		}
-		origin, found := c.originOf(s)
+		org, found := c.originOf(s)
 		if !found {
 			return nil
 		}
 		r := out.Logical()
-		local := point{float64(r.Min.X) + e.X*float64(r.Dx()), float64(r.Min.Y) + e.Y*float64(r.Dy())}.sub(origin)
+		local := org.local(point{float64(r.Min.X) + e.X*float64(r.Dx()), float64(r.Min.Y) + e.Y*float64(r.Dy())})
 		return c.seat.TouchMotion(e.Time, e.ID, local.X, local.Y)
 	case backend.TouchUp:
 		delete(c.touches, e.ID)
@@ -191,8 +214,8 @@ func (c *Compositor) pointerMoved(at time.Duration) error {
 		return errors.Join(c.dragMotion(at), c.scheduleAll())
 	}
 	if f := c.seat.PointerFocus(); f != nil && c.seat.PointerGrabbed() {
-		if origin, ok := c.originOf(f); ok {
-			local := c.cursor.sub(origin)
+		if org, ok := c.originOf(f); ok {
+			local := org.local(c.cursor)
 			return errors.Join(c.seat.PointerMotion(at, local.X, local.Y), c.cursorMoved())
 		}
 	}
@@ -236,7 +259,7 @@ func (c *Compositor) refreshPointer() error {
 
 func hitPopups(popups []placedPopup, p point) (*surface.Surface, point) {
 	for _, pp := range slices.Backward(popups) {
-		if s, local := hitTree(pp.popup.Surface(), pp.origin, p); s != nil {
+		if s, local := hitTree(pp.popup.Surface(), flat(pp.origin), p); s != nil {
 			return s, local
 		}
 	}
@@ -245,7 +268,7 @@ func hitPopups(popups []placedPopup, p point) (*surface.Surface, point) {
 
 func hitLayers(layers []*layer, p point) (*surface.Surface, point) {
 	for _, e := range slices.Backward(layers) {
-		if s, local := hitTree(e.surface.Surface(), e.bounds().Min, p); s != nil {
+		if s, local := hitTree(e.surface.Surface(), flat(e.bounds().Min), p); s != nil {
 			return s, local
 		}
 	}
@@ -268,7 +291,7 @@ func (c *Compositor) hitWindow(w *window, p point) (*surface.Surface, point) {
 	if s, local := hitPopups(c.popups(w), p); s != nil {
 		return s, local
 	}
-	return hitTree(w.top.Surface(), w.rect.Min.Sub(w.top.Geometry().Min), p)
+	return hitTree(w.top.Surface(), c.windowOrigin(w), p)
 }
 
 func (c *Compositor) surfaceAt(p point) (*surface.Surface, point, *window) {
@@ -305,7 +328,7 @@ func (c *Compositor) surfaceAt(p point) (*surface.Surface, point, *window) {
 		if w.layer == wm.LayerFullscreen || !w.visible {
 			continue
 		}
-		if s, local := hitTree(w.top.Surface(), w.rect.Min.Sub(w.top.Geometry().Min), p); s != nil {
+		if s, local := hitTree(w.top.Surface(), c.windowOrigin(w), p); s != nil {
 			return s, local, w
 		}
 	}
@@ -315,17 +338,17 @@ func (c *Compositor) surfaceAt(p point) (*surface.Surface, point, *window) {
 	return nil, point{}, nil
 }
 
-func hitTree(s *surface.Surface, at image.Point, p point) (*surface.Surface, point) {
+func hitTree(s *surface.Surface, org origin, p point) (*surface.Surface, point) {
 	for member := range s.StackTopDown() {
 		if member != s {
 			if sub := member.Subsurface(); sub != nil {
-				if hit, local := hitTree(member, at.Add(sub.Position()), p); hit != nil {
+				if hit, local := hitTree(member, org.child(sub.Position()), p); hit != nil {
 					return hit, local
 				}
 			}
 			continue
 		}
-		local := p.sub(at)
+		local := org.local(p)
 		if s.Buffer() != nil && s.AcceptsInput(image.Pt(int(math.Floor(local.X)), int(math.Floor(local.Y)))) {
 			return s, local
 		}
@@ -333,22 +356,22 @@ func hitTree(s *surface.Surface, at image.Point, p point) (*surface.Surface, poi
 	return nil, point{}
 }
 
-func (c *Compositor) originOf(target *surface.Surface) (image.Point, bool) {
+func (c *Compositor) originOf(target *surface.Surface) (origin, bool) {
 	for _, w := range c.unmanaged {
-		if origin, ok := treeOrigin(w.Surface(), w.Rect().Min, target); ok {
-			return origin, true
+		if org, ok := treeOrigin(w.Surface(), c.unmanagedOrigin(w), target); ok {
+			return org, true
 		}
 	}
 	for _, w := range c.windows {
 		if !w.visible {
 			continue
 		}
-		if origin, ok := treeOrigin(w.top.Surface(), c.placement(w).Min.Sub(w.top.Geometry().Min), target); ok {
-			return origin, true
+		if org, ok := treeOrigin(w.top.Surface(), c.windowOrigin(w), target); ok {
+			return org, true
 		}
 		for _, pp := range c.popups(w) {
-			if origin, ok := treeOrigin(pp.popup.Surface(), pp.origin, target); ok {
-				return origin, true
+			if org, ok := treeOrigin(pp.popup.Surface(), flat(pp.origin), target); ok {
+				return org, true
 			}
 		}
 	}
@@ -356,28 +379,28 @@ func (c *Compositor) originOf(target *surface.Surface) (image.Point, bool) {
 		if !e.shown() {
 			continue
 		}
-		if origin, ok := treeOrigin(e.surface.Surface(), e.bounds().Min, target); ok {
-			return origin, true
+		if org, ok := treeOrigin(e.surface.Surface(), flat(e.bounds().Min), target); ok {
+			return org, true
 		}
 		for _, pp := range c.layerPopups(e) {
-			if origin, ok := treeOrigin(pp.popup.Surface(), pp.origin, target); ok {
-				return origin, true
+			if org, ok := treeOrigin(pp.popup.Surface(), flat(pp.origin), target); ok {
+				return org, true
 			}
 		}
 	}
-	return image.Point{}, false
+	return origin{}, false
 }
 
-func treeOrigin(s *surface.Surface, at image.Point, target *surface.Surface) (image.Point, bool) {
+func treeOrigin(s *surface.Surface, org origin, target *surface.Surface) (origin, bool) {
 	if s == target {
-		return at, true
+		return org, true
 	}
 	for member := range s.Stack() {
 		if member != s && member.Subsurface() != nil {
-			if origin, ok := treeOrigin(member, at.Add(member.Subsurface().Position()), target); ok {
-				return origin, true
+			if found, ok := treeOrigin(member, org.child(member.Subsurface().Position()), target); ok {
+				return found, true
 			}
 		}
 	}
-	return image.Point{}, false
+	return origin{}, false
 }

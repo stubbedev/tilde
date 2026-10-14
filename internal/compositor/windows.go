@@ -29,6 +29,14 @@ func (c *Compositor) placement(w *window) image.Rectangle {
 	return w.rect
 }
 
+func (c *Compositor) windowOrigin(w *window) origin {
+	at := w.rect.Min.Sub(w.top.Geometry().Min)
+	if _, ok := w.top.(xToplevel); ok {
+		return origin{at: at, k: c.xScale(w.output)}
+	}
+	return flat(at)
+}
+
 func (c *Compositor) firstOutput() *output.Output {
 	if len(c.outputs) == 0 {
 		return nil

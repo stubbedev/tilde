@@ -134,6 +134,7 @@ type Compositor struct {
 	hwCursors       map[*output.Output]*hwCursor
 	unmanaged       []*xwayland.Window
 	selectionWatch  func(data.Kind, data.Source) error
+	xwaylandClients func(*server.Client) bool
 	cursorGen       uint64
 	cursorOps       frame
 	cursorShown     []*surface.Surface

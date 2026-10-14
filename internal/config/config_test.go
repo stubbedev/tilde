@@ -83,8 +83,8 @@ func TestEmptyConfigIsTheDefaults(t *testing.T) {
 	if !slices.Equal(cfg.Env, [][2]string{{"XDG_CURRENT_DESKTOP", "tilde"}, {"XDG_SESSION_TYPE", "wayland"}}) {
 		t.Fatalf("session env %v", cfg.Env)
 	}
-	if !cfg.Xwayland {
-		t.Fatal("Xwayland is off by default")
+	if !cfg.Xwayland || !cfg.ZeroScaling {
+		t.Fatal("Xwayland or its zero scaling is off by default")
 	}
 	if cfg.Input.Devices != nil || cfg.Input.Pointer != (session.DeviceConfig{}) || cfg.Input.Touchpad != (session.DeviceConfig{}) {
 		t.Fatalf("input %+v", cfg.Input)

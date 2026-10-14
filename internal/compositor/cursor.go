@@ -68,7 +68,7 @@ func (c *Compositor) drawCursor(pass *frame, o *output.Output, shown []*surface.
 	switch {
 	case cur.Set() && cur.Surface() != nil:
 		at := image.Pt(int(math.Floor(c.cursor.X)), int(math.Floor(c.cursor.Y))).Sub(cur.Hotspot())
-		return c.drawTree(pass, o, cur.Surface(), at, shown), nil
+		return c.drawTree(pass, o, cur.Surface(), flat(at), shown), nil
 	case cur.Set() && cur.Shape() == "":
 		return shown, nil
 	case cur.Set():

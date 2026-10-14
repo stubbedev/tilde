@@ -43,7 +43,7 @@ func (c *Compositor) render(o *output.Output) error {
 	pass.FillRect(bounds, Background)
 	shown := c.shown[o][:0]
 	for _, e := range c.layersAt(o, belowWindows...) {
-		shown = c.drawTree(pass, o, e.surface.Surface(), e.bounds().Min, shown)
+		shown = c.drawTree(pass, o, e.surface.Surface(), flat(e.bounds().Min), shown)
 	}
 	for _, layer := range []wm.PlacementLayer{wm.LayerTiled, wm.LayerFloating} {
 		for _, w := range c.stack {
@@ -63,7 +63,7 @@ func (c *Compositor) render(o *output.Output) error {
 		}
 	}
 	for _, e := range c.layersAt(o, swlr.ZwlrLayerShellV1LayerTop) {
-		shown = c.drawTree(pass, o, e.surface.Surface(), e.bounds().Min, shown)
+		shown = c.drawTree(pass, o, e.surface.Surface(), flat(e.bounds().Min), shown)
 	}
 	for _, w := range c.stack {
 		if w.layer == wm.LayerFullscreen {
@@ -75,7 +75,7 @@ func (c *Compositor) render(o *output.Output) error {
 		return err
 	}
 	for _, e := range c.layersAt(o, swlr.ZwlrLayerShellV1LayerOverlay) {
-		shown = c.drawTree(pass, o, e.surface.Surface(), e.bounds().Min, shown)
+		shown = c.drawTree(pass, o, e.surface.Surface(), flat(e.bounds().Min), shown)
 	}
 	for _, e := range c.layers {
 		shown = c.drawPopups(pass, o, c.layerPopups(e), shown)
@@ -135,7 +135,7 @@ func (c *Compositor) drawWindow(pass *frame, o *output.Output, w *window, shown 
 	if !w.visible || !w.tile.Overlaps(o.Logical()) {
 		return shown
 	}
-	shown = c.drawTree(pass, o, w.top.Surface(), w.rect.Min.Sub(w.top.Geometry().Min), shown)
+	shown = c.drawTree(pass, o, w.top.Surface(), c.windowOrigin(w), shown)
 	c.drawBorder(pass, o, w)
 	return shown
 }
@@ -143,17 +143,17 @@ func (c *Compositor) drawWindow(pass *frame, o *output.Output, w *window, shown 
 func (c *Compositor) drawPopups(pass *frame, o *output.Output, popups []placedPopup, shown []*surface.Surface) []*surface.Surface {
 	for _, p := range popups {
 		if p.bounds().Overlaps(o.Logical()) {
-			shown = c.drawTree(pass, o, p.popup.Surface(), p.origin, shown)
+			shown = c.drawTree(pass, o, p.popup.Surface(), flat(p.origin), shown)
 		}
 	}
 	return shown
 }
 
-func (c *Compositor) drawTree(pass *frame, o *output.Output, s *surface.Surface, at image.Point, shown []*surface.Surface) []*surface.Surface {
+func (c *Compositor) drawTree(pass *frame, o *output.Output, s *surface.Surface, org origin, shown []*surface.Surface) []*surface.Surface {
 	for member := range s.Stack() {
 		if member != s {
 			if sub := member.Subsurface(); sub != nil {
-				shown = c.drawTree(pass, o, member, at.Add(sub.Position()), shown)
+				shown = c.drawTree(pass, o, member, org.child(sub.Position()), shown)
 			}
 			continue
 		}
@@ -161,7 +161,7 @@ func (c *Compositor) drawTree(pass *frame, o *output.Output, s *surface.Surface,
 		if tex == nil {
 			continue
 		}
-		logical := image.Rectangle{Min: at, Max: at.Add(s.Size())}.Sub(o.Position())
+		logical := image.Rectangle{Min: org.at, Max: org.at.Add(org.size(s.Size()))}.Sub(o.Position())
 		pass.drawSurface(s, tex, s.BufferSource(), o.Scale().Rect(logical), s.Transform().Invert())
 		shown = append(shown, s)
 	}

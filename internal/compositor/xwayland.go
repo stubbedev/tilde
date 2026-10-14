@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/stubbedev/tilde/internal/output"
+	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/shell"
 	"github.com/stubbedev/tilde/internal/surface"
 	"github.com/stubbedev/tilde/internal/wm"
@@ -14,6 +15,7 @@ import (
 
 type xToplevel struct {
 	*xwayland.Window
+	c *Compositor
 }
 
 func (xToplevel) Popups() []*shell.Popup {
@@ -21,7 +23,8 @@ func (xToplevel) Popups() []*shell.Popup {
 }
 
 func (t xToplevel) Geometry() image.Rectangle {
-	return image.Rectangle{Max: t.Rect().Size()}
+	r, _ := t.c.fromX(t.Rect())
+	return image.Rectangle{Max: r.Size()}
 }
 
 func (t xToplevel) AppID() string {
@@ -34,7 +37,7 @@ func (t xToplevel) pid() int32 {
 
 func (t xToplevel) parent() toplevel {
 	if p := t.Parent(); p != nil {
-		return xToplevel{p}
+		return xToplevel{p, t.c}
 	}
 	return nil
 }
@@ -47,16 +50,58 @@ func (xToplevel) scaled() bool {
 	return false
 }
 
-func xState(w want) xwayland.State {
-	return xwayland.State{Rect: w.rect, Activated: w.activated, Fullscreen: w.layer == wm.LayerFullscreen}
+func (t xToplevel) state(w want) xwayland.State {
+	return xwayland.State{Rect: t.c.toX(w.rect), Activated: w.activated, Fullscreen: w.layer == wm.LayerFullscreen}
 }
 
 func (t xToplevel) settled(w want) bool {
-	return t.Applied() == xState(w)
+	return t.Applied() == t.state(w)
 }
 
 func (t xToplevel) apply(w want) error {
-	return t.Apply(xState(w))
+	return t.Apply(t.state(w))
+}
+
+func (c *Compositor) ScaleXwayland(clients func(*server.Client) bool) error {
+	c.xwaylandClients = clients
+	return errors.Join(c.layout.Physical(clients), c.reconcile())
+}
+
+func (c *Compositor) xScale(o *output.Output) output.Scale {
+	if c.xwaylandClients == nil || o == nil {
+		return output.Unit
+	}
+	return o.Scale()
+}
+
+func (c *Compositor) toX(r image.Rectangle) image.Rectangle {
+	o := c.outputAtRect(r)
+	if c.xwaylandClients == nil || o == nil {
+		return r
+	}
+	k := o.Scale()
+	at := o.XPosition().Add(k.DevicePoint(r.Min.Sub(o.Position())))
+	return image.Rectangle{Min: at, Max: at.Add(k.DevicePoint(r.Size()))}
+}
+
+func (c *Compositor) fromX(r image.Rectangle) (image.Rectangle, output.Scale) {
+	if c.xwaylandClients == nil {
+		return r, output.Unit
+	}
+	for _, o := range c.outputs {
+		if !r.Min.In(o.XRect()) {
+			continue
+		}
+		k := o.Scale()
+		at := o.Position().Add(k.LogicalPoint(r.Min.Sub(o.XPosition())))
+		return image.Rectangle{Min: at, Max: at.Add(k.LogicalPoint(r.Size()))}, k
+	}
+	return r, output.Unit
+}
+
+func (c *Compositor) unmanagedOrigin(w *xwayland.Window) origin {
+	r, k := c.fromX(w.Rect())
+	return origin{at: r.Min, k: k}
 }
 
 func (t xToplevel) close() error {
@@ -68,7 +113,7 @@ func (c *Compositor) XWindowMapped(w *xwayland.Window) error {
 		c.unmanaged = append(c.unmanaged, w)
 		return errors.Join(c.refreshPointer(), c.scheduleAll())
 	}
-	t := xToplevel{w}
+	t := xToplevel{w, c}
 	if err := c.mapToplevel(t); err != nil {
 		return err
 	}
@@ -83,18 +128,18 @@ func (c *Compositor) XWindowUnmapped(w *xwayland.Window) error {
 		c.unmanaged = slices.Delete(c.unmanaged, i, i+1)
 		return errors.Join(c.refreshPointer(), c.scheduleAll())
 	}
-	return c.unmapToplevel(xToplevel{w})
+	return c.unmapToplevel(xToplevel{w, c})
 }
 
 func (c *Compositor) XWindowChanged(w *xwayland.Window) error {
-	if win := c.windowOf(xToplevel{w}); win != nil && w.Urgent() && win != c.active {
+	if win := c.windowOf(xToplevel{w, c}); win != nil && w.Urgent() && win != c.active {
 		win.urgent = true
 	}
 	return errors.Join(c.refreshPointer(), c.scheduleAll())
 }
 
 func (c *Compositor) XWindowRequest(w *xwayland.Window, r xwayland.Request) error {
-	win := c.windowOf(xToplevel{w})
+	win := c.windowOf(xToplevel{w, c})
 	if win == nil {
 		return nil
 	}
@@ -109,15 +154,16 @@ func (c *Compositor) XWindowRequest(w *xwayland.Window, r xwayland.Request) erro
 		if !c.wm.Floats(win.id) {
 			return nil
 		}
-		return c.update(c.wm.SetFloatingRect(win.id, r.Rect.Inset(-c.decor.BorderWidth)))
+		rect, _ := c.fromX(r.Rect)
+		return c.update(c.wm.SetFloatingRect(win.id, rect.Inset(-c.decor.BorderWidth)))
 	}
 	return nil
 }
 
 func (c *Compositor) drawUnmanaged(pass *frame, o *output.Output, shown []*surface.Surface) []*surface.Surface {
 	for _, w := range c.unmanaged {
-		if w.Rect().Overlaps(o.Logical()) {
-			shown = c.drawTree(pass, o, w.Surface(), w.Rect().Min, shown)
+		if r, _ := c.fromX(w.Rect()); r.Overlaps(o.Logical()) {
+			shown = c.drawTree(pass, o, w.Surface(), c.unmanagedOrigin(w), shown)
 		}
 	}
 	return shown
@@ -125,7 +171,7 @@ func (c *Compositor) drawUnmanaged(pass *frame, o *output.Output, shown []*surfa
 
 func (c *Compositor) hitUnmanaged(p point) (*surface.Surface, point) {
 	for _, w := range slices.Backward(c.unmanaged) {
-		if s, local := hitTree(w.Surface(), w.Rect().Min, p); s != nil {
+		if s, local := hitTree(w.Surface(), c.unmanagedOrigin(w), p); s != nil {
 			return s, local
 		}
 	}

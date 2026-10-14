@@ -138,6 +138,9 @@ func start(t *testing.T, s setup, modes ...backend.Mode) *Harness {
 			t.Fatalf("harness: %v", err)
 		}
 		h.compositor.WatchSelection(h.xwayland.SelectionChanged)
+		if err := h.compositor.ScaleXwayland(h.xwayland.IsClient); err != nil {
+			t.Fatalf("harness: %v", err)
+		}
 	}
 	go func() { h.done <- h.loop.Run() }()
 	return h

@@ -75,5 +75,5 @@ func (c *Compositor) drawDragIcon(pass *frame, o *output.Output, shown []*surfac
 		return shown
 	}
 	at := image.Pt(int(math.Floor(c.cursor.X)), int(math.Floor(c.cursor.Y))).Add(offset)
-	return c.drawTree(pass, o, icon, at, shown)
+	return c.drawTree(pass, o, icon, flat(at), shown)
 }

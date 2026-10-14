@@ -239,6 +239,7 @@ type loaded struct {
 	autostart []string
 	input     session.InputConfig
 	xwayland  bool
+	zero      bool
 }
 
 func (s source) load() (loaded, error) {
@@ -267,7 +268,7 @@ func (s source) load() (loaded, error) {
 		return loaded{}, errors.Join(err, keymap.Close())
 	}
 	cfg.Cursor = s.cursor
-	return loaded{cfg: cfg, keymap: keymap, env: file.Env, autostart: file.Autostart, input: file.Input, xwayland: file.Xwayland}, nil
+	return loaded{cfg: cfg, keymap: keymap, env: file.Env, autostart: file.Autostart, input: file.Input, xwayland: file.Xwayland, zero: file.ZeroScaling}, nil
 }
 
 func sessionVars(env [][2]string, getenv func(string) string) [][2]string {
@@ -427,6 +428,11 @@ func run(args []string) (err error) {
 		}
 		defer func() { err = errors.Join(err, xw.Close()) }()
 		s.comp.WatchSelection(xw.SelectionChanged)
+		if first.zero {
+			if err := s.comp.ScaleXwayland(xw.IsClient); err != nil {
+				return err
+			}
+		}
 		exports = append(exports, [2]string{"DISPLAY", xw.Display()})
 	}
 	for _, kv := range exports {
