@@ -197,8 +197,8 @@ type Surface struct {
 	client       *server.Client
 	resource     *sw.WlSurface
 	pending      state
-	cache        state
-	cached       bool
+	cache        *Update
+	queue        []*Update
 	current      state
 	latched      []*spt.WpPresentationFeedback
 	damage       region.Region
@@ -215,12 +215,47 @@ type Surface struct {
 	preferred    uint32
 	destroyed    bool
 	hooks        []*Hooks
-	holds        int
 }
 
 type Hooks struct {
-	Commit  func() error
+	Commit  func(u *Update) error
 	Applied func() error
+}
+
+type Update struct {
+	s       *Surface
+	state   state
+	gates   []func() bool
+	applied []func() error
+}
+
+func (u *Update) Gate(ready func() bool) {
+	u.gates = append(u.gates, ready)
+}
+
+func (u *Update) Hold() *Hold {
+	h := &Hold{s: u.s}
+	u.Gate(func() bool { return h.done })
+	return h
+}
+
+func (u *Update) OnApply(f func() error) {
+	u.applied = append(u.applied, f)
+}
+
+func (u *Update) ready() bool {
+	for _, ready := range u.gates {
+		if !ready() {
+			return false
+		}
+	}
+	return true
+}
+
+func (u *Update) absorb(later *Update) {
+	u.state.merge(&later.state)
+	u.gates = append(u.gates, later.gates...)
+	u.applied = append(u.applied, later.applied...)
 }
 
 func (s *Surface) AddHooks(h *Hooks) {
@@ -240,22 +275,16 @@ type Hold struct {
 	done bool
 }
 
-func (s *Surface) Hold() *Hold {
-	s.holds++
-	return &Hold{s: s}
-}
-
 func (h *Hold) Release() error {
 	if h.done {
 		return nil
 	}
 	h.done = true
-	s := h.s
-	s.holds--
-	if s.holds > 0 || s.destroyed || s.synchronized() {
-		return nil
-	}
-	return s.applyCache()
+	return h.s.Retry()
+}
+
+func (s *Surface) Retry() error {
+	return s.drain(false)
 }
 
 func From(r *sw.WlSurface) (*Surface, error) {
@@ -446,8 +475,19 @@ func (s *Surface) protocolError(code sw.WlSurfaceError, format string, args ...a
 	return s.resource.ProtocolError(code, fmt.Sprintf(format, args...))
 }
 
+func (s *Surface) unapplied() []*state {
+	states := make([]*state, 0, len(s.queue)+2)
+	for _, u := range s.queue {
+		states = append(states, &u.state)
+	}
+	if s.cache != nil {
+		states = append(states, &s.cache.state)
+	}
+	return append(states, &s.pending)
+}
+
 func (s *Surface) checkSize() error {
-	g := s.geometry(&s.cache, &s.pending)
+	g := s.geometry(s.unapplied()...)
 	err := g.validate()
 	switch {
 	case errors.Is(err, errInvalidSize):
@@ -464,27 +504,49 @@ func (s *Surface) commit() error {
 	if err := s.checkSize(); err != nil {
 		return err
 	}
+	u := &Update{s: s}
 	for _, h := range slices.Clone(s.hooks) {
 		if h.Commit != nil {
-			if err := h.Commit(); err != nil {
+			if err := h.Commit(u); err != nil {
 				return err
 			}
 		}
 	}
-	s.cache.merge(&s.pending)
-	s.cached = true
-	if s.synchronized() || s.holds > 0 {
+	u.state, s.pending = s.pending, state{}
+	if s.synchronized() {
+		if s.cache == nil {
+			s.cache = u
+		} else {
+			s.cache.absorb(u)
+		}
 		return nil
 	}
-	return s.applyCache()
+	s.queue = append(s.queue, u)
+	return s.drain(false)
 }
 
-func (s *Surface) applyCache() error {
-	if !s.cached {
-		return nil
+func (s *Surface) flush() error {
+	if s.cache != nil {
+		s.queue = append(s.queue, s.cache)
+		s.cache = nil
 	}
-	s.cached = false
-	st := &s.cache
+	return s.drain(true)
+}
+
+func (s *Surface) drain(parentApplied bool) error {
+	for len(s.queue) > 0 && !s.destroyed && (parentApplied || !s.synchronized()) && s.queue[0].ready() {
+		u := s.queue[0]
+		s.queue[0] = nil
+		s.queue = s.queue[1:]
+		if err := s.apply(u); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Surface) apply(u *Update) error {
+	st := &u.state
 	s.damage, s.bufferDamage = s.mapDamage(st)
 	s.attached = st.set&fieldBuffer != 0
 	s.offset = image.Point{}
@@ -513,6 +575,11 @@ func (s *Surface) applyCache() error {
 	if err := s.manager.listener.Committed(s); err != nil {
 		return err
 	}
+	for _, f := range u.applied {
+		if err := f(); err != nil {
+			return err
+		}
+	}
 	for _, h := range slices.Clone(s.hooks) {
 		if h.Applied != nil {
 			if err := h.Applied(); err != nil {
@@ -520,9 +587,9 @@ func (s *Surface) applyCache() error {
 			}
 		}
 	}
-	for _, child := range s.order {
-		if child != s && child.synchronized() && child.holds == 0 {
-			if err := child.applyCache(); err != nil {
+	for _, child := range slices.Clone(s.order) {
+		if child != s && child.synchronized() {
+			if err := child.flush(); err != nil {
 				return err
 			}
 		}
@@ -542,12 +609,18 @@ func (s *Surface) mapDamage(st *state) (surface, buffer region.Region) {
 func (s *Surface) destroy() error {
 	s.destroyed = true
 	var errs []error
-	for _, cb := range append(append(s.pending.frames, s.cache.frames...), s.current.frames...) {
-		errs = append(errs, s.client.Remove(cb.Base().ID()))
+	var feedbacks []*spt.WpPresentationFeedback
+	for _, st := range append(s.unapplied(), &s.current) {
+		for _, cb := range st.frames {
+			errs = append(errs, s.client.Remove(cb.Base().ID()))
+		}
+		feedbacks = append(feedbacks, st.feedbacks...)
+		st.frames, st.feedbacks = nil, nil
 	}
-	s.pending.frames, s.cache.frames, s.current.frames = nil, nil, nil
-	errs = append(errs, s.client.Sent(discard(append(append(append(s.pending.feedbacks, s.cache.feedbacks...), s.current.feedbacks...), s.latched...))))
-	s.pending.feedbacks, s.cache.feedbacks, s.current.feedbacks, s.latched = nil, nil, nil, nil
+	s.cache, s.queue = nil, nil
+	feedbacks = append(feedbacks, s.latched...)
+	s.latched = nil
+	errs = append(errs, s.client.Sent(discard(feedbacks)))
 	if s.sub != nil {
 		s.sub.detach()
 	}

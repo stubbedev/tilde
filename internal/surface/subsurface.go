@@ -157,7 +157,7 @@ func (r subsurfaceRequests) SetDesync(*sw.WlSubsurface) error {
 }
 
 func (s *Surface) flushDesynchronized() error {
-	if err := s.applyCache(); err != nil {
+	if err := s.flush(); err != nil {
 		return err
 	}
 	for _, child := range slices.Clone(s.order) {

@@ -154,7 +154,7 @@ func (r requests) GetSurface(obj *sls.WpLinuxDrmSyncobjManagerV1, res *sls.WpLin
 	ss, ok := r.m.surfaces[s]
 	if !ok {
 		ss = &syncSurface{m: r.m, s: s}
-		ss.hooks = &surface.Hooks{Commit: ss.commit, Applied: ss.applied}
+		ss.hooks = &surface.Hooks{Commit: ss.commit}
 		s.AddHooks(ss.hooks)
 		r.m.surfaces[s] = ss
 		r.c.OnDestroy(wl, ss.surfaceGone)
@@ -248,7 +248,7 @@ func (ss *syncSurface) check(buffer surface.Buffer, attached bool) (*dmabuf.Buff
 	return b, nil
 }
 
-func (ss *syncSurface) commit() error {
+func (ss *syncSurface) commit(u *surface.Update) error {
 	buffer, attached := ss.s.PendingBuffer()
 	var explicit *dmabuf.Buffer
 	if ss.res != nil {
@@ -263,13 +263,14 @@ func (ss *syncSurface) commit() error {
 	acquire, release := ss.acquire, ss.release
 	ss.acquire, ss.release = nil, nil
 	ss.latched = append(ss.latched, latch{release: release, buffer: explicit})
+	u.OnApply(ss.applied)
 	if acquire == nil {
 		return nil
 	}
-	return ss.wait(acquire)
+	return ss.wait(acquire, u.Hold())
 }
 
-func (ss *syncSurface) wait(acquire *point) error {
+func (ss *syncSurface) wait(acquire *point, hold *surface.Hold) error {
 	efd, err := unix.Eventfd(0, unix.EFD_CLOEXEC|unix.EFD_NONBLOCK)
 	if err != nil {
 		return errors.Join(fmt.Errorf("syncobj: eventfd: %w", err), acquire.drop())
@@ -277,7 +278,7 @@ func (ss *syncSurface) wait(acquire *point) error {
 	if err := ss.m.dev.EventFD(acquire.t.handle, acquire.value, efd, false); err != nil {
 		return errors.Join(err, unix.Close(efd), acquire.drop())
 	}
-	w := &wait{efd: efd, acquire: acquire, hold: ss.s.Hold()}
+	w := &wait{efd: efd, acquire: acquire, hold: hold}
 	if w.src, err = ss.m.loop.AddFD(efd, loop.Readable, func(loop.Events) error {
 		ss.waits = slices.DeleteFunc(ss.waits, func(x *wait) bool { return x == w })
 		return errors.Join(w.cancel(), w.hold.Release())
@@ -289,20 +290,14 @@ func (ss *syncSurface) wait(acquire *point) error {
 }
 
 func (ss *syncSurface) applied() error {
-	if len(ss.latched) == 0 {
-		return nil
-	}
-	errs := []error{ss.retire(ss.current)}
-	last := len(ss.latched) - 1
-	for _, l := range ss.latched[:last] {
-		errs = append(errs, l.release.signal())
-	}
-	ss.current = ss.latched[last]
-	ss.latched = ss.latched[:0]
-	if ss.res == nil && ss.current.release == nil {
+	err := ss.retire(ss.current)
+	ss.current = ss.latched[0]
+	ss.latched[0] = latch{}
+	ss.latched = ss.latched[1:]
+	if ss.res == nil && ss.current.release == nil && len(ss.latched) == 0 {
 		ss.forget()
 	}
-	return errors.Join(errs...)
+	return err
 }
 
 func (ss *syncSurface) objectGone() error {

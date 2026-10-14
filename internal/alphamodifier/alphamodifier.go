@@ -47,14 +47,14 @@ type requests struct {
 func (requests) Destroy(*swam.WpAlphaModifierV1) error { return nil }
 
 type modified struct {
-	m       *Manager
-	s       *surface.Surface
-	hooks   *surface.Hooks
-	live    bool
-	pending *float32
-	latched *float32
-	current float32
-	gone    bool
+	m        *Manager
+	s        *surface.Surface
+	hooks    *surface.Hooks
+	live     bool
+	pending  *float32
+	inFlight int
+	current  float32
+	gone     bool
 }
 
 func factorOf(f uint32) float32 {
@@ -72,7 +72,7 @@ func (r requests) GetSurface(obj *swam.WpAlphaModifierV1, res *swam.WpAlphaModif
 	}
 	if !ok {
 		a = &modified{m: r.m, s: s, current: 1}
-		a.hooks = &surface.Hooks{Commit: a.commit, Applied: a.applied}
+		a.hooks = &surface.Hooks{Commit: a.commit}
 		s.AddHooks(a.hooks)
 		r.m.surfaces[s] = a
 		r.c.OnDestroy(wl, a.surfaceGone)
@@ -100,20 +100,21 @@ func (a *modified) SetMultiplier(obj *swam.WpAlphaModifierSurfaceV1, factor uint
 	return nil
 }
 
-func (a *modified) commit() error {
-	if a.pending != nil {
-		a.latched, a.pending = a.pending, nil
+func (a *modified) commit(u *surface.Update) error {
+	if a.pending == nil {
+		return nil
 	}
-	return nil
-}
-
-func (a *modified) applied() error {
-	if a.latched != nil {
-		a.current, a.latched = *a.latched, nil
-	}
-	if !a.live && a.pending == nil && a.latched == nil && a.current == 1 {
-		a.forget()
-	}
+	f := *a.pending
+	a.pending = nil
+	a.inFlight++
+	u.OnApply(func() error {
+		a.current = f
+		a.inFlight--
+		if !a.live && a.pending == nil && a.inFlight == 0 && a.current == 1 {
+			a.forget()
+		}
+		return nil
+	})
 	return nil
 }
 

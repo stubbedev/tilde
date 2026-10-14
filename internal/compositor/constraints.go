@@ -64,7 +64,6 @@ type constraint struct {
 	spent    bool
 	hooks    *surface.Hooks
 	pending  constraintState
-	cached   constraintState
 	current  constraintState
 }
 
@@ -143,15 +142,17 @@ func (k confinedPointer) SetRegion(_ *spc.ZwpConfinedPointerV1, g *sw.WlRegion) 
 	return k.pending.setRegion(g)
 }
 
-func (k *constraint) commit() error {
-	k.cached.merge(&k.pending)
+func (k *constraint) commit(u *surface.Update) error {
+	st := k.pending
 	k.pending = constraintState{}
+	u.OnApply(func() error {
+		k.current.merge(&st)
+		return nil
+	})
 	return nil
 }
 
 func (k *constraint) applied() error {
-	k.current.merge(&k.cached)
-	k.cached = constraintState{}
 	if !k.active {
 		return k.c.refreshConstraint()
 	}

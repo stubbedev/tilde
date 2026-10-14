@@ -681,7 +681,7 @@ func TestPreferredScale(t *testing.T) {
 	e.protocolError(uint32(sfs.WpFractionalScaleManagerV1ErrorFractionalScaleExists))
 }
 
-func TestHoldsDelayCommitsUntilReleased(t *testing.T) {
+func TestHeldUpdatesApplyInOrder(t *testing.T) {
 	e := setup(t, 6)
 	s := e.surface()
 	if err := s.Commit(); err != nil {
@@ -692,7 +692,7 @@ func TestHoldsDelayCommitsUntilReleased(t *testing.T) {
 	var holds []*Hold
 	applied := 0
 	hooks := &Hooks{
-		Commit:  func() error { holds = append(holds, server.Hold()); return nil },
+		Commit:  func(u *Update) error { holds = append(holds, u.Hold()); return nil },
 		Applied: func() error { applied++; return nil },
 	}
 	e.on(func() { server.AddHooks(hooks) })
@@ -711,7 +711,7 @@ func TestHoldsDelayCommitsUntilReleased(t *testing.T) {
 		}
 	})
 	if n := len(e.commits()); n != 1 {
-		t.Fatal("a commit took effect with a hold outstanding")
+		t.Fatal("a later update overtook a held one")
 	}
 	e.on(func() {
 		if err := errors.Join(holds[0].Release(), holds[0].Release()); err != nil {
@@ -720,17 +720,104 @@ func TestHoldsDelayCommitsUntilReleased(t *testing.T) {
 		server.RemoveHooks(hooks)
 	})
 	commits := e.commits()
-	if len(commits) != 2 || applied != 1 {
+	if len(commits) != 3 || applied != 2 {
 		t.Fatalf("%d commits and %d applied hooks after the holds were released", len(commits), applied)
 	}
-	if d := commits[1].damage; d.Area() != 50 || !d.Contains(image.Pt(1, 1)) || !d.Contains(image.Pt(11, 1)) {
-		t.Fatalf("the held commits applied damage %v, want both rectangles", d.Rects())
+	for i, x := range []int{1, 11} {
+		if d := commits[1+i].damage; d.Area() != 25 || !d.Contains(image.Pt(x, 1)) {
+			t.Fatalf("update %d applied damage %v, want the rectangle at x=%d alone", i, d.Rects(), x-1)
+		}
 	}
 	if err := errors.Join(s.Damage(0, 0, 1, 1), s.Commit()); err != nil {
 		t.Fatal(err)
 	}
 	e.roundtrip()
-	if n := len(e.commits()); n != 3 || applied != 1 {
+	if n := len(e.commits()); n != 4 || applied != 2 {
 		t.Fatalf("after removing the hooks: %d commits, %d applied hooks", n, applied)
 	}
+}
+
+func TestGatesHoldTheQueueHead(t *testing.T) {
+	e := setup(t, 6)
+	s := e.surface()
+	if err := s.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	e.roundtrip()
+	server := e.last(s).s
+	open := false
+	var order []int
+	next := 0
+	hooks := &Hooks{Commit: func(u *Update) error {
+		n := next
+		next++
+		if n == 0 {
+			u.Gate(func() bool { return open })
+		}
+		u.OnApply(func() error { order = append(order, n); return nil })
+		return nil
+	}}
+	e.on(func() { server.AddHooks(hooks) })
+	for range 3 {
+		if err := s.Commit(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.roundtrip()
+	e.on(func() {
+		if err := server.Retry(); err != nil {
+			t.Error(err)
+		}
+	})
+	if n := len(e.commits()); n != 1 {
+		t.Fatalf("%d updates applied behind a closed gate", n-1)
+	}
+	e.on(func() {
+		open = true
+		if err := server.Retry(); err != nil {
+			t.Error(err)
+		}
+	})
+	var got []int
+	e.on(func() { got = slices.Clone(order) })
+	if !slices.Equal(got, []int{0, 1, 2}) {
+		t.Fatalf("updates applied in order %v, want [0 1 2]", got)
+	}
+}
+
+func TestSynchronizedSubsurfacesMergeUpdatesUntilTheParentApplies(t *testing.T) {
+	e := setup(t, 6)
+	parent, child := e.surface(), e.surface()
+	sub, err := e.subcomp.GetSubsurface(child, parent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	must(t, child.Commit(), parent.Commit())
+	e.roundtrip()
+	server := e.last(child).s
+	var holds []*Hold
+	hooks := &Hooks{Commit: func(u *Update) error { holds = append(holds, u.Hold()); return nil }}
+	e.on(func() { server.AddHooks(hooks) })
+	must(t, child.Damage(0, 0, 5, 5), child.Commit(), child.Damage(10, 0, 5, 5), child.Commit(), parent.Commit())
+	e.roundtrip()
+	before := len(e.commits())
+	if c := e.last(child); c.damage.Area() != 0 {
+		t.Fatalf("a held synchronized update applied with damage %v", c.damage.Rects())
+	}
+	e.on(func() {
+		for _, h := range holds {
+			if err := h.Release(); err != nil {
+				t.Error(err)
+			}
+		}
+	})
+	if n := len(e.commits()); n != before {
+		t.Fatal("a synchronized update applied on release without its parent")
+	}
+	must(t, parent.Commit())
+	e.roundtrip()
+	if d := e.last(child).damage; d.Area() != 50 {
+		t.Fatalf("the merged synchronized update applied damage %v, want both rectangles", d.Rects())
+	}
+	must(t, sub.Destroy())
 }

@@ -149,6 +149,21 @@ tranche (#64): the primary plane's opaque formats and modifiers that the
 renderer also imports, targeted at the plane's DRM device, so the client
 allocates buffers that plane can show.
 
+## Content updates
+
+Each `wl_surface.commit` makes a content update (#117). Extensions attach
+what they need to the update when it is committed: gates it must pass
+before it applies (an explicit-sync acquire point) and state that becomes
+current with it (a release point, an alpha multiplier, a pointer constraint
+region). Updates apply strictly in commit order, so a held one holds back
+the ones behind it rather than being overwritten by them. A synchronized
+subsurface keeps one cached update that absorbs its commits and enters its
+queue when the parent applies.
+
+A frame latches what it draws: the presentation feedback of every surface
+it shows moves from the surface to that frame, and the output's next vblank
+reports it presented (#121).
+
 ## Xwayland
 
 `internal/xwayland` (#44) starts Xwayland lazily. At startup tilde takes an
@@ -251,7 +266,7 @@ Everything lives under `internal/` except the commands.
 | `render/soft` | The CPU renderer, for headless and golden tests (#7) |
 | `render/gles` | The GLES2 renderer (#34) |
 | `gpu` | purego bindings for EGL, GLES2 and GBM (#33) |
-| `surface` | `wl_compositor`, `wl_surface`, `wl_region`, `wl_subcompositor`, `wp_viewporter`, `wp_fractional_scale_v1`, `wp_presentation`: double-buffered state, subsurface trees, roles (#11, #19) |
+| `surface` | `wl_compositor`, `wl_surface`, `wl_region`, `wl_subcompositor`, `wp_viewporter`, `wp_fractional_scale_v1`, `wp_presentation`: double-buffered state, a queue of content updates that apply in order once their gates open, subsurface trees, roles (#11, #19, #117) |
 | `singlepixel` | `wp_single_pixel_buffer_manager_v1`: one-pixel buffers of a solid color (#20) |
 | `region` | Pixel regions as disjoint rectangles, for damage and input and opaque regions |
 | `output` | `wl_output` and `zxdg_output_v1`: each output's mode, logical position and scale in 120ths, with rounding that keeps logical edges adjacent in device pixels (#19) |

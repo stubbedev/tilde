@@ -332,7 +332,7 @@ func TestCommitsWaitForTheirAcquirePoint(t *testing.T) {
 	if err := e.dev.Signal(acquire, 3); err != nil {
 		t.Fatal(err)
 	}
-	e.waitFor("both commits", func() bool { return e.rec.count() == 2 })
+	e.waitFor("both commits, each in turn", func() bool { return e.rec.count() == 3 })
 	e.waitFor("the replaced and skipped buffers released", func() bool { return e.signaledAt(release, 2) })
 	if e.signaledAt(release, 3) {
 		t.Fatal("the buffer on screen was released")
