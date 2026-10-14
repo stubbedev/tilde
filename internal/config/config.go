@@ -116,6 +116,11 @@ type rawConfig struct {
 	Rules     []At[rawRule]         `yaml:"rules"`
 	Env       map[string]At[string] `yaml:"env"`
 	Autostart []At[string]          `yaml:"autostart"`
+	Xwayland  rawXwayland           `yaml:"xwayland"`
+}
+
+type rawXwayland struct {
+	Enabled *bool `yaml:"enabled"`
 }
 
 type rawOutput struct {
@@ -236,6 +241,7 @@ type Config struct {
 	Rules       []wm.Rule
 	Env         [][2]string
 	Autostart   []string
+	Xwayland    bool
 }
 
 var mocha = map[string]render.Color{
@@ -559,7 +565,8 @@ func Parse(file string, data []byte) (Config, error) {
 				Urgent:      p.tabColors(raw.Tabs.Urgent, "tabs.urgent", def.Tab.Urgent),
 			},
 		},
-		WM: compositor.DefaultSettings(),
+		WM:       compositor.DefaultSettings(),
+		Xwayland: raw.Xwayland.Enabled == nil || *raw.Xwayland.Enabled,
 	}
 	if raw.Tabs.Font != nil {
 		cfg.Font = raw.Tabs.Font.V

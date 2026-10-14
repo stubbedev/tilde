@@ -42,6 +42,9 @@ func TestExampleConfig(t *testing.T) {
 	if cfg.Keyboard.Layout != "us,dk,es" || cfg.RepeatRate != 40 || cfg.RepeatDelay != 250 {
 		t.Errorf("keyboard %+v repeat %d %d", cfg.Keyboard, cfg.RepeatRate, cfg.RepeatDelay)
 	}
+	if cfg.Xwayland {
+		t.Error("xwayland.enabled: false left Xwayland on")
+	}
 	in := cfg.Input
 	if *in.Pointer.AccelProfile != session.AccelFlat || *in.Pointer.AccelSpeed != -0.5 || *in.Pointer.ScrollFactor != 1.5 || in.Pointer.Tap != nil {
 		t.Errorf("pointer %+v", in.Pointer)
@@ -79,6 +82,9 @@ func TestEmptyConfigIsTheDefaults(t *testing.T) {
 	}
 	if !slices.Equal(cfg.Env, [][2]string{{"XDG_CURRENT_DESKTOP", "tilde"}, {"XDG_SESSION_TYPE", "wayland"}}) {
 		t.Fatalf("session env %v", cfg.Env)
+	}
+	if !cfg.Xwayland {
+		t.Fatal("Xwayland is off by default")
 	}
 	if cfg.Input.Devices != nil || cfg.Input.Pointer != (session.DeviceConfig{}) || cfg.Input.Touchpad != (session.DeviceConfig{}) {
 		t.Fatalf("input %+v", cfg.Input)

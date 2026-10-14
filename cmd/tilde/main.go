@@ -32,6 +32,7 @@ import (
 	"github.com/stubbedev/tilde/internal/wm"
 	"github.com/stubbedev/tilde/internal/xcursor"
 	"github.com/stubbedev/tilde/internal/xkb"
+	"github.com/stubbedev/tilde/internal/xwayland"
 )
 
 func main() {
@@ -237,6 +238,7 @@ type loaded struct {
 	env       [][2]string
 	autostart []string
 	input     session.InputConfig
+	xwayland  bool
 }
 
 func (s source) load() (loaded, error) {
@@ -265,7 +267,7 @@ func (s source) load() (loaded, error) {
 		return loaded{}, errors.Join(err, keymap.Close())
 	}
 	cfg.Cursor = s.cursor
-	return loaded{cfg: cfg, keymap: keymap, env: file.Env, autostart: file.Autostart, input: file.Input}, nil
+	return loaded{cfg: cfg, keymap: keymap, env: file.Env, autostart: file.Autostart, input: file.Input, xwayland: file.Xwayland}, nil
 }
 
 func sessionVars(env [][2]string, getenv func(string) string) [][2]string {
@@ -416,7 +418,17 @@ func run(args []string) (err error) {
 	}
 	defer func() { err = errors.Join(err, srv.Close()) }()
 	s.comp.OnDispatch(srv.Dispatched)
-	for _, kv := range [][2]string{{"WAYLAND_DISPLAY", display.Name()}, {ipc.SocketEnv, socket}} {
+	exports := [][2]string{{"WAYLAND_DISPLAY", display.Name()}, {ipc.SocketEnv, socket}}
+	if first.xwayland {
+		var xw *xwayland.Server
+		xw, err = xwayland.Listen(l, display, xwayland.Options{Binary: xwayland.Path(os.Getenv), Dir: "/tmp", Env: os.Environ(), Log: os.Stderr, Report: cfg.Report})
+		if err != nil {
+			return fmt.Errorf("%w (or turn it off with xwayland.enabled: false)", err)
+		}
+		defer func() { err = errors.Join(err, xw.Close()) }()
+		exports = append(exports, [2]string{"DISPLAY", xw.Display()})
+	}
+	for _, kv := range exports {
 		if err := os.Setenv(kv[0], kv[1]); err != nil {
 			return fmt.Errorf("export %s: %w", kv[0], err)
 		}
@@ -434,7 +446,11 @@ func run(args []string) (err error) {
 			cfg.Report(fmt.Errorf("autostart: %w", err))
 		}
 	}
-	fmt.Fprintf(os.Stderr, "tilde: listening on %s with the %s backend\n", display.Name(), kind)
+	listening := display.Name()
+	if first.xwayland {
+		listening += " and X display " + os.Getenv("DISPLAY")
+	}
+	fmt.Fprintf(os.Stderr, "tilde: listening on %s with the %s backend\n", listening, kind)
 	if err := l.Run(); !errors.Is(err, nested.ErrClosed) {
 		return err
 	}

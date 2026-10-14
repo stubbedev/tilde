@@ -124,6 +124,27 @@ larger than the plane, or a plane whose test commit refuses it, puts the
 cursor back into the frame; a refusal is logged and lasts for the output's
 lifetime.
 
+## Xwayland
+
+`internal/xwayland` (#44) starts Xwayland lazily. At startup tilde takes an
+X display number with a lock file in `/tmp`, binds `/tmp/.X11-unix/X<n>` and
+the abstract socket of the same name, and exports `DISPLAY`. The first
+connection launches Xwayland with both sockets as `-listenfd`, a socketpair
+as its Wayland connection (`WAYLAND_SOCKET`), another as `-wm`, and
+`-displayfd` to learn when it is up; Xwayland then accepts the pending
+connection itself. Sessions without X clients pay nothing, and after a crash
+the sockets stay with tilde, so the next connection restarts it. Starting at
+login instead would be a small change on top, which is why the choice was
+cheap to settle.
+
+Xwayland listens on its sockets only once a window manager owns `WM_S0`, so
+tilde's window manager connects over the `-wm` socket as an X client with
+`jezek/xgb`. X requests block until Xwayland answers, and Xwayland makes
+Wayland roundtrips to tilde while answering, so that connection lives in its
+own goroutine and reaches compositor state only by posting to the loop.
+`xwayland_shell_v1` is visible to the Xwayland client alone and maps the
+`WL_SURFACE_SERIAL` of each X window to its `wl_surface` on commit.
+
 ## IPC
 
 `tildectl`, bars and scripts talk to tilde over a Unix socket at

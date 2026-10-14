@@ -14,7 +14,7 @@ gates: fmt-check tidy-check check vuln headless
 # it, the session bus and GPU tests, and the end-to-end session in cmd/tilde.
 # TILDE_HEADLESS=1 turns a missing program into a failure instead of a skip.
 headless:
-    TILDE_HEADLESS=1 go test -count=1 ./internal/harness/... ./internal/backend/nested/... ./internal/systemd/... ./internal/session/... ./internal/drm/... ./internal/syncobj/... ./internal/gpu/... ./internal/render/gles/... ./cmd/tilde/...
+    TILDE_HEADLESS=1 go test -count=1 ./internal/harness/... ./internal/backend/nested/... ./internal/systemd/... ./internal/session/... ./internal/drm/... ./internal/syncobj/... ./internal/gpu/... ./internal/render/gles/... ./internal/xwayland/... ./cmd/tilde/...
 
 # Run every release gate in order: vet, lint, test, build.
 check: vet lint test build

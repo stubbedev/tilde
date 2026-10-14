@@ -181,6 +181,21 @@ and `XDG_SESSION_TYPE=wayland` are set unless `env` overrides them.
 set here. Each `autostart` command runs once with `sh -c`, after the display
 and the IPC socket are up. A reload changes neither.
 
+## xwayland
+
+```yaml
+xwayland:
+  enabled: false
+```
+
+X11 programs run through Xwayland. tilde takes a free X display (`:0` and
+up, skipping displays whose lock in `/tmp` belongs to a live process),
+listens on its sockets, and exports `DISPLAY`; Xwayland itself starts only
+when the first X client connects, so a session without X programs never
+runs it. If Xwayland exits, the next X client starts it again. `enabled:
+false` leaves `DISPLAY` unset and binds no X sockets. The setting is read at
+startup; a reload does not change it.
+
 ## Session
 
 `tilde --systemd` hands `env`, `WAYLAND_DISPLAY`, `DISPLAY` and `TILDE_SOCKET`

@@ -25,6 +25,7 @@ import (
 	"github.com/stubbedev/tilde/internal/render/soft"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/testenv"
+	"github.com/stubbedev/tilde/internal/xwayland"
 )
 
 type Harness struct {
@@ -36,8 +37,17 @@ type Harness struct {
 	compositor *compositor.Compositor
 	ipc        *ipc.Server
 	trace      *syncBuffer
+	xwayland   *xwayland.Server
+	xlog       *syncBuffer
 	done       chan error
 	clients    []*Client
+}
+
+type setup struct {
+	open      func(*loop.Loop) (*headless.Backend, error)
+	configure func(*compositor.Config)
+	traced    bool
+	xwayland  func(error)
 }
 
 func Start(t *testing.T, modes ...backend.Mode) *Harness {
@@ -51,49 +61,55 @@ func softBackend(l *loop.Loop) (*headless.Backend, error) {
 
 func StartWith(t *testing.T, configure func(*compositor.Config), modes ...backend.Mode) *Harness {
 	t.Helper()
-	return start(t, softBackend, configure, true, modes...)
+	return start(t, setup{open: softBackend, configure: configure, traced: true}, modes...)
 }
 
 func StartWithCursorPlanes(t *testing.T, size image.Point, configure func(*compositor.Config), modes ...backend.Mode) *Harness {
 	t.Helper()
-	return start(t, func(l *loop.Loop) (*headless.Backend, error) {
+	return start(t, setup{open: func(l *loop.Loop) (*headless.Backend, error) {
 		b := headless.New(l)
 		return b, b.SetCursorPlanes(size)
-	}, configure, true, modes...)
+	}, configure: configure, traced: true}, modes...)
 }
 
 func StartUntraced(t *testing.T, modes ...backend.Mode) *Harness {
 	t.Helper()
-	return start(t, softBackend, func(*compositor.Config) {}, false, modes...)
+	return start(t, setup{open: softBackend, configure: func(*compositor.Config) {}}, modes...)
 }
 
 func StartGLES(t *testing.T, configure func(*compositor.Config), modes ...backend.Mode) *Harness {
 	t.Helper()
 	testenv.GPU(t)
-	return start(t, func(l *loop.Loop) (*headless.Backend, error) {
+	return start(t, setup{open: func(l *loop.Loop) (*headless.Backend, error) {
 		return headless.NewGLES(l, gpu.PathsFromEnv(os.Getenv))
-	}, configure, true, modes...)
+	}, configure: configure, traced: true}, modes...)
 }
 
-func start(t *testing.T, open func(*loop.Loop) (*headless.Backend, error), configure func(*compositor.Config), traced bool, modes ...backend.Mode) *Harness {
+func StartXwayland(t *testing.T, report func(error), modes ...backend.Mode) *Harness {
+	t.Helper()
+	testenv.Require(t, xwayland.Path(os.Getenv))
+	return start(t, setup{open: softBackend, configure: func(*compositor.Config) {}, traced: true, xwayland: report}, modes...)
+}
+
+func start(t *testing.T, s setup, modes ...backend.Mode) *Harness {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "tilde-")
 	if err != nil {
 		t.Fatalf("harness: runtime dir: %v", err)
 	}
-	h := &Harness{t: t, RuntimeDir: dir, trace: &syncBuffer{}, done: make(chan error, 1)}
+	h := &Harness{t: t, RuntimeDir: dir, trace: &syncBuffer{}, xlog: &syncBuffer{}, done: make(chan error, 1)}
 	t.Cleanup(h.stop)
 	if h.loop, err = loop.New(); err != nil {
 		t.Fatalf("harness: %v", err)
 	}
 	opts := server.Options{RuntimeDir: dir}
-	if traced {
+	if s.traced {
 		opts.Trace = h.trace
 	}
 	if h.display, err = server.New(h.loop, opts); err != nil {
 		t.Fatalf("harness: %v", err)
 	}
-	if h.backend, err = open(h.loop); err != nil {
+	if h.backend, err = s.open(h.loop); err != nil {
 		t.Fatalf("harness: %v", err)
 	}
 	for _, m := range modes {
@@ -104,7 +120,7 @@ func start(t *testing.T, open func(*loop.Loop) (*headless.Backend, error), confi
 	cfg := compositor.DefaultConfig(testenv.Keymap(t), testenv.Font(t))
 	cfg.Report = func(err error) { t.Errorf("compositor reported: %v", err) }
 	cfg.Decor.BorderWidth = 0
-	configure(&cfg)
+	s.configure(&cfg)
 	if h.compositor, err = compositor.New(h.loop, h.display, h.backend, cfg); err != nil {
 		t.Fatalf("harness: %v", err)
 	}
@@ -116,6 +132,12 @@ func start(t *testing.T, open func(*loop.Loop) (*headless.Backend, error), confi
 		t.Fatalf("harness: %v", err)
 	}
 	h.compositor.OnDispatch(h.ipc.Dispatched)
+	if s.xwayland != nil {
+		opts := xwayland.Options{Binary: xwayland.Path(os.Getenv), Dir: dir, Env: os.Environ(), Log: h.xlog, Report: s.xwayland}
+		if h.xwayland, err = xwayland.Listen(h.loop, h.display, opts); err != nil {
+			t.Fatalf("harness: %v", err)
+		}
+	}
 	go func() { h.done <- h.loop.Run() }()
 	return h
 }
@@ -141,6 +163,9 @@ func (h *Harness) stop() {
 	if h.ipc != nil {
 		errs = append(errs, h.ipc.Close())
 	}
+	if h.xwayland != nil {
+		errs = append(errs, h.xwayland.Close())
+	}
 	if h.backend != nil {
 		errs = append(errs, h.backend.Close())
 	}
@@ -156,6 +181,9 @@ func (h *Harness) stop() {
 	}
 	if h.t.Failed() {
 		h.t.Logf("compositor wire trace:\n%s", h.trace.String())
+		if log := h.xlog.String(); log != "" {
+			h.t.Logf("Xwayland output:\n%s", log)
+		}
 	}
 }
 

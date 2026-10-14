@@ -6,6 +6,7 @@
   libgbm,
   hwdata,
   libinput,
+  xwayland,
   dejavu_fonts,
   # Set by the flake from `self.shortRev or self.dirtyShortRev`; falls back to
   # the placeholder used when nothing was stamped in.
@@ -20,7 +21,7 @@ buildGo127Module {
 
   # Pins the module dependencies in go.sum. When they change, set this to
   # lib.fakeHash, run `nix build` and put the reported got: hash here.
-  vendorHash = "sha256-uN6CmMyuJs/Ise/n1VujBBNoQGtEKUnNgoeSrBMeG5Q=";
+  vendorHash = "sha256-uJ6f/fvOGvgsyFWbUUXtJL+DMs0TO4VScRRbOPewtfk=";
 
   subPackages = ["cmd/tilde" "cmd/tildectl"];
 
@@ -33,6 +34,7 @@ buildGo127Module {
     "-X github.com/stubbedev/tilde/internal/gpu.defaultGBM=${libgbm}/lib/libgbm.so.1"
     "-X github.com/stubbedev/tilde/internal/edid.defaultPNP=${hwdata}/share/hwdata/pnp.ids"
     "-X github.com/stubbedev/tilde/internal/session.defaultLibinput=${libinput.out}/lib/libinput.so.10"
+    "-X github.com/stubbedev/tilde/internal/xwayland.defaultXwayland=${xwayland}/bin/Xwayland"
     "-X main.defaultFont=${dejavu_fonts}/share/fonts/truetype/DejaVuSans.ttf"
   ];
 

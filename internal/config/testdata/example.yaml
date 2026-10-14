@@ -65,3 +65,5 @@ env:
   XDG_CURRENT_DESKTOP: Hyprland
 autostart:
   - waybar
+xwayland:
+  enabled: false
