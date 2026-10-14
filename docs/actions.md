@@ -9,6 +9,7 @@ Every keybind and `tildectl dispatch` takes one of these. This file is generated
 | `workspace` | `<n\|e+n\|e-n>` | Show workspace n, or the n-th open workspace after or before the current one. |
 | `movetoworkspace` | `<n\|e+n\|e-n>` | Move the focused window to a workspace without following it. |
 | `kill` |  | Ask the focused window to close. |
+| `reload` |  | Read the config file again; a bad file keeps the running config and reports the error. |
 | `exec` | `<command>` | Run a shell command with sh -c. |
 | `makegroup` | `<h\|v\|tab> [ephemeral]` | Wrap the focused window in a new group; an ephemeral group dissolves when one window is left. |
 | `submap` | `<name\|reset>` | Switch binds to the named submap, or back to the default ones. |

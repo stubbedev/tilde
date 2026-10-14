@@ -87,3 +87,10 @@ func (c *Compositor) drawCursor(pass render.Pass, o *output.Output, shown []*sur
 func (c *Compositor) CursorChanged() error {
 	return c.scheduleAll()
 }
+
+func (c *Compositor) dropPointers() {
+	for _, ct := range c.pointers {
+		ct.tex.Destroy()
+	}
+	clear(c.pointers)
+}

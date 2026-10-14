@@ -45,7 +45,7 @@ func (c *Compositor) bindKey(code uint32, pressed bool) (bool, error) {
 	}
 	c.held = append(c.held, code)
 	c.run(b.Action)
-	if !b.Flags.Repeating {
+	if !b.Flags.Repeating || c.seatConfig.RepeatRate == 0 {
 		return true, nil
 	}
 	c.repeat.key, c.repeat.action, c.repeat.active = code, b.Action, true

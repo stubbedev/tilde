@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"image"
 	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -18,6 +20,7 @@ import (
 	"github.com/stubbedev/tilde/internal/backend/headless"
 	"github.com/stubbedev/tilde/internal/backend/nested"
 	"github.com/stubbedev/tilde/internal/compositor"
+	"github.com/stubbedev/tilde/internal/config"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/wlclient"
@@ -82,20 +85,107 @@ func openBackend(name string, l *loop.Loop) (backend.Backend, error) {
 
 var defaultFont = "DejaVuSans.ttf"
 
-func loadFont(getenv func(string) string) (*gtext.Typeface, error) {
-	path := getenv("TILDE_FONT")
-	if path == "" {
-		path = defaultFont
+func fontPath(configured string, getenv func(string) string) string {
+	if configured != "" {
+		return configured
 	}
-	data, err := os.ReadFile(path) //nolint:gosec // the font path comes from the build or the user's environment
+	if env := getenv("TILDE_FONT"); env != "" {
+		return env
+	}
+	return defaultFont
+}
+
+func loadFont(path string) (*gtext.Typeface, error) {
+	data, err := os.ReadFile(path) //nolint:gosec // the font path comes from the build, the config or the environment
 	if err != nil {
-		return nil, fmt.Errorf("read the tab font (set TILDE_FONT to a font file): %w", err)
+		return nil, fmt.Errorf("read the tab font (set tabs.font in the config, or TILDE_FONT): %w", err)
 	}
 	f, err := gtext.LoadFont(data)
 	if err != nil {
 		return nil, fmt.Errorf("load the tab font %s: %w", path, err)
 	}
 	return f, nil
+}
+
+func configPath(getenv func(string) string) (string, error) {
+	dir := getenv("XDG_CONFIG_HOME")
+	if !filepath.IsAbs(dir) {
+		home := getenv("HOME")
+		if !filepath.IsAbs(home) {
+			return "", errors.New("neither XDG_CONFIG_HOME nor HOME is an absolute path; pass --config")
+		}
+		dir = filepath.Join(home, ".config")
+	}
+	return filepath.Join(dir, "tilde", "config.yaml"), nil
+}
+
+type source struct {
+	path     string
+	explicit bool
+	lib      *xkb.Library
+	cursor   compositor.CursorConfig
+	getenv   func(string) string
+}
+
+func (s source) read() (string, []byte, error) {
+	data, err := os.ReadFile(s.path)
+	switch {
+	case err == nil:
+		return s.path, data, nil
+	case errors.Is(err, fs.ErrNotExist) && !s.explicit:
+		fmt.Fprintf(os.Stderr, "tilde: no config at %s; using the built-in one\n", s.path)
+		return "built-in config", config.Default, nil
+	}
+	return "", nil, fmt.Errorf("read the config: %w", err)
+}
+
+func (s source) load() (compositor.Config, *xkb.Keymap, error) {
+	name, data, err := s.read()
+	if err != nil {
+		return compositor.Config{}, nil, err
+	}
+	file, err := config.Parse(name, data)
+	if err != nil {
+		return compositor.Config{}, nil, err
+	}
+	font, err := loadFont(fontPath(file.Font, s.getenv))
+	if err != nil {
+		return compositor.Config{}, nil, err
+	}
+	names := file.Keyboard
+	if names == (xkb.Names{}) {
+		names = xkb.NamesFromEnv(s.getenv)
+	}
+	keymap, err := s.lib.Compile(names)
+	if err != nil {
+		return compositor.Config{}, nil, err
+	}
+	cfg, err := file.Compositor(keymap, font)
+	if err != nil {
+		return compositor.Config{}, nil, errors.Join(err, keymap.Close())
+	}
+	cfg.Cursor = s.cursor
+	return cfg, keymap, nil
+}
+
+type session struct {
+	source
+	comp   *compositor.Compositor
+	keymap *xkb.Keymap
+}
+
+func (s *session) reload() error {
+	cfg, keymap, err := s.load()
+	if err != nil {
+		return err
+	}
+	cfg.Reload = s.reload
+	if err := s.comp.Reconfigure(cfg); err != nil {
+		return errors.Join(err, keymap.Close())
+	}
+	old := s.keymap
+	s.keymap = keymap
+	return old.Close()
 }
 
 func cursorConfig(getenv func(string) string) (compositor.CursorConfig, error) {
@@ -121,6 +211,7 @@ func cursorConfig(getenv func(string) string) (compositor.CursorConfig, error) {
 }
 
 func run() (err error) {
+	path := flag.String("config", "", "config file (default: $XDG_CONFIG_HOME/tilde/config.yaml)")
 	requested := flag.String("backend", "", "output and input backend: nested or headless (default: nested when WAYLAND_DISPLAY is set, else headless)")
 	flag.Parse()
 	backendName, err := chooseBackend(*requested, os.Getenv("WAYLAND_DISPLAY"))
@@ -135,6 +226,28 @@ func run() (err error) {
 	if dbg.wire {
 		trace = os.Stderr
 	}
+	lib, err := xkb.Load(xkb.LibraryPath(os.Getenv))
+	if err != nil {
+		return err
+	}
+	defer lib.Close()
+	cursor, err := cursorConfig(os.Getenv)
+	if err != nil {
+		return err
+	}
+	s := &session{path: *path, explicit: *path != "", lib: lib, cursor: cursor, getenv: os.Getenv}
+	if !s.explicit {
+		if s.path, err = configPath(os.Getenv); err != nil {
+			return err
+		}
+	}
+	cfg, keymap, err := s.load()
+	if err != nil {
+		return err
+	}
+	s.keymap = keymap
+	defer func() { err = errors.Join(err, s.keymap.Close()) }()
+	cfg.Reload = s.reload
 	l, err := loop.New()
 	if err != nil {
 		return err
@@ -150,30 +263,21 @@ func run() (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, display.Close()) }()
-	keymap, err := xkb.Open(os.Getenv)
-	if err != nil {
+	if s.comp, err = compositor.New(l, display, b, cfg); err != nil {
 		return err
 	}
-	defer func() { err = errors.Join(err, keymap.Close()) }()
-	font, err := loadFont(os.Getenv)
-	if err != nil {
-		return err
-	}
-	cfg := compositor.DefaultConfig(keymap, font)
-	cfg.Cursor, err = cursorConfig(os.Getenv)
-	if err != nil {
-		return err
-	}
-	comp, err := compositor.New(l, display, b, cfg)
-	if err != nil {
-		return err
-	}
-	defer comp.Close()
+	defer s.comp.Close()
 	if err := os.Setenv("WAYLAND_DISPLAY", display.Name()); err != nil {
 		return fmt.Errorf("export WAYLAND_DISPLAY: %w", err)
 	}
-	if _, err := l.AddSignals(func(os.Signal) error {
-		l.Stop()
+	if _, err := l.AddSignals(func(sig os.Signal) error {
+		if sig != syscall.SIGHUP {
+			l.Stop()
+			return nil
+		}
+		if err := s.reload(); err != nil {
+			fmt.Fprintln(os.Stderr, "tilde: reload:", err)
+		}
 		return nil
 	}, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP); err != nil {
 		return err

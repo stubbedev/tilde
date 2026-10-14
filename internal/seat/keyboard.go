@@ -10,6 +10,7 @@ import (
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/surface"
 	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/tilde/internal/xkb"
 )
 
 type keyboardState struct {
@@ -105,6 +106,51 @@ func (s *Seat) Key(code uint32, pressed bool, at time.Duration) error {
 	return errors.Join(errs...)
 }
 
+func (s *Seat) sendKeyboardConfig(kb *sw.WlKeyboard) error {
+	if err := kb.SendKeymap(sw.WlKeyboardKeymapFormatXkbV1, s.cfg.Keymap.FD(), s.cfg.Keymap.Size()); err != nil {
+		return err
+	}
+	if kb.Base().Version() < 4 {
+		return nil
+	}
+	return kb.SendRepeatInfo(s.cfg.RepeatRate, s.cfg.RepeatDelay)
+}
+
+type Pending struct {
+	cfg   Config
+	state *xkb.State
+}
+
+func Prepare(cfg Config) (Pending, error) {
+	if cfg.Keymap == nil {
+		return Pending{}, errors.New("seat: no keymap")
+	}
+	st, err := cfg.Keymap.NewState()
+	if err != nil {
+		return Pending{}, err
+	}
+	return Pending{cfg: cfg, state: st}, nil
+}
+
+func (s *Seat) Reconfigure(p Pending) error {
+	for _, code := range s.keyboard.pressed {
+		p.state.Key(code, true)
+	}
+	s.state.Close()
+	s.state, s.cfg = p.state, p.cfg
+	var errs []error
+	for _, r := range s.clients {
+		focused := s.keyboard.focus != nil && s.keyboard.focus.Client() == r.client
+		for _, kb := range r.keyboards {
+			errs = append(errs, r.client.Sent(s.sendKeyboardConfig(kb)))
+			if focused {
+				errs = append(errs, s.sendModifiers(r.client, kb))
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+
 func (r seatRequests) GetKeyboard(obj *sw.WlSeat, kb *sw.WlKeyboard) (sw.WlKeyboardHandler, error) {
 	s := r.s
 	if !s.everCaps.Has(sw.WlSeatCapabilityKeyboard) {
@@ -112,13 +158,8 @@ func (r seatRequests) GetKeyboard(obj *sw.WlSeat, kb *sw.WlKeyboard) (sw.WlKeybo
 	}
 	res := s.resources(r.c)
 	track(s, res, &res.keyboards, kb)
-	if err := kb.SendKeymap(sw.WlKeyboardKeymapFormatXkbV1, s.cfg.Keymap.FD(), s.cfg.Keymap.Size()); err != nil {
+	if err := s.sendKeyboardConfig(kb); err != nil {
 		return nil, err
-	}
-	if kb.Base().Version() >= 4 {
-		if err := kb.SendRepeatInfo(s.cfg.RepeatRate, s.cfg.RepeatDelay); err != nil {
-			return nil, err
-		}
 	}
 	if s.keyboard.focus != nil && s.keyboard.focus.Client() == r.c {
 		if err := s.enterKeyboard(r.c, kb); err != nil {

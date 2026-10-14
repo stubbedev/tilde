@@ -32,6 +32,16 @@ func Require(t testing.TB, binary string) string {
 	return path
 }
 
+func XKBLibrary(t testing.TB) *xkb.Library {
+	t.Helper()
+	l, err := xkb.Load(xkb.LibraryPath(os.Getenv))
+	if err != nil {
+		missing(t, "%v", err)
+	}
+	t.Cleanup(l.Close)
+	return l
+}
+
 func Keymap(t testing.TB) *xkb.Keymap {
 	t.Helper()
 	km, err := xkb.Open(os.Getenv)

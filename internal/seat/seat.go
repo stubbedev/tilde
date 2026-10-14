@@ -61,20 +61,17 @@ type Seat struct {
 }
 
 func New(d *server.Display, cfg Config, listener Listener) (*Seat, error) {
-	if cfg.Keymap == nil {
-		return nil, errors.New("seat: no keymap")
-	}
-	st, err := cfg.Keymap.NewState()
+	p, err := Prepare(cfg)
 	if err != nil {
 		return nil, err
 	}
-	s := &Seat{display: d, listener: listener, cfg: cfg, state: st, devices: map[sw.WlSeatCapability]int{}}
+	s := &Seat{display: d, listener: listener, cfg: p.cfg, state: p.state, devices: map[sw.WlSeatCapability]int{}}
 	if _, err := d.AddGlobal(sw.WlSeatInterface, seatVersion, s.bind); err != nil {
-		st.Close()
+		s.Close()
 		return nil, err
 	}
 	if _, err := d.AddGlobal(scs.WpCursorShapeManagerV1Interface, cursorShapeVersion, s.bindCursorShape); err != nil {
-		st.Close()
+		s.Close()
 		return nil, err
 	}
 	return s, nil

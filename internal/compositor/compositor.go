@@ -31,14 +31,16 @@ import (
 var Background = render.Color{R: 0x1e, G: 0x1e, B: 0x2e, A: 0xff}
 
 type Config struct {
-	Seat   seat.Config
-	Cursor CursorConfig
-	WM     wm.Settings
-	Binds  []binds.Bind
-	Report func(error)
-	Decor  Decor
-	Font   *gtext.Typeface
-	Rules  []wm.Rule
+	Seat    seat.Config
+	Cursor  CursorConfig
+	WM      wm.Settings
+	Binds   []binds.Bind
+	Report  func(error)
+	Decor   Decor
+	Font    *gtext.Typeface
+	Rules   []wm.Rule
+	Outputs []OutputRule
+	Reload  func() error
 }
 
 type CursorConfig struct {
@@ -48,14 +50,18 @@ type CursorConfig struct {
 
 const DefaultCursorSize = 24
 
+func DefaultSettings() wm.Settings {
+	return wm.Settings{
+		Collapse: wm.CollapseEmptySplits,
+		Autotile: wm.Autotile{Enabled: true, Ephemeral: true, MinTrigger: 400, Divisor: 3},
+	}
+}
+
 func DefaultConfig(keymap *xkb.Keymap, font *gtext.Typeface) Config {
 	return Config{
 		Seat:   seat.Config{Keymap: keymap, RepeatRate: seat.DefaultRepeatRate, RepeatDelay: seat.DefaultRepeatDelay},
 		Cursor: CursorConfig{Size: DefaultCursorSize},
-		WM: wm.Settings{
-			Collapse: wm.CollapseEmptySplits,
-			Autotile: wm.Autotile{Enabled: true, Ephemeral: true, MinTrigger: 400, Divisor: 3},
-		},
+		WM:     DefaultSettings(),
 		Report: func(err error) { fmt.Fprintln(os.Stderr, "tilde:", err) },
 		Decor:  DefaultDecor(),
 		Font:   font,
@@ -88,6 +94,9 @@ type Compositor struct {
 	repeat      repeat
 	report      func(error)
 	seatConfig  seat.Config
+	outputRules []OutputRule
+	disabled    []backend.Output
+	reload      func() error
 	loop        *loop.Loop
 	display     *server.Display
 	nextWindow  wm.WindowID
@@ -111,44 +120,52 @@ type entered struct {
 	outputs []*output.Output
 }
 
+func validate(cfg Config) (binds.Map, error) {
+	if cfg.Report == nil {
+		return binds.Map{}, errors.New("compositor: Config.Report is nil")
+	}
+	if cfg.Font == nil {
+		return binds.Map{}, errors.New("compositor: Config.Font is nil")
+	}
+	if cfg.Cursor.Size <= 0 {
+		return binds.Map{}, fmt.Errorf("compositor: cursor size %d is not positive", cfg.Cursor.Size)
+	}
+	relevant, err := binds.Relevant(cfg.Seat.Keymap)
+	if err != nil {
+		return binds.Map{}, fmt.Errorf("compositor: %w", err)
+	}
+	m, err := binds.NewMap(cfg.Binds, relevant)
+	if err != nil {
+		return binds.Map{}, fmt.Errorf("compositor: %w", err)
+	}
+	return m, nil
+}
+
+func (c *Compositor) adopt(cfg Config, m binds.Map) {
+	c.cursors, c.settings, c.rules, c.decor, c.font = cfg.Cursor, cfg.WM, cfg.Rules, cfg.Decor, cfg.Font
+	c.report, c.seatConfig, c.outputRules, c.reload, c.binds = cfg.Report, cfg.Seat, cfg.Outputs, cfg.Reload, m
+}
+
 func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (*Compositor, error) {
+	m, err := validate(cfg)
+	if err != nil {
+		return nil, err
+	}
 	c := &Compositor{
 		renderer:   b.Renderer(),
 		textures:   map[*surface.Surface]*texture{},
 		shown:      map[*output.Output][]*surface.Surface{},
 		touches:    map[int32]*output.Output{},
-		cursors:    cfg.Cursor,
-		settings:   cfg.WM,
-		rules:      cfg.Rules,
-		decor:      cfg.Decor,
-		font:       cfg.Font,
 		labels:     map[*output.Output]map[labelKey]*label{},
-		report:     cfg.Report,
-		seatConfig: cfg.Seat,
 		loop:       l,
 		display:    display,
 		pointers:   map[cursorKey]*cursorTexture{},
 		usable:     map[*output.Output]image.Rectangle{},
 		nextWindow: 1,
 	}
-	if c.report == nil {
-		return nil, errors.New("compositor: Config.Report is nil")
-	}
-	if c.font == nil {
-		return nil, errors.New("compositor: Config.Font is nil")
-	}
-	relevant, err := binds.Relevant(cfg.Seat.Keymap)
-	if err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
-	}
-	if c.binds, err = binds.NewMap(cfg.Binds, relevant); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
-	}
+	c.adopt(cfg, m)
 	if c.repeat.timer, err = l.AddTimer(c.repeatFired); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
-	}
-	if c.cursors.Size <= 0 {
-		return nil, fmt.Errorf("compositor: cursor size %d is not positive", c.cursors.Size)
 	}
 	if c.layout, err = output.New(display); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
@@ -178,14 +195,33 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 	return c, nil
 }
 
+func (c *Compositor) Reconfigure(cfg Config) error {
+	m, err := validate(cfg)
+	if err != nil {
+		return err
+	}
+	pending, err := seat.Prepare(cfg.Seat)
+	if err != nil {
+		return fmt.Errorf("compositor: %w", err)
+	}
+	c.adopt(cfg, m)
+	c.submap = ""
+	c.repeat.active = false
+	for o := range c.labels {
+		c.dropLabels(o)
+	}
+	c.dropPointers()
+	if err := errors.Join(c.seat.Reconfigure(pending), c.repeat.timer.Disarm(), c.applyOutputRules(), c.scheduleAll()); err != nil {
+		c.report(fmt.Errorf("compositor: apply the new config: %w", err))
+	}
+	return nil
+}
+
 func (c *Compositor) Close() {
 	for o := range c.labels {
 		c.dropLabels(o)
 	}
-	for _, ct := range c.pointers {
-		ct.tex.Destroy()
-	}
-	clear(c.pointers)
+	c.dropPointers()
 	c.seat.Close()
 }
 
@@ -210,105 +246,4 @@ func (c *Compositor) schedule(o *output.Output) error {
 		return fmt.Errorf("compositor: schedule a frame on %s: %w", o.Backend().Name(), err)
 	}
 	return nil
-}
-
-func (c *Compositor) relayout() error {
-	x := 0
-	var errs []error
-	for _, o := range c.outputs {
-		if o.Position() != image.Pt(x, 0) {
-			errs = append(errs, o.Update(image.Pt(x, 0), o.Scale()))
-		}
-		x += o.LogicalSize().X
-	}
-	return errors.Join(errs...)
-}
-
-func (c *Compositor) output(b backend.Output) *output.Output {
-	for _, o := range c.outputs {
-		if o.Backend() == b {
-			return o
-		}
-	}
-	return nil
-}
-
-func (c *Compositor) OutputAdded(b backend.Output) error {
-	x := 0
-	for _, o := range c.outputs {
-		x = max(x, o.Logical().Max.X)
-	}
-	o, err := c.layout.Add(b, image.Pt(x, 0), output.Unit)
-	if err != nil {
-		return err
-	}
-	c.outputs = append(c.outputs, o)
-	if len(c.outputs) == 1 {
-		center := o.Logical().Min.Add(o.LogicalSize().Div(2))
-		c.cursor = point{float64(center.X), float64(center.Y)}
-	}
-	if _, err := c.arrange(o); err != nil {
-		return err
-	}
-	if err := c.update(c.wm.AddOutput(b.Name(), o.Logical(), c.usable[o].Add(o.Position()))); err != nil {
-		return err
-	}
-	return c.schedule(o)
-}
-
-func (c *Compositor) OutputRemoved(b backend.Output) error {
-	o := c.output(b)
-	if o == nil {
-		return fmt.Errorf("compositor: removal of unknown output %s", b.Name())
-	}
-	c.outputs = slices.DeleteFunc(c.outputs, func(x *output.Output) bool { return x == o })
-	delete(c.shown, o)
-	errs := []error{c.closeLayers(o), o.Remove()}
-	delete(c.usable, o)
-	c.dropLabels(o)
-	for _, e := range c.entered {
-		if slices.Contains(e.outputs, o) {
-			errs = append(errs, e.s.Client().Sent(e.s.Leave(o.Resources(e.s.Client()))))
-			e.outputs = slices.DeleteFunc(e.outputs, func(x *output.Output) bool { return x == o })
-		}
-	}
-	for _, w := range c.windows {
-		if w.output == o {
-			w.output = nil
-		}
-	}
-	s, err := c.wm.RemoveOutput(b.Name())
-	if err != nil {
-		return errors.Join(append(errs, err)...)
-	}
-	c.wm = s
-	errs = append(errs, c.relayout(), c.syncAreas())
-	return errors.Join(errs...)
-}
-
-func (c *Compositor) OutputChanged(b backend.Output) error {
-	o := c.output(b)
-	if o == nil {
-		return fmt.Errorf("compositor: change of unknown output %s", b.Name())
-	}
-	if err := errors.Join(o.Changed(), c.relayout()); err != nil {
-		return err
-	}
-	_, err := c.arrange(o)
-	return errors.Join(err, c.syncAreas(), c.schedule(o))
-}
-
-func (c *Compositor) SetOutputScale(b backend.Output, scale output.Scale) error {
-	o := c.output(b)
-	if o == nil {
-		return fmt.Errorf("compositor: scale for unknown output %s", b.Name())
-	}
-	if err := o.Update(o.Position(), scale); err != nil {
-		return err
-	}
-	if err := c.relayout(); err != nil {
-		return err
-	}
-	_, err := c.arrange(o)
-	return errors.Join(err, c.syncAreas(), c.schedule(o))
 }

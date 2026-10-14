@@ -21,6 +21,7 @@ reasonable Go alternative exists, and then it is loaded at runtime with
 | udev | netlink, read directly (#39) |
 | X11 window manager | [`github.com/jezek/xgb`](https://github.com/jezek/xgb) (#45) |
 | Text | [`github.com/go-text/typesetting`](https://github.com/go-text/typesetting), through gelm's `render` |
+| Config file | [`go.yaml.in/yaml/v3`](https://github.com/yaml/go-yaml), strict, as wayle uses (#30) |
 
 Adding a purego library, or a dependency to this table, is a decision issue.
 

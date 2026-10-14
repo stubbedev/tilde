@@ -8,11 +8,14 @@ import (
 )
 
 type Input struct {
-	Log      []string
-	Surfaces map[wire.ObjectID]string
-	Serial   uint32
-	Press    uint32
-	Pointer  *cw.WlPointer
+	Log        []string
+	Surfaces   map[wire.ObjectID]string
+	Serial     uint32
+	Press      uint32
+	Pointer    *cw.WlPointer
+	KeymapSize uint32
+	Repeat     [2]int32
+	Depressed  uint32
 }
 
 func (in *Input) name(s *cw.WlSurface) string {
@@ -142,7 +145,8 @@ func (e touchEvents) Orientation(*cw.WlTouch, int32, wire.Fixed) error       { r
 
 type keyboardEvents struct{ in *Input }
 
-func (e keyboardEvents) Keymap(_ *cw.WlKeyboard, _ cw.WlKeyboardKeymapFormat, fd int, _ uint32) error {
+func (e keyboardEvents) Keymap(_ *cw.WlKeyboard, _ cw.WlKeyboardKeymapFormat, fd int, size uint32) error {
+	e.in.KeymapSize = size
 	return closeFD(fd)
 }
 
@@ -161,8 +165,12 @@ func (e keyboardEvents) Key(_ *cw.WlKeyboard, serial, _, key uint32, state cw.Wl
 	return e.in.note("key %d %d", key, state)
 }
 
-func (keyboardEvents) Modifiers(*cw.WlKeyboard, uint32, uint32, uint32, uint32, uint32) error {
+func (e keyboardEvents) Modifiers(_ *cw.WlKeyboard, _, depressed, _, _, _ uint32) error {
+	e.in.Depressed = depressed
 	return nil
 }
 
-func (keyboardEvents) RepeatInfo(*cw.WlKeyboard, int32, int32) error { return nil }
+func (e keyboardEvents) RepeatInfo(_ *cw.WlKeyboard, rate, delay int32) error {
+	e.in.Repeat = [2]int32{rate, delay}
+	return nil
+}

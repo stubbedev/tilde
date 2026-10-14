@@ -28,12 +28,14 @@ type (
 	Exec      struct{ Command string }
 	SetSubmap struct{ Name string }
 	BeginDrag struct{ Mode DragMode }
+	Reload    struct{}
 )
 
 func (Close) isEffect()     {}
 func (Exec) isEffect()      {}
 func (SetSubmap) isEffect() {}
 func (BeginDrag) isEffect() {}
+func (Reload) isEffect()    {}
 
 type Settings struct {
 	Collapse CollapsePolicy
@@ -75,7 +77,14 @@ type (
 	FullscreenAction struct{}
 	DragAction       struct{ Mode DragMode }
 	ResizeAction     struct{ DX, DY int }
+	ReloadAction     struct{}
 )
+
+func (ReloadAction) String() string { return "reload" }
+
+func (ReloadAction) apply(s State, _ Settings) (State, []Effect, error) {
+	return s, []Effect{Reload{}}, nil
+}
 
 func (a ResizeAction) String() string { return fmt.Sprintf("resizeactive %d %d", a.DX, a.DY) }
 
@@ -312,6 +321,11 @@ var Actions = []ActionSpec{
 		Name:    "kill",
 		Summary: "Ask the focused window to close.",
 		parse:   bare(KillAction{}),
+	},
+	{
+		Name:    "reload",
+		Summary: "Read the config file again; a bad file keeps the running config and reports the error.",
+		parse:   bare(ReloadAction{}),
 	},
 	{
 		Name: "exec", Args: "<command>",

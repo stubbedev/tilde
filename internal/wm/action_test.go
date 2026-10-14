@@ -23,6 +23,7 @@ var everyAction = []Action{
 	MoveToWorkspaceAction{Target: WorkspaceTarget{ID: 10}},
 	MoveToWorkspaceAction{Target: WorkspaceTarget{Relative: -1}},
 	KillAction{},
+	ReloadAction{},
 	ExecAction{Command: "foot -e sh -c 'echo hi'"},
 	MakeGroupAction{Layout: SplitV},
 	MakeGroupAction{Layout: Tabbed, Ephemeral: true},
@@ -113,6 +114,9 @@ func TestDispatch(t *testing.T) {
 	}
 	if effects := run("kill"); !slices.Equal(effects, []Effect{Close{ID: 1}}) {
 		t.Fatalf("kill gave %v", effects)
+	}
+	if effects := run("reload"); !slices.Equal(effects, []Effect{Reload{}}) {
+		t.Fatalf("reload gave %v", effects)
 	}
 	if effects := run("exec foot --server"); !slices.Equal(effects, []Effect{Exec{Command: "foot --server"}}) {
 		t.Fatalf("exec gave %v", effects)

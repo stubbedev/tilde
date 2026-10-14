@@ -1,0 +1,53 @@
+outputs:
+  - match: DP-1
+    mode: 2560x1440@143.912
+    position: 0x0
+    scale: 1.25
+  - match: "desc:LG Electronics 27GL850"
+    position: 2048x0
+  - match: HDMI-A-1
+    disabled: true
+input:
+  keyboard:
+    layout: us,dk,es
+    options: grp:alt_shift_toggle
+    repeat_rate: 40
+    repeat_delay: 250
+palette:
+  accent: "#ff8800"
+borders:
+  width: 2
+  active: accent
+  inactive: crust
+tabs:
+  height: 18
+  font: /usr/share/fonts/DejaVuSans.ttf
+  urgent:
+    background: red
+    text: "#000000ff"
+autotile:
+  min_trigger: 500
+binds:
+  - chord: SUPER + Return
+    action: exec foot
+  - chord: SUPER + SHIFT + Q
+    action: kill
+  - chord: SUPER + R
+    action: submap resize
+submaps:
+  resize:
+    - chord: Right
+      action: resizeactive 10 0
+      flags: [repeating]
+    - chord: Return
+      action: submap reset
+rules:
+  - app_id: ^steam$
+    float: true
+  - app_id: ^steam$
+    title: ^Friends List$
+    size: 400x900
+env:
+  XDG_CURRENT_DESKTOP: tilde
+autostart:
+  - waybar

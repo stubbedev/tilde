@@ -2,6 +2,7 @@ package compositor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -41,6 +42,11 @@ func (c *Compositor) perform(e wm.Effect) error {
 		return nil
 	case wm.BeginDrag:
 		return c.beginDrag(e.Mode)
+	case wm.Reload:
+		if c.reload == nil {
+			return errors.New("no config file to reload")
+		}
+		return c.reload()
 	}
 	return fmt.Errorf("no handler for effect %T", e)
 }

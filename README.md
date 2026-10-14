@@ -27,6 +27,12 @@ libinput and libxkbcommon) are loaded at runtime with
 [purego](https://github.com/ebitengine/purego); everything else is Go. See
 [`docs/architecture.md`](docs/architecture.md).
 
+## Config
+
+One YAML file, `~/.config/tilde/config.yaml`; see
+[`docs/config.md`](docs/config.md) for every key and
+[`docs/actions.md`](docs/actions.md) for the actions binds can run.
+
 ## Roadmap
 
 The plan lives in the issues, grouped by milestone. Each milestone has exit

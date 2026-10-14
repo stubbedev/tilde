@@ -1,0 +1,62 @@
+# The built-in config, used when ~/.config/tilde/config.yaml does not exist.
+# Copy it there to change it; docs/config.md describes every key.
+
+binds:
+  - {chord: SUPER + Return, action: exec foot}
+  - {chord: SUPER + Q, action: kill}
+  - {chord: SUPER + SHIFT + R, action: reload}
+  - {chord: SUPER + F, action: fullscreen}
+  - {chord: SUPER + V, action: togglefloating}
+  - {chord: SUPER + T, action: makegroup tab ephemeral}
+  - {chord: SUPER + S, action: makegroup v ephemeral}
+  - {chord: SUPER + D, action: makegroup h ephemeral}
+  - {chord: SUPER + R, action: submap resize}
+  - {chord: SUPER + mouse:272, action: movewindow}
+  - {chord: SUPER + mouse:273, action: resizewindow}
+  - {chord: SUPER + mouse_down, action: workspace e+1}
+  - {chord: SUPER + mouse_up, action: workspace e-1}
+  - {chord: SUPER + H, action: focus left}
+  - {chord: SUPER + SHIFT + H, action: move left}
+  - {chord: SUPER + Left, action: focus left}
+  - {chord: SUPER + SHIFT + Left, action: move left}
+  - {chord: SUPER + J, action: focus down}
+  - {chord: SUPER + SHIFT + J, action: move down}
+  - {chord: SUPER + Down, action: focus down}
+  - {chord: SUPER + SHIFT + Down, action: move down}
+  - {chord: SUPER + K, action: focus up}
+  - {chord: SUPER + SHIFT + K, action: move up}
+  - {chord: SUPER + Up, action: focus up}
+  - {chord: SUPER + SHIFT + Up, action: move up}
+  - {chord: SUPER + L, action: focus right}
+  - {chord: SUPER + SHIFT + L, action: move right}
+  - {chord: SUPER + Right, action: focus right}
+  - {chord: SUPER + SHIFT + Right, action: move right}
+  - {chord: SUPER + 1, action: workspace 1}
+  - {chord: SUPER + SHIFT + 1, action: movetoworkspace 1}
+  - {chord: SUPER + 2, action: workspace 2}
+  - {chord: SUPER + SHIFT + 2, action: movetoworkspace 2}
+  - {chord: SUPER + 3, action: workspace 3}
+  - {chord: SUPER + SHIFT + 3, action: movetoworkspace 3}
+  - {chord: SUPER + 4, action: workspace 4}
+  - {chord: SUPER + SHIFT + 4, action: movetoworkspace 4}
+  - {chord: SUPER + 5, action: workspace 5}
+  - {chord: SUPER + SHIFT + 5, action: movetoworkspace 5}
+  - {chord: SUPER + 6, action: workspace 6}
+  - {chord: SUPER + SHIFT + 6, action: movetoworkspace 6}
+  - {chord: SUPER + 7, action: workspace 7}
+  - {chord: SUPER + SHIFT + 7, action: movetoworkspace 7}
+  - {chord: SUPER + 8, action: workspace 8}
+  - {chord: SUPER + SHIFT + 8, action: movetoworkspace 8}
+  - {chord: SUPER + 9, action: workspace 9}
+  - {chord: SUPER + SHIFT + 9, action: movetoworkspace 9}
+  - {chord: SUPER + 0, action: workspace 10}
+  - {chord: SUPER + SHIFT + 0, action: movetoworkspace 10}
+
+submaps:
+  resize:
+    - {chord: Left, action: resizeactive -20 0, flags: [repeating]}
+    - {chord: Right, action: resizeactive 20 0, flags: [repeating]}
+    - {chord: Up, action: resizeactive 0 -20, flags: [repeating]}
+    - {chord: Down, action: resizeactive 0 20, flags: [repeating]}
+    - {chord: Return, action: submap reset}
+    - {chord: Escape, action: submap reset}

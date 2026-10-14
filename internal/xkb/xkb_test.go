@@ -19,22 +19,9 @@ import (
 
 var layouts = xkb.Names{Layout: "us,dk,es", Options: "grp:toggle"}
 
-func library(t *testing.T) *xkb.Library {
-	t.Helper()
-	l, err := xkb.Load(xkb.LibraryPath(os.Getenv))
-	if err != nil {
-		if os.Getenv("TILDE_HEADLESS") == "1" {
-			t.Fatalf("%v; TILDE_HEADLESS=1 forbids skipping", err)
-		}
-		t.Skip(err)
-	}
-	t.Cleanup(l.Close)
-	return l
-}
-
 func compile(t *testing.T) *xkb.Keymap {
 	t.Helper()
-	km, err := library(t).Compile(layouts)
+	km, err := testenv.XKBLibrary(t).Compile(layouts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +91,7 @@ func TestKeymapFDIsSealedAndComplete(t *testing.T) {
 }
 
 func TestInvalidNamesAndLibraries(t *testing.T) {
-	if _, err := library(t).Compile(xkb.Names{Layout: "no-such-layout"}); err == nil {
+	if _, err := testenv.XKBLibrary(t).Compile(xkb.Names{Layout: "no-such-layout"}); err == nil {
 		t.Fatal("an unknown layout compiled")
 	}
 	if _, err := xkb.Load("/nonexistent/libxkbcommon.so.0"); err == nil {
