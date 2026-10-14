@@ -205,6 +205,12 @@ func (c *Client) Buffer(size image.Point, frame int, paint Painter) *cw.WlBuffer
 	return b.wl
 }
 
+func (c *Client) Target(size image.Point) (*cw.WlBuffer, []byte) {
+	c.t.Helper()
+	b := c.buffers(size, 1)[0]
+	return b.wl, b.pix
+}
+
 func (c *Client) buffers(size image.Point, n int) []*buffer {
 	c.t.Helper()
 	stride := size.X * 4

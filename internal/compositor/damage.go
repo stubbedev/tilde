@@ -24,7 +24,8 @@ type drawOp struct {
 }
 
 type frame struct {
-	ops []drawOp
+	ops        []drawOp
+	cursorFrom int
 }
 
 func (f *frame) FillRect(r image.Rectangle, c render.Color) {

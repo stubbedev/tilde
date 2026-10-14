@@ -141,6 +141,7 @@ type Compositor struct {
 	extLists        []*extList
 	wlrManagers     []*wlrManager
 	wsManagers      []*wsManager
+	captures        map[*output.Output][]capture
 	cursorGen       uint64
 	cursorOps       frame
 	cursorShown     []*surface.Surface
@@ -196,6 +197,7 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		pointers:   map[cursorKey]*cursorTexture{},
 		hwCursors:  map[*output.Output]*hwCursor{},
 		blanked:    map[*output.Output]bool{},
+		captures:   map[*output.Output][]capture{},
 		usable:     map[*output.Output]image.Rectangle{},
 		nextWindow: 1,
 	}
@@ -237,6 +239,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if err := c.addWorkspaces(display); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
+	if err := c.addScreencopy(display); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.data, err = data.New(display, c); err != nil {

@@ -59,6 +59,7 @@ func (c *Compositor) render(o *output.Output) error {
 	} else if shown, err = c.drawDesktop(pass, o, shown); err != nil {
 		return err
 	}
+	pass.cursorFrom = len(pass.ops)
 	placed, err := c.placeCursor(o)
 	if err != nil {
 		return err
@@ -93,7 +94,7 @@ func (c *Compositor) render(o *output.Output) error {
 		return err
 	}
 	sc.presented()
-	return c.lockBlanked(o)
+	return errors.Join(c.lockBlanked(o), c.runCaptures(o))
 }
 
 func (c *Compositor) drawDesktop(pass *frame, o *output.Output, shown []*surface.Surface) ([]*surface.Surface, error) {

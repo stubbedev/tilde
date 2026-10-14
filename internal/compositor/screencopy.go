@@ -1,0 +1,138 @@
+package compositor
+
+import (
+	"errors"
+	"fmt"
+	"image"
+	"time"
+
+	"github.com/stubbedev/tilde/internal/output"
+	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
+	swsc "github.com/stubbedev/tilde/internal/protocol/server/wlrscreencopy"
+	"github.com/stubbedev/tilde/internal/render"
+	"github.com/stubbedev/tilde/internal/server"
+	"github.com/stubbedev/tilde/internal/shm"
+	"github.com/stubbedev/tilde/internal/wire"
+)
+
+const screencopyVersion = 3
+
+func (c *Compositor) addScreencopy(d *server.Display) error {
+	_, err := d.AddGlobal(swsc.ZwlrScreencopyManagerV1Interface, screencopyVersion, func(cl *server.Client, id wire.ObjectID, version uint32) error {
+		_, err := swsc.NewZwlrScreencopyManagerV1(cl, id, version, screencopyManager{c, cl})
+		return err
+	})
+	return err
+}
+
+type screencopyManager struct {
+	c  *Compositor
+	cl *server.Client
+}
+
+func (screencopyManager) Destroy(*swsc.ZwlrScreencopyManagerV1) error {
+	return nil
+}
+
+func (m screencopyManager) CaptureOutput(_ *swsc.ZwlrScreencopyManagerV1, res *swsc.ZwlrScreencopyFrameV1, overlayCursor int32, wl *sw.WlOutput) (swsc.ZwlrScreencopyFrameV1Handler, error) {
+	return m.frame(res, overlayCursor != 0, wl, image.Rectangle{})
+}
+
+func (m screencopyManager) CaptureOutputRegion(_ *swsc.ZwlrScreencopyManagerV1, res *swsc.ZwlrScreencopyFrameV1, overlayCursor int32, wl *sw.WlOutput, x, y, w, h int32) (swsc.ZwlrScreencopyFrameV1Handler, error) {
+	r := image.Rect(int(x), int(y), int(x)+int(w), int(y)+int(h))
+	if r.Empty() {
+		r = image.Rect(int(x), int(y), int(x)+1, int(y)+1)
+	}
+	return m.frame(res, overlayCursor != 0, wl, r)
+}
+
+func (m screencopyManager) frame(res *swsc.ZwlrScreencopyFrameV1, cursor bool, wl *sw.WlOutput, logical image.Rectangle) (swsc.ZwlrScreencopyFrameV1Handler, error) {
+	f := &screencopyFrame{c: m.c, cl: m.cl, res: res, cursor: cursor}
+	m.cl.OnDestroy(res, func() error {
+		f.dead = true
+		return nil
+	})
+	o := m.c.layout.Owner(wl)
+	if o == nil || m.c.output(o.Backend()) != o {
+		f.used = true
+		return f, m.cl.Sent(res.SendFailed())
+	}
+	if logical != (image.Rectangle{}) {
+		logical = logical.Sub(o.Position())
+	}
+	f.output, f.region = o, m.c.captureRegion(o, logical)
+	if f.region.Empty() {
+		f.used = true
+		return f, m.cl.Sent(res.SendFailed())
+	}
+	size := f.region.Size()
+	if err := res.SendBuffer(sw.WlShmFormatXrgb8888, uint32(size.X), uint32(size.Y), uint32(size.X*4)); err != nil { //nolint:gosec // capture sizes are positive output sizes
+		return nil, err
+	}
+	if res.Base().Version() >= 3 {
+		if err := res.SendBufferDone(); err != nil {
+			return nil, err
+		}
+	}
+	return f, nil
+}
+
+type screencopyFrame struct {
+	c      *Compositor
+	cl     *server.Client
+	res    *swsc.ZwlrScreencopyFrameV1
+	output *output.Output
+	region image.Rectangle
+	cursor bool
+	used   bool
+	dead   bool
+}
+
+func (f *screencopyFrame) Copy(obj *swsc.ZwlrScreencopyFrameV1, wl *sw.WlBuffer) error {
+	return f.copy(obj, wl, false)
+}
+
+func (f *screencopyFrame) CopyWithDamage(obj *swsc.ZwlrScreencopyFrameV1, wl *sw.WlBuffer) error {
+	return f.copy(obj, wl, true)
+}
+
+func (f *screencopyFrame) copy(obj *swsc.ZwlrScreencopyFrameV1, wl *sw.WlBuffer, damage bool) error {
+	if f.used {
+		return obj.ProtocolError(swsc.ZwlrScreencopyFrameV1ErrorAlreadyUsed, "the frame was already copied")
+	}
+	f.used = true
+	b, _ := wl.Handler().(*shm.Buffer)
+	if err := validCaptureBuffer(b, f.region.Size(), []render.Format{render.XRGB8888}); err != nil {
+		return obj.ProtocolError(swsc.ZwlrScreencopyFrameV1ErrorInvalidBuffer, err.Error())
+	}
+	return f.c.queueCapture(capture{output: f.output, region: f.region, cursor: f.cursor, buffer: b, done: func(at time.Duration, err error) error {
+		if err != nil {
+			f.c.report(fmt.Errorf("compositor: screencopy of %s: %w", f.output.Backend().Name(), err))
+			if f.dead {
+				return nil
+			}
+			return f.cl.Sent(f.res.SendFailed())
+		}
+		size := f.region.Size()
+		sec := uint64(max(at, 0) / time.Second)
+		if f.dead {
+			return nil
+		}
+		return f.cl.Sent(errors.Join(
+			f.res.SendFlags(0),
+			damageEvent(f, damage, size),
+			f.res.SendReady(uint32(sec>>32), uint32(sec), uint32(at%time.Second)), //nolint:gosec // split as the protocol asks
+		))
+	}}, damage)
+}
+
+func damageEvent(f *screencopyFrame, damage bool, size image.Point) error {
+	if !damage {
+		return nil
+	}
+	return f.res.SendDamage(0, 0, uint32(size.X), uint32(size.Y)) //nolint:gosec // capture sizes are positive
+}
+
+func (*screencopyFrame) Destroy(*swsc.ZwlrScreencopyFrameV1) error {
+	return nil
+}
