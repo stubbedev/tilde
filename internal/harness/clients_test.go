@@ -84,6 +84,7 @@ const (
 	keyC     = 46
 	keyO     = 24
 	keyEnter = 28
+	keyEsc   = 1
 	keyRight = 106
 	keyDown  = 108
 )

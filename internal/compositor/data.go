@@ -22,6 +22,10 @@ func (c *Compositor) KeyboardFocusChanged(s *surface.Surface) error {
 	return c.data.SetFocus(client)
 }
 
+func (c *Compositor) Selection(k data.Kind) bool {
+	return c.data.Selection(k) != nil
+}
+
 func (c *Compositor) CanDrag(origin *surface.Surface, _ uint32) bool {
 	return c.drag == nil && c.seat.PointerGrabbed() && c.seat.PointerFocus() == origin
 }

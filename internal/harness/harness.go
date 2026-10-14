@@ -193,9 +193,14 @@ type Client struct {
 
 func (h *Harness) Run(binary string, args ...string) *Client {
 	h.t.Helper()
+	return h.RunOn(h.RuntimeDir, h.display.Name(), binary, args...)
+}
+
+func (h *Harness) RunOn(runtimeDir, display, binary string, args ...string) *Client {
+	h.t.Helper()
 	path := testenv.Require(h.t, binary)
 	cmd := exec.CommandContext(context.Background(), path, args...)
-	cmd.Env = append(os.Environ(), "XDG_RUNTIME_DIR="+h.RuntimeDir, "WAYLAND_DISPLAY="+h.display.Name())
+	cmd.Env = append(os.Environ(), "XDG_RUNTIME_DIR="+runtimeDir, "WAYLAND_DISPLAY="+display)
 	c := &Client{cmd: cmd, exited: make(chan error, 1)}
 	cmd.Stdout, cmd.Stderr = &c.output, &c.output
 	if err := cmd.Start(); err != nil {
