@@ -188,6 +188,16 @@
       "path": "unstable/wlr-output-power-management-unstable-v1.xml"
     },
     {
+      "package": "xdgforeignv1",
+      "source": "wayland-protocols",
+      "path": "unstable/xdg-foreign/xdg-foreign-unstable-v1.xml"
+    },
+    {
+      "package": "xdgforeignv2",
+      "source": "wayland-protocols",
+      "path": "unstable/xdg-foreign/xdg-foreign-unstable-v2.xml"
+    },
+    {
       "package": "pointergestures",
       "source": "wayland-protocols",
       "path": "unstable/pointer-gestures/pointer-gestures-unstable-v1.xml"

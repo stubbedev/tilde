@@ -260,7 +260,7 @@ Everything lives under `internal/` except the commands.
 | `data` | `wl_data_device_manager` and `zwp_primary_selection_device_manager_v1`: the clipboard and primary selection offered to the keyboard focus, and drag and drop (#18) |
 | `xcursor` | Xcursor files and theme lookup through `XCURSOR_PATH` and `Inherits`, and the built-in arrow (#14) |
 | `xkb` | Keymap compilation, sealed keymap fds and modifier state through libxkbcommon (#13) |
-| `shell` | xdg-shell and layer-shell glue between clients and `wm`: toplevels, popups placed by their positioner, explicit popup grabs, server-side decorations, activation tokens (#15, #16, #17, #20, #48) |
+| `shell` | xdg-shell and layer-shell glue between clients and `wm`: toplevels, popups placed by their positioner, explicit popup grabs, server-side decorations, activation tokens, and xdg-foreign handles that make another client's toplevel, such as a portal dialog, a child of the exported window (#15, #16, #17, #20, #48, #110) |
 | `wm` | The pure core and the dispatcher (#21, #66) |
 | `binds` | Typed chords (modifiers with a keycode from the first layout, a button or a scroll direction), submaps and bind flags, matched to `wm` actions (#29) |
 | `xwm` | The X11 window manager for XWayland (#45) |

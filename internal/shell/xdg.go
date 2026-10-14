@@ -16,6 +16,8 @@ import (
 	swlr "github.com/stubbedev/tilde/internal/protocol/server/wlrlayershell"
 	sxa "github.com/stubbedev/tilde/internal/protocol/server/xdgactivation"
 	sxd "github.com/stubbedev/tilde/internal/protocol/server/xdgdecoration"
+	sxf1 "github.com/stubbedev/tilde/internal/protocol/server/xdgforeignv1"
+	sxf2 "github.com/stubbedev/tilde/internal/protocol/server/xdgforeignv2"
 	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/surface"
@@ -92,10 +94,11 @@ type Shell struct {
 	tokens      []token
 	lock        *SessionLock
 	locked      bool
+	exports     map[string]*export
 }
 
 func New(d *server.Display, l *loop.Loop, listener Listener) (*Shell, error) {
-	sh := &Shell{display: d, loop: l, listener: listener, subRoles: map[*surface.Surface]string{}, pingTimeout: PingTimeout}
+	sh := &Shell{display: d, loop: l, listener: listener, subRoles: map[*surface.Surface]string{}, pingTimeout: PingTimeout, exports: map[string]*export{}}
 	if _, err := d.AddGlobal(sxdg.XdgWmBaseInterface, wmBaseVersion, sh.bind); err != nil {
 		return nil, err
 	}
@@ -110,6 +113,20 @@ func New(d *server.Display, l *loop.Loop, listener Listener) (*Shell, error) {
 	}
 	if _, err := d.AddGlobal(sel.ExtSessionLockManagerV1Interface, lockVersion, sh.bindLock); err != nil {
 		return nil, err
+	}
+	for _, g := range []struct {
+		iface   *wire.Interface
+		version uint32
+		bind    server.BindFunc
+	}{
+		{sxf1.ZxdgExporterV1Interface, foreignVersion, sh.bindExporterV1},
+		{sxf1.ZxdgImporterV1Interface, foreignVersion, sh.bindImporterV1},
+		{sxf2.ZxdgExporterV2Interface, foreignVersion, sh.bindExporterV2},
+		{sxf2.ZxdgImporterV2Interface, foreignVersion, sh.bindImporterV2},
+	} {
+		if _, err := d.AddGlobal(g.iface, g.version, g.bind); err != nil {
+			return nil, err
+		}
 	}
 	return sh, nil
 }

@@ -213,7 +213,7 @@ func (t *Toplevel) destroy() error {
 			o.parent = t.parent
 		}
 	}
-	return errors.Join(errs...)
+	return errors.Join(append(errs, xs.base.shell.toplevelGone(t))...)
 }
 
 func (t *Toplevel) Destroy(*sxdg.XdgToplevel) error {

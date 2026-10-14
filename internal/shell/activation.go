@@ -1,15 +1,12 @@
 package shell
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"slices"
 
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	sxa "github.com/stubbedev/tilde/internal/protocol/server/xdgactivation"
 	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/surface"
 	"github.com/stubbedev/tilde/internal/wire"
 )
 
@@ -56,17 +53,9 @@ func (a activation) Activate(_ *sxa.XdgActivationV1, value string, wl *sw.WlSurf
 	if !t.granted {
 		return nil
 	}
-	s, err := surface.From(wl)
-	if err != nil {
+	top, err := toplevelOf(wl)
+	if err != nil || top == nil {
 		return err
-	}
-	xs, ok := s.Role().(*XdgSurface)
-	if !ok {
-		return nil
-	}
-	top, ok := xs.role.(*Toplevel)
-	if !ok {
-		return nil
 	}
 	return top.request(Activate{})
 }
@@ -96,11 +85,11 @@ func (r *tokenRequest) Commit(obj *sxa.XdgActivationTokenV1) error {
 		return obj.ProtocolError(sxa.XdgActivationTokenV1ErrorAlreadyUsed, "the token was already committed")
 	}
 	r.committed = true
-	var raw [16]byte
-	if _, err := rand.Read(raw[:]); err != nil {
-		return fmt.Errorf("shell: generate an activation token: %w", err)
+	value, err := randomHandle()
+	if err != nil {
+		return fmt.Errorf("shell: activation token: %w", err)
 	}
-	t := token{value: hex.EncodeToString(raw[:]), granted: r.sh.listener.UserActive(r.c, r.serial)}
+	t := token{value: value, granted: r.sh.listener.UserActive(r.c, r.serial)}
 	if len(r.sh.tokens) == liveTokens {
 		r.sh.tokens = slices.Delete(r.sh.tokens, 0, 1)
 	}

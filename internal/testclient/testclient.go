@@ -288,7 +288,12 @@ func (c *Client) Window(title string, paint Painter) *Window {
 
 func (c *Client) Dialog(parent *Window, title string, paint Painter) *Window {
 	c.t.Helper()
-	return c.window(title, Unscaled, paint, parent)
+	return c.WindowWith(title, paint, func(w *Window) error { return w.Toplevel.SetParent(parent.Toplevel) })
+}
+
+func (c *Client) WindowWith(title string, paint Painter, setup func(*Window) error) *Window {
+	c.t.Helper()
+	return c.window(title, Unscaled, paint, setup)
 }
 
 func (c *Client) ScaledWindow(title string, scaling Scaling, paint Painter) *Window {
@@ -296,7 +301,7 @@ func (c *Client) ScaledWindow(title string, scaling Scaling, paint Painter) *Win
 	return c.window(title, scaling, paint, nil)
 }
 
-func (c *Client) window(title string, scaling Scaling, paint Painter, parent *Window) *Window {
+func (c *Client) window(title string, scaling Scaling, paint Painter, setup func(*Window) error) *Window {
 	c.t.Helper()
 	w := &Window{c: c, paint: paint, scaling: scaling, BufferScale: 1, Preferred120: 120}
 	var err error
@@ -312,8 +317,8 @@ func (c *Client) window(title string, scaling Scaling, paint Painter, parent *Wi
 	c.must(err)
 	w.Toplevel, err = w.XdgSurface.GetToplevel(toplevelEvents{w})
 	c.must(err)
-	if parent != nil {
-		c.must(w.Toplevel.SetParent(parent.Toplevel))
+	if setup != nil {
+		c.must(setup(w))
 	}
 	c.must(errors.Join(w.Toplevel.SetTitle(title), w.Toplevel.SetAppID("tilde.testclient"), w.Surface.Commit()))
 	return w
