@@ -52,6 +52,7 @@ type Config struct {
 	Rules    []wm.Rule
 	Outputs  []OutputRule
 	Reload   func() error
+	Exit     func() error
 	SwitchVT func(vt uint32) error
 }
 
@@ -120,6 +121,7 @@ type Compositor struct {
 	outputRules     []OutputRule
 	disabled        []backend.Output
 	reload          func() error
+	exit            func() error
 	switchVT        func(vt uint32) error
 	dispatched      func(wm.Action)
 	loop            *loop.Loop
@@ -192,7 +194,7 @@ func validate(cfg Config) (binds.Map, error) {
 
 func (c *Compositor) adopt(cfg Config, m binds.Map) {
 	c.cursors, c.settings, c.rules, c.decor, c.font = cfg.Cursor, cfg.WM, cfg.Rules, cfg.Decor, cfg.Font
-	c.report, c.seatConfig, c.outputRules, c.reload, c.binds = cfg.Report, cfg.Seat, cfg.Outputs, cfg.Reload, m
+	c.report, c.seatConfig, c.outputRules, c.reload, c.exit, c.binds = cfg.Report, cfg.Seat, cfg.Outputs, cfg.Reload, cfg.Exit, m
 	c.switchVT = cfg.SwitchVT
 }
 

@@ -165,7 +165,10 @@ func outputScale(t *testing.T, socket string) float64 {
 	return outputs[0].Scale
 }
 
-func TestConfiguredSessionOverIPC(t *testing.T) {
+const noXwayland = "xwayland:\n  enabled: false\n"
+
+func startSession(t *testing.T, config string) (string, string, <-chan error) {
+	t.Helper()
 	testenv.Font(t)
 	testenv.XKBLibrary(t)
 	dir := t.TempDir()
@@ -178,13 +181,9 @@ func TestConfiguredSessionOverIPC(t *testing.T) {
 	}
 	t.Setenv("XDG_RUNTIME_DIR", runtime)
 	path := filepath.Join(dir, "config.yaml")
-	write := func(text string) {
-		t.Helper()
-		if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
-			t.Fatal(err)
-		}
+	if err := os.WriteFile(path, []byte(noXwayland+config), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	write("outputs:\n  - {match: HEADLESS-1, scale: 2}\nbinds:\n  - {chord: SUPER + Q, action: kill}\n")
 	done := make(chan error, 1)
 	go func() { done <- run([]string{"--backend", "headless", "--config", path}) }()
 	getenv := func(k string) string {
@@ -193,12 +192,11 @@ func TestConfiguredSessionOverIPC(t *testing.T) {
 		}
 		return ""
 	}
-	var socket string
 	for deadline := time.Now().Add(10 * time.Second); ; {
-		var err error
-		if socket, err = ipc.FindSocket(getenv); err == nil {
+		socket, err := ipc.FindSocket(getenv)
+		if err == nil {
 			if _, err = ipc.Do(socket, ipc.Request{Request: ipc.KindVersion}); err == nil {
-				break
+				return socket, path, done
 			}
 		}
 		select {
@@ -210,6 +208,31 @@ func TestConfiguredSessionOverIPC(t *testing.T) {
 			t.Fatalf("no IPC socket: %v", err)
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func expectCleanExit(t *testing.T, socket string, done <-chan error, how string) {
+	t.Helper()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatalf("tilde ignored %s", how)
+	}
+	if _, err := os.Stat(socket); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("the socket outlived tilde: %v", err)
+	}
+}
+
+func TestConfiguredSessionOverIPC(t *testing.T) {
+	socket, path, done := startSession(t, "outputs:\n  - {match: HEADLESS-1, scale: 2}\nbinds:\n  - {chord: SUPER + Q, action: kill}\n")
+	write := func(text string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(noXwayland+text), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if got := outputScale(t, socket); got != 2 {
 		t.Fatalf("scale %g from the config, want 2", got)
@@ -235,7 +258,7 @@ func TestConfiguredSessionOverIPC(t *testing.T) {
 	}
 
 	write("outputs:\n  - {match: HEADLESS-1, scale: 1.5}\nbinds:\n  - {chord: SUPER + Q, action: teleport}\n")
-	if _, err := ipc.Do(socket, ipc.Request{Request: ipc.KindDispatch, Action: "reload"}); err == nil || !strings.Contains(err.Error(), path+":4: binds[0].action") {
+	if _, err := ipc.Do(socket, ipc.Request{Request: ipc.KindDispatch, Action: "reload"}); err == nil || !strings.Contains(err.Error(), path+":6: binds[0].action") {
 		t.Fatalf("a bad config reloaded: %v", err)
 	}
 	if got := outputScale(t, socket); got != 1.5 {
@@ -245,15 +268,13 @@ func TestConfiguredSessionOverIPC(t *testing.T) {
 	if err := syscall.Kill(os.Getpid(), syscall.SIGTERM); err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatal(err)
-		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("tilde ignored SIGTERM")
+	expectCleanExit(t, socket, done, "SIGTERM")
+}
+
+func TestTheExitActionEndsTheSession(t *testing.T) {
+	socket, _, done := startSession(t, "binds:\n  - {chord: SUPER + Delete, action: exit}\n")
+	if _, err := ipc.Do(socket, ipc.Request{Request: ipc.KindDispatch, Action: "exit"}); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := os.Stat(socket); !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("the socket outlived tilde: %v", err)
-	}
+	expectCleanExit(t, socket, done, "exit")
 }

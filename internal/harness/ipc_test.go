@@ -69,10 +69,14 @@ func expectEvent(t *testing.T, lines <-chan string, want string) {
 }
 
 func TestEveryActionThroughIPC(t *testing.T) {
-	reloads := 0
+	reloads, exits := 0, 0
 	h := StartWith(t, func(cfg *compositor.Config) {
 		cfg.Reload = func() error {
 			reloads++
+			return nil
+		}
+		cfg.Exit = func() error {
+			exits++
 			return nil
 		}
 	}, desktop)
@@ -98,7 +102,7 @@ func TestEveryActionThroughIPC(t *testing.T) {
 	actions := []string{
 		"focus left", "move right", "makegroup tab ephemeral", "togglefloating", "togglefloating",
 		"fullscreen", "fullscreen", "resizeactive 10 0", "submap resize", "submap reset",
-		"movetoworkspace 3", "workspace 3", "workspace e-1", "exec true", "global voice:ptt", "reload", "dpms off", "dpms toggle HEADLESS-1", "kill",
+		"movetoworkspace 3", "workspace 3", "workspace e-1", "exec true", "global voice:ptt", "reload", "exit", "dpms off", "dpms toggle HEADLESS-1", "kill",
 	}
 	mouseOnly := []string{"movewindow", "resizewindow"}
 	for _, spec := range wm.Actions {
@@ -124,8 +128,8 @@ func TestEveryActionThroughIPC(t *testing.T) {
 		}
 	}
 	h.Do(func(*headless.Backend, *compositor.Compositor) error { return nil })
-	if reloads != 1 {
-		t.Fatalf("reload ran %d times", reloads)
+	if reloads != 1 || exits != 1 {
+		t.Fatalf("reload ran %d times and exit %d", reloads, exits)
 	}
 	c.DispatchUntil("kill to close a window", func() bool {
 		return slices.ContainsFunc(windows, func(w *testclient.Window) bool { return w.Closed })

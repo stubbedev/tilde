@@ -54,6 +54,11 @@ func (c *Compositor) perform(e wm.Effect) error {
 			return errors.New("no config file to reload")
 		}
 		return c.reload()
+	case wm.Exit:
+		if c.exit == nil {
+			return errors.New("nothing to exit to: this compositor was started without a way to stop")
+		}
+		return c.exit()
 	}
 	return fmt.Errorf("no handler for effect %T", e)
 }

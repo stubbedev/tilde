@@ -285,6 +285,7 @@ func sessionVars(env [][2]string, getenv func(string) string) [][2]string {
 type reloader struct {
 	source
 	comp           *compositor.Compositor
+	exit           func() error
 	keymap         *xkb.Keymap
 	configureInput func(session.InputConfig) error
 }
@@ -294,7 +295,7 @@ func (s *reloader) reload() error {
 	if err != nil {
 		return err
 	}
-	next.cfg.Reload = s.reload
+	next.cfg.Reload, next.cfg.Exit = s.reload, s.exit
 	if err := s.comp.Reconfigure(next.cfg); err != nil {
 		return errors.Join(err, next.keymap.Close())
 	}
@@ -383,6 +384,11 @@ func run(args []string) (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, l.Close()) }()
+	s.exit = func() error {
+		l.Stop()
+		return nil
+	}
+	cfg.Exit = s.exit
 	if _, err := l.AddSignals(func(sig os.Signal) error {
 		if sig != syscall.SIGHUP {
 			l.Stop()

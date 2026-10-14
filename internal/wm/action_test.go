@@ -24,6 +24,7 @@ var everyAction = []Action{
 	MoveToWorkspaceAction{Target: WorkspaceTarget{Relative: -1}},
 	KillAction{},
 	ReloadAction{},
+	ExitAction{},
 	DPMSAction{Mode: PowerOff},
 	DPMSAction{Mode: PowerToggle, Output: "DP-1"},
 	ExecAction{Command: "foot -e sh -c 'echo hi'"},
@@ -122,6 +123,9 @@ func TestDispatch(t *testing.T) {
 	}
 	if effects := run("reload"); !slices.Equal(effects, []Effect{Reload{}}) {
 		t.Fatalf("reload gave %v", effects)
+	}
+	if effects := run("exit"); !slices.Equal(effects, []Effect{Exit{}}) {
+		t.Fatalf("exit gave %v", effects)
 	}
 	if effects := run("exec foot --server"); !slices.Equal(effects, []Effect{Exec{Command: "foot --server"}}) {
 		t.Fatalf("exec gave %v", effects)

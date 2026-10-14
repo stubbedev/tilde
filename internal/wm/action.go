@@ -30,6 +30,7 @@ type (
 	SetSubmap struct{ Name string }
 	BeginDrag struct{ Mode DragMode }
 	Reload    struct{}
+	Exit      struct{}
 	Shortcut  struct{ AppID, ID string }
 	Power     struct {
 		Mode   PowerMode
@@ -52,6 +53,7 @@ func (Exec) isEffect()      {}
 func (SetSubmap) isEffect() {}
 func (BeginDrag) isEffect() {}
 func (Reload) isEffect()    {}
+func (Exit) isEffect()      {}
 func (Shortcut) isEffect()  {}
 func (Power) isEffect()     {}
 
@@ -96,6 +98,7 @@ type (
 	DragAction       struct{ Mode DragMode }
 	ResizeAction     struct{ DX, DY int }
 	ReloadAction     struct{}
+	ExitAction       struct{}
 	GlobalAction     struct{ AppID, ID string }
 	DPMSAction       struct {
 		Mode   PowerMode
@@ -121,6 +124,12 @@ func (a GlobalAction) apply(s State, _ Settings) (State, []Effect, error) {
 }
 
 func (ReloadAction) String() string { return "reload" }
+
+func (ExitAction) String() string { return "exit" }
+
+func (ExitAction) apply(s State, _ Settings) (State, []Effect, error) {
+	return s, []Effect{Exit{}}, nil
+}
 
 func (ReloadAction) apply(s State, _ Settings) (State, []Effect, error) {
 	return s, []Effect{Reload{}}, nil
@@ -384,6 +393,11 @@ var Actions = []ActionSpec{
 		Name:    "reload",
 		Summary: "Read the config file again; a bad file keeps the running config and reports the error.",
 		parse:   bare(ReloadAction{}),
+	},
+	{
+		Name:    "exit",
+		Summary: "End the session: tilde closes its clients, Xwayland and IPC socket and exits, as on SIGTERM.",
+		parse:   bare(ExitAction{}),
 	},
 	{
 		Name: "global", Args: "<app_id>:<id>",
