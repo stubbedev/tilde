@@ -1,6 +1,7 @@
 package compositor
 
 import (
+	"github.com/stubbedev/tilde/internal/gammacontrol"
 	sedc "github.com/stubbedev/tilde/internal/protocol/server/extdatacontrol"
 	sefl "github.com/stubbedev/tilde/internal/protocol/server/extforeigntoplevellist"
 	seis "github.com/stubbedev/tilde/internal/protocol/server/extimagecapturesource"
@@ -41,6 +42,7 @@ var privileged = []*wire.Interface{
 	shgs.HyprlandGlobalShortcutsManagerV1Interface,
 	sksi.ZwpKeyboardShortcutsInhibitManagerV1Interface,
 	securitycontext.Interface,
+	gammacontrol.Interface,
 }
 
 func sandbox(display *server.Display) error {

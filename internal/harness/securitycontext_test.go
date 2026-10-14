@@ -96,7 +96,7 @@ func TestSandboxedClientsDoNotSeePrivilegedGlobals(t *testing.T) {
 	for _, privileged := range []string{
 		"zwlr_screencopy_manager_v1", "ext_image_copy_capture_manager_v1", "zwlr_data_control_manager_v1", "ext_data_control_manager_v1",
 		"zwlr_foreign_toplevel_manager_v1", "ext_foreign_toplevel_list_v1", "zwlr_output_manager_v1", "zwp_virtual_keyboard_manager_v1", "zwlr_virtual_pointer_manager_v1",
-		"ext_session_lock_manager_v1", "zwlr_layer_shell_v1", "wp_security_context_manager_v1",
+		"ext_session_lock_manager_v1", "zwlr_layer_shell_v1", "wp_security_context_manager_v1", "zwlr_gamma_control_manager_v1",
 	} {
 		if _, ok := hostNames[privileged]; !ok {
 			t.Errorf("the host lacks %s, so the test proves nothing about it", privileged)

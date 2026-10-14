@@ -19,6 +19,7 @@ import (
 	"github.com/stubbedev/tilde/internal/dmabuf"
 	"github.com/stubbedev/tilde/internal/drm"
 	"github.com/stubbedev/tilde/internal/fifo"
+	"github.com/stubbedev/tilde/internal/gammacontrol"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/idle"
 	"github.com/stubbedev/tilde/internal/loop"
@@ -96,6 +97,7 @@ type Compositor struct {
 	dmabuf          *dmabuf.Manager
 	importer        dmabufRenderer
 	power           *outputpower.Manager
+	gamma           *gammacontrol.Manager
 	outputConfig    *outputmanagement.Manager
 	alpha           *alphamodifier.Manager
 	fifo            *fifo.Manager
@@ -248,6 +250,9 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.power, err = outputpower.New(display, c); err != nil {
+		return nil, fmt.Errorf("compositor: %w", err)
+	}
+	if c.gamma, err = gammacontrol.New(display, c); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.outputConfig, err = outputmanagement.New(display, c); err != nil {

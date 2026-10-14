@@ -232,6 +232,28 @@ type Output struct {
 	scanouts       uint64
 	shownRelease   func() error
 	queuedRelease  func() error
+	gammaSize      int
+	gamma          []uint16
+}
+
+func (o *Output) SetGammaSize(n int) {
+	o.gammaSize = n
+}
+
+func (o *Output) GammaSize() int {
+	return o.gammaSize
+}
+
+func (o *Output) SetGamma(ramps []uint16) error {
+	if ramps != nil && len(ramps) != 3*o.gammaSize {
+		return fmt.Errorf("headless: %s takes 3 ramps of %d gamma entries, not %d entries", o.name, o.gammaSize, len(ramps))
+	}
+	o.gamma = slices.Clone(ramps)
+	return nil
+}
+
+func (o *Output) Gamma() []uint16 {
+	return slices.Clone(o.gamma)
 }
 
 func (o *Output) Name() string {

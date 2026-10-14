@@ -105,6 +105,11 @@ type Output interface {
 	CursorPlane() (CursorPlane, error)
 }
 
+type Gamma interface {
+	GammaSize() int
+	SetGamma(ramps []uint16) error
+}
+
 type Capability uint8
 
 const (

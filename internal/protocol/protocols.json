@@ -246,6 +246,11 @@
       "package": "committiming",
       "source": "wayland-protocols",
       "path": "staging/commit-timing/commit-timing-v1.xml"
+    },
+    {
+      "package": "wlrgammacontrol",
+      "source": "wlr-protocols",
+      "path": "unstable/wlr-gamma-control-unstable-v1.xml"
     }
   ]
 }

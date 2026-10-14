@@ -1,0 +1,155 @@
+// Package gammacontrol implements zwlr_gamma_control_manager_v1: one client
+// at a time sets an output's gamma ramps, as night-light tools do, and the
+// output returns to the identity when it lets go.
+package gammacontrol
+
+import (
+	"encoding/binary"
+	"errors"
+	"fmt"
+
+	"golang.org/x/sys/unix"
+
+	"github.com/stubbedev/tilde/internal/backend"
+	"github.com/stubbedev/tilde/internal/output"
+	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
+	swgc "github.com/stubbedev/tilde/internal/protocol/server/wlrgammacontrol"
+	"github.com/stubbedev/tilde/internal/server"
+	"github.com/stubbedev/tilde/internal/wire"
+)
+
+const version = 1
+
+var Interface = swgc.ZwlrGammaControlManagerV1Interface
+
+type Outputs interface {
+	Owner(res *sw.WlOutput) *output.Output
+}
+
+type Manager struct {
+	outputs  Outputs
+	controls map[*output.Output]*control
+}
+
+func New(d *server.Display, outputs Outputs) (*Manager, error) {
+	m := &Manager{outputs: outputs, controls: map[*output.Output]*control{}}
+	if _, err := d.AddGlobal(Interface, version, m.bind); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (m *Manager) Removed(o *output.Output) error {
+	k, ok := m.controls[o]
+	if !ok {
+		return nil
+	}
+	delete(m.controls, o)
+	k.gamma = nil
+	return k.c.Sent(k.res.SendFailed())
+}
+
+func (m *Manager) bind(c *server.Client, id wire.ObjectID, v uint32) error {
+	_, err := swgc.NewZwlrGammaControlManagerV1(c, id, v, requests{m, c})
+	return err
+}
+
+type requests struct {
+	m *Manager
+	c *server.Client
+}
+
+func (requests) Destroy(*swgc.ZwlrGammaControlManagerV1) error { return nil }
+
+func (r requests) GetGammaControl(_ *swgc.ZwlrGammaControlManagerV1, res *swgc.ZwlrGammaControlV1, wl *sw.WlOutput) (swgc.ZwlrGammaControlV1Handler, error) {
+	k := &control{m: r.m, c: r.c, res: res}
+	o := r.m.outputs.Owner(wl)
+	if o == nil {
+		return k, r.c.Sent(res.SendFailed())
+	}
+	g, ok := o.Backend().(backend.Gamma)
+	if _, taken := r.m.controls[o]; !ok || taken || g.GammaSize() == 0 {
+		return k, r.c.Sent(res.SendFailed())
+	}
+	k.out, k.gamma = o, g
+	r.m.controls[o] = k
+	r.c.OnDestroy(res, k.release)
+	return k, r.c.Sent(res.SendGammaSize(uint32(g.GammaSize()))) //nolint:gosec // a LUT size is far below 2^32
+}
+
+type control struct {
+	m     *Manager
+	c     *server.Client
+	res   *swgc.ZwlrGammaControlV1
+	out   *output.Output
+	gamma backend.Gamma
+	set   bool
+}
+
+var errRampSize = errors.New("the gamma table is not three ramps of the gamma size")
+
+func ramps(fd, size int) ([]uint16, error) {
+	if err := unix.SetNonblock(fd, true); err != nil {
+		return nil, fmt.Errorf("make the gamma table fd non-blocking: %w", err)
+	}
+	buf := make([]byte, 3*2*size+1)
+	n := 0
+	for n < len(buf) {
+		k, err := unix.Read(fd, buf[n:])
+		if errors.Is(err, unix.EINTR) {
+			continue
+		}
+		if errors.Is(err, unix.EAGAIN) || err == nil && k == 0 {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("read the gamma table: %w", err)
+		}
+		n += k
+	}
+	if n != len(buf)-1 {
+		return nil, errRampSize
+	}
+	table := make([]uint16, 3*size)
+	for i := range table {
+		table[i] = binary.NativeEndian.Uint16(buf[2*i:])
+	}
+	return table, nil
+}
+
+func (k *control) SetGamma(obj *swgc.ZwlrGammaControlV1, fd int) error {
+	return errors.Join(k.setGamma(obj, fd), unix.Close(fd))
+}
+
+func (k *control) setGamma(obj *swgc.ZwlrGammaControlV1, fd int) error {
+	if k.gamma == nil {
+		return nil
+	}
+	table, err := ramps(fd, k.gamma.GammaSize())
+	if errors.Is(err, errRampSize) {
+		return obj.ProtocolError(swgc.ZwlrGammaControlV1ErrorInvalidGamma, fmt.Sprintf("%v: want %d entries per ramp", err, k.gamma.GammaSize()))
+	}
+	if err == nil {
+		err = k.gamma.SetGamma(table)
+	}
+	if err != nil {
+		return errors.Join(k.release(), k.c.Sent(k.res.SendFailed()))
+	}
+	k.set = true
+	return nil
+}
+
+func (*control) Destroy(*swgc.ZwlrGammaControlV1) error { return nil }
+
+func (k *control) release() error {
+	if k.gamma == nil {
+		return nil
+	}
+	g := k.gamma
+	k.gamma = nil
+	delete(k.m.controls, k.out)
+	if !k.set {
+		return nil
+	}
+	return g.SetGamma(nil)
+}

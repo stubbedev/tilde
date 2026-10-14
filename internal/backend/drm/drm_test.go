@@ -38,6 +38,8 @@ const (
 	propInFence
 	propHotspotX
 	propHotspotY
+	propGammaLUT
+	propGammaSize
 	inFormatsBlob = 500
 	fakeNumber    = 0xe200
 )
@@ -52,8 +54,10 @@ type fakeDevice struct {
 	events, write int
 	connected     bool
 	refuseCursor  bool
+	refuseGamma   bool
 	commits       []commit
 	blobs         uint32
+	blobData      map[uint32][]byte
 	destroyed     []uint32
 	dumbs, fbs    uint32
 	live          map[uint32]bool
@@ -133,7 +137,7 @@ func (f *fakeDevice) Properties(object, kind uint32) (map[string]kdrm.Property, 
 		}
 		return props, nil
 	case kdrm.ObjectCRTC:
-		return map[string]kdrm.Property{"ACTIVE": {ID: propActive}, "MODE_ID": {ID: propModeID}}, nil
+		return map[string]kdrm.Property{"ACTIVE": {ID: propActive}, "MODE_ID": {ID: propModeID}, "GAMMA_LUT": {ID: propGammaLUT}, "GAMMA_LUT_SIZE": {ID: propGammaSize, Value: 4}}, nil
 	case kdrm.ObjectConnector:
 		return map[string]kdrm.Property{"CRTC_ID": {ID: propConnCRTC}}, nil
 	}
@@ -162,8 +166,12 @@ func (f *fakeDevice) Blob(id uint32) ([]byte, error) {
 	return b, nil
 }
 
-func (f *fakeDevice) CreateBlob([]byte) (uint32, error) {
+func (f *fakeDevice) CreateBlob(data []byte) (uint32, error) {
 	f.blobs++
+	if f.blobData == nil {
+		f.blobData = map[uint32][]byte{}
+	}
+	f.blobData[600+f.blobs] = slices.Clone(data)
 	return 600 + f.blobs, nil
 }
 
@@ -216,7 +224,7 @@ func (f *fakeDevice) Commit(r *kdrm.Request, flags uint32, userData uint64) erro
 	c := commit{flags: flags, userData: userData, values: map[[2]uint32]uint64{}}
 	r.Each(func(object, property uint32, value uint64) { c.values[[2]uint32{object, property}] = value })
 	f.commits = append(f.commits, c)
-	if f.refuseCursor && c.values[[2]uint32{43, propFB}] != 0 {
+	if f.refuseCursor && c.values[[2]uint32{43, propFB}] != 0 || f.refuseGamma && c.values[[2]uint32{10, propGammaLUT}] != 0 {
 		return unix.EINVAL
 	}
 	return nil
@@ -858,5 +866,90 @@ func TestClientBuffersScanOutUntilTheNextFlip(t *testing.T) {
 	}
 	if ok, err := o.Scanout(gpu.DMABUF{Size: image.Pt(640, 480), Format: scanoutFormat}, func() error { return nil }); ok || err != nil {
 		t.Fatalf("a buffer that does not fill the mode scanned out: %t, %v", ok, err)
+	}
+}
+
+func gammaOf(c commit) (uint64, bool) {
+	v, ok := c.values[[2]uint32{10, propGammaLUT}]
+	return v, ok
+}
+
+func TestGammaLUTsReachTheCRTC(t *testing.T) {
+	r := start(t)
+	o := r.b.Outputs()[0]
+	if err := o.ScheduleFrame(); err != nil {
+		t.Fatal(err)
+	}
+	r.settle()
+	if lut, ok := gammaOf(r.dev.commits[1]); !ok || lut != 0 {
+		t.Fatal("the first modeset kept whatever LUT the CRTC had")
+	}
+	r.dev.flip(t, 10, 1)
+	r.settle()
+	r.dev.commits = nil
+	if n := o.GammaSize(); n != 4 {
+		t.Fatalf("gamma size %d, want the CRTC's GAMMA_LUT_SIZE 4", n)
+	}
+
+	if err := o.SetGamma([]uint16{0, 1, 2, 3, 10, 11, 12, 13, 20, 21, 22, 23}); err != nil {
+		t.Fatal(err)
+	}
+	if len(r.dev.commits) != 2 || r.dev.commits[0].flags != kdrm.AtomicTestOnly || r.dev.commits[1].flags != kdrm.AtomicNonblock|kdrm.AtomicPageFlipEvent {
+		t.Fatalf("a LUT on an idle output committed %+v, want a test and a commit of its own", r.dev.commits)
+	}
+	first, ok := gammaOf(r.dev.commits[1])
+	if _, primary := r.dev.commits[1].values[[2]uint32{40, propFB}]; !ok || first == 0 || primary {
+		t.Fatalf("the gamma commit set GAMMA_LUT %d (%v) and touched the primary plane: %v", first, ok, primary)
+	}
+	want := []uint16{0, 10, 20, 0, 1, 11, 21, 0, 2, 12, 22, 0, 3, 13, 23, 0}
+	got := make([]uint16, len(r.dev.blobData[uint32(first)])/2)
+	for i := range got {
+		got[i] = binary.NativeEndian.Uint16(r.dev.blobData[uint32(first)][2*i:])
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("the LUT blob holds %v, want drm_color_lut entries %v", got, want)
+	}
+
+	if err := o.SetGamma([]uint16{3, 2, 1, 0, 3, 2, 1, 0, 3, 2, 1, 0}); err != nil {
+		t.Fatal(err)
+	}
+	if len(r.dev.commits) != 3 {
+		t.Fatal("a LUT was committed while the previous commit was flipping")
+	}
+	if err := o.ScheduleFrame(); err != nil {
+		t.Fatal(err)
+	}
+	r.dev.flip(t, 10, 2)
+	r.settle()
+	frame := r.dev.commits[len(r.dev.commits)-1]
+	second, ok := gammaOf(frame)
+	if _, primary := frame.values[[2]uint32{40, propFB}]; !primary || !ok || second == 0 || second == first {
+		t.Fatalf("the next frame carried GAMMA_LUT %d (%v), want the new LUT with the frame", second, ok)
+	}
+	if !slices.Contains(r.dev.destroyed, uint32(first)) {
+		t.Fatal("the replaced LUT blob was not destroyed")
+	}
+
+	r.dev.flip(t, 10, 3)
+	r.settle()
+	if err := o.SetGamma(nil); err != nil {
+		t.Fatal(err)
+	}
+	if lut, ok := gammaOf(r.dev.commits[len(r.dev.commits)-1]); !ok || lut != 0 {
+		t.Fatalf("resetting committed GAMMA_LUT %d (%v), want the identity 0", lut, ok)
+	}
+
+	r.dev.flip(t, 10, 4)
+	r.settle()
+	r.dev.refuseGamma = true
+	before := len(r.dev.commits)
+	if err := o.SetGamma([]uint16{0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3}); err == nil {
+		t.Fatal("a LUT the driver refuses was accepted")
+	}
+	if len(r.dev.commits) != before+1 || !slices.Contains(r.dev.destroyed, 600+r.dev.blobs) {
+		t.Fatal("a refused LUT was committed or its blob kept")
+	}
+	if err := o.SetGamma([]uint16{1, 2, 3}); err == nil {
+		t.Fatal("ramps of the wrong size were accepted")
 	}
 }

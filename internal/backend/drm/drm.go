@@ -488,6 +488,7 @@ type Output struct {
 	framing        bool
 	idleQueued     bool
 	presented      uint64
+	gamma          gamma
 }
 
 func (o *Output) Name() string {
@@ -647,7 +648,7 @@ func (o *Output) maybeFrame() {
 		o.frameRequested, o.framing = false, true
 		err := o.b.handler.Frame(o)
 		o.framing = false
-		return errors.Join(err, o.flushCursor())
+		return errors.Join(err, o.flushCursor(), o.flushGamma())
 	})
 }
 
@@ -730,7 +731,7 @@ func (o *Output) Scanout(d gpu.DMABUF, release func() error) (bool, error) {
 		o.cursor.sent()
 	}
 	o.lit, o.flipping, o.queued = true, true, s
-	return true, nil
+	return true, o.gammaSent()
 }
 
 func (o *Output) submit(s *scanout, fence int, flags uint32) error {
@@ -754,7 +755,7 @@ func (o *Output) submit(s *scanout, fence int, flags uint32) error {
 	if o.cursor != nil {
 		o.cursor.sent()
 	}
-	return nil
+	return o.gammaSent()
 }
 
 func (o *Output) frame(s *scanout, fence int) {
@@ -769,6 +770,7 @@ func (o *Output) frame(s *scanout, fence int) {
 	if o.cursor != nil {
 		o.cursor.add()
 	}
+	o.addGamma()
 }
 
 func (o *Output) place(p *plane, fb uint32, at image.Rectangle, fence int) {
@@ -827,7 +829,7 @@ func (o *Output) flipped(e kdrm.FlipEvent) error {
 	}
 	if o.queued == nil {
 		o.maybeFrame()
-		return o.flushCursor()
+		return errors.Join(o.flushCursor(), o.flushGamma())
 	}
 	var errs []error
 	if old := o.front; old != nil && old.client {
@@ -839,7 +841,7 @@ func (o *Output) flipped(e kdrm.FlipEvent) error {
 	t := time.Duration(e.Sec)*time.Second + time.Duration(e.Usec)*time.Microsecond
 	errs = append(errs, o.b.handler.Presented(o, backend.Presentation{Time: t, Refresh: modeOf(o.mode).Interval(), Seq: uint64(e.Sequence)}))
 	o.maybeFrame()
-	return errors.Join(append(errs, o.flushCursor())...)
+	return errors.Join(append(errs, o.flushCursor(), o.flushGamma())...)
 }
 
 func (o *Output) freeBuffers() error {
@@ -865,7 +867,7 @@ func (o *Output) freeBuffers() error {
 }
 
 func (o *Output) release() error {
-	err := o.freeBuffers()
+	err := errors.Join(o.freeBuffers(), o.releaseGamma())
 	if o.modeBlob != 0 && !o.b.gone {
 		err = errors.Join(err, o.b.dev.DestroyBlob(o.modeBlob))
 		o.modeBlob = 0
