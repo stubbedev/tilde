@@ -310,7 +310,7 @@ func (s *Server) manage(p *process, conn net.Conn) {
 		}
 		m := &wm{
 			x: c.x, root: c.root, sel: c.sel, atoms: c.atoms, windows: map[xproto.Window]*Window{}, shell: s.shell,
-			listener: s.opts.Listener, client: p.client, outgoing: map[outKey]*outgoing{},
+			listener: s.opts.Listener, loop: s.loop, client: p.client, outgoing: map[outKey]*outgoing{},
 			post: func(f func() error) { _ = s.loop.Post(f) },
 		}
 		for _, k := range []data.Kind{data.Clipboard, data.Primary} {

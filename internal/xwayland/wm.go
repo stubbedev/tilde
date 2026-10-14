@@ -29,13 +29,13 @@ var atomNames = []string{
 	"_NET_WM_WINDOW_TYPE", "_NET_WM_WINDOW_TYPE_NORMAL", "_NET_WM_WINDOW_TYPE_DIALOG", "_NET_WM_WINDOW_TYPE_UTILITY",
 	"_NET_WM_WINDOW_TYPE_SPLASH", "_NET_WM_WINDOW_TYPE_TOOLBAR",
 	"CLIPBOARD", "PRIMARY", "TARGETS", "INCR", "_WL_SELECTION", "_WL_TARGETS",
-	"_NET_FRAME_EXTENTS", "_NET_REQUEST_FRAME_EXTENTS",
+	"_NET_FRAME_EXTENTS", "_NET_REQUEST_FRAME_EXTENTS", "_NET_WM_PING",
 }
 
 var supported = []string{
 	"_NET_SUPPORTED", "_NET_SUPPORTING_WM_CHECK", "_NET_WM_NAME", "_NET_WM_PID", "_NET_ACTIVE_WINDOW", "_NET_CLIENT_LIST",
 	"_NET_WM_STATE", "_NET_WM_STATE_FULLSCREEN", "_NET_WM_STATE_MODAL", "_NET_WM_WINDOW_TYPE",
-	"_NET_FRAME_EXTENTS", "_NET_REQUEST_FRAME_EXTENTS",
+	"_NET_FRAME_EXTENTS", "_NET_REQUEST_FRAME_EXTENTS", "_NET_WM_PING",
 }
 
 var watched = []string{
@@ -291,6 +291,10 @@ func (c *xconn) message(e xproto.ClientMessageEvent) {
 		c.post(func(m *wm) error { return m.stateRequested(e.Window, d[0], xproto.Atom(d[1]), xproto.Atom(d[2])) })
 	case c.atoms["_NET_ACTIVE_WINDOW"]:
 		c.post(func(m *wm) error { return m.activeRequested(e.Window) })
+	case c.atoms["WM_PROTOCOLS"]:
+		if xproto.Atom(d[0]) == c.atoms["_NET_WM_PING"] {
+			c.post(func(m *wm) error { return m.pong(xproto.Window(d[2]), d[1]) })
+		}
 	case c.atoms["_NET_REQUEST_FRAME_EXTENTS"]:
 		c.post(func(m *wm) error {
 			m.frameless(e.Window)

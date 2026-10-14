@@ -85,7 +85,7 @@ shows, the focused output, windows, focus, submap and layout.
 | `move` | `window`, `workspace` | A window moved to another workspace |
 | `title` | `window`, `title` | A window changed its title |
 | `urgent` | `window`, `urgent` | A window asked for attention, or got it |
-| `unresponsive` | `window`, `unresponsive` | A window's client stopped answering pings, or answered again. tilde pings an xdg client when one of its windows gains focus and marks its windows after 5 seconds without an answer |
+| `unresponsive` | `window`, `unresponsive` | A window's client stopped answering pings, or answered again. tilde pings a window's client when the window gains focus (xdg clients, and X clients that list `_NET_WM_PING`) and marks it after 5 seconds without an answer |
 | `focus` | `window` (ID or `null`) | Keyboard focus moved to another window, or to none |
 | `submap` | `submap` (`""` for the default binds) | The bind submap changed |
 | `layout` | `layout` (`index`, `name`) | The keyboard layout group changed |

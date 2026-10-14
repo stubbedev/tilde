@@ -108,8 +108,8 @@ func (t xToplevel) close() error {
 	return t.Close()
 }
 
-func (xToplevel) ping() error {
-	return nil
+func (t xToplevel) ping() error {
+	return t.Ping(shell.PingTimeout)
 }
 
 func (c *Compositor) XWindowMapped(w *xwayland.Window) error {
@@ -140,6 +140,13 @@ func (c *Compositor) XWindowChanged(w *xwayland.Window) error {
 		win.urgent = true
 	}
 	return errors.Join(c.refreshPointer(), c.scheduleAll(), c.syncForeign())
+}
+
+func (c *Compositor) XWindowResponsive(w *xwayland.Window, responsive bool) error {
+	if win := c.windowOf(xToplevel{w, c}); win != nil {
+		win.hung = !responsive
+	}
+	return nil
 }
 
 func (c *Compositor) XWindowRequest(w *xwayland.Window, r xwayland.Request) error {

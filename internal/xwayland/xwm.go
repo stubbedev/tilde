@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"image"
 	"slices"
+	"time"
 
 	"github.com/jezek/xgb"
 	"github.com/jezek/xgb/xproto"
 
 	"github.com/stubbedev/tilde/internal/data"
+	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/surface"
 )
@@ -20,6 +22,7 @@ type Listener interface {
 	XWindowUnmapped(w *Window) error
 	XWindowChanged(w *Window) error
 	XWindowRequest(w *Window, r Request) error
+	XWindowResponsive(w *Window, responsive bool) error
 	CurrentSelection(k data.Kind) data.Source
 	SetSelection(k data.Kind, src data.Source) error
 }
@@ -71,6 +74,9 @@ type Window struct {
 	shown    bool
 	applied  State
 	managed  bool
+	ping     uint32
+	timer    *loop.Timer
+	hung     bool
 }
 
 type wm struct {
@@ -81,6 +87,8 @@ type wm struct {
 	windows    map[xproto.Window]*Window
 	shell      *Shell
 	listener   Listener
+	loop       *loop.Loop
+	stamps     uint32
 	client     *server.Client
 	post       func(func() error)
 	focused    xproto.Window
@@ -180,19 +188,60 @@ func (w *Window) setState(name string, on bool) {
 
 func (w *Window) Close() error {
 	if w.has(w.props.protocols, "WM_DELETE_WINDOW") {
-		w.wm.protocol(w.id, "WM_DELETE_WINDOW")
+		w.wm.protocol(w.id, "WM_DELETE_WINDOW", xproto.TimeCurrentTime, 0)
 		return nil
 	}
 	xproto.KillClient(w.wm.x, uint32(w.id))
 	return nil
 }
 
-func (m *wm) protocol(win xproto.Window, name string) {
+func (m *wm) protocol(win xproto.Window, name string, timestamp, detail uint32) {
 	ev := xproto.ClientMessageEvent{
 		Format: 32, Window: win, Type: m.atoms["WM_PROTOCOLS"],
-		Data: xproto.ClientMessageDataUnionData32New([]uint32{uint32(m.atoms[name]), xproto.TimeCurrentTime, 0, 0, 0}),
+		Data: xproto.ClientMessageDataUnionData32New([]uint32{uint32(m.atoms[name]), timestamp, detail, 0, 0}),
 	}
 	xproto.SendEvent(m.x, false, win, xproto.EventMaskNoEvent, string(ev.Bytes()))
+}
+
+func (w *Window) Ping(timeout time.Duration) error {
+	if w.ping != 0 || !w.has(w.props.protocols, "_NET_WM_PING") {
+		return nil
+	}
+	if w.timer == nil {
+		t, err := w.wm.loop.AddTimer(w.pingTimedOut)
+		if err != nil {
+			return fmt.Errorf("xwayland: ping timer for window %d: %w", w.id, err)
+		}
+		w.timer = t
+	}
+	w.wm.stamps++
+	w.ping = w.wm.stamps
+	w.wm.protocol(w.id, "_NET_WM_PING", w.ping, uint32(w.id))
+	return w.timer.Arm(timeout)
+}
+
+func (w *Window) pingTimedOut() error {
+	if w.ping == 0 || w.hung {
+		return nil
+	}
+	w.hung = true
+	return w.wm.listener.XWindowResponsive(w, false)
+}
+
+func (m *wm) pong(id xproto.Window, stamp uint32) error {
+	w, ok := m.windows[id]
+	if !ok || w.ping == 0 || w.ping != stamp {
+		return nil
+	}
+	w.ping = 0
+	if err := w.timer.Disarm(); err != nil {
+		return err
+	}
+	if !w.hung {
+		return nil
+	}
+	w.hung = false
+	return m.listener.XWindowResponsive(w, true)
 }
 
 func (m *wm) activate(w *Window, on bool) {
@@ -209,7 +258,7 @@ func (m *wm) activate(w *Window, on bool) {
 		xproto.SetInputFocus(m.x, xproto.InputFocusPointerRoot, w.id, xproto.TimeCurrentTime)
 	}
 	if w.has(w.props.protocols, "WM_TAKE_FOCUS") {
-		m.protocol(w.id, "WM_TAKE_FOCUS")
+		m.protocol(w.id, "WM_TAKE_FOCUS", xproto.TimeCurrentTime, 0)
 	}
 	xproto.ConfigureWindow(m.x, w.id, xproto.ConfigWindowStackMode, []uint32{xproto.StackModeAbove})
 	m.changeWindows(m.root, "_NET_ACTIVE_WINDOW", []xproto.Window{w.id})
@@ -256,7 +305,11 @@ func (m *wm) destroyed(id xproto.Window) error {
 		return nil
 	}
 	delete(m.windows, id)
-	return m.hide(w)
+	var err error
+	if w.timer != nil {
+		err = w.timer.Remove()
+	}
+	return errors.Join(err, m.hide(w))
 }
 
 func (m *wm) mapRequested(id xproto.Window, p props) error {

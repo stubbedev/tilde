@@ -18,6 +18,7 @@ import (
 	"github.com/stubbedev/tilde/internal/backend/headless"
 	"github.com/stubbedev/tilde/internal/compositor"
 	"github.com/stubbedev/tilde/internal/ipc"
+	"github.com/stubbedev/tilde/internal/shell"
 	"github.com/stubbedev/tilde/internal/wm"
 )
 
@@ -390,4 +391,27 @@ func TestXWindowsMapAcrossMixedScales(t *testing.T) {
 		outs := b.Outputs()
 		return pixel(outs[0].Primary(), 239, 149) == [3]byte{0xff, 0, 0} && pixel(outs[1].Primary(), 159, 99) == [3]byte{0, 0xff, 0}
 	})
+}
+
+func TestHungXClientsAreMarkedUnresponsive(t *testing.T) {
+	h := StartXwayland(t, func(err error) { t.Errorf("xwayland reported: %v", err) }, small)
+	xc := xDial(t, h)
+	xc.intern("WM_PROTOCOLS", "_NET_WM_PING")
+	xc.window(image.Rect(0, 0, 50, 50), 0xffffff, false, map[string][]byte{"WM_PROTOCOLS": xc.atom("_NET_WM_PING")})
+	h.Eventually("the X window focused", func(_ *headless.Backend, c *compositor.Compositor) bool {
+		ws := windowsOf(c)
+		return len(ws) == 1 && ws[0].Focused
+	})
+	ev, open := xc.event(clientTimeout)
+	ping, ok := ev.(xproto.ClientMessageEvent)
+	if !open || !ok || ping.Type != xc.atoms["WM_PROTOCOLS"] || xproto.Atom(ping.Data.Data32[0]) != xc.atoms["_NET_WM_PING"] {
+		t.Fatalf("focusing the window sent %#v, not a _NET_WM_PING", ev)
+	}
+	time.Sleep(shell.PingTimeout)
+	h.Eventually("the silent X window marked unresponsive", unresponsive(1, true))
+	ping.Window = xc.root
+	if err := xproto.SendEventChecked(xc.x, false, xc.root, xproto.EventMaskSubstructureNotify|xproto.EventMaskSubstructureRedirect, string(ping.Bytes())).Check(); err != nil {
+		t.Fatal(err)
+	}
+	h.Eventually("the answered X window marked responsive", unresponsive(1, false))
 }
