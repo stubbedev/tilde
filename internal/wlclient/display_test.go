@@ -16,7 +16,7 @@ func pair(t *testing.T) (*Display, *wire.Conn) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d := &Display{conn: wire.NewConn(fds[0]), objects: map[wire.ObjectID]wire.Resource{}}
+	d := &Display{conn: wire.NewConn(fds[0]), objects: map[wire.ObjectID]wire.Resource{}, deleted: map[wire.ObjectID]struct{}{}}
 	if d.display, err = wayland.NewWlDisplay(d, 1, displayEvents{d}); err != nil {
 		t.Fatal(err)
 	}
@@ -136,5 +136,37 @@ func TestSocketPath(t *testing.T) {
 	}
 	if _, err := SocketPath(env(map[string]string{"WAYLAND_DISPLAY": "wayland-1"})); err == nil {
 		t.Error("a relative display without XDG_RUNTIME_DIR resolved")
+	}
+}
+
+func TestServerDeletesALiveObject(t *testing.T) {
+	d, server := pair(t)
+	kb, err := wayland.NewWlKeyboard(d, 9, keyboard{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := kb.Base().ID()
+	emit(t, server, 1, 1, func(e *wire.Encoder) { e.Uint(uint32(id)) })
+	if err := d.Dispatch(); err != nil {
+		t.Fatalf("delete_id for a live object: %v", err)
+	}
+	if r, ok := d.Get(id); !ok || r != wire.Resource(kb) {
+		t.Fatal("the object vanished before the client destroyed it")
+	}
+	if got, err := d.NewID(); err != nil || got == id {
+		t.Fatalf("NewID = %d, %v; the id is still held by the client", got, err)
+	}
+	if err := kb.Release(); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := d.Get(id); ok {
+		t.Fatal("destroying a server-deleted object left it in the map")
+	}
+	if got, err := d.NewID(); err != nil || got != id {
+		t.Fatalf("NewID = %d, %v; want the freed id %d", got, err, id)
+	}
+	emit(t, server, 1, 1, func(e *wire.Encoder) { e.Uint(999) })
+	if err := d.Dispatch(); err == nil {
+		t.Fatal("delete_id for an unknown id was accepted")
 	}
 }

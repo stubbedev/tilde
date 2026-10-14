@@ -22,6 +22,7 @@ const (
 type Display struct {
 	conn    *wire.Conn
 	objects map[wire.ObjectID]wire.Resource
+	deleted map[wire.ObjectID]struct{}
 	free    []wire.ObjectID
 	next    wire.ObjectID
 	display *wayland.WlDisplay
@@ -51,7 +52,7 @@ func Connect(path string) (*Display, error) {
 		_ = unix.Close(fd)
 		return nil, fmt.Errorf("wlclient: connect %s: %w", path, err)
 	}
-	d := &Display{conn: wire.NewConn(fd), objects: map[wire.ObjectID]wire.Resource{}}
+	d := &Display{conn: wire.NewConn(fd), objects: map[wire.ObjectID]wire.Resource{}, deleted: map[wire.ObjectID]struct{}{}}
 	if d.display, err = wayland.NewWlDisplay(d, 1, displayEvents{d}); err != nil {
 		_ = d.conn.Close()
 		return nil, err
@@ -98,8 +99,20 @@ func (d *Display) Remove(id wire.ObjectID) error {
 	if !ok {
 		return fmt.Errorf("wlclient: remove unknown object %d", id)
 	}
+	if _, gone := d.deleted[id]; gone {
+		delete(d.deleted, id)
+		d.release(id)
+		return nil
+	}
 	d.objects[id] = &zombie{object: *r.Base()}
 	return nil
+}
+
+func (d *Display) release(id wire.ObjectID) {
+	delete(d.objects, id)
+	if id < firstServerID {
+		d.free = append(d.free, id)
+	}
 }
 
 func (d *Display) NewID() (wire.ObjectID, error) {
@@ -210,18 +223,24 @@ func (e displayEvents) Error(_ *wayland.WlDisplay, object wire.Resource, code ui
 
 func (e displayEvents) DeleteID(_ *wayland.WlDisplay, id uint32) error {
 	oid := wire.ObjectID(id)
-	if _, dead := e.d.objects[oid].(*zombie); !dead {
-		return fmt.Errorf("wlclient: delete_id for live or unknown object %d", id)
-	}
-	delete(e.d.objects, oid)
-	if oid < firstServerID {
-		e.d.free = append(e.d.free, oid)
+	switch r, ok := e.d.objects[oid]; {
+	case !ok:
+		return fmt.Errorf("wlclient: delete_id for unknown object %d", id)
+	case isZombie(r):
+		e.d.release(oid)
+	default:
+		e.d.deleted[oid] = struct{}{}
 	}
 	return nil
 }
 
 type zombie struct {
 	object wire.Object
+}
+
+func isZombie(r wire.Resource) bool {
+	_, dead := r.(*zombie)
+	return dead
 }
 
 func (z *zombie) Base() *wire.Object {
