@@ -24,7 +24,12 @@ func (c *Compositor) cursorPoint() image.Point {
 	return image.Pt(int(math.Floor(c.cursor.X)), int(math.Floor(c.cursor.Y)))
 }
 
+var ErrNotFromMouseBind = errors.New("only a mouse bind can start a drag")
+
 func (c *Compositor) beginDrag(mode wm.DragMode) error {
+	if c.bindButton == 0 {
+		return ErrNotFromMouseBind
+	}
 	_, _, w := c.surfaceAt(c.cursor)
 	if w == nil || w.layer == wm.LayerFullscreen {
 		return nil

@@ -152,3 +152,36 @@ func showingWorkspace(id wm.WorkspaceID) func(*headless.Backend, *compositor.Com
 		return false
 	}
 }
+
+func TestDragsNeedAMouseBind(t *testing.T) {
+	var r reports
+	h := StartWith(t, func(cfg *compositor.Config) {
+		cfg.Report = r.report
+		withBinds(t, bindSpec{chord: "SUPER + Q", action: "movewindow"}, bindSpec{chord: "SUPER + R", action: "resizewindow"})(cfg)
+	}, small)
+	c := testclient.Connect(t, h.Socket())
+	_, in := c.Seat()
+	w := c.Window("win", quadrants)
+	in.Name(w.Surface, "win")
+	c.DispatchUntil("the window to map", w.Mapped)
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+		p := b.Pointer()
+		return errors.Join(p.MoveTo(b.Outputs()[0], 0.5, 0.5), p.Frame())
+	})
+	c.DispatchUntil("pointer focus", func() bool { return slices.Contains(in.Log, "enter win 80,50") })
+	h.chord(keySuper, keyQ)
+	h.chord(keySuper, keyR)
+	h.Do(func(_ *headless.Backend, c *compositor.Compositor) error {
+		if c.Seat().PointerFocus() == nil {
+			return errors.New("a key bind drag took pointer focus away")
+		}
+		return nil
+	})
+	errs := r.take()
+	if len(errs) != 2 || !errors.Is(errs[0], compositor.ErrNotFromMouseBind) || !errors.Is(errs[1], compositor.ErrNotFromMouseBind) {
+		t.Fatalf("reports %v", errs)
+	}
+	if slices.Contains(in.Log, "leave win") {
+		t.Fatalf("the window lost the pointer: %v", in.Log)
+	}
+}

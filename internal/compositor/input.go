@@ -111,6 +111,7 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 			c.consumed = append(c.consumed, e.Button)
 			c.bindButton = e.Button
 			c.run(b.Action)
+			c.bindButton = 0
 			return nil
 		}
 		if e.Pressed {
