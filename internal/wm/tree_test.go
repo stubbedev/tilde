@@ -246,3 +246,30 @@ func TestRandomOperationsKeepTheTreeValid(t *testing.T) {
 		}
 	}
 }
+
+func TestAutotileSplitsNarrowColumnsVertically(t *testing.T) {
+	at := Autotile{Enabled: true, Ephemeral: true, MinTrigger: 400, Divisor: 3}
+	wide := image.Rect(0, 0, 3840, 1080)
+	var tree Tree
+	for id := range WindowID(5) {
+		tree = on(t)(tree.Place(id+1, wide, at))
+	}
+	if got := tree.String(); got != "h[1 2 *v~[3 4 *5]]" {
+		t.Fatalf("five windows on 3840 wide with a 1280 trigger: %s", got)
+	}
+	narrow := image.Rect(0, 0, 1000, 1200)
+	tree = Tree{}
+	for id := range WindowID(3) {
+		tree = on(t)(tree.Place(id+1, narrow, at))
+	}
+	if got := tree.String(); got != "v[1 2 *3]" {
+		t.Fatalf("a portrait output starts vertical and stays so: %s", got)
+	}
+	tree = Tree{}
+	for id := range WindowID(4) {
+		tree = on(t)(tree.Place(id+1, wide, Autotile{}))
+	}
+	if got := tree.String(); got != "h[1 2 3 *4]" {
+		t.Fatalf("without autotile: %s", got)
+	}
+}

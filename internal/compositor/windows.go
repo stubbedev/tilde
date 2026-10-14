@@ -168,7 +168,7 @@ func (c *Compositor) settle(w *window, activated bool) error {
 }
 
 func (c *Compositor) ToplevelInitialCommit(t *shell.Toplevel) error {
-	s, err := c.wm.MapWindow(c.nextWindow)
+	s, err := c.wm.MapWindow(c.nextWindow, c.settings.Autotile)
 	if err != nil {
 		return err
 	}
@@ -208,7 +208,7 @@ func (c *Compositor) refocus() error {
 func (c *Compositor) ToplevelMapped(t *shell.Toplevel) error {
 	w := &window{id: c.nextWindow, toplevel: t}
 	c.nextWindow++
-	s, err := c.wm.MapWindow(w.id)
+	s, err := c.wm.MapWindow(w.id, c.settings.Autotile)
 	if err != nil {
 		return err
 	}

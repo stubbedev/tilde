@@ -52,7 +52,7 @@ func TestOutputsStartOnTheFirstFreeWorkspace(t *testing.T) {
 func TestSwitchingWorkspacesCreatesAndDropsThem(t *testing.T) {
 	s := ok(t)(State{}.AddOutput("DP-1", left))
 	s = ok(t)(s.AddOutput("DP-2", right))
-	s = ok(t)(s.MapWindow(1))
+	s = ok(t)(s.MapWindow(1, Autotile{}))
 	s = ok(t)(s.SwitchWorkspace(3))
 	if got := active(s); !slices.Equal(got, []WorkspaceID{3, 2}) {
 		t.Fatalf("active %v after switching to 3", got)
@@ -76,9 +76,9 @@ func TestSwitchingWorkspacesCreatesAndDropsThem(t *testing.T) {
 func TestRelativeWorkspacesWalkOpenOnesByID(t *testing.T) {
 	s := ok(t)(State{}.AddOutput("DP-1", left))
 	s = ok(t)(s.AddOutput("DP-2", right))
-	s = ok(t)(s.MapWindow(1))
+	s = ok(t)(s.MapWindow(1, Autotile{}))
 	s = ok(t)(s.SwitchWorkspace(5))
-	s = ok(t)(s.MapWindow(2))
+	s = ok(t)(s.MapWindow(2, Autotile{}))
 	steps := []struct {
 		offset int
 		want   WorkspaceID
@@ -95,9 +95,9 @@ func TestRelativeWorkspacesWalkOpenOnesByID(t *testing.T) {
 
 func TestMoveToWorkspaceKeepsFocusHere(t *testing.T) {
 	s := ok(t)(State{}.AddOutput("DP-1", left))
-	s = ok(t)(s.MapWindow(1))
-	s = ok(t)(s.MapWindow(2))
-	s = ok(t)(s.MoveToWorkspace(4))
+	s = ok(t)(s.MapWindow(1, Autotile{}))
+	s = ok(t)(s.MapWindow(2, Autotile{}))
+	s = ok(t)(s.MoveToWorkspace(4, Autotile{}))
 	if w, _ := s.WorkspaceOf(2); w != 4 {
 		t.Fatalf("window 2 on workspace %d, want 4", w)
 	}
@@ -122,11 +122,11 @@ func TestMoveToWorkspaceKeepsFocusHere(t *testing.T) {
 func TestOutputsComeAndGo(t *testing.T) {
 	s := ok(t)(State{}.AddOutput("DP-1", left))
 	s = ok(t)(s.AddOutput("HDMI-1", right))
-	s = ok(t)(s.MapWindow(1))
+	s = ok(t)(s.MapWindow(1, Autotile{}))
 	s = ok(t)(s.FocusOutput("HDMI-1"))
-	s = ok(t)(s.MapWindow(2))
+	s = ok(t)(s.MapWindow(2, Autotile{}))
 	s = ok(t)(s.SwitchWorkspace(7))
-	s = ok(t)(s.MapWindow(3))
+	s = ok(t)(s.MapWindow(3, Autotile{}))
 	s = ok(t)(s.FocusOutput("DP-1"))
 	s = ok(t)(s.RemoveOutput("HDMI-1"))
 	if got := layoutOf(s); got[2] != "DP-1" || got[7] != "DP-1" || got[1] != "DP-1" {
@@ -141,7 +141,7 @@ func TestOutputsComeAndGo(t *testing.T) {
 	}
 	s = ok(t)(s.RemoveOutput("HDMI-1"))
 	s = ok(t)(s.RemoveOutput("DP-1"))
-	s = ok(t)(s.MapWindow(4))
+	s = ok(t)(s.MapWindow(4, Autotile{}))
 	s = ok(t)(s.AddOutput("eDP-1", left))
 	if got := len(s.Arrange(0).Windows); got != 4 {
 		t.Fatalf("%d windows survive losing every output, want 4", got)

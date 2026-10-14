@@ -6,6 +6,7 @@ package wm
 import (
 	"errors"
 	"fmt"
+	"image"
 	"slices"
 )
 
@@ -224,6 +225,38 @@ func (t Tree) Insert(id WindowID, rootLayout Layout) (Tree, error) {
 	parent, at := groups[len(groups)-1], idx[len(idx)-1]
 	parent.insert(at+1, Window{ID: id})
 	return t.Focus(id)
+}
+
+type Autotile struct {
+	Enabled    bool
+	Ephemeral  bool
+	MinTrigger int
+	Divisor    int
+}
+
+func (a Autotile) trigger(area image.Rectangle) int {
+	return max(a.MinTrigger, area.Dx()/a.Divisor)
+}
+
+func (t Tree) Place(id WindowID, area image.Rectangle, at Autotile) (Tree, error) {
+	root := SplitH
+	if area.Dy() > area.Dx() {
+		root = SplitV
+	}
+	focused, ok := t.Focused()
+	if !at.Enabled || !ok {
+		return t.Insert(id, root)
+	}
+	groups, _, _ := t.path(focused)
+	parent := groups[len(groups)-1]
+	if parent.Layout == SplitH && len(parent.Children) > 1 && t.rectOf(area, parent).Dx()/(len(parent.Children)+1) < at.trigger(area) {
+		wrapped, err := t.Wrap(focused, SplitV, at.Ephemeral)
+		if err != nil {
+			return Tree{}, err
+		}
+		t = wrapped
+	}
+	return t.Insert(id, root)
 }
 
 func (t Tree) Remove(id WindowID) (Tree, error) {

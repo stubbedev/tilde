@@ -87,7 +87,7 @@ func TestMove(t *testing.T) {
 func TestFocusCrossesOutputs(t *testing.T) {
 	s := ok(t)(State{}.AddOutput("DP-1", left))
 	s = ok(t)(s.AddOutput("DP-2", right))
-	s = ok(t)(s.MapWindow(1))
+	s = ok(t)(s.MapWindow(1, Autotile{}))
 	s = ok(t)(s.FocusDirection(Right))
 	if s.FocusedOutput() != "DP-2" {
 		t.Fatalf("focus right from the right edge of DP-1 landed on %s", s.FocusedOutput())
@@ -105,7 +105,7 @@ func TestFocusCrossesOutputs(t *testing.T) {
 func TestClosingReturnsToThePreviousFocus(t *testing.T) {
 	s := ok(t)(State{}.AddOutput("DP-1", left))
 	for _, id := range []WindowID{1, 2, 3} {
-		s = ok(t)(s.MapWindow(id))
+		s = ok(t)(s.MapWindow(id, Autotile{}))
 	}
 	s = ok(t)(s.FocusWindow(1))
 	s = ok(t)(s.FocusWindow(3))

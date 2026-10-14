@@ -49,6 +49,48 @@ func firstWindow(n Node) WindowID {
 	}
 }
 
+func childRects(g *Group, r image.Rectangle, tabBarHeight int) []image.Rectangle {
+	out := make([]image.Rectangle, len(g.Children))
+	switch g.Layout {
+	case SplitH:
+		e := edges(r.Min.X, r.Dx(), g.Children)
+		for i := range out {
+			out[i] = image.Rect(e[i], r.Min.Y, e[i+1], r.Max.Y)
+		}
+	case SplitV:
+		e := edges(r.Min.Y, r.Dy(), g.Children)
+		for i := range out {
+			out[i] = image.Rect(r.Min.X, e[i], r.Max.X, e[i+1])
+		}
+	case Tabbed:
+		content := image.Rect(r.Min.X, r.Min.Y+min(tabBarHeight, r.Dy()), r.Max.X, r.Max.Y)
+		for i := range out {
+			out[i] = content
+		}
+	}
+	return out
+}
+
+func (t Tree) rectOf(area image.Rectangle, target *Group) image.Rectangle {
+	var find func(g *Group, r image.Rectangle) (image.Rectangle, bool)
+	find = func(g *Group, r image.Rectangle) (image.Rectangle, bool) {
+		if g == target {
+			return r, true
+		}
+		rects := childRects(g, r, 0)
+		for i, c := range g.Children {
+			if sub, ok := c.Node.(*Group); ok {
+				if found, ok := find(sub, rects[i]); ok {
+					return found, true
+				}
+			}
+		}
+		return image.Rectangle{}, false
+	}
+	r, _ := find(t.root, area)
+	return r
+}
+
 func (t Tree) Arrange(area image.Rectangle, tabBarHeight int) Arrangement {
 	var a Arrangement
 	var place func(n Node, r image.Rectangle, visible bool)
@@ -57,30 +99,16 @@ func (t Tree) Arrange(area image.Rectangle, tabBarHeight int) Arrangement {
 		case Window:
 			a.Windows = append(a.Windows, Placement{ID: n.ID, Rect: r, Visible: visible})
 		case *Group:
-			switch n.Layout {
-			case SplitH:
-				e := edges(r.Min.X, r.Dx(), n.Children)
-				for i, c := range n.Children {
-					place(c.Node, image.Rect(e[i], r.Min.Y, e[i+1], r.Max.Y), visible)
-				}
-			case SplitV:
-				e := edges(r.Min.Y, r.Dy(), n.Children)
-				for i, c := range n.Children {
-					place(c.Node, image.Rect(r.Min.X, e[i], r.Max.X, e[i+1]), visible)
-				}
-			case Tabbed:
-				bar := min(tabBarHeight, r.Dy())
-				tb := TabBar{Rect: image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+bar), Active: n.Focus}
+			if n.Layout == Tabbed && visible {
+				tb := TabBar{Rect: image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+min(tabBarHeight, r.Dy())), Active: n.Focus}
 				for _, c := range n.Children {
 					tb.Tabs = append(tb.Tabs, firstWindow(c.Node))
 				}
-				if visible {
-					a.TabBars = append(a.TabBars, tb)
-				}
-				content := image.Rect(r.Min.X, r.Min.Y+bar, r.Max.X, r.Max.Y)
-				for i, c := range n.Children {
-					place(c.Node, content, visible && i == n.Focus)
-				}
+				a.TabBars = append(a.TabBars, tb)
+			}
+			rects := childRects(n, r, tabBarHeight)
+			for i, c := range n.Children {
+				place(c.Node, rects[i], visible && (n.Layout != Tabbed || i == n.Focus))
 			}
 		}
 	}

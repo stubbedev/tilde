@@ -73,8 +73,8 @@ func TestBadActionsFailPrecisely(t *testing.T) {
 
 func TestDispatch(t *testing.T) {
 	s := ok(t)(State{}.AddOutput("DP-1", left))
-	s = ok(t)(s.MapWindow(1))
-	s = ok(t)(s.MapWindow(2))
+	s = ok(t)(s.MapWindow(1, Autotile{}))
+	s = ok(t)(s.MapWindow(2, Autotile{}))
 	settings := Settings{Collapse: CollapseEmptySplits}
 	run := func(text string) []Effect {
 		t.Helper()

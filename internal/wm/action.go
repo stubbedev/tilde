@@ -28,6 +28,7 @@ func (SetSubmap) isEffect() {}
 
 type Settings struct {
 	Collapse CollapsePolicy
+	Autotile Autotile
 }
 
 type WorkspaceTarget struct {
@@ -108,12 +109,12 @@ func (a WorkspaceAction) apply(s State, _ Settings) (State, []Effect, error) {
 	return next, nil, err
 }
 
-func (a MoveToWorkspaceAction) apply(s State, _ Settings) (State, []Effect, error) {
+func (a MoveToWorkspaceAction) apply(s State, settings Settings) (State, []Effect, error) {
 	id, err := a.Target.resolve(s)
 	if err != nil {
 		return State{}, nil, err
 	}
-	next, err := s.MoveToWorkspace(id)
+	next, err := s.MoveToWorkspace(id, settings.Autotile)
 	return next, nil, err
 }
 

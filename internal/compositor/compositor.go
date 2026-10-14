@@ -47,7 +47,10 @@ func DefaultConfig(keymap *xkb.Keymap) Config {
 	return Config{
 		Seat:   seat.Config{Keymap: keymap, RepeatRate: seat.DefaultRepeatRate, RepeatDelay: seat.DefaultRepeatDelay},
 		Cursor: CursorConfig{Size: DefaultCursorSize},
-		WM:     wm.Settings{Collapse: wm.CollapseEmptySplits},
+		WM: wm.Settings{
+			Collapse: wm.CollapseEmptySplits,
+			Autotile: wm.Autotile{Enabled: true, Ephemeral: true, MinTrigger: 400, Divisor: 3},
+		},
 		Report: func(err error) { fmt.Fprintln(os.Stderr, "tilde:", err) },
 	}
 }

@@ -272,14 +272,7 @@ func (s State) Focused() (WindowID, bool) {
 	return w.Tree.Focused()
 }
 
-func rootLayout(area image.Rectangle) Layout {
-	if area.Dy() > area.Dx() {
-		return SplitV
-	}
-	return SplitH
-}
-
-func (s State) MapWindow(id WindowID) (State, error) {
+func (s State) MapWindow(id WindowID, at Autotile) (State, error) {
 	if s.windowWorkspace(id) != nil {
 		return State{}, fmt.Errorf("wm: map window %d: already mapped", id)
 	}
@@ -298,7 +291,7 @@ func (s State) MapWindow(id WindowID) (State, error) {
 	if o := s.output(w.Output); o != nil {
 		area = o.Area
 	}
-	tree, err := w.Tree.Insert(id, rootLayout(area))
+	tree, err := w.Tree.Place(id, area, at)
 	if err != nil {
 		return State{}, err
 	}
@@ -386,7 +379,7 @@ func (s State) RelativeWorkspace(offset int) (State, error) {
 	return s.SwitchWorkspace(id)
 }
 
-func (s State) MoveToWorkspace(id WorkspaceID) (State, error) {
+func (s State) MoveToWorkspace(id WorkspaceID, at Autotile) (State, error) {
 	if id < 1 {
 		return State{}, fmt.Errorf("move to workspace %d: %w", id, ErrInvalidWorkspace)
 	}
@@ -414,7 +407,7 @@ func (s State) MoveToWorkspace(id WorkspaceID) (State, error) {
 	if o := s.output(to.Output); o != nil {
 		area = o.Area
 	}
-	if to.Tree, err = to.Tree.Insert(win, rootLayout(area)); err != nil {
+	if to.Tree, err = to.Tree.Place(win, area, at); err != nil {
 		return State{}, err
 	}
 	to.record()
