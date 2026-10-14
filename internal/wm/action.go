@@ -30,6 +30,7 @@ type (
 	SetSubmap struct{ Name string }
 	BeginDrag struct{ Mode DragMode }
 	Reload    struct{}
+	Shortcut  struct{ AppID, ID string }
 	Power     struct {
 		Mode   PowerMode
 		Output string
@@ -51,6 +52,7 @@ func (Exec) isEffect()      {}
 func (SetSubmap) isEffect() {}
 func (BeginDrag) isEffect() {}
 func (Reload) isEffect()    {}
+func (Shortcut) isEffect()  {}
 func (Power) isEffect()     {}
 
 type Settings struct {
@@ -94,6 +96,7 @@ type (
 	DragAction       struct{ Mode DragMode }
 	ResizeAction     struct{ DX, DY int }
 	ReloadAction     struct{}
+	GlobalAction     struct{ AppID, ID string }
 	DPMSAction       struct {
 		Mode   PowerMode
 		Output string
@@ -109,6 +112,12 @@ func (a DPMSAction) String() string {
 
 func (a DPMSAction) apply(s State, _ Settings) (State, []Effect, error) {
 	return s, []Effect{Power(a)}, nil
+}
+
+func (a GlobalAction) String() string { return "global " + a.AppID + ":" + a.ID }
+
+func (a GlobalAction) apply(s State, _ Settings) (State, []Effect, error) {
+	return s, []Effect{Shortcut(a)}, nil
 }
 
 func (ReloadAction) String() string { return "reload" }
@@ -375,6 +384,20 @@ var Actions = []ActionSpec{
 		Name:    "reload",
 		Summary: "Read the config file again; a bad file keeps the running config and reports the error.",
 		parse:   bare(ReloadAction{}),
+	},
+	{
+		Name: "global", Args: "<app_id>:<id>",
+		Summary: "Press the global shortcut an application registered, and release it with the bind.",
+		parse: func(spec ActionSpec, args []string, _ string) (Action, error) {
+			if err := exactly(spec, args, 1); err != nil {
+				return nil, err
+			}
+			app, id, ok := strings.Cut(args[0], ":")
+			if !ok || app == "" || id == "" {
+				return nil, badArgs(spec, "%q is not app_id:id", args[0])
+			}
+			return GlobalAction{AppID: app, ID: id}, nil
+		},
 	},
 	{
 		Name: "exec", Args: "<command>",

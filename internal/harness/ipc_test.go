@@ -11,6 +11,7 @@ import (
 	"github.com/stubbedev/tilde/internal/backend/headless"
 	"github.com/stubbedev/tilde/internal/compositor"
 	"github.com/stubbedev/tilde/internal/ipc"
+	chgs "github.com/stubbedev/tilde/internal/protocol/client/hyprlandglobalshortcuts"
 	"github.com/stubbedev/tilde/internal/testclient"
 	"github.com/stubbedev/tilde/internal/wm"
 )
@@ -83,10 +84,21 @@ func TestEveryActionThroughIPC(t *testing.T) {
 		c.DispatchUntil(name+" to map", w.Mapped)
 		windows = append(windows, w)
 	}
+	shortcuts, err := chgs.NewHyprlandGlobalShortcutsManagerV1(c.Display, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Bind("hyprland_global_shortcuts_manager_v1", shortcuts)
+	if _, err := shortcuts.RegisterShortcut(&shortcutLog{}, "ptt", "voice", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Display.Roundtrip(); err != nil {
+		t.Fatal(err)
+	}
 	actions := []string{
 		"focus left", "move right", "makegroup tab ephemeral", "togglefloating", "togglefloating",
 		"fullscreen", "fullscreen", "resizeactive 10 0", "submap resize", "submap reset",
-		"movetoworkspace 3", "workspace 3", "workspace e-1", "exec true", "reload", "dpms off", "dpms toggle HEADLESS-1", "kill",
+		"movetoworkspace 3", "workspace 3", "workspace e-1", "exec true", "global voice:ptt", "reload", "dpms off", "dpms toggle HEADLESS-1", "kill",
 	}
 	mouseOnly := []string{"movewindow", "resizewindow"}
 	for _, spec := range wm.Actions {

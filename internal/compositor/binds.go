@@ -1,6 +1,7 @@
 package compositor
 
 import (
+	"errors"
 	"slices"
 	"time"
 
@@ -45,11 +46,12 @@ func (c *Compositor) bindKey(code uint32, pressed bool) (bool, error) {
 			return false, nil
 		}
 		c.held = slices.Delete(c.held, i, i+1)
+		released := c.releaseShortcuts(binds.Key{Code: code})
 		if c.repeat.active && c.repeat.key == code {
 			c.repeat.active = false
-			return true, c.repeat.timer.Disarm()
+			return true, errors.Join(released, c.repeat.timer.Disarm())
 		}
-		return true, nil
+		return true, released
 	}
 	if vt := vtSwitch(c.seat.Keysym(code)); vt != 0 && c.switchVT != nil {
 		c.held = append(c.held, code)
@@ -60,7 +62,9 @@ func (c *Compositor) bindKey(code uint32, pressed bool) (bool, error) {
 		return false, nil
 	}
 	c.held = append(c.held, code)
+	c.firing = binds.Key{Code: code}
 	c.run(b.Action)
+	c.firing = nil
 	if !b.Flags.Repeating || c.seatConfig.RepeatRate == 0 {
 		return true, nil
 	}

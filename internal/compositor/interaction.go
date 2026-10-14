@@ -6,6 +6,7 @@ import (
 	"image"
 	"math"
 
+	"github.com/stubbedev/tilde/internal/binds"
 	"github.com/stubbedev/tilde/internal/wm"
 )
 
@@ -27,7 +28,8 @@ func (c *Compositor) cursorPoint() image.Point {
 var ErrNotFromMouseBind = errors.New("only a mouse bind can start a drag")
 
 func (c *Compositor) beginDrag(mode wm.DragMode) error {
-	if c.bindButton == 0 {
+	button, ok := c.firing.(binds.Button)
+	if !ok {
 		return ErrNotFromMouseBind
 	}
 	_, _, w := c.surfaceAt(c.cursor)
@@ -36,7 +38,7 @@ func (c *Compositor) beginDrag(mode wm.DragMode) error {
 	}
 	at := c.cursorPoint()
 	mid := w.tile.Min.Add(w.tile.Size().Div(2))
-	c.interaction = &interaction{mode: mode, w: w, button: c.bindButton, start: at, last: at, rect: w.tile, right: at.X >= mid.X, bottom: at.Y >= mid.Y}
+	c.interaction = &interaction{mode: mode, w: w, button: button.Code, start: at, last: at, rect: w.tile, right: at.X >= mid.X, bottom: at.Y >= mid.Y}
 	if err := c.focusWindow(w); err != nil {
 		return err
 	}

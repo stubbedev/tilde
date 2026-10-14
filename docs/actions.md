@@ -11,6 +11,7 @@ Every keybind and `tildectl dispatch` takes one of these. This file is generated
 | `kill` |  | Ask the focused window to close. |
 | `dpms` | `<on\|off\|toggle> [output]` | Turn outputs on or off, or one output by name; off outputs keep their windows and wake only on dpms on. |
 | `reload` |  | Read the config file again; a bad file keeps the running config and reports the error. |
+| `global` | `<app_id>:<id>` | Press the global shortcut an application registered, and release it with the bind. |
 | `exec` | `<command>` | Run a shell command with sh -c. |
 | `makegroup` | `<h\|v\|tab> [ephemeral]` | Wrap the focused window in a new group; an ephemeral group dissolves when one window is left. |
 | `submap` | `<name\|reset>` | Switch binds to the named submap, or back to the default ones. |

@@ -40,6 +40,8 @@ func (c *Compositor) perform(e wm.Effect) error {
 		return w.top.close()
 	case wm.Exec:
 		return c.spawn(e.Command)
+	case wm.Shortcut:
+		return c.pressShortcut(e)
 	case wm.SetSubmap:
 		c.submap = e.Name
 		return nil

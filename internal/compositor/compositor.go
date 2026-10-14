@@ -95,7 +95,7 @@ type Compositor struct {
 	windows         []*window
 	stack           []*window
 	interaction     *interaction
-	bindButton      uint32
+	firing          binds.Trigger
 	wm              wm.State
 	settings        wm.Settings
 	rules           []wm.Rule
@@ -148,6 +148,8 @@ type Compositor struct {
 	constraint      *constraint
 	keyInhibitors   map[*surface.Surface]*shortcutsInhibitor
 	inhibiting      *shortcutsInhibitor
+	globalShortcuts []*globalShortcut
+	heldShortcuts   []heldShortcut
 	cursorGen       uint64
 	cursorOps       frame
 	cursorShown     []*surface.Surface
@@ -255,7 +257,7 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 	if err := c.addImageCapture(display); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
-	if err := errors.Join(c.addPointerConstraints(display), c.addShortcutsInhibit(display)); err != nil {
+	if err := errors.Join(c.addPointerConstraints(display), c.addShortcutsInhibit(display), c.addGlobalShortcuts(display)); err != nil {
 		return nil, fmt.Errorf("compositor: %w", err)
 	}
 	if c.data, err = data.New(display, c); err != nil {

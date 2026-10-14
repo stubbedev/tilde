@@ -27,6 +27,7 @@ var everyAction = []Action{
 	DPMSAction{Mode: PowerOff},
 	DPMSAction{Mode: PowerToggle, Output: "DP-1"},
 	ExecAction{Command: "foot -e sh -c 'echo hi'"},
+	GlobalAction{AppID: "discord", ID: "push-to-talk"},
 	MakeGroupAction{Layout: SplitV},
 	MakeGroupAction{Layout: Tabbed, Ephemeral: true},
 	SubmapAction{Name: "resize"},
@@ -69,6 +70,8 @@ func TestBadActionsFailPrecisely(t *testing.T) {
 		"workspace e+0":           `workspace <n|e+n|e-n>: unknown workspace "e+0"`,
 		"kill now":                "kill: takes 0 argument(s), got 1",
 		"exec":                    "exec <command>: needs a command",
+		"global discord":          `global <app_id>:<id>: "discord" is not app_id:id`,
+		"global :ptt":             `global <app_id>:<id>: ":ptt" is not app_id:id`,
 		"makegroup diagonal":      `makegroup <h|v|tab> [ephemeral]: unknown layout "diagonal"`,
 		"makegroup v forevermore": `makegroup <h|v|tab> [ephemeral]: unknown option "forevermore"`,
 	}
@@ -122,6 +125,9 @@ func TestDispatch(t *testing.T) {
 	}
 	if effects := run("exec foot --server"); !slices.Equal(effects, []Effect{Exec{Command: "foot --server"}}) {
 		t.Fatalf("exec gave %v", effects)
+	}
+	if effects := run("global obs:record"); !slices.Equal(effects, []Effect{Shortcut{AppID: "obs", ID: "record"}}) {
+		t.Fatalf("global gave %v", effects)
 	}
 	run("makegroup tab ephemeral")
 	if got := s.workspace(2).Tree.String(); got != "h[*tab~[*1]]" {

@@ -132,10 +132,11 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 		}
 		if i := slices.Index(c.consumed, e.Button); !e.Pressed && i >= 0 {
 			c.consumed = slices.Delete(c.consumed, i, i+1)
+			released := c.releaseShortcuts(binds.Button{Code: e.Button})
 			if c.interaction != nil && c.interaction.button == e.Button {
-				return c.endDrag()
+				return errors.Join(released, c.endDrag())
 			}
-			return nil
+			return released
 		}
 		if e.Pressed && !c.seat.PointerGrabbed() && c.outsideGrab(c.seat.PointerFocus()) {
 			c.consumed = append(c.consumed, e.Button)
@@ -143,9 +144,9 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 		}
 		if b, ok := c.match(binds.Button{Code: e.Button}); e.Pressed && ok {
 			c.consumed = append(c.consumed, e.Button)
-			c.bindButton = e.Button
+			c.firing = binds.Button{Code: e.Button}
 			c.run(b.Action)
-			c.bindButton = 0
+			c.firing = nil
 			return nil
 		}
 		if e.Pressed {
