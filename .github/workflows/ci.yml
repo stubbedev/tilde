@@ -45,5 +45,18 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: NixOS VMs with one GPU, two GPUs, a configured primary, a display-only card and screen sharing
-        run: nix build -L .#checks.x86_64-linux.vm .#checks.x86_64-linux.vm-two-gpus .#checks.x86_64-linux.vm-display-only .#checks.x86_64-linux.vm-configured-gpu .#checks.x86_64-linux.vm-screencast
+      - name: NixOS VMs with one GPU, two GPUs, a configured primary and a display-only card
+        run: nix build -L .#checks.x86_64-linux.vm .#checks.x86_64-linux.vm-two-gpus .#checks.x86_64-linux.vm-display-only .#checks.x86_64-linux.vm-configured-gpu
+
+  clients:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: NixOS VMs with everyday clients and screen sharing
+        run: nix build -L .#checks.x86_64-linux.vm-apps .#checks.x86_64-linux.vm-screencast

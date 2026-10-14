@@ -10,7 +10,7 @@
     user_pref("datareporting.policy.dataSubmissionEnabled", false);
     user_pref("toolkit.telemetry.reportingpolicy.firstRun", false);
   '';
-  launch = name: command: pkgs.writeShellScript "launch-${name}" "exec ${command} > /tmp/${name}.log 2>&1";
+  launch = import ./launch.nix pkgs;
   animation = launch "animation" "${pkgs.weston}/bin/weston-presentation-shm";
   firefox = launch "firefox" "${pkgs.firefox}/bin/firefox --no-remote --profile /tmp/firefox file://${./screencast.html}";
   chromium = launch "chromium" "${pkgs.chromium}/bin/chromium --use-fake-ui-for-media-stream --no-first-run --user-data-dir=/tmp/chromium file://${./screencast.html}";
