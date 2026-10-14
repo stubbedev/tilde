@@ -388,6 +388,9 @@ func (s *captureSession) CreateFrame(obj *seic.ExtImageCopyCaptureSessionV1, res
 	s.frame = f
 	s.cl.OnDestroy(res, func() error {
 		f.dead = true
+		if f.pending != nil {
+			s.c.cancelCapture(f.pending)
+		}
 		if s.frame == f {
 			s.frame = nil
 		}
@@ -404,6 +407,7 @@ type captureFrame struct {
 	s         *captureSession
 	res       *seic.ExtImageCopyCaptureFrameV1
 	buffer    *sw.WlBuffer
+	pending   *capture
 	capturing bool
 	done      bool
 	dead      bool
@@ -451,14 +455,14 @@ func (f *captureFrame) Capture(obj *seic.ExtImageCopyCaptureFrameV1) error {
 	if err != nil {
 		return f.fail(seic.ExtImageCopyCaptureFrameV1FailureReasonBufferConstraints)
 	}
-	k := capture{output: o, size: size, clear: opaque, draw: s.c.outputDraw(o, area, s.cursor), target: target}
+	k := &capture{output: o, size: size, clear: opaque, draw: s.c.outputDraw(o, area, s.cursor), target: target}
 	switch {
 	case s.pointer != nil:
 		k.clear, k.draw = render.Color{}, s.c.pointerDraw(o)
 	case s.source.window != nil:
 		k.draw = s.c.windowDraw(s.source.window, s.cursor)
 	}
-	f.capturing = true
+	f.capturing, f.pending = true, k
 	k.waits = func(*region.Set) bool {
 		_, area, _ := s.target()
 		return area.Empty() || (s.captured && s.damage.Empty())

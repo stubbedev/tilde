@@ -394,3 +394,31 @@ func TestCursorSessionsFollowThePointer(t *testing.T) {
 	})
 	c.DispatchUntil("the cursor leaving the output", func() bool { return watch.events[len(watch.events)-1] == "leave" })
 }
+
+func TestADestroyedWaitingFrameLeavesTheDamageToTheNext(t *testing.T) {
+	h := Start(t, small)
+	c := testclient.Connect(t, h.Socket())
+	w := c.Window("captured", quadrants)
+	c.DispatchUntil("the window to map", w.Mapped)
+	quiesce(t, h, c, w)
+	r := newCaptureRig(t, h, c)
+	session, view := r.outputSession(0)
+	r.first(session, view.size)
+
+	gone, frame, gonePix := grab(t, c, session, view.size)
+	settle(t, h)
+	if err := errors.Join(frame.Destroy(), c.Display.Roundtrip()); err != nil {
+		t.Fatal(err)
+	}
+	next, _ := r.waiting(session, view.size)
+	if err := errors.Join(w.Surface.Attach(c.Buffer(w.Logical, 1, quadrants), 0, 0), w.Surface.Damage(0, 0, 4, 4), w.Surface.Commit(), c.Display.Flush()); err != nil {
+		t.Fatal(err)
+	}
+	c.DispatchUntil("the next frame after damage", func() bool { return next.ready || next.failed })
+	if next.failed || !image.Rect(0, 0, 4, 4).In(next.damage) {
+		t.Fatalf("the next frame %+v", *next)
+	}
+	if gone.ready || gone.failed || slices.ContainsFunc(gonePix, func(b byte) bool { return b != 0 }) {
+		t.Fatalf("a destroyed frame was completed (%+v) or painted", *gone)
+	}
+}

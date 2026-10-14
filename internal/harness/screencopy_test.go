@@ -3,6 +3,7 @@ package harness
 import (
 	"errors"
 	"image"
+	"slices"
 	"testing"
 
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
@@ -56,7 +57,7 @@ func rgbAt(pix []byte, stride, x, y int) [3]byte {
 	return [3]byte{pix[i+2], pix[i+1], pix[i]}
 }
 
-func screenshot(t *testing.T, c *testclient.Client, mgr *cwsc.ZwlrScreencopyManagerV1, region image.Rectangle, damage bool) (*copyFrame, []byte) {
+func screenshot(t *testing.T, c *testclient.Client, mgr *cwsc.ZwlrScreencopyManagerV1, region image.Rectangle, damage bool) (*copyFrame, *cwsc.ZwlrScreencopyFrameV1, []byte) {
 	t.Helper()
 	f := &copyFrame{}
 	var frame *cwsc.ZwlrScreencopyFrameV1
@@ -79,7 +80,7 @@ func screenshot(t *testing.T, c *testclient.Client, mgr *cwsc.ZwlrScreencopyMana
 	if err = errors.Join(err, c.Display.Flush()); err != nil {
 		t.Fatal(err)
 	}
-	return f, pix
+	return f, frame, pix
 }
 
 func TestScreencopyCapturesOutputsAndRegions(t *testing.T) {
@@ -94,21 +95,21 @@ func TestScreencopyCapturesOutputsAndRegions(t *testing.T) {
 	}
 	c.Bind("zwlr_screencopy_manager_v1", mgr)
 
-	f, pix := screenshot(t, c, mgr, image.Rectangle{}, false)
+	f, _, pix := screenshot(t, c, mgr, image.Rectangle{}, false)
 	c.DispatchUntil("the full capture", func() bool { return f.ready || f.failed })
 	stride := int(f.stride)
 	if f.failed || f.size != image.Pt(160, 100) || rgbAt(pix, stride, 20, 20) != [3]byte{0xff, 0, 0} || rgbAt(pix, stride, 140, 80) != [3]byte{0xff, 0xff, 0} {
 		t.Fatalf("capture %+v: %v and %v", *f, rgbAt(pix, stride, 20, 20), rgbAt(pix, stride, 140, 80))
 	}
 
-	f, pix = screenshot(t, c, mgr, image.Rect(100, 10, 140, 30), false)
+	f, _, pix = screenshot(t, c, mgr, image.Rect(100, 10, 140, 30), false)
 	c.DispatchUntil("the region capture", func() bool { return f.ready || f.failed })
 	if f.failed || f.size != image.Pt(40, 20) || rgbAt(pix, int(f.stride), 5, 5) != [3]byte{0, 0xff, 0} {
 		t.Fatalf("region capture %+v: %v", *f, rgbAt(pix, int(f.stride), 5, 5))
 	}
 
 	quiesce(t, h, c, w)
-	f, _ = screenshot(t, c, mgr, image.Rectangle{}, true)
+	f, _, _ = screenshot(t, c, mgr, image.Rectangle{}, true)
 	settle(t, h)
 	if err := c.Display.Roundtrip(); err != nil || f.ready {
 		t.Fatalf("a damage capture was ready without damage (%v)", err)
@@ -119,5 +120,31 @@ func TestScreencopyCapturesOutputsAndRegions(t *testing.T) {
 	c.DispatchUntil("the damage capture", func() bool { return f.ready })
 	if !image.Rect(0, 0, 10, 10).In(f.damage) || f.damage == image.Rect(0, 0, 160, 100) {
 		t.Fatalf("a damage capture reported %v", f.damage)
+	}
+}
+
+func TestADestroyedWaitingScreencopyIsNeverPainted(t *testing.T) {
+	h := Start(t, small)
+	c := testclient.Connect(t, h.Socket())
+	w := c.Window("shot", quadrants)
+	c.DispatchUntil("the window to map", w.Mapped)
+	quiesce(t, h, c, w)
+	mgr, err := cwsc.NewZwlrScreencopyManagerV1(c.Display, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Bind("zwlr_screencopy_manager_v1", mgr)
+	gone, frame, gonePix := screenshot(t, c, mgr, image.Rectangle{}, true)
+	settle(t, h)
+	if err := errors.Join(frame.Destroy(), c.Display.Roundtrip()); err != nil {
+		t.Fatal(err)
+	}
+	if err := errors.Join(w.Surface.Attach(c.Buffer(w.Logical, 1, quadrants), 0, 0), w.Surface.Damage(0, 0, 10, 10), w.Surface.Commit(), c.Display.Flush()); err != nil {
+		t.Fatal(err)
+	}
+	settle(t, h)
+	c.Sync()
+	if gone.ready || gone.failed || slices.ContainsFunc(gonePix, func(b byte) bool { return b != 0 }) {
+		t.Fatalf("a destroyed screencopy was completed (%+v) or painted", *gone)
 	}
 }

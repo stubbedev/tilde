@@ -51,6 +51,9 @@ func (m screencopyManager) frame(res *swsc.ZwlrScreencopyFrameV1, cursor bool, w
 	f := &screencopyFrame{c: m.c, cl: m.cl, res: res, cursor: cursor}
 	m.cl.OnDestroy(res, func() error {
 		f.dead = true
+		if f.pending != nil {
+			m.c.cancelCapture(f.pending)
+		}
 		return nil
 	})
 	o := m.c.layout.Owner(wl)
@@ -79,14 +82,15 @@ func (m screencopyManager) frame(res *swsc.ZwlrScreencopyFrameV1, cursor bool, w
 }
 
 type screencopyFrame struct {
-	c      *Compositor
-	cl     *server.Client
-	res    *swsc.ZwlrScreencopyFrameV1
-	output *output.Output
-	region image.Rectangle
-	cursor bool
-	used   bool
-	dead   bool
+	c       *Compositor
+	cl      *server.Client
+	res     *swsc.ZwlrScreencopyFrameV1
+	output  *output.Output
+	region  image.Rectangle
+	cursor  bool
+	used    bool
+	dead    bool
+	pending *capture
 }
 
 func (f *screencopyFrame) Copy(obj *swsc.ZwlrScreencopyFrameV1, wl *sw.WlBuffer) error {
@@ -111,7 +115,8 @@ func (f *screencopyFrame) copy(obj *swsc.ZwlrScreencopyFrameV1, wl *sw.WlBuffer,
 		return obj.ProtocolError(swsc.ZwlrScreencopyFrameV1ErrorInvalidBuffer, err.Error())
 	}
 	var damaged region.Set
-	k := capture{output: f.output, size: f.region.Size(), clear: opaque, draw: f.c.outputDraw(f.output, f.region, f.cursor), target: target}
+	k := &capture{output: f.output, size: f.region.Size(), clear: opaque, draw: f.c.outputDraw(f.output, f.region, f.cursor), target: target}
+	f.pending = k
 	if damage {
 		k.waits = func(d *region.Set) bool {
 			addDamage(&damaged, d, f.region)

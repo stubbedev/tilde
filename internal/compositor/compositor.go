@@ -142,7 +142,7 @@ type Compositor struct {
 	extLists        []*extList
 	wlrManagers     []*wlrManager
 	wsManagers      []*wsManager
-	captures        map[*output.Output][]capture
+	captures        map[*output.Output][]*capture
 	captureSessions []*captureSession
 	cursorSessions  []*cursorSession
 	scannedOut      map[*dmabuf.Buffer]*scannedOut
@@ -208,7 +208,7 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		pointers:      map[cursorKey]*cursorTexture{},
 		hwCursors:     map[*output.Output]*hwCursor{},
 		blanked:       map[*output.Output]bool{},
-		captures:      map[*output.Output][]capture{},
+		captures:      map[*output.Output][]*capture{},
 		scannedOut:    map[*dmabuf.Buffer]*scannedOut{},
 		filled:        map[*output.Output]filling{},
 		constraints:   map[*surface.Surface]*constraint{},

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"slices"
 	"time"
 
 	"github.com/stubbedev/tilde/internal/backend"
@@ -81,7 +82,7 @@ type capture struct {
 	done   func(at time.Duration, err error) error
 }
 
-func (c *Compositor) queueCapture(k capture, waitForDamage bool) error {
+func (c *Compositor) queueCapture(k *capture, waitForDamage bool) error {
 	if c.sceneOf(k.output).drawn && !waitForDamage {
 		return c.runCapture(k)
 	}
@@ -139,8 +140,17 @@ func (c *Compositor) dropCaptures(o *output.Output) error {
 	return errors.Join(errs...)
 }
 
-func (c *Compositor) runCapture(k capture) error {
-	err := k.target.fill(c, k)
+func (c *Compositor) cancelCapture(k *capture) {
+	pending := slices.DeleteFunc(c.captures[k.output], func(x *capture) bool { return x == k })
+	if len(pending) == 0 {
+		delete(c.captures, k.output)
+		return
+	}
+	c.captures[k.output] = pending
+}
+
+func (c *Compositor) runCapture(k *capture) error {
+	err := k.target.fill(c, *k)
 	return k.done(backend.Now(), err)
 }
 
