@@ -77,37 +77,45 @@ func (a *gbmAllocator) allocate(size image.Point, format uint32, modifiers []uin
 	if err != nil {
 		return nil, errors.Join(err, bo.Close())
 	}
-	fb, err := framebuffer(size, format, bo.Modifier, a.modifiers)
+	id, remove, err := importFB(a.dev, bo.DMABUF, a.modifiers)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("drm: %s: %w", a.dev.Path(), err), target.Destroy(), bo.Close())
 	}
-	var handles []uint32
-	release := func() error {
-		var errs []error
-		for _, h := range handles {
-			errs = append(errs, a.dev.CloseHandle(h))
-		}
-		return errors.Join(append(errs, target.Destroy(), bo.Close())...)
+	return &scanout{target: target, fb: id, free: func() error {
+		return errors.Join(remove(), target.Destroy(), bo.Close())
+	}, drop: func() error {
+		return errors.Join(target.Destroy(), bo.Close())
+	}}, nil
+}
+
+func importFB(dev device, d gpu.DMABUF, withModifiers bool) (uint32, func() error, error) {
+	fb, err := framebuffer(d.Size, d.Format, d.Modifier, withModifiers)
+	if err != nil {
+		return 0, nil, err
 	}
-	for i, p := range bo.Planes {
-		h, err := a.dev.PrimeFDToHandle(p.FD)
+	var handles []uint32
+	closeHandles := func() error {
+		errs := make([]error, 0, len(handles))
+		for _, h := range handles {
+			errs = append(errs, dev.CloseHandle(h))
+		}
+		return errors.Join(errs...)
+	}
+	for i, p := range d.Planes {
+		h, err := dev.PrimeFDToHandle(p.FD)
 		if err != nil {
-			return nil, errors.Join(err, release())
+			return 0, nil, errors.Join(err, closeHandles())
 		}
 		if !slices.Contains(handles, h) {
 			handles = append(handles, h)
 		}
 		fb.Handles[i], fb.Pitches[i], fb.Offsets[i] = h, p.Stride, p.Offset
 	}
-	id, err := a.dev.AddFB2(fb)
+	id, err := dev.AddFB2(fb)
 	if err != nil {
-		return nil, errors.Join(err, release())
+		return 0, nil, errors.Join(err, closeHandles())
 	}
-	return &scanout{target: target, fb: id, free: func() error {
-		return errors.Join(a.dev.RemoveFB(id), release())
-	}, drop: func() error {
-		return errors.Join(target.Destroy(), bo.Close())
-	}}, nil
+	return id, func() error { return errors.Join(dev.RemoveFB(id), closeHandles()) }, nil
 }
 
 func framebuffer(size image.Point, format uint32, modifier uint64, withModifiers bool) (kdrm.FB, error) {

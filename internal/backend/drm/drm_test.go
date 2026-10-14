@@ -69,11 +69,22 @@ var modes = []kdrm.Mode{
 func (f *fakeDevice) FD() int { return f.events }
 
 func (f *fakeDevice) Cap(c uint64) (uint64, error) {
-	if c != kdrm.CapCursorWidth && c != kdrm.CapCursorHeight {
-		return 0, fmt.Errorf("unknown cap %#x", c)
+	switch c {
+	case kdrm.CapCursorWidth, kdrm.CapCursorHeight:
+		return 64, nil
+	case kdrm.CapAddFB2Modifiers:
+		return 1, nil
 	}
-	return 64, nil
+	return 0, fmt.Errorf("unknown cap %#x", c)
 }
+
+func (f *fakeDevice) PrimeFDToHandle(fd int) (uint32, error) {
+	return uint32(primeHandles + fd), nil
+}
+
+func (f *fakeDevice) CloseHandle(uint32) error { return nil }
+
+const primeHandles = 1000
 
 func (f *fakeDevice) Resources() (kdrm.Resources, error) {
 	return kdrm.Resources{CRTCs: []uint32{10, 11}, Connectors: []uint32{20}, Encoders: []uint32{30}}, nil
@@ -181,7 +192,8 @@ func (f *fakeDevice) DestroyDumb(b kdrm.Dumb) error {
 }
 
 func (f *fakeDevice) AddFB2(fb kdrm.FB) (uint32, error) {
-	if (fb.Format != cursorFormat && fb.Format != scanoutFormat) || fb.WithModifier || !f.live[fb.Handles[0]] {
+	prime := fb.Handles[0] >= primeHandles && fb.Format == scanoutFormat
+	if !prime && ((fb.Format != cursorFormat && fb.Format != scanoutFormat) || fb.WithModifier || !f.live[fb.Handles[0]]) {
 		return 0, fmt.Errorf("unexpected framebuffer %+v", fb)
 	}
 	f.fbs++
@@ -798,5 +810,41 @@ func TestUnpluggedDevicesDropTheirOutputsWithoutTouchingTheDevice(t *testing.T) 
 	}
 	if err := r.b.Close(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestClientBuffersScanOutUntilTheNextFlip(t *testing.T) {
+	r := start(t)
+	o := r.lit()
+	released := 0
+	client := gpu.DMABUF{Size: image.Pt(1920, 1080), Format: scanoutFormat, Modifier: gpu.ModifierLinear, Planes: []gpu.Plane{{FD: 7, Stride: 1920 * 4}}}
+	ok, err := o.Scanout(client, func() error { released++; return nil })
+	if err != nil || !ok {
+		t.Fatalf("Scanout = %t, %v", ok, err)
+	}
+	shown := r.dev.commits[len(r.dev.commits)-1]
+	fb := shown.values[[2]uint32{40, propFB}]
+	if shown.flags&kdrm.AtomicTestOnly != 0 || r.dev.scanouts[uint32(fb)] != primeHandles+7 {
+		t.Fatalf("the client buffer went out as framebuffer %d with flags %#x", fb, shown.flags)
+	}
+	if again, err := o.Scanout(client, func() error { return nil }); again || err != nil {
+		t.Fatalf("a second scanout during the flip = %t, %v", again, err)
+	}
+	r.dev.flip(t, 10, 2)
+	r.settle()
+	if released != 0 {
+		t.Fatal("the client buffer was released while on screen")
+	}
+	if err := o.ScheduleFrame(); err != nil {
+		t.Fatal(err)
+	}
+	r.settle()
+	r.dev.flip(t, 10, 3)
+	r.settle()
+	if released != 1 {
+		t.Fatalf("the client buffer was released %d times after a frame replaced it", released)
+	}
+	if ok, err := o.Scanout(gpu.DMABUF{Size: image.Pt(640, 480), Format: scanoutFormat}, func() error { return nil }); ok || err != nil {
+		t.Fatalf("a buffer that does not fill the mode scanned out: %t, %v", ok, err)
 	}
 }

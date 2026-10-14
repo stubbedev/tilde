@@ -227,6 +227,10 @@ type Output struct {
 	damage         render.Region
 	removed        bool
 	cursor         *Cursor
+	scanout        bool
+	scanouts       uint64
+	shownRelease   func() error
+	queuedRelease  func() error
 }
 
 func (o *Output) Name() string {
@@ -312,6 +316,28 @@ func (o *Output) Present(damage render.Region) error {
 	return o.arm()
 }
 
+func (o *Output) AllowScanout(on bool) {
+	o.scanout = on
+}
+
+func (o *Output) Scanouts() uint64 {
+	return o.scanouts
+}
+
+func (o *Output) ShowsClientBuffer() bool {
+	return o.shownRelease != nil || o.queuedRelease != nil
+}
+
+func (o *Output) Scanout(d gpu.DMABUF, release func() error) (bool, error) {
+	if !o.scanout || o.removed || !o.state.Enabled || o.state.Off || o.inFrame || o.presentPending || d.Size != o.state.Mode.Size {
+		return false, nil
+	}
+	o.queuedRelease, o.presentPending, o.drawn = release, true, false
+	o.presents++
+	o.scanouts++
+	return true, o.arm()
+}
+
 func (o *Output) Presents() uint64 {
 	return o.presents
 }
@@ -363,6 +389,13 @@ func (o *Output) vblank() error {
 	}
 	if o.presentPending {
 		o.presentPending = false
+		left := o.shownRelease
+		o.shownRelease, o.queuedRelease = o.queuedRelease, nil
+		if left != nil {
+			if err := left(); err != nil {
+				return err
+			}
+		}
 		if err := h.Presented(o, backend.Presentation{Time: now, Refresh: o.state.Mode.Interval(), Seq: o.seq}); err != nil {
 			return err
 		}

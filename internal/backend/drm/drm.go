@@ -43,12 +43,15 @@ type device interface {
 	CreateDumb(size image.Point) (kdrm.Dumb, error)
 	DestroyDumb(b kdrm.Dumb) error
 	AddFB2(fb kdrm.FB) (uint32, error)
+	PrimeFDToHandle(fd int) (uint32, error)
+	CloseHandle(handle uint32) error
 	RemoveFB(id uint32) error
 	Commit(r *kdrm.Request, flags uint32, userData uint64) error
 }
 
 type scanout struct {
 	target    render.Target
+	client    bool
 	fb        uint32
 	prepare   func() error
 	free      func() error
@@ -88,25 +91,31 @@ type plane struct {
 }
 
 type Backend struct {
-	loop    *loop.Loop
-	vendors edid.Vendors
-	dev     device
-	alloc   allocator
-	handler backend.Handler
-	crtcs   []*crtc
-	planes  []*plane
-	outputs []*Output
-	src     *loop.Source
-	req     kdrm.Request
-	events  []byte
-	cursor  image.Point
-	paused  bool
-	closed  bool
-	gone    bool
+	loop      *loop.Loop
+	modifiers bool
+	vendors   edid.Vendors
+	dev       device
+	alloc     allocator
+	handler   backend.Handler
+	crtcs     []*crtc
+	planes    []*plane
+	outputs   []*Output
+	src       *loop.Source
+	req       kdrm.Request
+	events    []byte
+	cursor    image.Point
+	paused    bool
+	closed    bool
+	gone      bool
 }
 
 func newBackend(l *loop.Loop, dev device, alloc allocator, vendors edid.Vendors) (*Backend, error) {
 	b := &Backend{loop: l, dev: dev, alloc: alloc, vendors: vendors, events: make([]byte, eventBuffer)}
+	modifiers, err := dev.Cap(kdrm.CapAddFB2Modifiers)
+	if err != nil {
+		return nil, fmt.Errorf("drm: ADDFB2 modifier support: %w", err)
+	}
+	b.modifiers = modifiers == 1
 	res, err := dev.Resources()
 	if err != nil {
 		return nil, err
@@ -658,6 +667,30 @@ func (o *Output) Present(render.Region) error {
 	return nil
 }
 
+func (o *Output) Scanout(d gpu.DMABUF, release func() error) (bool, error) {
+	if !o.enabled || o.off || o.b.paused || o.modeset || o.drawing != nil || o.flipping || d.Size != modeOf(o.mode).Size {
+		return false, nil
+	}
+	fb, remove, err := importFB(o.b.dev, d, o.b.modifiers)
+	if err != nil {
+		return false, nil
+	}
+	s := &scanout{client: true, fb: fb, free: func() error { return errors.Join(remove(), release()) }, drop: release}
+	flags := uint32(kdrm.AtomicNonblock | kdrm.AtomicPageFlipEvent)
+	o.frame(s, -1)
+	if o.test(flags) != nil {
+		return false, remove()
+	}
+	if err := o.b.dev.Commit(&o.b.req, flags, uint64(o.crtc.id)); err != nil {
+		return false, errors.Join(fmt.Errorf("drm: commit a client buffer on %s: %w", o.Name(), err), remove())
+	}
+	if o.cursor != nil {
+		o.cursor.sent()
+	}
+	o.lit, o.flipping, o.queued = true, true, s
+	return true, nil
+}
+
 func (o *Output) submit(s *scanout, fence int, flags uint32) error {
 	o.frame(s, fence)
 	err := o.test(flags)
@@ -754,17 +787,30 @@ func (o *Output) flipped(e kdrm.FlipEvent) error {
 		o.maybeFrame()
 		return o.flushCursor()
 	}
+	var errs []error
+	if old := o.front; old != nil && old.client {
+		errs = append(errs, old.free())
+	}
 	o.front, o.queued = o.queued, nil
 	o.presented++
 	o.front.presented = o.presented
 	t := time.Duration(e.Sec)*time.Second + time.Duration(e.Usec)*time.Microsecond
-	err := o.b.handler.Presented(o, backend.Presentation{Time: t, Refresh: modeOf(o.mode).Interval(), Seq: uint64(e.Sequence)})
+	errs = append(errs, o.b.handler.Presented(o, backend.Presentation{Time: t, Refresh: modeOf(o.mode).Interval(), Seq: uint64(e.Sequence)}))
 	o.maybeFrame()
-	return errors.Join(err, o.flushCursor())
+	return errors.Join(append(errs, o.flushCursor())...)
 }
 
 func (o *Output) freeBuffers() error {
 	var errs []error
+	for _, s := range []*scanout{o.front, o.queued} {
+		if s != nil && s.client {
+			if o.b.gone {
+				errs = append(errs, s.drop())
+			} else {
+				errs = append(errs, s.free())
+			}
+		}
+	}
 	for _, s := range o.buffers {
 		if o.b.gone {
 			errs = append(errs, s.drop())

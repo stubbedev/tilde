@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/render"
 )
 
@@ -75,6 +76,10 @@ type Presentation struct {
 }
 
 var ErrNoCursorPlanes = errors.New("backend: this backend draws the cursor in the frame")
+
+type Scanner interface {
+	Scanout(b gpu.DMABUF, release func() error) (bool, error)
+}
 
 type CursorPlane interface {
 	CursorSize() image.Point
