@@ -90,7 +90,7 @@ func (s *Server) Close() error {
 		err = s.ln.Close()
 		s.mu.Lock()
 		for c := range s.conns {
-			_ = c.Close()
+			_ = c.CloseRead()
 		}
 		s.mu.Unlock()
 		s.wg.Wait()
