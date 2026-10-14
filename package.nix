@@ -42,6 +42,7 @@ buildGo127Module {
 
   postInstall = ''
     install -Dm644 packaging/systemd/tilde-session.target $out/share/systemd/user/tilde-session.target
+    install -Dm644 packaging/xdg-desktop-portal/tilde-portals.conf $out/share/xdg-desktop-portal/tilde-portals.conf
   '';
 
   # The test suite is pure Go and safe to run in the sandbox.

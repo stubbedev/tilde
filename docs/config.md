@@ -232,3 +232,9 @@ cannot unset a variable, so the activation environment keeps them.
 A display manager session should run `tilde --systemd`. Leave the flag off
 when running tilde nested in another session, which owns
 `graphical-session.target`.
+
+Portals follow `XDG_CURRENT_DESKTOP=tilde`: the package installs
+`tilde-portals.conf`, which routes every portal to wayle's backend and falls
+back to xdg-desktop-portal-wlr for screen sharing and screenshots and to
+xdg-desktop-portal-gtk for the rest. Portal backends are started by D-Bus
+activation, so they reach the session only when tilde runs with `--systemd`.

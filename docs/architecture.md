@@ -181,6 +181,27 @@ the state. With no watcher connected, nothing is snapshotted. A watcher
 that falls 256 events behind is disconnected rather than buffered without
 bound. [`docs/ipc.md`](ipc.md) has the protocol.
 
+## Portals
+
+tilde ships no portal backend of its own (#57). It sets
+`XDG_CURRENT_DESKTOP=tilde`, and the package installs
+`share/xdg-desktop-portal/tilde-portals.conf`, which xdg-desktop-portal reads
+for that desktop:
+
+| Interface | Backends, in order |
+| --- | --- |
+| ScreenCast, Screenshot | wayle, then xdg-desktop-portal-wlr |
+| everything else | wayle, then xdg-desktop-portal-gtk |
+
+wayle's portal is the shell the session runs anyway. It implements every
+portal interface without depending on a compositor: it captures through
+ext-image-copy-capture or wlr-screencopy (#53), names windows by their
+ext-foreign-toplevel identifier and outputs by connector name, and drives
+RemoteDesktop through the virtual keyboard and pointer protocols (#52).
+xdg-desktop-portal-wlr speaks wlr-screencopy, so screen sharing still works
+without wayle. GlobalShortcuts needs `hyprland-global-shortcuts-v1` in the
+compositor (#89).
+
 ## Packages
 
 Everything lives under `internal/` except the commands.
