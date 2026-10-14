@@ -2,6 +2,7 @@ package wlclient
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -105,6 +106,32 @@ func TestProtocolErrorEvent(t *testing.T) {
 	var pe *wire.ProtocolError
 	if err := d.Dispatch(); !errors.As(err, &pe) || pe.Object != 1 || pe.Code != 3 || pe.Message != "boom" {
 		t.Fatalf("Dispatch = %v, want the protocol error", err)
+	}
+}
+
+func TestProtocolErrorBeforeTheServerCloses(t *testing.T) {
+	d, server := pair(t)
+	emit(t, server, 1, 0, func(e *wire.Encoder) {
+		e.Object(1)
+		e.Uint(7)
+		e.Str("gone")
+	})
+	if err := server.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var pe *wire.ProtocolError
+	if err := d.Roundtrip(); !errors.As(err, &pe) || pe.Code != 7 {
+		t.Fatalf("Roundtrip = %v, want the protocol error the server sent before closing", err)
+	}
+}
+
+func TestServerClosedWithoutAnError(t *testing.T) {
+	d, server := pair(t)
+	if err := server.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Roundtrip(); err == nil || !strings.Contains(err.Error(), "server closed the connection") {
+		t.Fatalf("Roundtrip = %v, want the closed connection", err)
 	}
 }
 

@@ -153,8 +153,12 @@ func (d *Display) poll(events int16) error {
 	}
 }
 
+func closedByPeer(err error) bool {
+	return errors.Is(err, unix.EPIPE) || errors.Is(err, unix.ECONNRESET)
+}
+
 func (d *Display) Dispatch() error {
-	if err := d.Flush(); err != nil {
+	if err := d.Flush(); err != nil && !closedByPeer(err) {
 		return err
 	}
 	if err := d.poll(unix.POLLIN); err != nil {
