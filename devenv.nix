@@ -19,6 +19,7 @@
       govulncheck
       git
       gh
+      mesa-demos
     ]
     ++ import ./nix/test-programs.nix {
       inherit pkgs;

@@ -15,6 +15,13 @@ nix build -L
 After every push, watch CI until it is green (`gh run watch`). A red `main`
 is fixed before anything else lands.
 
+The dev shell runs the GPU tests on Mesa's llvmpipe. On a machine with a GPU,
+run `just hardware` after changes to rendering, DRM, dmabuf, capture or frame
+pacing: it runs the GPU, DRM-without-master and GLES harness tests on the
+host's own EGL driver, then measures es2gears against headless GLES tilde in a
+private runtime dir (Xwayland off) and fails below `min_fps` (57 by default,
+for the 60 Hz headless output).
+
 ## The tracker
 
 GitHub is the only tracker. Nothing is planned in local files or chat.

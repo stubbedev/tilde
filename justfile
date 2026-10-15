@@ -20,6 +20,46 @@ headless_packages := "./internal/harness/... ./internal/backend/nested/... ./int
 headless:
     TILDE_HEADLESS=1 go test -count=1 {{headless_packages}}
 
+# The tests that need a real GPU, and the GLES harness tests, which the dev
+# shell otherwise runs on Mesa's llvmpipe.
+hardware_tests := "OnHardware|WithoutMaster|TestAStackOnARenderNode|TestDMABUFClientsOnTheGLESRenderer|TestImageCopyCaptureIntoDMABUFs|TestFullscreenDMABUFsScanOutDirectly|TestDestroyingAReplacedBufferStillOnScreenSendsNoRelease|TestAFullscreenSurfaceIsOfferedThePlaneFormats"
+
+# Run the GPU tests on the host's own EGL vendors instead of the dev shell's
+# Mesa, then check frame pacing: headless GLES tilde in a private runtime dir,
+# with Xwayland off, runs es2gears_wayland and fails below min_fps.
+hardware min_fps="57":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    unset __EGL_VENDOR_LIBRARY_DIRS LIBGL_ALWAYS_SOFTWARE
+    TILDE_HEADLESS=1 go test -count=1 -v -run '{{hardware_tests}}' ./internal/render/gles/ ./internal/backend/drm/ ./internal/harness/ | grep -E '^(--- |ok|FAIL)|_test.go'
+    dir=$(mktemp -d)
+    trap 'rm -rf "$dir"' EXIT
+    mkdir -m 0700 "$dir/run"
+    go build -o "$dir/tilde" ./cmd/tilde
+    printf 'xwayland:\n  enabled: false\n' > "$dir/config.yaml"
+    XDG_RUNTIME_DIR="$dir/run" WAYLAND_DISPLAY= "$dir/tilde" -backend headless -renderer gles -config "$dir/config.yaml" 2> "$dir/tilde.log" &
+    tilde=$!
+    trap 'kill "$tilde" 2>/dev/null || true; wait "$tilde" 2>/dev/null || true; rm -rf "$dir"' EXIT
+    for _ in $(seq 50); do
+        socket=$(find "$dir/run" -maxdepth 1 -name 'wayland-*' ! -name '*.lock' -printf '%f\n' | head -1)
+        [[ -n "$socket" ]] && break
+        sleep 0.1
+    done
+    if [[ -z "$socket" ]]; then
+        echo "hardware: tilde did not start" >&2
+        cat "$dir/tilde.log" >&2
+        exit 1
+    fi
+    XDG_RUNTIME_DIR="$dir/run" WAYLAND_DISPLAY="$socket" timeout 12 stdbuf -oL es2gears_wayland > "$dir/gears.log" 2>&1 || true
+    cat "$dir/gears.log"
+    fps=$(grep -oE '= [0-9.]+ FPS' "$dir/gears.log" | tail -1 | grep -oE '[0-9.]+' || true)
+    if [[ -z "$fps" ]]; then
+        echo "hardware: es2gears_wayland reported no frame rate" >&2
+        exit 1
+    fi
+    echo "pacing: $fps fps on headless GLES tilde at 60 Hz"
+    awk -v fps="$fps" -v min="{{min_fps}}" 'BEGIN { exit !(fps >= min) }' || { echo "hardware: $fps fps is below {{min_fps}}" >&2; exit 1; }
+
 # Fuzz the compositor with raw clients that bind every global and send
 # requests with valid headers and arbitrary arguments. The gates run only the
 # seed corpus; this explores for as long as asked.
