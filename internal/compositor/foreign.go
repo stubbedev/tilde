@@ -227,7 +227,7 @@ func (c *Compositor) updateWlrHandle(m *wlrManager, h *wlrHandle, now foreignSta
 func (c *Compositor) gone[H any](handles map[*window]H) []*window {
 	var out []*window
 	for w := range handles {
-		if !slices.Contains(c.windows, w) {
+		if !c.live(w) {
 			out = append(out, w)
 		}
 	}
@@ -252,7 +252,7 @@ type wlrHandleRequests struct {
 }
 
 func (r wlrHandleRequests) live() bool {
-	return slices.Contains(r.c.windows, r.w)
+	return r.c.live(r.w)
 }
 
 func (r wlrHandleRequests) Activate(*swft.ZwlrForeignToplevelHandleV1, *sw.WlSeat) error {

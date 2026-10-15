@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/stubbedev/tilde/internal/backend"
 	spc "github.com/stubbedev/tilde/internal/protocol/server/pointerconstraints"
@@ -260,17 +261,11 @@ func (c *Compositor) ownedByFocus(s *surface.Surface) bool {
 	if s == focus {
 		return true
 	}
-	for _, w := range c.windows {
-		if w.top.Surface() != focus {
-			continue
-		}
-		for _, pp := range c.popups(w) {
-			if pp.popup.Surface() == s {
-				return true
-			}
-		}
+	w := c.windowWithSurface(focus)
+	if w == nil {
+		return false
 	}
-	return false
+	return slices.ContainsFunc(c.popups(w), func(pp placedPopup) bool { return pp.popup.Surface() == s })
 }
 
 func (c *Compositor) eligibleConstraint() *constraint {

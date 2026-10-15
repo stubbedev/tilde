@@ -27,11 +27,8 @@ func (b bell) Ring(_ *ssb.XdgSystemBellV1, wl *sw.WlSurface) error {
 	if err != nil {
 		return err
 	}
-	c := b.c
-	for _, w := range c.windows {
-		if w.top.Surface() == s {
-			return c.markUrgent(w)
-		}
+	if w := b.c.windowWithSurface(s); w != nil {
+		return b.c.markUrgent(w)
 	}
 	return nil
 }

@@ -30,18 +30,17 @@ func (c *Compositor) tears(s *surface.Surface) bool {
 	if !c.tearing {
 		return false
 	}
-	for _, w := range c.windows {
-		if w.top.Surface() == s {
-			switch wm.Decide(c.rules, w.top.AppID(), w.top.Title()).Tearing {
-			case wm.TearingAllow:
-				return true
-			case wm.TearingDeny:
-				return false
-			}
-			return c.tearingHints.Async(s)
-		}
+	w := c.windowWithSurface(s)
+	if w == nil {
+		return false
 	}
-	return false
+	switch wm.Decide(c.rules, w.top.AppID(), w.top.Title()).Tearing {
+	case wm.TearingAllow:
+		return true
+	case wm.TearingDeny:
+		return false
+	}
+	return c.tearingHints.Async(s)
 }
 
 func (c *Compositor) showing(s *surface.Surface) bool {

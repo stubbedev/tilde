@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"slices"
 	"time"
 
 	"github.com/stubbedev/tilde/internal/dmabuf"
@@ -280,7 +279,7 @@ func (src outputSource) paint(c *Compositor, o *output.Output, area image.Rectan
 
 func (src windowSource) area(c *Compositor) (*output.Output, image.Rectangle, bool) {
 	w := src.window
-	if !slices.Contains(c.windows, w) || w.output == nil {
+	if !c.live(w) || w.output == nil {
 		return nil, image.Rectangle{}, false
 	}
 	return w.output, c.windowRegion(w), true

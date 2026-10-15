@@ -41,22 +41,27 @@ func (c *Compositor) firstOutput() *output.Output {
 	return c.outputs[0]
 }
 
-func (c *Compositor) windowOf(t toplevel) *window {
-	for _, w := range c.windows {
-		if w.top == t {
-			return w
-		}
+func (c *Compositor) findWindow(match func(w *window) bool) *window {
+	if i := slices.IndexFunc(c.windows, match); i >= 0 {
+		return c.windows[i]
 	}
 	return nil
 }
 
+func (c *Compositor) windowOf(t toplevel) *window {
+	return c.findWindow(func(w *window) bool { return w.top == t })
+}
+
 func (c *Compositor) windowByID(id wm.WindowID) *window {
-	for _, w := range c.windows {
-		if w.id == id {
-			return w
-		}
-	}
-	return nil
+	return c.findWindow(func(w *window) bool { return w.id == id })
+}
+
+func (c *Compositor) windowWithSurface(s *surface.Surface) *window {
+	return c.findWindow(func(w *window) bool { return w.top.Surface() == s })
+}
+
+func (c *Compositor) live(w *window) bool {
+	return slices.Contains(c.windows, w)
 }
 
 func (c *Compositor) Toplevels() []*shell.Toplevel {
