@@ -88,7 +88,7 @@ func (r extListRequests) Stop(*sel.ExtForeignToplevelListV1) error {
 		return nil
 	}
 	r.l.stopped = true
-	return r.l.client.Sent(r.l.resource.SendFinished())
+	return r.l.resource.SendFinished()
 }
 
 func (extListRequests) Destroy(*sel.ExtForeignToplevelListV1) error {
@@ -107,7 +107,7 @@ func (c *Compositor) syncExtList(l *extList) error {
 	}
 	var errs []error
 	for _, w := range c.gone(l.handles) {
-		errs = append(errs, l.client.Sent(l.handles[w].resource.SendClosed()))
+		errs = append(errs, l.handles[w].resource.SendClosed())
 		delete(l.handles, w)
 	}
 	for _, w := range c.windows {
@@ -116,16 +116,16 @@ func (c *Compositor) syncExtList(l *extList) error {
 		if !ok {
 			res, err := l.resource.SendToplevel(extHandleRequests{})
 			if err != nil {
-				errs = append(errs, l.client.Sent(err))
+				errs = append(errs, err)
 				continue
 			}
 			h = &extHandle{resource: res}
 			l.handles[w] = h
-			errs = append(errs, l.client.Sent(res.SendIdentifier(fmt.Sprintf("tilde-%d", w.id))))
+			errs = append(errs, res.SendIdentifier(fmt.Sprintf("tilde-%d", w.id)))
 		} else if h.sent.title == now.title && h.sent.appID == now.appID {
 			continue
 		}
-		errs = append(errs, l.client.Sent(errors.Join(h.resource.SendTitle(now.title), h.resource.SendAppID(now.appID), h.resource.SendDone())))
+		errs = append(errs, errors.Join(h.resource.SendTitle(now.title), h.resource.SendAppID(now.appID), h.resource.SendDone()))
 		h.sent = now
 	}
 	return errors.Join(errs...)
@@ -144,7 +144,7 @@ func (c *Compositor) bindWlrToplevels(cl *server.Client, id wire.ObjectID, versi
 type wlrManagerRequests struct{ m *wlrManager }
 
 func (r wlrManagerRequests) Stop(*swft.ZwlrForeignToplevelManagerV1) error {
-	return r.m.client.Sent(r.m.resource.SendFinished())
+	return r.m.resource.SendFinished()
 }
 
 func wlrStates(s foreignState) []byte {
@@ -161,7 +161,7 @@ func wlrStates(s foreignState) []byte {
 func (c *Compositor) syncWlrManager(m *wlrManager) error {
 	var errs []error
 	for _, w := range c.gone(m.handles) {
-		errs = append(errs, m.client.Sent(m.handles[w].resource.SendClosed()))
+		errs = append(errs, m.handles[w].resource.SendClosed())
 		delete(m.handles, w)
 	}
 	for _, w := range c.windows {
@@ -170,7 +170,7 @@ func (c *Compositor) syncWlrManager(m *wlrManager) error {
 		}
 		res, err := m.resource.SendToplevel(wlrHandleRequests{c, w})
 		if err != nil {
-			errs = append(errs, m.client.Sent(err))
+			errs = append(errs, err)
 			continue
 		}
 		m.handles[w] = &wlrHandle{resource: res, fresh: true}
@@ -180,7 +180,7 @@ func (c *Compositor) syncWlrManager(m *wlrManager) error {
 		if h == nil {
 			continue
 		}
-		errs = append(errs, m.client.Sent(c.updateWlrHandle(m, h, c.foreignStateOf(w))))
+		errs = append(errs, c.updateWlrHandle(m, h, c.foreignStateOf(w)))
 	}
 	return errors.Join(errs...)
 }

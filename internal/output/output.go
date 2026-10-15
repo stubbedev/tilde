@@ -140,7 +140,7 @@ func (m *Manager) resend(which func(*Output) bool) error {
 		}
 		for _, b := range o.bindings {
 			if m.seesPhysical(b.client) {
-				errs = append(errs, b.client.Sent(o.send(b)))
+				errs = append(errs, o.send(b))
 			}
 		}
 	}
@@ -230,7 +230,7 @@ func (o *Output) Update(position image.Point, scale Scale) error {
 func (o *Output) Changed() error {
 	var errs []error
 	for _, b := range o.bindings {
-		errs = append(errs, b.client.Sent(o.send(b)))
+		errs = append(errs, o.send(b))
 	}
 	return errors.Join(errs...)
 }

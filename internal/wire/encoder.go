@@ -167,6 +167,9 @@ func (e *Encoder) End() error {
 			return nil
 		}
 		c.broken(e.err)
+		if c.defers {
+			return nil
+		}
 		return e.err
 	}
 	size := len(c.out) - e.start

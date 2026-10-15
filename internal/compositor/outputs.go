@@ -255,7 +255,7 @@ func (c *Compositor) disable(o *output.Output) error {
 	errs = append(errs, c.dropLabels(o), c.power.Removed(o), c.gamma.Removed(o))
 	for _, e := range c.entered {
 		if slices.Contains(e.outputs, o) {
-			errs = append(errs, e.s.Client().Sent(e.s.Leave(o.Resources(e.s.Client()))))
+			errs = append(errs, e.s.Leave(o.Resources(e.s.Client())))
 			e.outputs = slices.DeleteFunc(e.outputs, func(x *output.Output) bool { return x == o })
 		}
 	}

@@ -60,8 +60,9 @@ func (swipeObject) Destroy(*spg.ZwpPointerGestureSwipeV1) error { return nil }
 func (pinchObject) Destroy(*spg.ZwpPointerGesturePinchV1) error { return nil }
 func (holdObject) Destroy(*spg.ZwpPointerGestureHoldV1) error   { return nil }
 
-func (s *Seat) gestureTarget() (*server.Client, *clientResources) {
-	return s.resourcesAt(s.gesture.surface)
+func (s *Seat) gestureTarget() *clientResources {
+	_, r := s.resourcesAt(s.gesture.surface)
+	return r
 }
 
 func (s *Seat) GestureBegin(at time.Duration, kind backend.Gesture, fingers uint32) error {
@@ -74,7 +75,7 @@ func (s *Seat) GestureBegin(at time.Duration, kind backend.Gesture, fingers uint
 		return nil
 	}
 	s.gesture = gestureState{kind: kind, surface: s.pointer.focus}
-	c, r := s.gestureTarget()
+	r := s.gestureTarget()
 	if r == nil {
 		return nil
 	}
@@ -83,15 +84,15 @@ func (s *Seat) GestureBegin(at time.Duration, kind backend.Gesture, fingers uint
 	switch kind {
 	case backend.Swipe:
 		for _, g := range r.swipes {
-			errs = append(errs, c.Sent(g.SendBegin(serial, ms, wl, fingers)))
+			errs = append(errs, g.SendBegin(serial, ms, wl, fingers))
 		}
 	case backend.Pinch:
 		for _, g := range r.pinches {
-			errs = append(errs, c.Sent(g.SendBegin(serial, ms, wl, fingers)))
+			errs = append(errs, g.SendBegin(serial, ms, wl, fingers))
 		}
 	case backend.Hold:
 		for _, g := range r.holds {
-			errs = append(errs, c.Sent(g.SendBegin(serial, ms, wl, fingers)))
+			errs = append(errs, g.SendBegin(serial, ms, wl, fingers))
 		}
 	default:
 		return fmt.Errorf("seat: gesture %d is neither swipe, pinch nor hold", kind)
@@ -100,31 +101,31 @@ func (s *Seat) GestureBegin(at time.Duration, kind backend.Gesture, fingers uint
 }
 
 func (s *Seat) SwipeUpdate(at time.Duration, dx, dy float64) error {
-	c, r := s.gestureTarget()
+	r := s.gestureTarget()
 	if r == nil || s.gesture.kind != backend.Swipe {
 		return nil
 	}
 	errs := make([]error, 0, len(r.swipes))
 	for _, g := range r.swipes {
-		errs = append(errs, c.Sent(g.SendUpdate(wire.Millis(at), wire.FixedFromFloat(dx), wire.FixedFromFloat(dy))))
+		errs = append(errs, g.SendUpdate(wire.Millis(at), wire.FixedFromFloat(dx), wire.FixedFromFloat(dy)))
 	}
 	return errors.Join(errs...)
 }
 
 func (s *Seat) PinchUpdate(at time.Duration, dx, dy, scale, rotation float64) error {
-	c, r := s.gestureTarget()
+	r := s.gestureTarget()
 	if r == nil || s.gesture.kind != backend.Pinch {
 		return nil
 	}
 	errs := make([]error, 0, len(r.pinches))
 	for _, g := range r.pinches {
-		errs = append(errs, c.Sent(g.SendUpdate(wire.Millis(at), wire.FixedFromFloat(dx), wire.FixedFromFloat(dy), wire.FixedFromFloat(scale), wire.FixedFromFloat(rotation))))
+		errs = append(errs, g.SendUpdate(wire.Millis(at), wire.FixedFromFloat(dx), wire.FixedFromFloat(dy), wire.FixedFromFloat(scale), wire.FixedFromFloat(rotation)))
 	}
 	return errors.Join(errs...)
 }
 
 func (s *Seat) GestureEnd(at time.Duration, kind backend.Gesture, cancelled bool) error {
-	c, r := s.gestureTarget()
+	r := s.gestureTarget()
 	active := s.gesture.kind
 	s.gesture = gestureState{}
 	if r == nil || active != kind {
@@ -138,15 +139,15 @@ func (s *Seat) GestureEnd(at time.Duration, kind backend.Gesture, cancelled bool
 	switch kind {
 	case backend.Swipe:
 		for _, g := range r.swipes {
-			errs = append(errs, c.Sent(g.SendEnd(serial, ms, flag)))
+			errs = append(errs, g.SendEnd(serial, ms, flag))
 		}
 	case backend.Pinch:
 		for _, g := range r.pinches {
-			errs = append(errs, c.Sent(g.SendEnd(serial, ms, flag)))
+			errs = append(errs, g.SendEnd(serial, ms, flag))
 		}
 	case backend.Hold:
 		for _, g := range r.holds {
-			errs = append(errs, c.Sent(g.SendEnd(serial, ms, flag)))
+			errs = append(errs, g.SendEnd(serial, ms, flag))
 		}
 	}
 	return errors.Join(errs...)

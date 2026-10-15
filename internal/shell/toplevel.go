@@ -98,9 +98,8 @@ func (t *Toplevel) Configure(s State) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	c := t.xs.base.client
 	if t.resource.Base().Version() >= 4 && s.Bounds != (image.Point{}) {
-		if err := c.Sent(t.resource.SendConfigureBounds(boundsW, boundsH)); err != nil {
+		if err := t.resource.SendConfigureBounds(boundsW, boundsH); err != nil {
 			return 0, err
 		}
 	}
@@ -111,7 +110,7 @@ func (t *Toplevel) Configure(s State) (uint32, error) {
 		}
 		states = binary.NativeEndian.AppendUint32(states, uint32(st))
 	}
-	if err := c.Sent(t.resource.SendConfigure(width, height, states)); err != nil {
+	if err := t.resource.SendConfigure(width, height, states); err != nil {
 		return 0, err
 	}
 	serial, err := t.xs.sendConfigure()
@@ -123,7 +122,7 @@ func (t *Toplevel) Configure(s State) (uint32, error) {
 }
 
 func (t *Toplevel) SendClose() error {
-	return t.xs.base.client.Sent(t.resource.SendClose())
+	return t.resource.SendClose()
 }
 
 func (t *Toplevel) Ping() error {

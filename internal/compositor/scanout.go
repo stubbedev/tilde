@@ -114,7 +114,7 @@ func (c *Compositor) leftScreen(b *dmabuf.Buffer) error {
 	delete(c.scannedOut, b)
 	errs := make([]error, 0, len(held.then)+1)
 	if held.released != nil {
-		errs = append(errs, held.released.Sent(b.Release()))
+		errs = append(errs, b.Release())
 	}
 	for _, f := range held.then {
 		errs = append(errs, f())
@@ -136,7 +136,7 @@ func (c *Compositor) releaseBuffer(b *dmabuf.Buffer, client *server.Client) erro
 		held.released = client
 		return nil
 	}
-	return client.Sent(b.Release())
+	return b.Release()
 }
 
 func (c *Compositor) scanoutBufferGone(b *dmabuf.Buffer) {

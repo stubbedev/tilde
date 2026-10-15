@@ -27,9 +27,9 @@ func (*globalShortcut) Destroy(*shgs.HyprlandGlobalShortcutV1) error { return ni
 func (g *globalShortcut) send(pressed bool) error {
 	now := wire.TimespecOf(backend.Now())
 	if pressed {
-		return g.cl.Sent(g.res.SendPressed(now.SecHi, now.SecLo, now.Nsec))
+		return g.res.SendPressed(now.SecHi, now.SecLo, now.Nsec)
 	}
-	return g.cl.Sent(g.res.SendReleased(now.SecHi, now.SecLo, now.Nsec))
+	return g.res.SendReleased(now.SecHi, now.SecLo, now.Nsec)
 }
 
 type heldShortcut struct {

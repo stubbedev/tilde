@@ -363,7 +363,7 @@ func (c *Compositor) ToplevelRequest(t *shell.Toplevel, r shell.Request) error {
 		return c.update(c.wm.SetFullscreen(w.id, r.On))
 	case shell.SetMaximized:
 		_, err := t.Configure(t.Requested())
-		return t.Surface().Client().Sent(err)
+		return err
 	}
 	return nil
 }

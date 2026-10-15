@@ -91,7 +91,7 @@ func (s *Seat) SetPointerFocus(target *surface.Surface, x, y float64) error {
 	var errs []error
 	if c, pointers := s.focusPointers(); c != nil {
 		for _, ptr := range pointers {
-			errs = append(errs, c.Sent(ptr.SendLeave(s.display.NextSerial(), p.focus.Resource())))
+			errs = append(errs, ptr.SendLeave(s.display.NextSerial(), p.focus.Resource()))
 		}
 		if !slices.Contains(p.framed, c) {
 			p.framed = append(p.framed, c)
@@ -101,17 +101,17 @@ func (s *Seat) SetPointerFocus(target *surface.Surface, x, y float64) error {
 	if c, pointers := s.focusPointers(); c != nil {
 		p.enterSerial = s.display.NextSerial()
 		for _, ptr := range pointers {
-			errs = append(errs, c.Sent(ptr.SendEnter(p.enterSerial, target.Resource(), wire.FixedFromFloat(x), wire.FixedFromFloat(y))))
+			errs = append(errs, ptr.SendEnter(p.enterSerial, target.Resource(), wire.FixedFromFloat(x), wire.FixedFromFloat(y)))
 		}
 	}
 	return errors.Join(append(errs, s.listener.PointerFocusChanged(target))...)
 }
 
 func (s *Seat) PointerMotion(at time.Duration, x, y float64) error {
-	c, pointers := s.focusPointers()
+	_, pointers := s.focusPointers()
 	var errs []error
 	for _, ptr := range pointers {
-		errs = append(errs, c.Sent(ptr.SendMotion(wire.Millis(at), wire.FixedFromFloat(x), wire.FixedFromFloat(y))))
+		errs = append(errs, ptr.SendMotion(wire.Millis(at), wire.FixedFromFloat(x), wire.FixedFromFloat(y)))
 	}
 	return errors.Join(errs...)
 }
@@ -138,16 +138,16 @@ func (s *Seat) PointerButton(at time.Duration, button uint32, pressed bool) erro
 	serial := s.eventSerial(c, pressed)
 	var errs []error
 	for _, ptr := range pointers {
-		errs = append(errs, c.Sent(ptr.SendButton(serial, wire.Millis(at), button, state)))
+		errs = append(errs, ptr.SendButton(serial, wire.Millis(at), button, state))
 	}
 	return errors.Join(errs...)
 }
 
 func (s *Seat) PointerAxis(at time.Duration, a Axis) error {
-	c, pointers := s.focusPointers()
+	_, pointers := s.focusPointers()
 	var errs []error
 	for _, ptr := range pointers {
-		errs = append(errs, c.Sent(s.sendAxis(ptr, at, a)))
+		errs = append(errs, s.sendAxis(ptr, at, a))
 	}
 	return errors.Join(errs...)
 }
@@ -196,7 +196,7 @@ func (s *Seat) PointerFrame() error {
 		}
 		for _, ptr := range r.pointers {
 			if ptr.Base().Version() >= 5 {
-				errs = append(errs, c.Sent(ptr.SendFrame()))
+				errs = append(errs, ptr.SendFrame())
 			}
 		}
 	}

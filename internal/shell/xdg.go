@@ -192,7 +192,7 @@ func (b *wmBase) Ping() error {
 		}
 	}
 	b.ping = b.shell.display.NextSerial()
-	if err := b.client.Sent(b.resource.SendPing(b.ping)); err != nil {
+	if err := b.resource.SendPing(b.ping); err != nil {
 		return err
 	}
 	return b.timer.Arm(b.shell.pingTimeout)
@@ -316,7 +316,7 @@ func (xs *XdgSurface) Destroy(obj *sxdg.XdgSurface) error {
 
 func (xs *XdgSurface) sendConfigure() (uint32, error) {
 	serial := xs.base.shell.display.NextSerial()
-	return serial, xs.base.client.Sent(xs.resource.SendConfigure(serial))
+	return serial, xs.resource.SendConfigure(serial)
 }
 
 func (xs *XdgSurface) setSubRole(obj *sxdg.XdgSurface, role string) error {

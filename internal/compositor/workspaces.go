@@ -74,7 +74,7 @@ func (r wsManagerRequests) Commit(*sew.ExtWorkspaceManagerV1) error {
 }
 
 func (r wsManagerRequests) Stop(*sew.ExtWorkspaceManagerV1) error {
-	return r.m.client.Sent(r.m.resource.SendFinished())
+	return r.m.resource.SendFinished()
 }
 
 type wsGroupRequests struct{}
@@ -143,7 +143,7 @@ func (c *Compositor) syncWorkspaceManager(m *wsManager) error {
 	var errs []error
 	sent := func(err error) {
 		changed = true
-		errs = append(errs, cl.Sent(err))
+		errs = append(errs, err)
 	}
 	outputs := map[string]bool{}
 	for _, o := range c.outputs {
@@ -207,7 +207,7 @@ func (c *Compositor) syncWorkspaceManager(m *wsManager) error {
 		}
 	}
 	if changed {
-		errs = append(errs, cl.Sent(m.resource.SendDone()))
+		errs = append(errs, m.resource.SendDone())
 	}
 	return errors.Join(errs...)
 }

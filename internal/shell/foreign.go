@@ -170,7 +170,7 @@ func (x exporterV2) ExportToplevel(obj *sxf2.ZxdgExporterV2, res *sxf2.ZxdgExpor
 		return nil, err
 	}
 	server.OnDestroy(res, func() error { return x.sh.unexport(e) })
-	return exportedV2{}, x.c.Sent(res.SendHandle(e.handle))
+	return exportedV2{}, res.SendHandle(e.handle)
 }
 
 type exportedV2 struct{}
@@ -190,7 +190,7 @@ type importerV2 struct {
 func (importerV2) Destroy(*sxf2.ZxdgImporterV2) error { return nil }
 
 func (x importerV2) ImportToplevel(_ *sxf2.ZxdgImporterV2, res *sxf2.ZxdgImportedV2, handle string) (sxf2.ZxdgImportedV2Handler, error) {
-	imp, err := x.sh.importHandle(res, handle, func() error { return x.c.Sent(res.SendDestroyed()) })
+	imp, err := x.sh.importHandle(res, handle, func() error { return res.SendDestroyed() })
 	return importedV2{imp}, err
 }
 
@@ -234,7 +234,7 @@ func (x exporterV1) Export(obj *sxf1.ZxdgExporterV1, res *sxf1.ZxdgExportedV1, w
 		return nil, err
 	}
 	server.OnDestroy(res, func() error { return x.sh.unexport(e) })
-	return exportedV1{}, x.c.Sent(res.SendHandle(e.handle))
+	return exportedV1{}, res.SendHandle(e.handle)
 }
 
 type exportedV1 struct{}
@@ -254,7 +254,7 @@ type importerV1 struct {
 func (importerV1) Destroy(*sxf1.ZxdgImporterV1) error { return nil }
 
 func (x importerV1) Import(_ *sxf1.ZxdgImporterV1, res *sxf1.ZxdgImportedV1, handle string) (sxf1.ZxdgImportedV1Handler, error) {
-	imp, err := x.sh.importHandle(res, handle, func() error { return x.c.Sent(res.SendDestroyed()) })
+	imp, err := x.sh.importHandle(res, handle, func() error { return res.SendDestroyed() })
 	return importedV1{imp}, err
 }
 

@@ -71,7 +71,7 @@ func (c *Compositor) arrange(o *output.Output) (bool, error) {
 		errs = append(errs, e.surface.Configure(e.box.Size()))
 		if moved {
 			for _, p := range c.layerPopups(e) {
-				errs = append(errs, p.popup.Surface().Client().Sent(p.popup.Reconstrain()))
+				errs = append(errs, p.popup.Reconstrain())
 			}
 		}
 	}

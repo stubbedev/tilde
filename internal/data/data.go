@@ -164,11 +164,11 @@ func (m *Manager) offerSelection(k Kind, c *server.Client) error {
 	switch k {
 	case Clipboard:
 		for _, dev := range d.data {
-			errs = append(errs, c.Sent(m.offerData(c, dev, src)))
+			errs = append(errs, m.offerData(c, dev, src))
 		}
 	case Primary:
 		for _, dev := range d.primaries {
-			errs = append(errs, c.Sent(m.offerPrimary(dev, src)))
+			errs = append(errs, m.offerPrimary(dev, src))
 		}
 	}
 	return errors.Join(errs...)

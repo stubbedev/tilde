@@ -93,7 +93,7 @@ func (d *Drag) liveDevices() []*sw.WlDataDevice {
 func (d *Drag) leave() error {
 	var errs []error
 	for _, dev := range d.liveDevices() {
-		errs = append(errs, d.focus.Client().Sent(dev.SendLeave()))
+		errs = append(errs, dev.SendLeave())
 	}
 	for _, o := range d.offers {
 		if o != d.offer {
@@ -113,7 +113,6 @@ func (d *Drag) enter(target *surface.Surface, x, y float64) error {
 	if devs == nil {
 		return nil
 	}
-	c := target.Client()
 	serial := d.m.display.NextSerial()
 	var errs []error
 	for _, dev := range devs.data {
@@ -121,13 +120,13 @@ func (d *Drag) enter(target *surface.Surface, x, y float64) error {
 		if d.source != nil {
 			o, err := d.offerTo(dev)
 			if err != nil {
-				errs = append(errs, c.Sent(err))
+				errs = append(errs, err)
 				continue
 			}
 			res = o.resource
 		}
 		d.devices = append(d.devices, dev)
-		errs = append(errs, c.Sent(dev.SendEnter(serial, target.Resource(), wire.FixedFromFloat(x), wire.FixedFromFloat(y), res)))
+		errs = append(errs, dev.SendEnter(serial, target.Resource(), wire.FixedFromFloat(x), wire.FixedFromFloat(y), res))
 	}
 	return errors.Join(errs...)
 }
@@ -176,7 +175,7 @@ func (d *Drag) Motion(target *surface.Surface, x, y float64, at time.Duration) e
 	}
 	var errs []error
 	for _, dev := range d.liveDevices() {
-		errs = append(errs, d.focus.Client().Sent(dev.SendMotion(wire.Millis(at), wire.FixedFromFloat(x), wire.FixedFromFloat(y))))
+		errs = append(errs, dev.SendMotion(wire.Millis(at), wire.FixedFromFloat(x), wire.FixedFromFloat(y)))
 	}
 	return errors.Join(errs...)
 }
@@ -185,7 +184,7 @@ func (d *Drag) target(mime *string) error {
 	if d.source == nil {
 		return nil
 	}
-	return d.source.client.Sent(d.source.resource.SendTarget(mime))
+	return d.source.resource.SendTarget(mime)
 }
 
 func choose(available, preferred Action) Action {
@@ -211,9 +210,9 @@ func (d *Drag) negotiate() error {
 			continue
 		}
 		o.chosen = chosen
-		errs = append(errs, o.client.Sent(o.resource.SendAction(chosen)))
+		errs = append(errs, o.resource.SendAction(chosen))
 		if d.source != nil && d.source.version() >= 3 {
-			errs = append(errs, d.source.client.Sent(d.source.resource.SendAction(chosen)))
+			errs = append(errs, d.source.resource.SendAction(chosen))
 		}
 	}
 	return errors.Join(errs...)
@@ -235,7 +234,7 @@ func (d *Drag) Drop() error {
 	if d.source == nil {
 		var errs []error
 		for _, dev := range d.liveDevices() {
-			errs = append(errs, d.focus.Client().Sent(dev.SendDrop()))
+			errs = append(errs, dev.SendDrop())
 		}
 		d.dropped = true
 		errs = append(errs, d.leave(), d.end())
@@ -249,10 +248,10 @@ func (d *Drag) Drop() error {
 	d.dropped, d.offer = true, o
 	var errs []error
 	for _, dev := range d.liveDevices() {
-		errs = append(errs, d.focus.Client().Sent(dev.SendDrop()))
+		errs = append(errs, dev.SendDrop())
 	}
 	if d.source.version() >= 3 {
-		errs = append(errs, d.source.client.Sent(d.source.resource.SendDndDropPerformed()))
+		errs = append(errs, d.source.resource.SendDndDropPerformed())
 	}
 	return errors.Join(append(errs, d.leave(), d.end())...)
 }
@@ -300,7 +299,7 @@ func (d *Drag) finish() error {
 	}
 	var errs []error
 	if d.source != nil && d.source.phase != sourceGone && d.source.version() >= 3 {
-		errs = append(errs, d.source.client.Sent(d.source.resource.SendDndFinished()))
+		errs = append(errs, d.source.resource.SendDndFinished())
 	}
 	d.release()
 	return errors.Join(errs...)

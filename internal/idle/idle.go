@@ -147,7 +147,7 @@ func (n *notification) reset(at time.Duration) error {
 		return nil
 	}
 	n.idle = false
-	err := n.client.Sent(n.resource.SendResumed())
+	err := n.resource.SendResumed()
 	if n.suspended() {
 		return err
 	}
@@ -166,7 +166,7 @@ func (n *notification) fire() error {
 		return n.arm()
 	}
 	n.idle = true
-	return n.client.Sent(n.resource.SendIdled())
+	return n.resource.SendIdled()
 }
 
 func (*notification) Destroy(*sei.ExtIdleNotificationV1) error {

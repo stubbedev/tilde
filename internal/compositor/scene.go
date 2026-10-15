@@ -155,7 +155,7 @@ func (c *Compositor) unchanged(o *output.Output, sc *scene) error {
 	var err error
 	for _, s := range c.shown[o] {
 		c.outputResources = o.AppendResources(c.outputResources[:0], s.Client())
-		if e := errors.Join(s.Client().Sent(s.FrameDone(wire.Millis(now))), s.Client().Sent(s.Presented(c.outputResources, now, 0, sc.last.Seq, 0))); e != nil {
+		if e := errors.Join(s.FrameDone(wire.Millis(now)), s.Presented(c.outputResources, now, 0, sc.last.Seq, 0)); e != nil {
 			err = errors.Join(err, e)
 		}
 	}
@@ -219,12 +219,12 @@ func (c *Compositor) updateEntered(o *output.Output) error {
 			continue
 		}
 		e.outputs = append(e.outputs, o)
-		errs = append(errs, s.Client().Sent(s.Enter(o.Resources(s.Client()))), s.Client().Sent(s.SetPreferredScale(uint32(maxScale(e.outputs)))))
+		errs = append(errs, s.Enter(o.Resources(s.Client())), s.SetPreferredScale(uint32(maxScale(e.outputs))))
 	}
 	for _, e := range c.entered {
 		if slices.Contains(e.outputs, o) && !slices.Contains(shown, e.s) {
 			e.outputs = slices.DeleteFunc(e.outputs, func(x *output.Output) bool { return x == o })
-			errs = append(errs, e.s.Client().Sent(e.s.Leave(o.Resources(e.s.Client()))), e.s.Client().Sent(e.s.SetPreferredScale(uint32(maxScale(e.outputs)))))
+			errs = append(errs, e.s.Leave(o.Resources(e.s.Client())), e.s.SetPreferredScale(uint32(maxScale(e.outputs))))
 		}
 	}
 	return errors.Join(errs...)
@@ -244,8 +244,8 @@ func (c *Compositor) Presented(b backend.Output, p backend.Presentation) error {
 	for _, s := range c.shown[o] {
 		c.outputResources = o.AppendResources(c.outputResources[:0], s.Client())
 		errs = errors.Join(errs,
-			s.Client().Sent(s.FrameDone(wire.Millis(p.Time))),
-			s.Client().Sent(s.Presented(c.outputResources, p.Time, p.Refresh, p.Seq, kind)))
+			s.FrameDone(wire.Millis(p.Time)),
+			s.Presented(c.outputResources, p.Time, p.Refresh, p.Seq, kind))
 	}
 	return errors.Join(errs, c.timing.Presented())
 }

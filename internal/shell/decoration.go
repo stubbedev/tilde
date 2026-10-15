@@ -46,7 +46,7 @@ type decoration struct{ t *Toplevel }
 
 func (d decoration) configure() error {
 	t := d.t
-	if err := t.xs.base.client.Sent(t.decoration.SendConfigure(sxd.ZxdgToplevelDecorationV1ModeServerSide)); err != nil {
+	if err := t.decoration.SendConfigure(sxd.ZxdgToplevelDecorationV1ModeServerSide); err != nil {
 		return err
 	}
 	if !t.xs.life.initialSent() {

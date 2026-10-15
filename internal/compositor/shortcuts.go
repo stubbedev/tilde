@@ -74,11 +74,11 @@ func (c *Compositor) refreshShortcutsInhibitor() error {
 	}
 	var errs []error
 	if old := c.inhibiting; old != nil {
-		errs = append(errs, old.surface.Client().Sent(old.res.SendInactive()))
+		errs = append(errs, old.res.SendInactive())
 	}
 	c.inhibiting = want
 	if want != nil {
-		errs = append(errs, want.surface.Client().Sent(want.res.SendActive()))
+		errs = append(errs, want.res.SendActive())
 	}
 	return errors.Join(errs...)
 }

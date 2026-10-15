@@ -47,7 +47,7 @@ func (m *Manager) Removed(o *output.Output) error {
 	}
 	delete(m.controls, o)
 	k.gamma = nil
-	return k.c.Sent(k.res.SendFailed())
+	return k.res.SendFailed()
 }
 
 func (m *Manager) bind(c *server.Client, id wire.ObjectID, v uint32) error {
@@ -66,16 +66,16 @@ func (r requests) GetGammaControl(_ *swgc.ZwlrGammaControlManagerV1, res *swgc.Z
 	k := &control{m: r.m, c: r.c, res: res}
 	o := r.m.outputs.Owner(wl)
 	if o == nil {
-		return k, r.c.Sent(res.SendFailed())
+		return k, res.SendFailed()
 	}
 	g, ok := o.Backend().(backend.Gamma)
 	if _, taken := r.m.controls[o]; !ok || taken || g.GammaSize() == 0 {
-		return k, r.c.Sent(res.SendFailed())
+		return k, res.SendFailed()
 	}
 	k.out, k.gamma = o, g
 	r.m.controls[o] = k
 	server.OnDestroy(res, k.release)
-	return k, r.c.Sent(res.SendGammaSize(uint32(g.GammaSize()))) //nolint:gosec // a LUT size is far below 2^32
+	return k, res.SendGammaSize(uint32(g.GammaSize())) //nolint:gosec // a LUT size is far below 2^32
 }
 
 type control struct {
@@ -164,7 +164,7 @@ func (k *control) setGamma(obj *swgc.ZwlrGammaControlV1, fd int) error {
 	}
 	if err != nil {
 		k.m.report(fmt.Errorf("gammacontrol: %w", err))
-		return errors.Join(k.release(), k.c.Sent(k.res.SendFailed()))
+		return errors.Join(k.release(), k.res.SendFailed())
 	}
 	k.set = true
 	return nil

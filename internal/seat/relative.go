@@ -35,15 +35,15 @@ type relativePointer struct{}
 func (relativePointer) Destroy(*srp.ZwpRelativePointerV1) error { return nil }
 
 func (s *Seat) RelativeMotion(at time.Duration, dx, dy, unaccelDX, unaccelDY float64) error {
-	c, r := s.resourcesAt(s.pointer.focus)
+	_, r := s.resourcesAt(s.pointer.focus)
 	if r == nil {
 		return nil
 	}
 	hi, lo := wire.Halves(uint64(max(at, 0) / time.Microsecond))
 	errs := make([]error, 0, len(r.relatives))
 	for _, rel := range r.relatives {
-		errs = append(errs, c.Sent(rel.SendRelativeMotion(hi, lo,
-			wire.FixedFromFloat(dx), wire.FixedFromFloat(dy), wire.FixedFromFloat(unaccelDX), wire.FixedFromFloat(unaccelDY))))
+		errs = append(errs, rel.SendRelativeMotion(hi, lo,
+			wire.FixedFromFloat(dx), wire.FixedFromFloat(dy), wire.FixedFromFloat(unaccelDX), wire.FixedFromFloat(unaccelDY)))
 	}
 	return errors.Join(errs...)
 }

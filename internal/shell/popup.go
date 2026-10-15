@@ -180,14 +180,13 @@ func (p *Popup) place() error {
 	if err != nil {
 		return err
 	}
-	c := p.xs.base.client
 	if p.token != nil {
-		if err := c.Sent(p.resource.SendRepositioned(*p.token)); err != nil {
+		if err := p.resource.SendRepositioned(*p.token); err != nil {
 			return err
 		}
 		p.token = nil
 	}
-	if err := c.Sent(p.resource.SendConfigure(x, y, w, h)); err != nil {
+	if err := p.resource.SendConfigure(x, y, w, h); err != nil {
 		return err
 	}
 	serial, err := p.xs.sendConfigure()
@@ -239,7 +238,7 @@ func (p *Popup) dismiss() error {
 		sh.grab = sh.grab[:i]
 		errs = append(errs, sh.listener.GrabChanged())
 	}
-	errs = append(errs, p.xs.base.client.Sent(p.resource.SendPopupDone()))
+	errs = append(errs, p.resource.SendPopupDone())
 	return errors.Join(errs...)
 }
 

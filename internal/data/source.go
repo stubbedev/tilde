@@ -35,14 +35,14 @@ func (s *source) Send(mime string, fd int) error {
 	if s.phase == sourceGone {
 		return nil
 	}
-	return s.client.Sent(s.send(mime, fd))
+	return s.send(mime, fd)
 }
 
 func (s *source) Cancel() error {
 	if s.phase == sourceGone {
 		return nil
 	}
-	return s.client.Sent(s.cancel())
+	return s.cancel()
 }
 
 func (s *source) addMime(mime string) {

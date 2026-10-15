@@ -90,12 +90,12 @@ func (t xdgToplevel) settled(w want) bool {
 func (t xdgToplevel) apply(w want) error {
 	s := t.Surface()
 	if w.scale != 0 {
-		if err := s.Client().Sent(s.SetPreferredScale(uint32(w.scale))); err != nil {
+		if err := s.SetPreferredScale(uint32(w.scale)); err != nil {
 			return err
 		}
 	}
 	_, err := t.Configure(xdgState(w))
-	return s.Client().Sent(err)
+	return err
 }
 
 func (t xdgToplevel) close() error {

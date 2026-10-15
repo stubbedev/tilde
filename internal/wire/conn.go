@@ -26,12 +26,17 @@ type Conn struct {
 	werr   error
 	tracer Tracer
 	closed bool
+	defers bool
 }
 
 type Tracer func(incoming bool, id ObjectID, opcode Opcode, body []byte)
 
 func (c *Conn) SetTracer(t Tracer) {
 	c.tracer = t
+}
+
+func (c *Conn) DeferSendErrors() {
+	c.defers = true
 }
 
 func (c *Conn) Err() error {

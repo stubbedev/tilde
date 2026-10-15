@@ -191,7 +191,7 @@ func (m *Manager) feedback(res *sld.ZwpLinuxDmabufFeedbackV1, scanout gpu.Scanou
 }
 
 func (r requests) GetDefaultFeedback(_ *sld.ZwpLinuxDmabufV1, res *sld.ZwpLinuxDmabufFeedbackV1) (sld.ZwpLinuxDmabufFeedbackV1Handler, error) {
-	return feedback{}, r.c.Sent(r.m.feedback(res, gpu.ScanoutTarget{}))
+	return feedback{}, r.m.feedback(res, gpu.ScanoutTarget{})
 }
 
 func (r requests) GetSurfaceFeedback(_ *sld.ZwpLinuxDmabufV1, res *sld.ZwpLinuxDmabufFeedbackV1, wl *sw.WlSurface) (sld.ZwpLinuxDmabufFeedbackV1Handler, error) {
@@ -204,7 +204,7 @@ func (r requests) GetSurfaceFeedback(_ *sld.ZwpLinuxDmabufV1, res *sld.ZwpLinuxD
 		r.m.forget(s, res)
 		return nil
 	})
-	return feedback{}, r.c.Sent(r.m.feedback(res, r.m.listener.SurfaceScanout(s)))
+	return feedback{}, r.m.feedback(res, r.m.listener.SurfaceScanout(s))
 }
 
 func (m *Manager) forget(s *surface.Surface, res *sld.ZwpLinuxDmabufFeedbackV1) {
@@ -224,7 +224,7 @@ func (m *Manager) ScanoutChanged(s *surface.Surface) error {
 	t := m.listener.SurfaceScanout(s)
 	var err error
 	for _, f := range feedbacks {
-		err = errors.Join(err, f.c.Sent(m.feedback(f.res, t)))
+		err = errors.Join(err, m.feedback(f.res, t))
 	}
 	return err
 }
@@ -387,7 +387,7 @@ func (p *params) Create(obj *sld.ZwpLinuxBufferParamsV1, width, height int32, fo
 	case errors.As(err, &pe):
 		return err
 	case err != nil:
-		return p.c.Sent(obj.SendFailed())
+		return obj.SendFailed()
 	}
 	buf := &Buffer{m: p.m, dmabuf: b}
 	if buf.resource, err = obj.SendCreated(buf); err != nil {

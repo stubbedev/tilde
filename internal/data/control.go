@@ -44,7 +44,7 @@ func (m *Manager) addControl(d *controlDevice) error {
 		if k == Primary && !d.primary {
 			continue
 		}
-		errs = append(errs, d.client.Sent(d.offer(k, m.selection[k])))
+		errs = append(errs, d.offer(k, m.selection[k]))
 	}
 	return errors.Join(errs...)
 }
@@ -63,7 +63,7 @@ func (m *Manager) offerControls(k Kind) error {
 		if k == Primary && !d.primary {
 			continue
 		}
-		errs = append(errs, d.client.Sent(d.offer(k, m.selection[k])))
+		errs = append(errs, d.offer(k, m.selection[k]))
 	}
 	return errors.Join(errs...)
 }

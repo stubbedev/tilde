@@ -35,7 +35,7 @@ func (r primaryManager) GetDevice(_ *sps.ZwpPrimarySelectionDeviceManagerV1, res
 	if r.c != r.m.focus {
 		return primaryDevice(r), nil
 	}
-	return primaryDevice(r), r.c.Sent(r.m.offerPrimary(res, r.m.selection[Primary]))
+	return primaryDevice(r), r.m.offerPrimary(res, r.m.selection[Primary])
 }
 
 type primarySource struct{ source }

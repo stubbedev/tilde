@@ -64,7 +64,7 @@ func (s *Seat) TouchDown(at time.Duration, id int32, target *surface.Surface, x,
 	s.touch.points = append(s.touch.points, touchPoint{id: id, surface: target, serial: serial})
 	var errs []error
 	for _, t := range touches {
-		errs = append(errs, c.Sent(t.SendDown(serial, wire.Millis(at), target.Resource(), id, wire.FixedFromFloat(x), wire.FixedFromFloat(y))))
+		errs = append(errs, t.SendDown(serial, wire.Millis(at), target.Resource(), id, wire.FixedFromFloat(x), wire.FixedFromFloat(y)))
 	}
 	return errors.Join(errs...)
 }
@@ -74,10 +74,10 @@ func (s *Seat) TouchMotion(at time.Duration, id int32, x, y float64) error {
 	if target == nil {
 		return nil
 	}
-	c, touches := s.touchesOf(target)
+	_, touches := s.touchesOf(target)
 	var errs []error
 	for _, t := range touches {
-		errs = append(errs, c.Sent(t.SendMotion(wire.Millis(at), id, wire.FixedFromFloat(x), wire.FixedFromFloat(y))))
+		errs = append(errs, t.SendMotion(wire.Millis(at), id, wire.FixedFromFloat(x), wire.FixedFromFloat(y)))
 	}
 	return errors.Join(errs...)
 }
@@ -88,10 +88,10 @@ func (s *Seat) TouchUp(at time.Duration, id int32) error {
 		return nil
 	}
 	s.DropTouch(id)
-	c, touches := s.touchesOf(target)
+	_, touches := s.touchesOf(target)
 	var errs []error
 	for _, t := range touches {
-		errs = append(errs, c.Sent(t.SendUp(s.display.NextSerial(), wire.Millis(at), id)))
+		errs = append(errs, t.SendUp(s.display.NextSerial(), wire.Millis(at), id))
 	}
 	return errors.Join(errs...)
 }
@@ -101,7 +101,7 @@ func (s *Seat) touchClients(send func(*sw.WlTouch) error) error {
 	for _, c := range s.touch.framed {
 		if r := s.lookup(c); r != nil {
 			for _, t := range r.touches {
-				errs = append(errs, c.Sent(send(t)))
+				errs = append(errs, send(t))
 			}
 		}
 	}

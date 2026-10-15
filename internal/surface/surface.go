@@ -564,7 +564,7 @@ func (s *Surface) apply(u *Update) error {
 	st.damage, st.bufferDamage, st.offset = region.Region{}, region.Region{}, image.Point{}
 	superseded := s.current.feedbacks
 	s.current.feedbacks = nil
-	if err := s.client.Sent(discard(superseded)); err != nil {
+	if err := discard(superseded); err != nil {
 		return err
 	}
 	s.current.merge(st)
@@ -628,7 +628,7 @@ func (s *Surface) destroy() error {
 	s.cache, s.queue = nil, nil
 	feedbacks = append(feedbacks, s.latched...)
 	s.latched = nil
-	errs = append(errs, s.client.Sent(discard(feedbacks)))
+	errs = append(errs, discard(feedbacks))
 	if s.sub != nil {
 		s.sub.detach()
 	}

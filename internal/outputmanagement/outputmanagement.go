@@ -101,7 +101,7 @@ func (m *Manager) bind(c *server.Client, id wire.ObjectID, v uint32) error {
 	for _, h := range m.heads {
 		errs = append(errs, b.announce(h))
 	}
-	return c.Sent(errors.Join(append(errs, res.SendDone(m.serial))...))
+	return errors.Join(append(errs, res.SendDone(m.serial))...)
 }
 
 func (b *binding) CreateConfiguration(_ *swom.ZwlrOutputManagerV1, res *swom.ZwlrOutputConfigurationV1, serial uint32) (swom.ZwlrOutputConfigurationV1Handler, error) {
@@ -109,7 +109,7 @@ func (b *binding) CreateConfiguration(_ *swom.ZwlrOutputManagerV1, res *swom.Zwl
 }
 
 func (b *binding) Stop(obj *swom.ZwlrOutputManagerV1) error {
-	return b.c.Sent(obj.SendFinished())
+	return obj.SendFinished()
 }
 
 func scaleFixed(s output.Scale) wire.Fixed {
@@ -264,7 +264,7 @@ func (m *Manager) Changed() error {
 	m.serial++
 	var errs []error
 	for _, b := range m.bindings {
-		errs = append(errs, b.c.Sent(b.sync(now)))
+		errs = append(errs, b.sync(now))
 	}
 	return errors.Join(errs...)
 }
@@ -358,7 +358,7 @@ func (cfg *configuration) finish(obj *swom.ZwlrOutputConfigurationV1, apply bool
 	cfg.used = true
 	m := cfg.b.m
 	if cfg.serial != m.serial {
-		return cfg.b.c.Sent(cfg.res.SendCancelled())
+		return cfg.res.SendCancelled()
 	}
 	for _, hb := range cfg.b.heads {
 		if !hb.released && !slices.ContainsFunc(cfg.heads, func(ch *configHead) bool { return ch.head == hb }) {
@@ -375,7 +375,7 @@ func (cfg *configuration) finish(obj *swom.ZwlrOutputConfigurationV1, apply bool
 			m.report(err)
 		}
 	}
-	sent := cfg.b.c.Sent(send())
+	sent := send()
 	if !m.pending {
 		return sent
 	}

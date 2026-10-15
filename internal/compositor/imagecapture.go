@@ -218,20 +218,20 @@ func (k *cursorSession) update() error {
 	entered := inside && !k.inside
 	switch {
 	case entered:
-		errs = append(errs, k.cl.Sent(k.res.SendEnter()))
+		errs = append(errs, k.res.SendEnter())
 	case k.inside && !inside:
-		errs = append(errs, k.cl.Sent(k.res.SendLeave()))
+		errs = append(errs, k.res.SendLeave())
 	}
 	k.inside = inside
 	if inside {
 		tip := c.cursorTip(o)
 		if position := tip.Sub(area.Min); entered || position != k.position {
 			k.position = position
-			errs = append(errs, k.cl.Sent(k.res.SendPosition(int32(position.X), int32(position.Y)))) //nolint:gosec // output coordinates fit
+			errs = append(errs, k.res.SendPosition(int32(position.X), int32(position.Y))) //nolint:gosec // output coordinates fit
 		}
 		if hotspot := tip.Sub(box.Min); entered || hotspot != k.hotspot {
 			k.hotspot = hotspot
-			errs = append(errs, k.cl.Sent(k.res.SendHotspot(int32(hotspot.X), int32(hotspot.Y)))) //nolint:gosec // cursor sizes fit
+			errs = append(errs, k.res.SendHotspot(int32(hotspot.X), int32(hotspot.Y))) //nolint:gosec // cursor sizes fit
 		}
 	}
 	changed := !box.Empty() && (box.Size() != k.box.Size() || c.cursorGen != k.gen)
@@ -328,14 +328,14 @@ func (s *captureSession) sync() error {
 		if f := s.frame; f != nil && f.state == frameCapturing {
 			err = f.fail(seic.ExtImageCopyCaptureFrameV1FailureReasonStopped)
 		}
-		return errors.Join(err, s.cl.Sent(s.res.SendStopped()))
+		return errors.Join(err, s.res.SendStopped())
 	}
 	if area.Size() == s.size {
 		return nil
 	}
 	s.size, s.captured = area.Size(), false
 	s.damage.Reset()
-	return s.cl.Sent(s.constraints())
+	return s.constraints()
 }
 
 func (s *captureSession) noteDamage(o *output.Output, frame *region.Set) {
@@ -454,7 +454,7 @@ func (f *captureFrame) fail(reason seic.ExtImageCopyCaptureFrameV1FailureReason)
 	if !f.finish() {
 		return nil
 	}
-	return f.s.cl.Sent(f.res.SendFailed(reason))
+	return f.res.SendFailed(reason)
 }
 
 func (f *captureFrame) Capture(obj *seic.ExtImageCopyCaptureFrameV1) error {
@@ -520,7 +520,7 @@ func (f *captureFrame) ready(at time.Duration, size image.Point) error {
 		f.res.SendPresentationTime(ts.SecHi, ts.SecLo, ts.Nsec),
 		f.res.SendReady(),
 	)
-	return f.s.cl.Sent(errors.Join(errs...))
+	return errors.Join(errs...)
 }
 
 func (f *captureFrame) target(size image.Point) (captureTarget, error) {

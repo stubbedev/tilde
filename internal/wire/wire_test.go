@@ -811,3 +811,24 @@ func TestIntsFitTheProtocolOrFail(t *testing.T) {
 		t.Errorf("a size past MaxInt32: %v", err)
 	}
 }
+
+func TestADeferringConnReportsABrokenSendAtFlush(t *testing.T) {
+	for _, deferring := range []bool{false, true} {
+		a, _ := pair(t)
+		if deferring {
+			a.DeferSendErrors()
+		}
+		e := a.Begin(1, 0)
+		e.Str("a\x00b")
+		err := e.End()
+		switch {
+		case deferring && err != nil:
+			t.Errorf("a deferring conn returned %v from the send", err)
+		case !deferring && !errors.Is(err, ErrEmbeddedNUL):
+			t.Errorf("a plain conn returned %v from the send", err)
+		}
+		if !errors.Is(a.Err(), ErrEmbeddedNUL) {
+			t.Errorf("deferring %t: the conn holds %v, want the broken send", deferring, a.Err())
+		}
+	}
+}

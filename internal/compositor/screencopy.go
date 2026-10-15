@@ -56,7 +56,7 @@ func (m screencopyManager) frame(res *swsc.ZwlrScreencopyFrameV1, cursor bool, w
 	o := m.c.layout.Owner(wl)
 	if !m.c.outputLive(o) {
 		f.finish()
-		return f, m.cl.Sent(res.SendFailed())
+		return f, res.SendFailed()
 	}
 	if logical != (image.Rectangle{}) {
 		logical = logical.Sub(o.Position())
@@ -64,7 +64,7 @@ func (m screencopyManager) frame(res *swsc.ZwlrScreencopyFrameV1, cursor bool, w
 	f.output, f.region = o, m.c.captureRegion(o, logical)
 	if f.region.Empty() {
 		f.finish()
-		return f, m.cl.Sent(res.SendFailed())
+		return f, res.SendFailed()
 	}
 	size := f.region.Size()
 	if err := res.SendBuffer(sw.WlShmFormatXrgb8888, uint32(size.X), uint32(size.Y), uint32(size.X*4)); err != nil { //nolint:gosec // capture sizes are positive output sizes
@@ -125,7 +125,7 @@ func (f *screencopyFrame) copy(obj *swsc.ZwlrScreencopyFrameV1, wl *sw.WlBuffer,
 			if !f.finish() {
 				return nil
 			}
-			return f.cl.Sent(f.res.SendFailed())
+			return f.res.SendFailed()
 		}
 		if !f.finish() {
 			return nil
@@ -135,7 +135,7 @@ func (f *screencopyFrame) copy(obj *swsc.ZwlrScreencopyFrameV1, wl *sw.WlBuffer,
 			errs = append(errs, f.res.SendDamage(uint32(r.Min.X), uint32(r.Min.Y), uint32(r.Dx()), uint32(r.Dy()))) //nolint:gosec // damage lies inside the capture
 		}
 		ts := wire.TimespecOf(at)
-		return f.cl.Sent(errors.Join(append(errs, f.res.SendReady(ts.SecHi, ts.SecLo, ts.Nsec))...))
+		return errors.Join(append(errs, f.res.SendReady(ts.SecHi, ts.SecLo, ts.Nsec))...)
 	}
 	return f.c.queueCapture(k, damage)
 }

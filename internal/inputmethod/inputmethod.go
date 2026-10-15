@@ -88,7 +88,7 @@ func (m *Manager) Focus(s *surface.Surface) error {
 		for _, ti := range m.inputs {
 			if ti.focus == old {
 				ti.focus, ti.current.enabled = nil, false
-				errs = append(errs, ti.c.Sent(ti.res.SendLeave(old.Resource())))
+				errs = append(errs, ti.res.SendLeave(old.Resource()))
 			}
 		}
 		if m.active != nil {
@@ -110,7 +110,7 @@ func (m *Manager) deactivate() error {
 		return nil
 	}
 	m.im.phase = imInactive
-	return errors.Join(m.im.c.Sent(m.im.res.SendDeactivate()), m.im.done(), m.listener.PopupsChanged())
+	return errors.Join(m.im.res.SendDeactivate(), m.im.done(), m.listener.PopupsChanged())
 }
 
 func (m *Manager) activate(ti *textInput) error {
@@ -119,7 +119,7 @@ func (m *Manager) activate(ti *textInput) error {
 		return nil
 	}
 	m.im.phase = imActive
-	return errors.Join(m.im.c.Sent(m.im.res.SendActivate()), m.im.state(ti), m.listener.PopupsChanged())
+	return errors.Join(m.im.res.SendActivate(), m.im.state(ti), m.listener.PopupsChanged())
 }
 
 func (m *Manager) bindTextInput(c *server.Client, id wire.ObjectID, v uint32) error {
@@ -177,7 +177,7 @@ func (ti *textInput) enter(s *surface.Surface) error {
 		return nil
 	}
 	ti.focus = s
-	return ti.c.Sent(ti.res.SendEnter(s.Resource()))
+	return ti.res.SendEnter(s.Resource())
 }
 
 func (ti *textInput) gone() error {
@@ -271,13 +271,13 @@ func (r inputMethodManager) GetInputMethod(_ *sim.ZwpInputMethodManagerV2, _ *sw
 	im := &inputMethod{m: r.m, c: r.c, res: res}
 	if r.m.im != nil {
 		im.phase = imInert
-		return im, r.c.Sent(res.SendUnavailable())
+		return im, res.SendUnavailable()
 	}
 	r.m.im = im
 	server.OnDestroy(res, im.gone)
 	if ti := r.m.active; ti != nil {
 		im.phase = imActive
-		return im, errors.Join(r.c.Sent(res.SendActivate()), im.state(ti))
+		return im, errors.Join(res.SendActivate(), im.state(ti))
 	}
 	return im, nil
 }
@@ -315,20 +315,20 @@ type inputMethod struct {
 
 func (im *inputMethod) done() error {
 	im.dones++
-	return im.c.Sent(im.res.SendDone())
+	return im.res.SendDone()
 }
 
 func (im *inputMethod) state(ti *textInput) error {
 	st := ti.current
 	var errs []error
 	if s := st.surrounding; s != nil {
-		errs = append(errs, im.c.Sent(im.res.SendSurroundingText(s.text, uint32(max(s.cursor, 0)), uint32(max(s.anchor, 0)))))
+		errs = append(errs, im.res.SendSurroundingText(s.text, uint32(max(s.cursor, 0)), uint32(max(s.anchor, 0))))
 	}
 	if st.cause != nil {
-		errs = append(errs, im.c.Sent(im.res.SendTextChangeCause(*st.cause)))
+		errs = append(errs, im.res.SendTextChangeCause(*st.cause))
 	}
 	if ct := st.content; ct != nil {
-		errs = append(errs, im.c.Sent(im.res.SendContentType(ct.hint, ct.purpose)))
+		errs = append(errs, im.res.SendContentType(ct.hint, ct.purpose))
 	}
 	return errors.Join(append(errs, im.done())...)
 }
@@ -381,15 +381,15 @@ func (im *inputMethod) Commit(_ *sim.ZwpInputMethodV2, serial uint32) error {
 func (ti *textInput) relay(st imState) error {
 	var errs []error
 	if p := st.preedit; p != nil {
-		errs = append(errs, ti.c.Sent(ti.res.SendPreeditString(&p.text, p.begin, p.end)))
+		errs = append(errs, ti.res.SendPreeditString(&p.text, p.begin, p.end))
 	}
 	if st.before != 0 || st.after != 0 {
-		errs = append(errs, ti.c.Sent(ti.res.SendDeleteSurroundingText(st.before, st.after)))
+		errs = append(errs, ti.res.SendDeleteSurroundingText(st.before, st.after))
 	}
 	if st.commit != nil {
-		errs = append(errs, ti.c.Sent(ti.res.SendCommitString(st.commit)))
+		errs = append(errs, ti.res.SendCommitString(st.commit))
 	}
-	return errors.Join(append(errs, ti.c.Sent(ti.res.SendDone(ti.commits)))...)
+	return errors.Join(append(errs, ti.res.SendDone(ti.commits))...)
 }
 
 func (im *inputMethod) GetInputPopupSurface(obj *sim.ZwpInputMethodV2, res *sim.ZwpInputPopupSurfaceV2, wl *sw.WlSurface) (sim.ZwpInputPopupSurfaceV2Handler, error) {
@@ -442,7 +442,7 @@ func (p *popup) placed(cursor image.Rectangle) error {
 		return nil
 	}
 	p.cursor, p.sent = cursor, true
-	return p.im.c.Sent(p.res.SendTextInputRectangle(int32(cursor.Min.X), int32(cursor.Min.Y), int32(cursor.Dx()), int32(cursor.Dy()))) //nolint:gosec // surface coordinates fit in int32
+	return p.res.SendTextInputRectangle(int32(cursor.Min.X), int32(cursor.Min.Y), int32(cursor.Dx()), int32(cursor.Dy())) //nolint:gosec // surface coordinates fit in int32
 }
 
 func (p *popup) gone() error {
@@ -463,11 +463,11 @@ type keyboardGrab struct {
 func (*keyboardGrab) Release(*sim.ZwpInputMethodKeyboardGrabV2) error { return nil }
 
 func (g *keyboardGrab) Keymap(fd int, size uint32) error {
-	return g.c.Sent(g.res.SendKeymap(sw.WlKeyboardKeymapFormatXkbV1, fd, size))
+	return g.res.SendKeymap(sw.WlKeyboardKeymapFormatXkbV1, fd, size)
 }
 
 func (g *keyboardGrab) RepeatInfo(rate, delay int32) error {
-	return g.c.Sent(g.res.SendRepeatInfo(rate, delay))
+	return g.res.SendRepeatInfo(rate, delay)
 }
 
 func (g *keyboardGrab) Key(serial, ms, code uint32, pressed bool) error {
@@ -475,9 +475,9 @@ func (g *keyboardGrab) Key(serial, ms, code uint32, pressed bool) error {
 	if pressed {
 		state = sw.WlKeyboardKeyStatePressed
 	}
-	return g.c.Sent(g.res.SendKey(serial, ms, code, state))
+	return g.res.SendKey(serial, ms, code, state)
 }
 
 func (g *keyboardGrab) Modifiers(serial uint32, m xkb.Modifiers) error {
-	return g.c.Sent(g.res.SendModifiers(serial, m.Depressed, m.Latched, m.Locked, m.Group))
+	return g.res.SendModifiers(serial, m.Depressed, m.Latched, m.Locked, m.Group)
 }

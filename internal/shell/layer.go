@@ -139,7 +139,7 @@ func (l *LayerSurface) Configure(size image.Point) error {
 		return fmt.Errorf("shell: configure a layer surface to %v: %w", size, err)
 	}
 	serial := l.shell.display.NextSerial()
-	if err := l.client.Sent(l.resource.SendConfigure(serial, w, h)); err != nil {
+	if err := l.resource.SendConfigure(serial, w, h); err != nil {
 		return err
 	}
 	l.configures.push(serial, size)
@@ -156,7 +156,7 @@ func (l *LayerSurface) Close() error {
 		l.life.reset()
 		errs = append(errs, l.shell.listener.LayerUnmapped(l))
 	}
-	return errors.Join(append(errs, l.client.Sent(l.resource.SendClosed()))...)
+	return errors.Join(append(errs, l.resource.SendClosed())...)
 }
 
 func (l *LayerSurface) validate(s LayerState) error {

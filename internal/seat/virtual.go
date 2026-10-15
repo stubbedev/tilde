@@ -8,7 +8,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	"github.com/stubbedev/tilde/internal/server"
 )
 
 type VirtualKeyboard struct {
@@ -57,27 +56,26 @@ func (v *VirtualKeyboard) Close() error {
 	return nil
 }
 
-func (s *Seat) useKeymap(c *server.Client, kb *sw.WlKeyboard, v *VirtualKeyboard) error {
+func (s *Seat) useKeymap(kb *sw.WlKeyboard, v *VirtualKeyboard) error {
 	if s.keymaps[kb] == v.sent() {
 		return nil
 	}
 	s.keymaps[kb] = v.sent()
 	if v == nil {
-		return errors.Join(c.Sent(kb.SendKeymap(sw.WlKeyboardKeymapFormatXkbV1, s.cfg.Keymap.FD(), s.cfg.Keymap.Size())), s.sendModifiers(c, kb))
+		return errors.Join(kb.SendKeymap(sw.WlKeyboardKeymapFormatXkbV1, s.cfg.Keymap.FD(), s.cfg.Keymap.Size()), s.sendModifiers(kb))
 	}
-	return errors.Join(c.Sent(kb.SendKeymap(sw.WlKeyboardKeymapFormatXkbV1, v.fd, v.size)), v.sendModifiers(s, c, kb))
+	return errors.Join(kb.SendKeymap(sw.WlKeyboardKeymapFormatXkbV1, v.fd, v.size), v.sendModifiers(s, kb))
 }
 
-func (v *VirtualKeyboard) sendModifiers(s *Seat, c *server.Client, kb *sw.WlKeyboard) error {
-	return c.Sent(kb.SendModifiers(s.display.NextSerial(), v.mods[0], v.mods[1], v.mods[2], v.mods[3]))
+func (v *VirtualKeyboard) sendModifiers(s *Seat, kb *sw.WlKeyboard) error {
+	return kb.SendModifiers(s.display.NextSerial(), v.mods[0], v.mods[1], v.mods[2], v.mods[3])
 }
 
-func (s *Seat) focusedKeyboards() (*server.Client, []*sw.WlKeyboard) {
-	c, r := s.resourcesAt(s.keyboard.focus)
-	if r == nil {
-		return nil, nil
+func (s *Seat) focusedKeyboards() []*sw.WlKeyboard {
+	if _, r := s.resourcesAt(s.keyboard.focus); r != nil {
+		return r.keyboards
 	}
-	return c, r.keyboards
+	return nil
 }
 
 func (s *Seat) VirtualKey(v *VirtualKeyboard, code uint32, pressed bool, at time.Duration) error {
@@ -89,11 +87,11 @@ func (s *Seat) VirtualKey(v *VirtualKeyboard, code uint32, pressed bool, at time
 
 func (s *Seat) VirtualModifiers(v *VirtualKeyboard, depressed, latched, locked, group uint32) error {
 	v.mods = [4]uint32{depressed, latched, locked, group}
-	c, kbs := s.focusedKeyboards()
+	kbs := s.focusedKeyboards()
 	var errs []error
 	for _, kb := range kbs {
 		if s.keymaps[kb].v == v {
-			errs = append(errs, v.sendModifiers(s, c, kb))
+			errs = append(errs, v.sendModifiers(s, kb))
 		}
 	}
 	return errors.Join(errs...)

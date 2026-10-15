@@ -52,6 +52,7 @@ func (d *Display) addClient(fd int, context *SecurityContext) (*Client, error) {
 		lastID:  wire.FirstServerID - 1,
 		context: context,
 	}
+	c.conn.DeferSendErrors()
 	if d.trace != nil {
 		c.conn.SetTracer(c.trace)
 	}
@@ -95,17 +96,6 @@ func (c *Client) runHooks(id wire.ObjectID) error {
 		errs = append(errs, f())
 	}
 	return errors.Join(errs...)
-}
-
-func (c *Client) Sent(err error) error {
-	if err == nil || c.conn.Err() == nil {
-		return err
-	}
-	if c.gone || c.dropping {
-		return nil
-	}
-	c.dropping = true
-	return c.display.loop.Post(c.destroy)
 }
 
 func (c *Client) Fail(err error) error {
@@ -156,7 +146,7 @@ func (c *Client) Remove(id wire.ObjectID) error {
 	hooks := c.runHooks(id)
 	delete(c.objects, id)
 	if !id.ServerSide() && !c.gone {
-		return errors.Join(hooks, c.Sent(c.wlDisplay.SendDeleteID(uint32(id))))
+		return errors.Join(hooks, c.wlDisplay.SendDeleteID(uint32(id)))
 	}
 	return hooks
 }

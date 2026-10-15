@@ -105,7 +105,7 @@ func (c *Compositor) outsideGrab(s *surface.Surface) bool {
 func (c *Compositor) reconstrain(w *window) error {
 	var errs []error
 	for _, p := range c.popups(w) {
-		errs = append(errs, p.popup.Surface().Client().Sent(p.popup.Reconstrain()))
+		errs = append(errs, p.popup.Reconstrain())
 	}
 	return errors.Join(errs...)
 }

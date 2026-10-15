@@ -40,7 +40,7 @@ func (r dataManager) GetDataDevice(_ *sw.WlDataDeviceManager, res *sw.WlDataDevi
 	if r.c != r.m.focus {
 		return dataDevice(r), nil
 	}
-	return dataDevice(r), r.c.Sent(r.m.offerData(r.c, res, r.m.selection[Clipboard]))
+	return dataDevice(r), r.m.offerData(r.c, res, r.m.selection[Clipboard])
 }
 
 type dataSource struct {

@@ -37,10 +37,10 @@ func (s *Seat) Ungrab(g KeyboardGrab) error {
 		return nil
 	}
 	s.keyboard.grab = nil
-	c, kbs := s.focusedKeyboards()
+	kbs := s.focusedKeyboards()
 	var errs []error
 	for _, kb := range kbs {
-		errs = append(errs, s.sendModifiers(c, kb))
+		errs = append(errs, s.sendModifiers(kb))
 	}
 	return errors.Join(errs...)
 }
@@ -78,16 +78,16 @@ func (s *Seat) keysArray() []byte {
 	return keys
 }
 
-func (s *Seat) sendModifiers(c *server.Client, kb *sw.WlKeyboard) error {
+func (s *Seat) sendModifiers(kb *sw.WlKeyboard) error {
 	m := s.state.Modifiers()
-	return c.Sent(kb.SendModifiers(s.display.NextSerial(), m.Depressed, m.Latched, m.Locked, m.Group))
+	return kb.SendModifiers(s.display.NextSerial(), m.Depressed, m.Latched, m.Locked, m.Group)
 }
 
-func (s *Seat) enterKeyboard(c *server.Client, kb *sw.WlKeyboard) error {
-	if err := c.Sent(kb.SendEnter(s.display.NextSerial(), s.keyboard.focus.Resource(), s.keysArray())); err != nil {
+func (s *Seat) enterKeyboard(kb *sw.WlKeyboard) error {
+	if err := kb.SendEnter(s.display.NextSerial(), s.keyboard.focus.Resource(), s.keysArray()); err != nil {
 		return err
 	}
-	return s.sendModifiers(c, kb)
+	return s.sendModifiers(kb)
 }
 
 func (s *Seat) SetKeyboardFocus(target *surface.Surface) error {
@@ -98,7 +98,7 @@ func (s *Seat) SetKeyboardFocus(target *surface.Surface) error {
 	if old := s.keyboard.focus; old != nil {
 		if r := s.lookup(old.Client()); r != nil {
 			for _, kb := range r.keyboards {
-				errs = append(errs, old.Client().Sent(kb.SendLeave(s.display.NextSerial(), old.Resource())))
+				errs = append(errs, kb.SendLeave(s.display.NextSerial(), old.Resource()))
 			}
 		}
 	}
@@ -107,7 +107,7 @@ func (s *Seat) SetKeyboardFocus(target *surface.Surface) error {
 	if target != nil {
 		if r := s.lookup(target.Client()); r != nil {
 			for _, kb := range r.keyboards {
-				errs = append(errs, s.enterKeyboard(target.Client(), kb))
+				errs = append(errs, s.enterKeyboard(kb))
 			}
 		}
 	}
@@ -149,9 +149,9 @@ func (s *Seat) sendKey(v *VirtualKeyboard, code uint32, pressed, modsChanged boo
 	serial := s.eventSerial(c, pressed)
 	var errs []error
 	for _, kb := range r.keyboards {
-		errs = append(errs, s.useKeymap(c, kb, v), c.Sent(kb.SendKey(serial, ms, code, state)))
+		errs = append(errs, s.useKeymap(kb, v), kb.SendKey(serial, ms, code, state))
 		if modsChanged {
-			errs = append(errs, s.sendModifiers(c, kb))
+			errs = append(errs, s.sendModifiers(kb))
 		}
 	}
 	return errors.Join(errs...)
@@ -197,9 +197,9 @@ func (s *Seat) Reconfigure(p Pending) error {
 	for _, r := range s.clients {
 		focused := s.keyboard.focus != nil && s.keyboard.focus.Client() == r.client
 		for _, kb := range r.keyboards {
-			errs = append(errs, r.client.Sent(s.sendKeyboardConfig(kb)))
+			errs = append(errs, s.sendKeyboardConfig(kb))
 			if focused {
-				errs = append(errs, s.sendModifiers(r.client, kb))
+				errs = append(errs, s.sendModifiers(kb))
 			}
 		}
 	}
@@ -221,7 +221,7 @@ func (r seatRequests) GetKeyboard(obj *sw.WlSeat, kb *sw.WlKeyboard) (sw.WlKeybo
 		return nil, err
 	}
 	if s.keyboard.focus != nil && s.keyboard.focus.Client() == r.c {
-		if err := s.enterKeyboard(r.c, kb); err != nil {
+		if err := s.enterKeyboard(kb); err != nil {
 			return nil, err
 		}
 	}

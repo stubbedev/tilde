@@ -74,16 +74,16 @@ type confine struct{ res *spc.ZwpConfinedPointerV1 }
 
 func (l lock) send(cl *server.Client, active bool) error {
 	if active {
-		return cl.Sent(l.res.SendLocked())
+		return l.res.SendLocked()
 	}
-	return cl.Sent(l.res.SendUnlocked())
+	return l.res.SendUnlocked()
 }
 
 func (f confine) send(cl *server.Client, active bool) error {
 	if active {
-		return cl.Sent(f.res.SendConfined())
+		return f.res.SendConfined()
 	}
-	return cl.Sent(f.res.SendUnconfined())
+	return f.res.SendUnconfined()
 }
 
 type constraintPhase uint8

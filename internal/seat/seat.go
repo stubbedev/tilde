@@ -212,7 +212,7 @@ func (s *Seat) updateCapabilities() error {
 	var errs []error
 	for _, r := range s.clients {
 		for _, res := range r.seats {
-			errs = append(errs, r.client.Sent(res.SendCapabilities(caps)))
+			errs = append(errs, res.SendCapabilities(caps))
 		}
 	}
 	return errors.Join(errs...)

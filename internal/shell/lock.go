@@ -78,7 +78,7 @@ func (sh *Shell) ConfirmLock() error {
 		return nil
 	}
 	l.phase = lockConfirmed
-	return l.client.Sent(l.resource.SendLocked())
+	return l.resource.SendLocked()
 }
 
 func (sh *Shell) LockConfirmed() bool {
@@ -111,7 +111,7 @@ func (m lockManager) Lock(_ *sel.ExtSessionLockManagerV1, res *sel.ExtSessionLoc
 	l := &SessionLock{shell: sh, client: m.c, resource: res}
 	if sh.lock != nil {
 		l.phase = lockRefused
-		return l, m.c.Sent(res.SendFinished())
+		return l, res.SendFinished()
 	}
 	sh.lock, sh.locked = l, true
 	server.OnDestroy(res, l.abandon)
@@ -183,7 +183,7 @@ func (s *LockSurface) configure() error {
 	}
 	serial := s.lock.shell.display.NextSerial()
 	s.configures.push(serial, size)
-	return s.lock.client.Sent(s.resource.SendConfigure(serial, w, h))
+	return s.resource.SendConfigure(serial, w, h)
 }
 
 func (s *LockSurface) destroy() error {
