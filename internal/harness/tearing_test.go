@@ -60,3 +60,61 @@ func TestTearingFollowsTheSwitchTheHintAndTheRules(t *testing.T) {
 		})
 	}
 }
+
+func tearingManager(t *testing.T, c *testclient.Client) *ctc.WpTearingControlManagerV1 {
+	t.Helper()
+	m, err := ctc.NewWpTearingControlManagerV1(c.Display, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Bind("wp_tearing_control_manager_v1", m)
+	return m
+}
+
+func TestOneTearingControlPerSurfaceUntilItIsGone(t *testing.T) {
+	h := Start(t, small)
+	c := testclient.Connect(t, h.Socket())
+	m := tearingManager(t, c)
+	s := c.Surface()
+	first, err := m.GetTearingControl(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := first.Destroy(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.GetTearingControl(s); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Display.Roundtrip(); err != nil {
+		t.Fatalf("a tearing control after the first was destroyed: %v", err)
+	}
+	if _, err := m.GetTearingControl(s); err != nil {
+		t.Fatal(err)
+	}
+	c.ExpectProtocolError(uint32(ctc.WpTearingControlManagerV1ErrorTearingControlExists))
+}
+
+func TestDestroyingTheHintStopsTearing(t *testing.T) {
+	s := fullscreenScanout(t, func(cfg *compositor.Config) { cfg.Tearing = true })
+	hint, err := tearingManager(t, s.c).GetTearingControl(s.w.Surface)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := hint.SetPresentationHint(ctc.WpTearingControlV1PresentationHintAsync); err != nil {
+		t.Fatal(err)
+	}
+	s.show(t, "the first dmabuf", s.c.DMABUF(image.Pt(160, 100), testclient.Fill(0xff, 0, 0)))
+	if err := hint.Destroy(); err != nil {
+		t.Fatal(err)
+	}
+	s.show(t, "the second dmabuf", s.c.DMABUF(image.Pt(160, 100), testclient.Fill(0, 0xff, 0)))
+	var torn uint64
+	s.h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+		torn = b.Outputs()[0].Torn()
+		return nil
+	})
+	if torn != 1 {
+		t.Fatalf("%d torn scanouts, want only the one before the hint went", torn)
+	}
+}

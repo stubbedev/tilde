@@ -182,6 +182,14 @@ func TestPacingProtocolErrors(t *testing.T) {
 			f, err := pc.fifos.GetFifo(s)
 			return errors.Join(err, s.Destroy(), f.SetBarrier())
 		}},
+		"a wait after the surface is gone": {uint32(cff.WpFifoV1ErrorSurfaceDestroyed), func(pc *paced, s *cw.WlSurface) error {
+			f, err := pc.fifos.GetFifo(s)
+			return errors.Join(err, s.Destroy(), f.WaitBarrier())
+		}},
+		"a timestamp after the surface is gone": {uint32(cct.WpCommitTimerV1ErrorSurfaceDestroyed), func(pc *paced, s *cw.WlSurface) error {
+			timer, err := pc.timing.GetTimer(s)
+			return errors.Join(err, s.Destroy(), timer.SetTimestamp(0, 1, 0))
+		}},
 	}
 	h := Start(t, small)
 	for name, tc := range cases {
@@ -192,5 +200,31 @@ func TestPacingProtocolErrors(t *testing.T) {
 			}
 			pc.c.ExpectProtocolError(tc.code)
 		})
+	}
+}
+
+func TestAFifoAndATimerCanBeMadeAgainAfterTheirObjectsAreGone(t *testing.T) {
+	h := Start(t, small)
+	pc := pace(t, h)
+	s := pc.c.Surface()
+	f, err := pc.fifos.GetFifo(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	timer, err := pc.timing.GetTimer(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := errors.Join(f.Destroy(), timer.Destroy()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pc.fifos.GetFifo(s); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pc.timing.GetTimer(s); err != nil {
+		t.Fatal(err)
+	}
+	if err := pc.c.Display.Roundtrip(); err != nil {
+		t.Fatalf("a fifo and a timer made again after their objects were destroyed: %v", err)
 	}
 }

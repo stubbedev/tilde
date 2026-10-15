@@ -436,6 +436,30 @@ func TestOutputManagementProtocolErrors(t *testing.T) {
 			ch, err := cfg.EnableHead(m.heads[0].res)
 			return errors.Join(err, ch.SetScale(0))
 		}},
+		{"a zero custom mode", uint32(cwom.ZwlrOutputConfigurationHeadV1ErrorInvalidCustomMode), func(m *omManager, cfg *cwom.ZwlrOutputConfigurationV1) error {
+			ch, err := cfg.EnableHead(m.heads[0].res)
+			return errors.Join(err, ch.SetCustomMode(0, 0, 0))
+		}},
+		{"a transform past the enum", uint32(cwom.ZwlrOutputConfigurationHeadV1ErrorInvalidTransform), func(m *omManager, cfg *cwom.ZwlrOutputConfigurationV1) error {
+			ch, err := cfg.EnableHead(m.heads[0].res)
+			return errors.Join(err, ch.SetTransform(8))
+		}},
+		{"an adaptive sync state past the enum", uint32(cwom.ZwlrOutputConfigurationHeadV1ErrorInvalidAdaptiveSyncState), func(m *omManager, cfg *cwom.ZwlrOutputConfigurationV1) error {
+			ch, err := cfg.EnableHead(m.heads[0].res)
+			return errors.Join(err, ch.SetAdaptiveSync(2))
+		}},
+		{"a position set twice", uint32(cwom.ZwlrOutputConfigurationHeadV1ErrorAlreadySet), func(m *omManager, cfg *cwom.ZwlrOutputConfigurationV1) error {
+			ch, err := cfg.EnableHead(m.heads[0].res)
+			return errors.Join(err, ch.SetPosition(0, 0), ch.SetPosition(1, 1))
+		}},
+		{"a transform set twice", uint32(cwom.ZwlrOutputConfigurationHeadV1ErrorAlreadySet), func(m *omManager, cfg *cwom.ZwlrOutputConfigurationV1) error {
+			ch, err := cfg.EnableHead(m.heads[0].res)
+			return errors.Join(err, ch.SetTransform(0), ch.SetTransform(0))
+		}},
+		{"adaptive sync set twice", uint32(cwom.ZwlrOutputConfigurationHeadV1ErrorAlreadySet), func(m *omManager, cfg *cwom.ZwlrOutputConfigurationV1) error {
+			ch, err := cfg.EnableHead(m.heads[0].res)
+			return errors.Join(err, ch.SetAdaptiveSync(0), ch.SetAdaptiveSync(0))
+		}},
 	} {
 		t.Run(tc.what, func(t *testing.T) {
 			h := Start(t, small)

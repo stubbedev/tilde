@@ -58,3 +58,22 @@ func TestAnAlphaModifierFadesASurface(t *testing.T) {
 	}
 	c.ExpectProtocolError(uint32(cam.WpAlphaModifierV1ErrorAlreadyConstructed))
 }
+
+func TestAnAlphaMultiplierAfterTheSurfaceIsGoneIsAnError(t *testing.T) {
+	h := Start(t, small)
+	c := testclient.Connect(t, h.Socket())
+	m, err := cam.NewWpAlphaModifierV1(c.Display, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Bind("wp_alpha_modifier_v1", m)
+	s := c.Surface()
+	fade, err := m.GetSurface(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := errors.Join(s.Destroy(), fade.SetMultiplier(0)); err != nil {
+		t.Fatal(err)
+	}
+	c.ExpectProtocolError(uint32(cam.WpAlphaModifierSurfaceV1ErrorNoSurface))
+}

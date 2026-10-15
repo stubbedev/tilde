@@ -86,3 +86,21 @@ func TestOutputPowerProtocol(t *testing.T) {
 		t.Fatal("a power object failed")
 	}
 }
+
+func TestAPowerModeOutsideTheEnumIsAnError(t *testing.T) {
+	h := Start(t, small)
+	c := testclient.Connect(t, h.Socket())
+	p, _ := powerFor(t, c)
+	if err := p.SetMode(2); err != nil {
+		t.Fatal(err)
+	}
+	c.ExpectProtocolError(uint32(cwop.ZwlrOutputPowerV1ErrorInvalidMode))
+}
+
+func TestPowerControlFailsWhenItsOutputGoes(t *testing.T) {
+	h := Start(t, small, small)
+	c := testclient.Connect(t, h.Socket())
+	_, ev := powerFor(t, c)
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error { return b.RemoveOutput(b.Outputs()[0]) })
+	c.DispatchUntil("the power object failed", func() bool { return ev.failed })
+}

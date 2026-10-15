@@ -167,3 +167,19 @@ func TestGammaTablesOfTheWrongSizeAreProtocolErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestGammaControlFailsWhenItsOutputGoes(t *testing.T) {
+	h := Start(t, small, small)
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+		for _, o := range b.Outputs() {
+			o.SetGammaSize(4)
+		}
+		return nil
+	})
+	c, _, ev := gammaControl(t, h)
+	if ev.failed {
+		t.Fatal("the first gamma control failed")
+	}
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error { return b.RemoveOutput(b.Outputs()[0]) })
+	c.DispatchUntil("the gamma control failed", func() bool { return ev.failed })
+}

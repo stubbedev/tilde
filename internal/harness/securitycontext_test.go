@@ -7,6 +7,8 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/stubbedev/tilde/internal/backend/headless"
+	"github.com/stubbedev/tilde/internal/compositor"
 	cwsc "github.com/stubbedev/tilde/internal/protocol/client/securitycontext"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	cwsc2 "github.com/stubbedev/tilde/internal/protocol/client/wlrscreencopy"
@@ -143,4 +145,70 @@ func TestASecurityContextNeedsAListeningSocket(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.ExpectProtocolError(uint32(cwsc.WpSecurityContextManagerV1ErrorInvalidListenFD))
+}
+
+func securityContext(t *testing.T, c *testclient.Client) (*cwsc.WpSecurityContextV1, int) {
+	t.Helper()
+	m, err := cwsc.NewWpSecurityContextManagerV1(c.Display, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Bind("wp_security_context_manager_v1", m)
+	_, listenFD := listeningSocket(t)
+	var closeFDs [2]int
+	if err := unix.Pipe2(closeFDs[:], unix.O_CLOEXEC); err != nil {
+		t.Fatal(err)
+	}
+	ctx, err := m.CreateListener(listenFD, closeFDs[0])
+	if err = errors.Join(err, unix.Close(listenFD), unix.Close(closeFDs[0])); err != nil {
+		t.Fatal(err)
+	}
+	return ctx, closeFDs[1]
+}
+
+func TestSecurityContextMetadataRules(t *testing.T) {
+	cases := map[string]struct {
+		code uint32
+		do   func(ctx *cwsc.WpSecurityContextV1) error
+	}{
+		"an app id set twice": {uint32(cwsc.WpSecurityContextV1ErrorAlreadySet), func(ctx *cwsc.WpSecurityContextV1) error {
+			return errors.Join(ctx.SetAppID("a"), ctx.SetAppID("b"))
+		}},
+		"a commit twice": {uint32(cwsc.WpSecurityContextV1ErrorAlreadyUsed), func(ctx *cwsc.WpSecurityContextV1) error {
+			return errors.Join(ctx.Commit(), ctx.Commit())
+		}},
+		"metadata after the commit": {uint32(cwsc.WpSecurityContextV1ErrorAlreadyUsed), func(ctx *cwsc.WpSecurityContextV1) error {
+			return errors.Join(ctx.Commit(), ctx.SetAppID("late"))
+		}},
+	}
+	h := Start(t, small)
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			c := testclient.Connect(t, h.Socket())
+			ctx, closeFD := securityContext(t, c)
+			defer unix.Close(closeFD)
+			if err := tc.do(ctx); err != nil {
+				t.Fatal(err)
+			}
+			c.ExpectProtocolError(tc.code)
+		})
+	}
+}
+
+func TestAnUncommittedSecurityContextLetsGoOfItsFDs(t *testing.T) {
+	h := Start(t, small)
+	h.Do(func(*headless.Backend, *compositor.Compositor) error { return nil })
+	c := testclient.Connect(t, h.Socket())
+	if err := c.Display.Roundtrip(); err != nil {
+		t.Fatal(err)
+	}
+	baseline := openFDs(t)
+	ctx, closeFD := securityContext(t, c)
+	if err := errors.Join(ctx.Destroy(), c.Display.Roundtrip(), unix.Close(closeFD)); err != nil {
+		t.Fatal(err)
+	}
+	h.Do(func(*headless.Backend, *compositor.Compositor) error { return nil })
+	if n := openFDs(t); n != baseline {
+		t.Fatalf("%d file descriptors open after an uncommitted security context was destroyed, %d before", n, baseline)
+	}
 }

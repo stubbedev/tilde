@@ -139,3 +139,37 @@ func TestVisibleInhibitorsHoldOffIdle(t *testing.T) {
 	}
 	i.c.DispatchUntil("idle after the inhibitor went away", func() bool { return slices.Equal(held.log, []string{"idled", "resumed", "idled"}) })
 }
+
+func TestAnInhibitorStopsHoldingWhenItsSurfaceIsDestroyed(t *testing.T) {
+	h := Start(t, small)
+	c := testclient.Connect(t, h.Socket())
+	w := c.Window("video", quadrants)
+	c.DispatchUntil("the window to map", w.Mapped)
+	mgr, err := cii.NewZwpIdleInhibitManagerV1(c.Display, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Bind("zwp_idle_inhibit_manager_v1", mgr)
+	for range 20 {
+		toggled, err := mgr.CreateInhibitor(w.Surface)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := toggled.Destroy(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := mgr.CreateInhibitor(w.Surface); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Display.Roundtrip(); err != nil {
+		t.Fatal(err)
+	}
+	i := newIdler(t, h)
+	held := i.watch(40*time.Millisecond, false)
+	i.quiet(held, 120*time.Millisecond)
+	if err := errors.Join(w.Destroy(), c.Display.Flush()); err != nil {
+		t.Fatal(err)
+	}
+	i.c.DispatchUntil("idle once the inhibiting surface is gone", func() bool { return slices.Equal(held.log, []string{"idled"}) })
+}
