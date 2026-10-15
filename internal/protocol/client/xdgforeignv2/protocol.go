@@ -64,6 +64,9 @@ func (obj *ZxdgExporterV2) Destroy() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -149,6 +152,9 @@ func (obj *ZxdgImporterV2) Destroy() error {
 	enc := obj.object.Begin(0)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
@@ -260,6 +266,9 @@ func (obj *ZxdgExportedV2) Destroy() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -352,6 +361,9 @@ func (obj *ZxdgImportedV2) Destroy() error {
 	enc := obj.object.Begin(0)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err

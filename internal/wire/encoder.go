@@ -17,6 +17,7 @@ type Encoder struct {
 	fdStart int
 	err     error
 	open    bool
+	discard bool
 }
 
 func (c *Conn) Begin(object ObjectID, opcode Opcode) *Encoder {
@@ -156,12 +157,15 @@ func (e *Encoder) FD(fd int) {
 func (e *Encoder) End() error {
 	e.open = false
 	c := e.c
-	if e.err != nil {
+	if e.err != nil || e.discard {
 		for _, fd := range c.fdsOut[e.fdStart:] {
 			_ = unix.Close(fd)
 		}
 		c.fdsOut = c.fdsOut[:e.fdStart]
 		c.out = c.out[:e.start]
+		if e.discard {
+			return nil
+		}
 		c.broken(e.err)
 		return e.err
 	}

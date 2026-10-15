@@ -658,3 +658,38 @@ func TestAClientCannotTakeAServerID(t *testing.T) {
 		t.Fatalf("a get_registry with the freed server id %#x: %v", freed, err)
 	}
 }
+
+func TestEventsToARemovedObjectAreDropped(t *testing.T) {
+	h := start(t)
+	d := h.connect()
+	if err := d.Roundtrip(); err != nil {
+		t.Fatal(err)
+	}
+	h.on(func() {
+		c := h.disp.clients[0]
+		id, err := c.NewID()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		cb, err := sw.NewWlCallback(c, id, 1)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		if err := c.Remove(id); err != nil {
+			t.Error(err)
+		}
+		if err := cb.SendDone(7); err != nil {
+			t.Errorf("an event to a removed object: %v", err)
+		}
+	})
+	if err := d.Roundtrip(); err != nil {
+		t.Fatalf("the client after an event to a removed object: %v", err)
+	}
+	var trace string
+	h.on(func() { trace = h.trace.String() })
+	if strings.Contains(trace, ".done(7)") {
+		t.Fatalf("an event went out on a removed object:\n%s", trace)
+	}
+}

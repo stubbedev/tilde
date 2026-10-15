@@ -420,6 +420,9 @@ func (obj *WlCompositor) Release() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -511,6 +514,9 @@ func (obj *WlShmPool) Destroy() error {
 	enc := obj.object.Begin(1)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
@@ -792,6 +798,9 @@ func (obj *WlShm) Release() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -877,6 +886,9 @@ func (obj *WlBuffer) Destroy() error {
 	enc := obj.object.Begin(0)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
@@ -1017,6 +1029,9 @@ func (obj *WlDataOffer) Destroy() error {
 	enc := obj.object.Begin(2)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
@@ -1187,6 +1202,9 @@ func (obj *WlDataSource) Destroy() error {
 	enc := obj.object.Begin(1)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
@@ -1401,6 +1419,9 @@ func (obj *WlDataDevice) Release() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -1525,6 +1546,9 @@ func (obj *WlDataDeviceManager) Release() error {
 	enc := obj.object.Begin(2)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
@@ -2028,6 +2052,9 @@ func (obj *WlSurface) Destroy() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -2388,6 +2415,9 @@ func (obj *WlSeat) Release() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -2639,6 +2669,9 @@ func (obj *WlPointer) Release() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -2797,6 +2830,9 @@ func (obj *WlKeyboard) Release() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -2945,6 +2981,9 @@ func (obj *WlTouch) Release() error {
 	enc := obj.object.Begin(0)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
@@ -3120,6 +3159,9 @@ func (obj *WlOutput) Release() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -3177,6 +3219,9 @@ func (obj *WlRegion) Destroy() error {
 	enc := obj.object.Begin(0)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
@@ -3265,6 +3310,9 @@ func (obj *WlSubcompositor) Destroy() error {
 	enc := obj.object.Begin(0)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
@@ -3363,6 +3411,9 @@ func (obj *WlSubsurface) Destroy() error {
 	enc := obj.object.Begin(0)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
@@ -3483,6 +3534,9 @@ func (obj *WlFixes) Destroy() error {
 	enc := obj.object.Begin(0)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err

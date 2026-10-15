@@ -197,6 +197,9 @@ func (obj *WpPresentationFeedback) SendPresented(tvSecHi uint32, tvSecLo uint32,
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -207,6 +210,9 @@ func (obj *WpPresentationFeedback) SendDiscarded() error {
 	enc := obj.object.Begin(2)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err

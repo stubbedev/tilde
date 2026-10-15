@@ -135,9 +135,11 @@ func (c *Client) Add(r wire.Resource) error {
 }
 
 func (c *Client) Remove(id wire.ObjectID) error {
-	if _, ok := c.objects[id]; !ok {
+	r, ok := c.objects[id]
+	if !ok {
 		return fmt.Errorf("server: remove unknown object %d", id)
 	}
+	r.Base().MarkRemoved()
 	hooks := c.runHooks(id)
 	delete(c.objects, id)
 	if !id.ServerSide() && !c.gone {

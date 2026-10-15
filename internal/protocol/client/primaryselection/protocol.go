@@ -110,6 +110,9 @@ func (obj *ZwpPrimarySelectionDeviceManagerV1) Destroy() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -228,6 +231,9 @@ func (obj *ZwpPrimarySelectionDeviceV1) Destroy() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -325,6 +331,9 @@ func (obj *ZwpPrimarySelectionOfferV1) Destroy() error {
 	enc := obj.object.Begin(1)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
@@ -430,6 +439,9 @@ func (obj *ZwpPrimarySelectionSourceV1) Destroy() error {
 	enc := obj.object.Begin(1)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err

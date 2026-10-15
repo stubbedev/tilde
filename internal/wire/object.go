@@ -77,6 +77,7 @@ type Object struct {
 	id      ObjectID
 	version uint32
 	iface   *Interface
+	removed bool
 }
 
 func NewObject(p Peer, id ObjectID, version uint32, iface *Interface) (Object, error) {
@@ -114,7 +115,17 @@ func (o *Object) Interface() *Interface {
 }
 
 func (o *Object) Begin(opcode Opcode) *Encoder {
-	return o.peer.Conn().Begin(o.id, opcode)
+	e := o.peer.Conn().Begin(o.id, opcode)
+	e.discard = o.removed
+	return e
+}
+
+func (o *Object) MarkRemoved() {
+	o.removed = true
+}
+
+func (o *Object) Removed() bool {
+	return o.removed
 }
 
 func (o *Object) Require(message string, since uint32) error {

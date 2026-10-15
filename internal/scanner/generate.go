@@ -439,6 +439,7 @@ func (g *gen) send(i *iface, m *message) {
 	}
 	g.printf("\tif err := enc.End(); err != nil {\n\t\t%s\n\t}\n", fail)
 	if m.destructor {
+		g.printf("\tif obj.object.Removed() {\n\t\t%s\n\t}\n", strings.Replace(fail, "err", "nil", 1))
 		g.printf("\tif err := obj.object.Peer().Remove(obj.object.ID()); err != nil {\n\t\t%s\n\t}\n", fail)
 	}
 	if creates {

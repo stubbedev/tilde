@@ -337,6 +337,9 @@ func (obj *ZwlrForeignToplevelHandleV1) Destroy() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}

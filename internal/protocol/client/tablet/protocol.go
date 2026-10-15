@@ -87,6 +87,9 @@ func (obj *ZwpTabletManagerV2) Destroy() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -198,6 +201,9 @@ func (obj *ZwpTabletSeatV2) Destroy() error {
 	enc := obj.object.Begin(0)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
@@ -494,6 +500,9 @@ func (obj *ZwpTabletToolV2) Destroy() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -630,6 +639,9 @@ func (obj *ZwpTabletV2) Destroy() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -757,6 +769,9 @@ func (obj *ZwpTabletPadRingV2) Destroy() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -883,6 +898,9 @@ func (obj *ZwpTabletPadStripV2) Destroy() error {
 	enc := obj.object.Begin(1)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
@@ -1028,6 +1046,9 @@ func (obj *ZwpTabletPadGroupV2) Destroy() error {
 	enc := obj.object.Begin(0)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
@@ -1197,6 +1218,9 @@ func (obj *ZwpTabletPadV2) Destroy() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -1302,6 +1326,9 @@ func (obj *ZwpTabletPadDialV2) Destroy() error {
 	enc := obj.object.Begin(1)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err

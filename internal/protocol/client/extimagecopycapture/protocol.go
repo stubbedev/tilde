@@ -142,6 +142,9 @@ func (obj *ExtImageCopyCaptureManagerV1) Destroy() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -298,6 +301,9 @@ func (obj *ExtImageCopyCaptureSessionV1) Destroy() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -439,6 +445,9 @@ func (obj *ExtImageCopyCaptureFrameV1) Destroy() error {
 	enc := obj.object.Begin(0)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
@@ -592,6 +601,9 @@ func (obj *ExtImageCopyCaptureCursorSessionV1) Destroy() error {
 	enc := obj.object.Begin(0)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err

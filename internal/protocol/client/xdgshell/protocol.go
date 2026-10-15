@@ -103,6 +103,9 @@ func (obj *XdgWmBase) Destroy() error {
 	if err := enc.End(); err != nil {
 		return err
 	}
+	if obj.object.Removed() {
+		return nil
+	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
 	}
@@ -272,6 +275,9 @@ func (obj *XdgPositioner) Destroy() error {
 	enc := obj.object.Begin(0)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
@@ -469,6 +475,9 @@ func (obj *XdgSurface) Destroy() error {
 	enc := obj.object.Begin(0)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
@@ -726,6 +735,9 @@ func (obj *XdgToplevel) Destroy() error {
 	enc := obj.object.Begin(0)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
@@ -996,6 +1008,9 @@ func (obj *XdgPopup) Destroy() error {
 	enc := obj.object.Begin(0)
 	if err := enc.End(); err != nil {
 		return err
+	}
+	if obj.object.Removed() {
+		return nil
 	}
 	if err := obj.object.Peer().Remove(obj.object.ID()); err != nil {
 		return err
