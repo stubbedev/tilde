@@ -164,11 +164,7 @@ func (m imageCaptures) CreateSession(obj *seic.ExtImageCopyCaptureManagerV1, res
 }
 
 func (c *Compositor) openCaptureSession(s *captureSession) (*captureSession, error) {
-	c.captureSessions = append(c.captureSessions, s)
-	s.cl.OnDestroy(s.res, func() error {
-		c.captureSessions = slices.DeleteFunc(c.captureSessions, func(x *captureSession) bool { return x == s })
-		return nil
-	})
+	server.Track(s.res, &c.captureSessions, s)
 	return s, s.sync()
 }
 
@@ -178,11 +174,7 @@ func (m imageCaptures) CreatePointerCursorSession(_ *seic.ExtImageCopyCaptureMan
 		return nil, err
 	}
 	k := &cursorSession{c: m.c, cl: m.cl, res: res, offer: m.offer, source: src}
-	m.c.cursorSessions = append(m.c.cursorSessions, k)
-	m.cl.OnDestroy(res, func() error {
-		m.c.cursorSessions = slices.DeleteFunc(m.c.cursorSessions, func(x *cursorSession) bool { return x == k })
-		return nil
-	})
+	server.Track(res, &m.c.cursorSessions, k)
 	return k, k.update()
 }
 
@@ -425,7 +417,7 @@ func (s *captureSession) CreateFrame(obj *seic.ExtImageCopyCaptureSessionV1, res
 	}
 	f := &captureFrame{s: s, res: res}
 	s.frame = f
-	s.cl.OnDestroy(res, func() error {
+	server.OnDestroy(res, func() error {
 		f.end(s.c)
 		if s.frame == f {
 			s.frame = nil

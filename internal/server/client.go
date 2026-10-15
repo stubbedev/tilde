@@ -65,9 +65,26 @@ func (d *Display) addClient(fd int, context *SecurityContext) (*Client, error) {
 	return c, nil
 }
 
-func (c *Client) OnDestroy(r wire.Resource, f func() error) {
+func OnDestroy(r wire.Resource, f func() error) {
+	c := clientOf(r)
 	id := r.Base().ID()
 	c.hooks[id] = append(c.hooks[id], f)
+}
+
+func Track[T comparable](r wire.Resource, list *[]T, x T) {
+	*list = append(*list, x)
+	OnDestroy(r, func() error {
+		*list = slices.DeleteFunc(*list, func(y T) bool { return y == x })
+		return nil
+	})
+}
+
+func clientOf(r wire.Resource) *Client {
+	c, ok := r.Base().Peer().(*Client)
+	if !ok {
+		panic(fmt.Sprintf("server: %s@%d belongs to %T, not to a server client", r.Base().Interface().Name, r.Base().ID(), r.Base().Peer()))
+	}
+	return c
 }
 
 func (c *Client) runHooks(id wire.ObjectID) error {

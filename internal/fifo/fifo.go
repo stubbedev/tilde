@@ -73,7 +73,7 @@ func (r requests) GetFifo(obj *sff.WpFifoManagerV1, res *sff.WpFifoV1, wl *sw.Wl
 		r.m.fifos = append(r.m.fifos, f)
 	}
 	f.live = true
-	r.c.OnDestroy(res, func() error {
+	server.OnDestroy(res, func() error {
 		f.live = false
 		return nil
 	})

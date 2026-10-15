@@ -26,7 +26,7 @@ func (primaryManager) Destroy(*sps.ZwpPrimarySelectionDeviceManagerV1) error {
 
 func (r primaryManager) CreateSource(_ *sps.ZwpPrimarySelectionDeviceManagerV1, res *sps.ZwpPrimarySelectionSourceV1) (sps.ZwpPrimarySelectionSourceV1Handler, error) {
 	s := &primarySource{m: r.m, client: r.c, resource: res}
-	r.c.OnDestroy(res, s.destroy)
+	server.OnDestroy(res, s.destroy)
 	return s, nil
 }
 

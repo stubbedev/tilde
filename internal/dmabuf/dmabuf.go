@@ -154,7 +154,7 @@ func (requests) Destroy(*sld.ZwpLinuxDmabufV1) error {
 
 func (r requests) CreateParams(_ *sld.ZwpLinuxDmabufV1, res *sld.ZwpLinuxBufferParamsV1) (sld.ZwpLinuxBufferParamsV1Handler, error) {
 	p := &params{m: r.m, c: r.c, res: res}
-	r.c.OnDestroy(res, p.closePlanes)
+	server.OnDestroy(res, p.closePlanes)
 	return p, nil
 }
 
@@ -198,7 +198,7 @@ func (r requests) GetSurfaceFeedback(_ *sld.ZwpLinuxDmabufV1, res *sld.ZwpLinuxD
 		return nil, err
 	}
 	r.m.surfaces[s] = append(r.m.surfaces[s], surfaceFeedback{c: r.c, res: res})
-	r.c.OnDestroy(res, func() error {
+	server.OnDestroy(res, func() error {
 		r.m.forget(s, res)
 		return nil
 	})
@@ -395,7 +395,7 @@ func (p *params) Create(obj *sld.ZwpLinuxBufferParamsV1, width, height int32, fo
 	if buf.resource, err = obj.SendCreated(buf); err != nil {
 		return errors.Join(err, closeAll(b))
 	}
-	p.c.OnDestroy(buf.resource, buf.destroyed)
+	server.OnDestroy(buf.resource, buf.destroyed)
 	return nil
 }
 
@@ -409,7 +409,7 @@ func (p *params) CreateImmed(obj *sld.ZwpLinuxBufferParamsV1, res *sw.WlBuffer, 
 		return nil, fail(obj, sld.ZwpLinuxBufferParamsV1ErrorInvalidWlBuffer, "%v", err)
 	}
 	buf := &Buffer{m: p.m, resource: res, dmabuf: b}
-	p.c.OnDestroy(res, buf.destroyed)
+	server.OnDestroy(res, buf.destroyed)
 	return buf, nil
 }
 

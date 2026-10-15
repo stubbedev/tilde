@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
+	"github.com/stubbedev/tilde/internal/server"
 )
 
 const subsurfaceRole = "wl_subsurface"
@@ -85,7 +86,7 @@ func (subcompositorRequests) GetSubsurface(obj *sw.WlSubcompositor, res *sw.WlSu
 	s.sub = sub
 	p.order = append(p.order, s)
 	p.pendingOrder = append(p.pendingOrder, s)
-	s.client.OnDestroy(res, func() error {
+	server.OnDestroy(res, func() error {
 		sub.destroy()
 		return nil
 	})

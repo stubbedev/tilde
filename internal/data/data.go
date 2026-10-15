@@ -106,10 +106,12 @@ func (m *Manager) forget(d *devices) {
 	}
 }
 
-func track[T wire.Resource](m *Manager, d *devices, list *[]T, res T) {
-	*list = append(*list, res)
-	d.client.OnDestroy(res, func() error {
-		*list = slices.DeleteFunc(*list, func(x T) bool { return wire.Resource(x) == wire.Resource(res) })
+func track[T interface {
+	wire.Resource
+	comparable
+}](m *Manager, d *devices, list *[]T, res T) {
+	server.Track(res, list, res)
+	server.OnDestroy(res, func() error {
 		m.forget(d)
 		return nil
 	})

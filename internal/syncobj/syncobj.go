@@ -133,7 +133,7 @@ func (r requests) ImportTimeline(obj *sls.WpLinuxDrmSyncobjManagerV1, res *sls.W
 		return nil, obj.ProtocolError(sls.WpLinuxDrmSyncobjManagerV1ErrorInvalidTimeline, fmt.Sprintf("not a syncobj: %v", err))
 	}
 	t := &timeline{m: r.m, handle: handle, refs: 1}
-	r.c.OnDestroy(res, t.unref)
+	server.OnDestroy(res, t.unref)
 	return &timelineRequests{t: t}, nil
 }
 
@@ -159,7 +159,7 @@ func (r requests) GetSurface(obj *sls.WpLinuxDrmSyncobjManagerV1, res *sls.WpLin
 		r.m.surfaces[s] = ss
 	}
 	ss.res = res
-	r.c.OnDestroy(res, ss.objectGone)
+	server.OnDestroy(res, ss.objectGone)
 	return ss, nil
 }
 

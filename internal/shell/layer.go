@@ -94,8 +94,8 @@ func (m layerShell) GetLayerSurface(obj *swlr.ZwlrLayerShellV1, res *swlr.ZwlrLa
 	if err := surf.SetRole(l); err != nil {
 		return nil, obj.ProtocolError(swlr.ZwlrLayerShellV1ErrorRole, err.Error())
 	}
-	m.c.OnDestroy(res, l.destroy)
-	m.c.OnDestroy(wl, l.destroy)
+	server.OnDestroy(res, l.destroy)
+	server.OnDestroy(wl, l.destroy)
 	return l, nil
 }
 

@@ -137,7 +137,7 @@ func (textInputManager) Destroy(*stix.ZwpTextInputManagerV3) error { return nil 
 func (r textInputManager) GetTextInput(_ *stix.ZwpTextInputManagerV3, res *stix.ZwpTextInputV3, _ *sw.WlSeat) (stix.ZwpTextInputV3Handler, error) {
 	ti := &textInput{m: r.m, c: r.c, res: res}
 	r.m.inputs = append(r.m.inputs, ti)
-	r.c.OnDestroy(res, ti.gone)
+	server.OnDestroy(res, ti.gone)
 	if f := r.m.focus; f != nil {
 		return ti, ti.enter(f)
 	}
@@ -274,7 +274,7 @@ func (r inputMethodManager) GetInputMethod(_ *sim.ZwpInputMethodManagerV2, _ *sw
 		return im, r.c.Sent(res.SendUnavailable())
 	}
 	r.m.im = im
-	r.c.OnDestroy(res, im.gone)
+	server.OnDestroy(res, im.gone)
 	if ti := r.m.active; ti != nil {
 		im.active = true
 		return im, errors.Join(r.c.Sent(res.SendActivate()), im.state(ti))
@@ -395,8 +395,8 @@ func (im *inputMethod) GetInputPopupSurface(obj *sim.ZwpInputMethodV2, res *sim.
 		return nil, obj.ProtocolError(sim.ZwpInputMethodV2ErrorRole, err.Error())
 	}
 	im.popups = append(im.popups, p)
-	im.c.OnDestroy(res, p.gone)
-	im.c.OnDestroy(wl, p.gone)
+	server.OnDestroy(res, p.gone)
+	server.OnDestroy(wl, p.gone)
 	return p, im.m.listener.PopupsChanged()
 }
 
@@ -406,7 +406,7 @@ func (im *inputMethod) GrabKeyboard(_ *sim.ZwpInputMethodV2, res *sim.ZwpInputMe
 		return g, nil
 	}
 	im.grab = g
-	im.c.OnDestroy(res, func() error {
+	server.OnDestroy(res, func() error {
 		if im.grab != g {
 			return nil
 		}

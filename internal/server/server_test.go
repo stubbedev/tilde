@@ -424,13 +424,15 @@ func TestCloseDisconnectsClients(t *testing.T) {
 func TestDestroyHooksRunOnDestructorAndDisconnect(t *testing.T) {
 	h := start(t)
 	var ran []string
+	var tracked []*sw.WlCompositor
 	h.on(func() {
 		if _, err := h.disp.AddGlobal(sw.WlCompositorInterface, 6, func(c *Client, id wire.ObjectID, version uint32) error {
 			comp, err := sw.NewWlCompositor(c, id, version, releasable{})
 			if err != nil {
 				return err
 			}
-			c.OnDestroy(comp, func() error {
+			Track(comp, &tracked, comp)
+			OnDestroy(comp, func() error {
 				ran = append(ran, "compositor")
 				return nil
 			})
@@ -465,8 +467,8 @@ func TestDestroyHooksRunOnDestructorAndDisconnect(t *testing.T) {
 		if err := c.Remove(first.Base().ID()); err != nil {
 			t.Error(err)
 		}
-		if len(ran) != 1 {
-			t.Errorf("hooks after a destructor: %v", ran)
+		if len(ran) != 1 || len(tracked) != 1 || tracked[0].Base().ID() != second.Base().ID() {
+			t.Errorf("hooks after a destructor: %v, tracked %v", ran, tracked)
 		}
 	})
 	if err := d.Close(); err != nil {
@@ -474,8 +476,8 @@ func TestDestroyHooksRunOnDestructorAndDisconnect(t *testing.T) {
 	}
 	h.waitClients(0)
 	h.on(func() {
-		if len(ran) != 2 {
-			t.Errorf("hooks after disconnect: %v, want both compositors", ran)
+		if len(ran) != 2 || len(tracked) != 0 {
+			t.Errorf("hooks after disconnect: %v, want both compositors, tracked %v", ran, tracked)
 		}
 	})
 }
@@ -491,7 +493,7 @@ func TestFailingDestroyHooksAreReported(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			c.OnDestroy(comp, func() error { return broken })
+			OnDestroy(comp, func() error { return broken })
 			return nil
 		}); err != nil {
 			t.Error(err)

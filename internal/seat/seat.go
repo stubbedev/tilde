@@ -137,10 +137,12 @@ func (s *Seat) forget(r *clientResources) {
 	}
 }
 
-func track[T wire.Resource](s *Seat, r *clientResources, list *[]T, res T) {
-	*list = append(*list, res)
-	r.client.OnDestroy(res, func() error {
-		*list = slices.DeleteFunc(*list, func(x T) bool { return wire.Resource(x) == wire.Resource(res) })
+func track[T interface {
+	wire.Resource
+	comparable
+}](s *Seat, r *clientResources, list *[]T, res T) {
+	server.Track(res, list, res)
+	server.OnDestroy(res, func() error {
 		s.forget(r)
 		return nil
 	})

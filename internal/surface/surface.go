@@ -82,7 +82,7 @@ func (r compositorRequests) CreateSurface(_ *sw.WlCompositor, res *sw.WlSurface)
 	s.current.scale, s.current.inputInfinite = 1, true
 	s.order = []*Surface{s}
 	s.pendingOrder = []*Surface{s}
-	r.c.OnDestroy(res, s.destroy)
+	server.OnDestroy(res, s.destroy)
 	return surfaceRequests{s}, nil
 }
 

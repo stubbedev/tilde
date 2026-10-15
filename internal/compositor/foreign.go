@@ -75,11 +75,7 @@ func (c *Compositor) bindExtList(cl *server.Client, id wire.ObjectID, version ui
 	if l.resource, err = sel.NewExtForeignToplevelListV1(cl, id, version, extListRequests{c, l}); err != nil {
 		return err
 	}
-	c.extLists = append(c.extLists, l)
-	cl.OnDestroy(l.resource, func() error {
-		c.extLists = slices.DeleteFunc(c.extLists, func(x *extList) bool { return x == l })
-		return nil
-	})
+	server.Track(l.resource, &c.extLists, l)
 	return c.syncExtList(l)
 }
 
@@ -142,11 +138,7 @@ func (c *Compositor) bindWlrToplevels(cl *server.Client, id wire.ObjectID, versi
 	if m.resource, err = swft.NewZwlrForeignToplevelManagerV1(cl, id, version, wlrManagerRequests{m}); err != nil {
 		return err
 	}
-	c.wlrManagers = append(c.wlrManagers, m)
-	cl.OnDestroy(m.resource, func() error {
-		c.wlrManagers = slices.DeleteFunc(c.wlrManagers, func(x *wlrManager) bool { return x == m })
-		return nil
-	})
+	server.Track(m.resource, &c.wlrManagers, m)
 	return c.syncWlrManager(m)
 }
 

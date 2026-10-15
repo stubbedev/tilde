@@ -34,7 +34,7 @@ func (decorationManager) GetToplevelDecoration(_ *sxd.ZxdgDecorationManagerV1, r
 		return nil, res.ProtocolError(sxd.ZxdgToplevelDecorationV1ErrorUnconfiguredBuffer, "the xdg_toplevel already has a buffer")
 	}
 	t.decoration = res
-	t.xs.base.client.OnDestroy(res, func() error {
+	server.OnDestroy(res, func() error {
 		t.decoration = nil
 		return nil
 	})

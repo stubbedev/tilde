@@ -49,7 +49,7 @@ func (m shortcutsInhibitors) InhibitShortcuts(obj *sksi.ZwpKeyboardShortcutsInhi
 	i.hooks = &surface.Hooks{Destroyed: drop}
 	s.AddHooks(i.hooks)
 	m.c.keyInhibitors[s] = i
-	m.cl.OnDestroy(res, drop)
+	server.OnDestroy(res, drop)
 	return i, m.c.refreshShortcutsInhibitor()
 }
 

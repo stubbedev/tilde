@@ -34,7 +34,7 @@ func (viewporterRequests) GetViewport(obj *svp.WpViewporter, res *svp.WpViewport
 	}
 	v := &viewport{s: s, resource: res}
 	s.viewport = v
-	s.client.OnDestroy(res, func() error {
+	server.OnDestroy(res, func() error {
 		if s.viewport == v {
 			s.viewport = nil
 			s.pending.set |= fieldSource | fieldDest

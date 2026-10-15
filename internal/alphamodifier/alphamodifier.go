@@ -77,7 +77,7 @@ func (r requests) GetSurface(obj *swam.WpAlphaModifierV1, res *swam.WpAlphaModif
 		r.m.surfaces[s] = a
 	}
 	a.live = true
-	r.c.OnDestroy(res, func() error {
+	server.OnDestroy(res, func() error {
 		a.live = false
 		if !a.gone {
 			one := float32(1)

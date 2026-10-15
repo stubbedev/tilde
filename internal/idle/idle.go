@@ -128,7 +128,7 @@ func (m *Manager) add(c *server.Client, res *sei.ExtIdleNotificationV1, timeout 
 		return nil, fmt.Errorf("idle: timer for a %v notification: %w", n.timeout, err)
 	}
 	m.notifications = append(m.notifications, n)
-	c.OnDestroy(res, n.destroy)
+	server.OnDestroy(res, n.destroy)
 	n.since = m.last
 	if n.suspended() {
 		return n, nil
@@ -201,7 +201,7 @@ func (r inhibitManager) CreateInhibitor(_ *sii.ZwpIdleInhibitManagerV1, res *sii
 	i.hooks = &surface.Hooks{Destroyed: i.drop}
 	s.AddHooks(i.hooks)
 	r.m.inhibitors = append(r.m.inhibitors, i)
-	r.c.OnDestroy(res, i.drop)
+	server.OnDestroy(res, i.drop)
 	return i, r.m.changed()
 }
 

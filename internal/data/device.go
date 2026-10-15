@@ -31,7 +31,7 @@ func (dataManager) Release(*sw.WlDataDeviceManager) error {
 
 func (r dataManager) CreateDataSource(_ *sw.WlDataDeviceManager, res *sw.WlDataSource) (sw.WlDataSourceHandler, error) {
 	s := &dataSource{m: r.m, client: r.c, resource: res}
-	r.c.OnDestroy(res, s.destroy)
+	server.OnDestroy(res, s.destroy)
 	return s, nil
 }
 

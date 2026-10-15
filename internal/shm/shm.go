@@ -83,7 +83,7 @@ func (r shmRequests) CreatePool(obj *sw.WlShm, res *sw.WlShmPool, fd int, size i
 		return nil, obj.ProtocolError(sw.WlShmErrorInvalidFD, fmt.Sprintf("cannot map pool fd: %v", err))
 	}
 	p := &pool{m: r.m, c: r.c, resource: res, fd: fd, mapping: mapping, refs: 1}
-	r.c.OnDestroy(res, p.unref)
+	server.OnDestroy(res, p.unref)
 	return p, nil
 }
 
@@ -128,7 +128,7 @@ func (p *pool) CreateBuffer(obj *sw.WlShmPool, res *sw.WlBuffer, offset, width, 
 	}
 	b := &Buffer{pool: p, resource: res, offset: int(offset), size: size, stride: int(stride), format: f}
 	p.refs++
-	p.c.OnDestroy(res, p.unref)
+	server.OnDestroy(res, p.unref)
 	return b, nil
 }
 

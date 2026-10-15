@@ -151,7 +151,7 @@ func (wlrControl) Destroy(*swdc.ZwlrDataControlManagerV1) error {
 
 func (r wlrControl) CreateDataSource(_ *swdc.ZwlrDataControlManagerV1, res *swdc.ZwlrDataControlSourceV1) (swdc.ZwlrDataControlSourceV1Handler, error) {
 	s := &controlSource{m: r.m, client: r.c, send: res.SendSend, cancel: res.SendCancelled}
-	r.c.OnDestroy(res, s.destroy)
+	server.OnDestroy(res, s.destroy)
 	return wlrSource{s}, nil
 }
 
@@ -166,7 +166,7 @@ func (r wlrControl) GetDataDevice(_ *swdc.ZwlrDataControlManagerV1, res *swdc.Zw
 			return res.SendDataOffer(wlrOffer{r.m.controlOffer(k, src)})
 		}, send)
 	}
-	r.c.OnDestroy(res, func() error {
+	server.OnDestroy(res, func() error {
 		r.m.removeControl(d)
 		return nil
 	})
@@ -251,7 +251,7 @@ func (extControl) Destroy(*sedc.ExtDataControlManagerV1) error {
 
 func (r extControl) CreateDataSource(_ *sedc.ExtDataControlManagerV1, res *sedc.ExtDataControlSourceV1) (sedc.ExtDataControlSourceV1Handler, error) {
 	s := &controlSource{m: r.m, client: r.c, send: res.SendSend, cancel: res.SendCancelled}
-	r.c.OnDestroy(res, s.destroy)
+	server.OnDestroy(res, s.destroy)
 	return extSource{s}, nil
 }
 
@@ -266,7 +266,7 @@ func (r extControl) GetDataDevice(_ *sedc.ExtDataControlManagerV1, res *sedc.Ext
 			return res.SendDataOffer(extOffer{r.m.controlOffer(k, src)})
 		}, send)
 	}
-	r.c.OnDestroy(res, func() error {
+	server.OnDestroy(res, func() error {
 		r.m.removeControl(d)
 		return nil
 	})

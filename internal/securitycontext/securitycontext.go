@@ -43,7 +43,7 @@ func (m manager) CreateListener(obj *swsc.WpSecurityContextManagerV1, res *swsc.
 		return nil, errors.Join(obj.ProtocolError(swsc.WpSecurityContextManagerV1ErrorInvalidListenFD, fmt.Sprintf("listen_fd: %v", err)), closeBoth())
 	}
 	ctx := &context{d: m.d, listenFD: listenFD, closeFD: closeFD}
-	m.c.OnDestroy(res, func() error {
+	server.OnDestroy(res, func() error {
 		if ctx.committed {
 			return nil
 		}

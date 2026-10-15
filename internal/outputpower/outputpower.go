@@ -5,7 +5,6 @@ package outputpower
 import (
 	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/stubbedev/tilde/internal/output"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
@@ -59,11 +58,7 @@ func modeOf(on bool) swop.ZwlrOutputPowerV1Mode {
 
 func (r requests) GetOutputPower(_ *swop.ZwlrOutputPowerManagerV1, res *swop.ZwlrOutputPowerV1, wl *sw.WlOutput) (swop.ZwlrOutputPowerV1Handler, error) {
 	p := &power{m: r.m, c: r.c, res: res, out: r.m.ctl.Owner(wl)}
-	r.m.powers = append(r.m.powers, p)
-	r.c.OnDestroy(res, func() error {
-		r.m.powers = slices.DeleteFunc(r.m.powers, func(x *power) bool { return x == p })
-		return nil
-	})
+	server.Track(res, &r.m.powers, p)
 	if p.out == nil {
 		return p, r.c.Sent(res.SendFailed())
 	}

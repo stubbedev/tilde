@@ -49,7 +49,7 @@ func (m screencopyManager) CaptureOutputRegion(_ *swsc.ZwlrScreencopyManagerV1, 
 
 func (m screencopyManager) frame(res *swsc.ZwlrScreencopyFrameV1, cursor bool, wl *sw.WlOutput, logical image.Rectangle) (swsc.ZwlrScreencopyFrameV1Handler, error) {
 	f := &screencopyFrame{c: m.c, cl: m.cl, res: res, cursor: cursor}
-	m.cl.OnDestroy(res, func() error {
+	server.OnDestroy(res, func() error {
 		f.end(m.c)
 		return nil
 	})

@@ -74,7 +74,7 @@ func (r requests) GetGammaControl(_ *swgc.ZwlrGammaControlManagerV1, res *swgc.Z
 	}
 	k.out, k.gamma = o, g
 	r.m.controls[o] = k
-	r.c.OnDestroy(res, k.release)
+	server.OnDestroy(res, k.release)
 	return k, r.c.Sent(res.SendGammaSize(uint32(g.GammaSize()))) //nolint:gosec // a LUT size is far below 2^32
 }
 

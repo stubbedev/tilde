@@ -60,7 +60,7 @@ func (r requests) GetTearingControl(obj *stc.WpTearingControlManagerV1, res *stc
 		r.m.hints[s] = h
 	}
 	h.live = true
-	r.c.OnDestroy(res, func() error {
+	server.OnDestroy(res, func() error {
 		h.live = false
 		vsync := false
 		h.pending = &vsync

@@ -107,7 +107,7 @@ func (m lockManager) Lock(_ *sel.ExtSessionLockManagerV1, res *sel.ExtSessionLoc
 		return l, m.c.Sent(res.SendFinished())
 	}
 	sh.lock, sh.locked = l, true
-	m.c.OnDestroy(res, l.abandon)
+	server.OnDestroy(res, l.abandon)
 	return l, sh.listener.LockChanged()
 }
 
@@ -159,8 +159,8 @@ func (l *SessionLock) GetLockSurface(obj *sel.ExtSessionLockV1, res *sel.ExtSess
 		return nil, obj.ProtocolError(sel.ExtSessionLockV1ErrorRole, err.Error())
 	}
 	l.surfaces = append(l.surfaces, ls)
-	l.client.OnDestroy(res, ls.destroy)
-	l.client.OnDestroy(wl, ls.destroy)
+	server.OnDestroy(res, ls.destroy)
+	server.OnDestroy(wl, ls.destroy)
 	return ls, ls.configure()
 }
 

@@ -213,7 +213,7 @@ func (r seatRequests) GetKeyboard(obj *sw.WlSeat, kb *sw.WlKeyboard) (sw.WlKeybo
 	}
 	res := s.resources(r.c)
 	track(s, res, &res.keyboards, kb)
-	r.c.OnDestroy(kb, func() error {
+	server.OnDestroy(kb, func() error {
 		delete(s.keymaps, kb)
 		return nil
 	})

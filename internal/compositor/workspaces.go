@@ -47,11 +47,7 @@ func (c *Compositor) bindWorkspaces(cl *server.Client, id wire.ObjectID, version
 	if m.resource, err = sew.NewExtWorkspaceManagerV1(cl, id, version, wsManagerRequests{c, m}); err != nil {
 		return err
 	}
-	c.wsManagers = append(c.wsManagers, m)
-	cl.OnDestroy(m.resource, func() error {
-		c.wsManagers = slices.DeleteFunc(c.wsManagers, func(x *wsManager) bool { return x == m })
-		return nil
-	})
+	server.Track(m.resource, &c.wsManagers, m)
 	return c.syncWorkspaceManager(m)
 }
 

@@ -57,9 +57,8 @@ func (m globalShortcuts) RegisterShortcut(obj *shgs.HyprlandGlobalShortcutsManag
 		return nil, obj.ProtocolError(shgs.HyprlandGlobalShortcutsManagerV1ErrorAlreadyTaken, fmt.Sprintf("%s:%s is already registered", appID, id))
 	}
 	g := &globalShortcut{cl: m.cl, res: res, appID: appID, id: id}
-	m.c.globalShortcuts = append(m.c.globalShortcuts, g)
-	m.cl.OnDestroy(res, func() error {
-		m.c.globalShortcuts = slices.DeleteFunc(m.c.globalShortcuts, func(x *globalShortcut) bool { return x == g })
+	server.Track(res, &m.c.globalShortcuts, g)
+	server.OnDestroy(res, func() error {
 		m.c.heldShortcuts = slices.DeleteFunc(m.c.heldShortcuts, func(h heldShortcut) bool { return h.shortcut == g })
 		return nil
 	})

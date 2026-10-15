@@ -97,11 +97,7 @@ func (m *Manager) bind(c *server.Client, id wire.ObjectID, v uint32) error {
 		return err
 	}
 	b.res = res
-	m.bindings = append(m.bindings, b)
-	c.OnDestroy(res, func() error {
-		m.bindings = slices.DeleteFunc(m.bindings, func(x *binding) bool { return x == b })
-		return nil
-	})
+	server.Track(res, &m.bindings, b)
 	errs := make([]error, 0, len(m.heads)+1)
 	for _, h := range m.heads {
 		errs = append(errs, b.announce(h))

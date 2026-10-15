@@ -83,7 +83,7 @@ func (r requests) GetTimer(obj *sct.WpCommitTimingManagerV1, res *sct.WpCommitTi
 		r.m.timers = append(r.m.timers, t)
 	}
 	t.live = true
-	r.c.OnDestroy(res, func() error {
+	server.OnDestroy(res, func() error {
 		t.live = false
 		return nil
 	})

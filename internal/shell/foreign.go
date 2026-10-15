@@ -95,9 +95,9 @@ func (sh *Shell) toplevelGone(t *Toplevel) error {
 	return errors.Join(errs...)
 }
 
-func (sh *Shell) importHandle(c *server.Client, res wire.Resource, handle string, destroyed func() error) (*imported, error) {
+func (sh *Shell) importHandle(res wire.Resource, handle string, destroyed func() error) (*imported, error) {
 	imp := &imported{sh: sh, destroyed: destroyed}
-	c.OnDestroy(res, func() error {
+	server.OnDestroy(res, func() error {
 		if imp.export != nil {
 			imp.export.imports = slices.DeleteFunc(imp.export.imports, func(x *imported) bool { return x == imp })
 			return imp.unparent(imp.export.toplevel())
@@ -169,7 +169,7 @@ func (x exporterV2) ExportToplevel(obj *sxf2.ZxdgExporterV2, res *sxf2.ZxdgExpor
 	if err != nil {
 		return nil, err
 	}
-	x.c.OnDestroy(res, func() error { return x.sh.unexport(e) })
+	server.OnDestroy(res, func() error { return x.sh.unexport(e) })
 	return exportedV2{}, x.c.Sent(res.SendHandle(e.handle))
 }
 
@@ -190,7 +190,7 @@ type importerV2 struct {
 func (importerV2) Destroy(*sxf2.ZxdgImporterV2) error { return nil }
 
 func (x importerV2) ImportToplevel(_ *sxf2.ZxdgImporterV2, res *sxf2.ZxdgImportedV2, handle string) (sxf2.ZxdgImportedV2Handler, error) {
-	imp, err := x.sh.importHandle(x.c, res, handle, func() error { return x.c.Sent(res.SendDestroyed()) })
+	imp, err := x.sh.importHandle(res, handle, func() error { return x.c.Sent(res.SendDestroyed()) })
 	return importedV2{imp}, err
 }
 
@@ -233,7 +233,7 @@ func (x exporterV1) Export(obj *sxf1.ZxdgExporterV1, res *sxf1.ZxdgExportedV1, w
 	if err != nil {
 		return nil, err
 	}
-	x.c.OnDestroy(res, func() error { return x.sh.unexport(e) })
+	server.OnDestroy(res, func() error { return x.sh.unexport(e) })
 	return exportedV1{}, x.c.Sent(res.SendHandle(e.handle))
 }
 
@@ -254,7 +254,7 @@ type importerV1 struct {
 func (importerV1) Destroy(*sxf1.ZxdgImporterV1) error { return nil }
 
 func (x importerV1) Import(_ *sxf1.ZxdgImporterV1, res *sxf1.ZxdgImportedV1, handle string) (sxf1.ZxdgImportedV1Handler, error) {
-	imp, err := x.sh.importHandle(x.c, res, handle, func() error { return x.c.Sent(res.SendDestroyed()) })
+	imp, err := x.sh.importHandle(res, handle, func() error { return x.c.Sent(res.SendDestroyed()) })
 	return importedV1{imp}, err
 }
 

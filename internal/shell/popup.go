@@ -8,6 +8,7 @@ import (
 
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
+	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/surface"
 )
 
@@ -53,7 +54,7 @@ func (xs *XdgSurface) GetPopup(obj *sxdg.XdgSurface, res *sxdg.XdgPopup, parent 
 		p.adopt(px)
 	}
 	xs.role = p
-	xs.base.client.OnDestroy(res, p.destroy)
+	server.OnDestroy(res, p.destroy)
 	return p, nil
 }
 

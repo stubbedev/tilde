@@ -140,7 +140,7 @@ func (m pointerConstraints) constrain(obj *spc.ZwpPointerConstraintsV1, res wire
 	k.hooks = &surface.Hooks{Commit: k.commit, Applied: k.applied, Destroyed: k.surfaceGone}
 	s.AddHooks(k.hooks)
 	m.c.constraints[s] = k
-	m.cl.OnDestroy(res, k.drop)
+	server.OnDestroy(res, k.drop)
 	return k, nil
 }
 

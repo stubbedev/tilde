@@ -47,7 +47,7 @@ type virtualKeyboards struct {
 
 func (m virtualKeyboards) CreateVirtualKeyboard(_ *svk.ZwpVirtualKeyboardManagerV1, _ *sw.WlSeat, res *svk.ZwpVirtualKeyboardV1) (svk.ZwpVirtualKeyboardV1Handler, error) {
 	v := &virtualKeyboard{c: m.c, kb: seat.NewVirtualKeyboard()}
-	m.cl.OnDestroy(res, v.kb.Close)
+	server.OnDestroy(res, v.kb.Close)
 	return v, nil
 }
 
