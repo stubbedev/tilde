@@ -175,3 +175,17 @@ func TestBuiltinArrowHasItsTipAtTheHotspot(t *testing.T) {
 		}
 	}
 }
+
+func TestThemesThatInheritEachOtherStillOpen(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "a", "index.theme"), []byte("[Icon Theme]\nInherits=b\n"))
+	write(t, filepath.Join(dir, "b", "index.theme"), []byte("[Icon Theme]\nInherits=a\n"))
+	write(t, filepath.Join(dir, "b", "cursors", "left_ptr"), encode(entry{nominal: 24, size: image.Pt(1, 1), fill: 7}))
+	theme, err := Open("a", []string{dir})
+	if err != nil {
+		t.Fatalf("a theme inheriting itself through another: %v", err)
+	}
+	if img, err := theme.Load(24, Names("default")...); err != nil || img.Pixels[0] != 7 {
+		t.Fatalf("Load = %v, %v", img, err)
+	}
+}

@@ -113,7 +113,7 @@ type Theme struct {
 
 func Open(name string, searchPath []string) (*Theme, error) {
 	t := &Theme{name: name, cache: map[string][]Image{}}
-	if err := t.resolve(name, searchPath, 0); err != nil {
+	if err := t.resolve(name, searchPath, map[string]bool{}); err != nil {
 		return nil, err
 	}
 	if len(t.dirs) == 0 {
@@ -122,10 +122,11 @@ func Open(name string, searchPath []string) (*Theme, error) {
 	return t, nil
 }
 
-func (t *Theme) resolve(name string, searchPath []string, depth int) error {
-	if depth > 16 {
-		return fmt.Errorf("xcursor: theme %q inherits too deeply", t.name)
+func (t *Theme) resolve(name string, searchPath []string, visited map[string]bool) error {
+	if visited[name] {
+		return nil
 	}
+	visited[name] = true
 	var inherits []string
 	for _, base := range searchPath {
 		dir := filepath.Join(base, name)
@@ -139,10 +140,8 @@ func (t *Theme) resolve(name string, searchPath []string, depth int) error {
 		inherits = append(inherits, parents...)
 	}
 	for _, parent := range inherits {
-		if parent != name {
-			if err := t.resolve(parent, searchPath, depth+1); err != nil {
-				return err
-			}
+		if err := t.resolve(parent, searchPath, visited); err != nil {
+			return err
 		}
 	}
 	return nil
