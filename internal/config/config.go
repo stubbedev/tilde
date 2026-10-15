@@ -322,15 +322,23 @@ func (p *parser) optColor(a *At[string], key string, fallback render.Color) rend
 	return p.color(*a, key, fallback)
 }
 
-func (p *parser) positive(a *At[int], key string, fallback int, allowZero bool) int {
+func (p *parser) atLeast(a *At[int], key string, fallback, lo int, rule string) int {
 	if a == nil {
 		return fallback
 	}
-	if a.V < 0 || (a.V == 0 && !allowZero) {
-		p.fail(a.Line, key, "%d is not a positive number", a.V)
+	if a.V < lo {
+		p.fail(a.Line, key, "%d is not %s", a.V, rule)
 		return fallback
 	}
 	return a.V
+}
+
+func (p *parser) positive(a *At[int], key string, fallback int) int {
+	return p.atLeast(a, key, fallback, 1, "a positive number")
+}
+
+func (p *parser) nonNegative(a *At[int], key string, fallback int) int {
+	return p.atLeast(a, key, fallback, 0, "zero or more")
 }
 
 func (p *parser) repeat(a *At[int], key string, fallback int32) int32 {
@@ -581,14 +589,14 @@ func Parse(file string, data []byte) (Config, error) {
 		RepeatDelay: p.repeat(raw.Input.Keyboard.RepeatDelay, "input.keyboard.repeat_delay", seat.DefaultRepeatDelay),
 		Input:       p.input(raw.Input),
 		Decor: compositor.Decor{
-			BorderWidth:    p.positive(raw.Borders.Width, "borders.width", def.BorderWidth, true),
+			BorderWidth:    p.nonNegative(raw.Borders.Width, "borders.width", def.BorderWidth),
 			ActiveBorder:   p.optColor(raw.Borders.Active, "borders.active", def.ActiveBorder),
 			InactiveBorder: p.optColor(raw.Borders.Inactive, "borders.inactive", def.InactiveBorder),
 			Tab: compositor.TabStyle{
-				Height:      p.positive(raw.Tabs.Height, "tabs.height", def.Tab.Height, false),
-				Padding:     p.positive(raw.Tabs.Padding, "tabs.padding", def.Tab.Padding, true),
-				TextHeight:  p.positive(raw.Tabs.TextHeight, "tabs.text_height", def.Tab.TextHeight, false),
-				TextPadding: p.positive(raw.Tabs.TextPadding, "tabs.text_padding", def.Tab.TextPadding, true),
+				Height:      p.positive(raw.Tabs.Height, "tabs.height", def.Tab.Height),
+				Padding:     p.nonNegative(raw.Tabs.Padding, "tabs.padding", def.Tab.Padding),
+				TextHeight:  p.positive(raw.Tabs.TextHeight, "tabs.text_height", def.Tab.TextHeight),
+				TextPadding: p.nonNegative(raw.Tabs.TextPadding, "tabs.text_padding", def.Tab.TextPadding),
 				Active:      p.tabColors(raw.Tabs.Active, "tabs.active", def.Tab.Active),
 				Inactive:    p.tabColors(raw.Tabs.Inactive, "tabs.inactive", def.Tab.Inactive),
 				Urgent:      p.tabColors(raw.Tabs.Urgent, "tabs.urgent", def.Tab.Urgent),
@@ -612,8 +620,8 @@ func Parse(file string, data []byte) (Config, error) {
 	if raw.Autotile.Ephemeral != nil {
 		at.Ephemeral = *raw.Autotile.Ephemeral
 	}
-	at.MinTrigger = p.positive(raw.Autotile.MinTrigger, "autotile.min_trigger", at.MinTrigger, true)
-	at.Divisor = p.positive(raw.Autotile.Divisor, "autotile.divisor", at.Divisor, false)
+	at.MinTrigger = p.nonNegative(raw.Autotile.MinTrigger, "autotile.min_trigger", at.MinTrigger)
+	at.Divisor = p.positive(raw.Autotile.Divisor, "autotile.divisor", at.Divisor)
 	for i, o := range raw.Outputs {
 		cfg.Outputs = append(cfg.Outputs, p.output(i, o.V))
 	}

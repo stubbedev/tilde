@@ -135,6 +135,7 @@ func TestErrorsNameFileLineAndKey(t *testing.T) {
 		"outputs:\n  - match: DP-1\n    mode: 1x1@inf\n":            `t.yaml:3: outputs[0].mode: "1x1@inf" is not`,
 		"outputs:\n  - match: DP-1\n    mode: 1x1@1e12\n":           `t.yaml:3: outputs[0].mode: "1x1@1e12" is not`,
 		"tabs:\n  height: 0\n":                                      "t.yaml:2: tabs.height: 0 is not a positive number",
+		"borders:\n  width: -1\n":                                   "t.yaml:2: borders.width: -1 is not zero or more",
 		"palette:\n  accent: orange\n":                              `t.yaml:2: palette.accent: "orange" is not #rrggbb[aa]`,
 		"input:\n  touchpad:\n    tapping: true\n":                  "t.yaml:3: input.touchpad.tapping: unknown key (known: accel_profile, accel_speed,",
 		"input:\n  devices:\n    mouse:\n      speed: 1\n":          `t.yaml:4: input.devices.mouse.speed: unknown key`,
