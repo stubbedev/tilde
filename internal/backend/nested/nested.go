@@ -252,6 +252,7 @@ func (b *Backend) Outputs() []*Output {
 func (b *Backend) AddOutput() (*Output, error) {
 	b.next++
 	o := &Output{backend: b, name: fmt.Sprintf("NESTED-%d", b.next)}
+	o.clock = backend.NewFrameClock(b.loop.Idle, o.frameReady, o.runFrame)
 	var err error
 	if o.surface, err = b.compositor.CreateSurface(surfaceEvents{}); err != nil {
 		return nil, err
@@ -304,8 +305,7 @@ type Output struct {
 	buffers         []*buffer
 	free            func() error
 	drawing         *buffer
-	frameRequested  bool
-	idleQueued      bool
+	clock           *backend.FrameClock
 	callbackPending bool
 	presentPending  bool
 	seq             uint64
@@ -412,27 +412,19 @@ func (o *Output) ScheduleFrame() error {
 	if !o.configured {
 		return nil
 	}
-	o.frameRequested = true
-	o.maybeFrame()
+	o.clock.Request()
 	return nil
 }
 
-func (o *Output) maybeFrame() {
-	if !o.frameRequested || o.callbackPending || o.idleQueued || o.drawing != nil || o.freeBuffer() == nil {
-		return
+func (o *Output) frameReady() bool {
+	return o.configured && !o.callbackPending && o.drawing == nil && o.freeBuffer() != nil
+}
+
+func (o *Output) runFrame() error {
+	if err := o.backend.handler.Frame(o); err != nil || o.callbackPending {
+		return err
 	}
-	o.idleQueued = true
-	o.backend.loop.Idle(func() error {
-		o.idleQueued = false
-		if !o.frameRequested || !o.configured || o.callbackPending || o.freeBuffer() == nil {
-			return nil
-		}
-		o.frameRequested = false
-		if err := o.backend.handler.Frame(o); err != nil || o.callbackPending {
-			return err
-		}
-		return o.commitForCallback()
-	})
+	return o.commitForCallback()
 }
 
 func (o *Output) commitForCallback() error {
@@ -507,7 +499,7 @@ func (o *Output) frameDone() error {
 			return err
 		}
 	}
-	o.maybeFrame()
+	o.clock.Kick()
 	return nil
 }
 
@@ -578,7 +570,7 @@ type bufferEvents struct {
 
 func (e bufferEvents) Release(*cw.WlBuffer) error {
 	e.buf.busy = false
-	e.o.maybeFrame()
+	e.o.clock.Kick()
 	return nil
 }
 

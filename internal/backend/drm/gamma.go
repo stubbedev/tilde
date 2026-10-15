@@ -93,7 +93,7 @@ func (o *Output) gammaSent() error {
 }
 
 func (o *Output) flushGamma() error {
-	if !o.gamma.dirty || !o.lit || o.off || o.b.paused || o.flipping || o.frameRequested || o.framing {
+	if !o.gamma.dirty || !o.lit || o.off || o.b.paused || o.flipping || o.clock.Requested() || o.framing {
 		return nil
 	}
 	r := &o.b.req

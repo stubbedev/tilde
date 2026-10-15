@@ -357,6 +357,7 @@ func (b *Backend) add(c kdrm.Connector) error {
 		return err
 	}
 	o := &Output{b: b, conn: c, props: props, crtc: cr, primary: p}
+	o.clock = backend.NewFrameClock(b.loop.Idle, o.frameReady, o.runFrame)
 	if blob, ok := props["EDID"]; ok && blob.Value != 0 {
 		data, err := b.dev.Blob(uint32(blob.Value)) //nolint:gosec // property blob IDs are 32-bit
 		if err != nil {
@@ -496,33 +497,32 @@ func (b *Backend) Close() error {
 }
 
 type Output struct {
-	b              *Backend
-	identity       edid.Info
-	conn           kdrm.Connector
-	props          map[string]kdrm.Property
-	crtc           *crtc
-	primary        *plane
-	cursor         *cursor
-	mode           kdrm.Mode
-	modeBlob       uint32
-	enabled        bool
-	off            bool
-	modeset        bool
-	lit            bool
-	buffers        []*scanout
-	drawing        *scanout
-	queued         *scanout
-	front          *scanout
-	frameRequested bool
-	flipping       bool
-	framing        bool
-	idleQueued     bool
-	pacer          *loop.Timer
-	paced          bool
-	lastFlip       time.Duration
-	presented      uint64
-	gamma          gamma
-	torn           bool
+	b         *Backend
+	identity  edid.Info
+	conn      kdrm.Connector
+	props     map[string]kdrm.Property
+	crtc      *crtc
+	primary   *plane
+	cursor    *cursor
+	mode      kdrm.Mode
+	modeBlob  uint32
+	enabled   bool
+	off       bool
+	modeset   bool
+	lit       bool
+	buffers   []*scanout
+	drawing   *scanout
+	queued    *scanout
+	front     *scanout
+	clock     *backend.FrameClock
+	flipping  bool
+	framing   bool
+	pacer     *loop.Timer
+	paced     bool
+	lastFlip  time.Duration
+	presented uint64
+	gamma     gamma
+	torn      bool
 }
 
 func (o *Output) Name() string {
@@ -625,7 +625,8 @@ func (o *Output) setPower(on bool) error {
 			return fmt.Errorf("drm: power off %s: %w", o.Name(), err)
 		}
 	}
-	o.off, o.frameRequested, o.flipping = true, false, false
+	o.off, o.flipping = true, false
+	o.clock.Cancel()
 	return o.dropScanouts()
 }
 
@@ -646,7 +647,8 @@ func (o *Output) disable() error {
 	if err := o.b.dev.Commit(r, kdrm.AtomicAllowModeset, 0); err != nil {
 		return fmt.Errorf("drm: disable %s: %w", o.Name(), err)
 	}
-	o.enabled, o.lit, o.frameRequested, o.flipping = false, false, false, false
+	o.enabled, o.lit, o.flipping = false, false, false
+	o.clock.Cancel()
 	return o.freeBuffers()
 }
 
@@ -670,29 +672,22 @@ func (o *Output) ScheduleFrame() error {
 	if !o.enabled || o.off || o.b.paused {
 		return nil
 	}
-	o.frameRequested = true
-	o.maybeFrame()
+	o.clock.Request()
 	return nil
 }
 
-func (o *Output) maybeFrame() {
-	if !o.frameRequested || o.flipping || o.paced || o.idleQueued || o.drawing != nil {
-		return
+func (o *Output) frameReady() bool {
+	return o.enabled && !o.flipping && !o.paced && o.drawing == nil && !o.b.paused && !o.b.closed
+}
+
+func (o *Output) runFrame() error {
+	o.framing = true
+	err := o.b.handler.Frame(o)
+	o.framing = false
+	if err == nil && !o.flipping && o.enabled && !o.off {
+		err = o.pace()
 	}
-	o.idleQueued = true
-	o.b.loop.Idle(func() error {
-		o.idleQueued = false
-		if !o.frameRequested || !o.enabled || o.flipping || o.paced || o.b.paused || o.b.closed {
-			return nil
-		}
-		o.frameRequested, o.framing = false, true
-		err := o.b.handler.Frame(o)
-		o.framing = false
-		if err == nil && !o.flipping && o.enabled && !o.off {
-			err = o.pace()
-		}
-		return errors.Join(err, o.flushCursor(), o.flushGamma())
-	})
+	return errors.Join(err, o.flushCursor(), o.flushGamma())
 }
 
 func (o *Output) pace() error {
@@ -707,7 +702,7 @@ func (o *Output) pace() error {
 
 func (o *Output) paceElapsed() error {
 	o.paced = false
-	o.maybeFrame()
+	o.clock.Kick()
 	return errors.Join(o.flushCursor(), o.flushGamma())
 }
 
@@ -877,7 +872,7 @@ func (o *Output) test(flags uint32) error {
 
 func (o *Output) flushCursor() error {
 	c := o.cursor
-	if c == nil || !c.dirty || !o.lit || o.off || o.b.paused || o.flipping || o.frameRequested || o.framing {
+	if c == nil || !c.dirty || !o.lit || o.off || o.b.paused || o.flipping || o.clock.Requested() || o.framing {
 		return nil
 	}
 	r := &o.b.req
@@ -906,7 +901,7 @@ func (o *Output) flipped(e kdrm.FlipEvent) error {
 		c.front, c.queued = c.queued, nil
 	}
 	if o.queued == nil {
-		o.maybeFrame()
+		o.clock.Kick()
 		return errors.Join(o.flushCursor(), o.flushGamma())
 	}
 	var errs []error
@@ -917,7 +912,7 @@ func (o *Output) flipped(e kdrm.FlipEvent) error {
 	o.presented++
 	o.front.presented = o.presented
 	errs = append(errs, o.b.handler.Presented(o, backend.Presentation{Time: o.lastFlip, Refresh: modeOf(o.mode).Interval(), Seq: uint64(e.Sequence), Torn: o.torn}))
-	o.maybeFrame()
+	o.clock.Kick()
 	return errors.Join(append(errs, o.flushCursor(), o.flushGamma())...)
 }
 

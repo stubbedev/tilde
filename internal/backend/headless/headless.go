@@ -171,6 +171,7 @@ func (b *Backend) AddNamedOutput(name string, modes ...backend.Mode) (*Output, e
 		modes:   slices.Clone(modes),
 		state:   backend.OutputState{Power: backend.PoweredOn, Mode: current},
 	}
+	o.clock = backend.NewFrameClock(b.loop.Idle, o.frameReady, o.runFrame)
 	if err := o.resize(current.Size); err != nil {
 		return nil, err
 	}
@@ -223,8 +224,7 @@ type Output struct {
 	drawn          bool
 	timer          *loop.Timer
 	armed          bool
-	idleQueued     bool
-	frameRequested bool
+	clock          *backend.FrameClock
 	presentPending bool
 	inFrame        bool
 	lastVblank     time.Duration
@@ -306,7 +306,8 @@ func (o *Output) Commit(s backend.OutputState) error {
 	}
 	var err error
 	if !s.Lit() {
-		o.frameRequested, o.presentPending = false, false
+		o.clock.Cancel()
+		o.presentPending = false
 		err = o.releaseClientBuffers()
 	}
 	o.state = s
@@ -328,29 +329,20 @@ func (o *Output) ScheduleFrame() error {
 	if !o.state.Lit() || o.removed {
 		return nil
 	}
-	o.frameRequested = true
-	o.maybeFrame()
+	o.clock.Request()
 	return nil
 }
 
-func (o *Output) maybeFrame() {
-	if !o.frameRequested || o.armed || o.inFrame || o.idleQueued {
-		return
+func (o *Output) frameReady() bool {
+	return o.backend.handler != nil && !o.armed && !o.inFrame && !o.removed && o.state.Lit()
+}
+
+func (o *Output) runFrame() error {
+	o.frames++
+	if err := o.backend.handler.Frame(o); err != nil {
+		return err
 	}
-	o.idleQueued = true
-	o.backend.loop.Idle(func() error {
-		o.idleQueued = false
-		h := o.backend.handler
-		if h == nil || !o.frameRequested || o.armed || o.removed || !o.state.Lit() {
-			return nil
-		}
-		o.frameRequested = false
-		o.frames++
-		if err := h.Frame(o); err != nil {
-			return err
-		}
-		return o.arm()
-	})
+	return o.arm()
 }
 
 func (o *Output) BeginFrame() (backend.Frame, error) {
@@ -469,7 +461,7 @@ func (o *Output) vblank() error {
 			return err
 		}
 	}
-	o.maybeFrame()
+	o.clock.Kick()
 	return nil
 }
 
