@@ -281,6 +281,16 @@ func (h *Harness) Wakeups() int {
 	return n
 }
 
+func (h *Harness) Busy() time.Duration {
+	h.t.Helper()
+	var d time.Duration
+	h.Do(func(*headless.Backend, *compositor.Compositor) error {
+		d = h.loop.Busy()
+		return nil
+	})
+	return d
+}
+
 func (h *Harness) IPCSocket() string {
 	return h.ipcPath
 }

@@ -52,6 +52,7 @@ type Loop struct {
 	stopped bool
 	closed  bool
 	wakeups int
+	busy    time.Duration
 
 	mailboxFD int
 	mu        sync.Mutex
@@ -300,6 +301,10 @@ func (l *Loop) Wakeups() int {
 	return l.wakeups
 }
 
+func (l *Loop) Busy() time.Duration {
+	return l.busy
+}
+
 func (l *Loop) Stop() {
 	l.stopped = true
 }
@@ -309,6 +314,8 @@ func (l *Loop) Run() error {
 		return ErrClosed
 	}
 	l.stopped = false
+	woke := time.Now()
+	defer func() { l.busy += time.Since(woke) }()
 	for !l.stopped {
 		if err := l.runIdle(); err != nil {
 			return err
@@ -321,7 +328,9 @@ func (l *Loop) Run() error {
 		if l.stopped {
 			break
 		}
+		l.busy += time.Since(woke)
 		n, err := unix.EpollWait(l.epfd, l.events, -1)
+		woke = time.Now()
 		if errors.Is(err, unix.EINTR) {
 			continue
 		}

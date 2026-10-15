@@ -384,3 +384,23 @@ func TestCloseReleasesEverything(t *testing.T) {
 		t.Errorf("second Close = %v", err)
 	}
 }
+
+func TestBusyCountsWorkButNotWaiting(t *testing.T) {
+	l := newLoop(t)
+	const work, wait = 30 * time.Millisecond, 60 * time.Millisecond
+	timer, err := l.AddTimer(func() error {
+		time.Sleep(work)
+		l.Stop()
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := timer.Arm(wait); err != nil {
+		t.Fatal(err)
+	}
+	run(t, l)
+	if busy := l.Busy(); busy < work || busy >= wait {
+		t.Fatalf("busy %v after %v of work and %v of waiting", busy, work, wait)
+	}
+}
