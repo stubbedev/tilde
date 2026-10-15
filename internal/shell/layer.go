@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"image"
 	"math/bits"
-	"slices"
 
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	swlr "github.com/stubbedev/tilde/internal/protocol/server/wlrlayershell"
@@ -56,7 +55,7 @@ type LayerSurface struct {
 	life       roleLife
 	closed     bool
 	destroyed  bool
-	popups     []*Popup
+	popupList
 }
 
 func (sh *Shell) bindLayerShell(c *server.Client, id wire.ObjectID, version uint32) error {
@@ -122,14 +121,6 @@ func (l *LayerSurface) Live() bool {
 	return l.life.initialSent() && !l.closed && !l.destroyed
 }
 
-func (l *LayerSurface) Popups() []*Popup {
-	return slices.Clone(l.popups)
-}
-
-func (l *LayerSurface) children() *[]*Popup {
-	return &l.popups
-}
-
 func (l *LayerSurface) root() PopupRoot {
 	return l
 }
@@ -166,14 +157,6 @@ func (l *LayerSurface) Close() error {
 		errs = append(errs, l.shell.listener.LayerUnmapped(l))
 	}
 	return errors.Join(append(errs, l.client.Sent(l.resource.SendClosed()))...)
-}
-
-func (l *LayerSurface) dismissPopups() error {
-	var errs []error
-	for _, p := range slices.Backward(l.popups) {
-		errs = append(errs, p.dismiss())
-	}
-	return errors.Join(errs...)
 }
 
 func (l *LayerSurface) validate(s LayerState) error {

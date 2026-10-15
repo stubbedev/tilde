@@ -18,6 +18,24 @@ type PopupRoot interface {
 	Surface() *surface.Surface
 }
 
+type popupList struct{ popups []*Popup }
+
+func (l *popupList) Popups() []*Popup {
+	return slices.Clone(l.popups)
+}
+
+func (l *popupList) children() *[]*Popup {
+	return &l.popups
+}
+
+func (l *popupList) dismissPopups() error {
+	var errs []error
+	for _, p := range slices.Backward(l.popups) {
+		errs = append(errs, p.dismiss())
+	}
+	return errors.Join(errs...)
+}
+
 type popupParent interface {
 	children() *[]*Popup
 	root() PopupRoot
@@ -106,10 +124,6 @@ func (p *Popup) parentOffset() image.Point {
 		return image.Point{}
 	}
 	return p.parent.offset()
-}
-
-func (xs *XdgSurface) children() *[]*Popup {
-	return &xs.popups
 }
 
 func (xs *XdgSurface) root() PopupRoot {

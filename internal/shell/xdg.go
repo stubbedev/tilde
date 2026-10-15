@@ -292,12 +292,12 @@ type roleObject interface {
 }
 
 type XdgSurface struct {
-	base            *wmBase
-	resource        *sxdg.XdgSurface
-	surface         *surface.Surface
-	role            roleObject
-	exports         []*export
-	popups          []*Popup
+	base     *wmBase
+	resource *sxdg.XdgSurface
+	surface  *surface.Surface
+	role     roleObject
+	exports  []*export
+	popupList
 	life            roleLife
 	geometry        image.Rectangle
 	pendingGeometry image.Rectangle
@@ -318,18 +318,6 @@ func (xs *XdgSurface) Destroy(obj *sxdg.XdgSurface) error {
 func (xs *XdgSurface) sendConfigure() (uint32, error) {
 	serial := xs.base.shell.display.NextSerial()
 	return serial, xs.base.client.Sent(xs.resource.SendConfigure(serial))
-}
-
-func (xs *XdgSurface) dismissPopups() error {
-	var errs []error
-	for _, p := range slices.Backward(xs.popups) {
-		errs = append(errs, p.dismiss())
-	}
-	return errors.Join(errs...)
-}
-
-func (xs *XdgSurface) Popups() []*Popup {
-	return slices.Clone(xs.popups)
 }
 
 func (xs *XdgSurface) setSubRole(obj *sxdg.XdgSurface, role string) error {
