@@ -500,9 +500,9 @@ func (f *captureFrame) ready(at time.Duration, size image.Point) error {
 	for _, r := range damage {
 		errs = append(errs, f.res.SendDamage(int32(r.Min.X), int32(r.Min.Y), int32(r.Dx()), int32(r.Dy()))) //nolint:gosec // damage lies inside the capture
 	}
-	sec := uint64(max(at, 0) / time.Second)
+	ts := wire.TimespecOf(at)
 	errs = append(errs,
-		f.res.SendPresentationTime(uint32(sec>>32), uint32(sec), uint32(at%time.Second)), //nolint:gosec // split as the protocol asks
+		f.res.SendPresentationTime(ts.SecHi, ts.SecLo, ts.Nsec),
 		f.res.SendReady(),
 	)
 	return f.s.cl.Sent(errors.Join(errs...))

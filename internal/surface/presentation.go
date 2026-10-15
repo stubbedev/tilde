@@ -55,14 +55,15 @@ func (s *Surface) Latch() {
 func (s *Surface) Presented(outputs []*sw.WlOutput, at, refresh time.Duration, seq uint64, kind PresentationKind) error {
 	feedbacks := s.latched
 	s.latched = nil
-	sec, nsec := uint64(at/time.Second), uint32(at%time.Second) //nolint:gosec // a monotonic timestamp is positive and the remainder fits
+	ts := wire.TimespecOf(at)
+	seqHi, seqLo := wire.Halves(seq)
 	for _, fb := range feedbacks {
 		for _, o := range outputs {
 			if err := fb.SendSyncOutput(o); err != nil {
 				return err
 			}
 		}
-		if err := fb.SendPresented(uint32(sec>>32), uint32(sec), nsec, uint32(refresh.Nanoseconds()), uint32(seq>>32), uint32(seq), kind); err != nil { //nolint:gosec // the protocol splits 64-bit values into 32-bit halves
+		if err := fb.SendPresented(ts.SecHi, ts.SecLo, ts.Nsec, uint32(refresh.Nanoseconds()), seqHi, seqLo, kind); err != nil { //nolint:gosec // a refresh period fits 32 bits of nanoseconds
 			return err
 		}
 	}

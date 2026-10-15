@@ -756,3 +756,22 @@ func FuzzDecode(f *testing.F) {
 		}
 	})
 }
+
+func TestTimespecSplitsLikeTheProtocol(t *testing.T) {
+	for _, c := range []struct {
+		in   time.Duration
+		want Timespec
+	}{
+		{0, Timespec{}},
+		{-time.Second, Timespec{}},
+		{1500 * time.Millisecond, Timespec{SecLo: 1, Nsec: 500_000_000}},
+		{time.Duration(1<<32+7)*time.Second + 3, Timespec{SecHi: 1, SecLo: 7, Nsec: 3}},
+	} {
+		if got := TimespecOf(c.in); got != c.want {
+			t.Errorf("TimespecOf(%v) = %+v, want %+v", c.in, got, c.want)
+		}
+	}
+	if hi, lo := Halves(1<<40 | 9); hi != 1<<8 || lo != 9 {
+		t.Errorf("Halves = %d, %d", hi, lo)
+	}
+}

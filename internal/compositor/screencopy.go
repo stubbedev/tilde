@@ -140,8 +140,8 @@ func (f *screencopyFrame) copy(obj *swsc.ZwlrScreencopyFrameV1, wl *sw.WlBuffer,
 		for _, r := range damaged.Rects() {
 			errs = append(errs, f.res.SendDamage(uint32(r.Min.X), uint32(r.Min.Y), uint32(r.Dx()), uint32(r.Dy()))) //nolint:gosec // damage lies inside the capture
 		}
-		sec := uint64(max(at, 0) / time.Second)
-		return f.cl.Sent(errors.Join(append(errs, f.res.SendReady(uint32(sec>>32), uint32(sec), uint32(at%time.Second)))...)) //nolint:gosec // split as the protocol asks
+		ts := wire.TimespecOf(at)
+		return f.cl.Sent(errors.Join(append(errs, f.res.SendReady(ts.SecHi, ts.SecLo, ts.Nsec))...))
 	}
 	return f.c.queueCapture(k, damage)
 }

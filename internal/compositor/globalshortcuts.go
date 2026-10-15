@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"time"
 
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/binds"
@@ -26,13 +25,11 @@ type globalShortcut struct {
 func (*globalShortcut) Destroy(*shgs.HyprlandGlobalShortcutV1) error { return nil }
 
 func (g *globalShortcut) send(pressed bool) error {
-	now := max(backend.Now(), 0)
-	sec := uint64(now / time.Second)
-	hi, lo, nsec := uint32(sec>>32), uint32(sec), uint32(now%time.Second) //nolint:gosec // split as the protocol asks
+	now := wire.TimespecOf(backend.Now())
 	if pressed {
-		return g.cl.Sent(g.res.SendPressed(hi, lo, nsec))
+		return g.cl.Sent(g.res.SendPressed(now.SecHi, now.SecLo, now.Nsec))
 	}
-	return g.cl.Sent(g.res.SendReleased(hi, lo, nsec))
+	return g.cl.Sent(g.res.SendReleased(now.SecHi, now.SecLo, now.Nsec))
 }
 
 type heldShortcut struct {

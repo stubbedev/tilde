@@ -73,6 +73,18 @@ func Millis(t time.Duration) uint32 {
 	return uint32(t.Milliseconds())
 }
 
+func Halves(v uint64) (hi, lo uint32) {
+	return uint32(v >> 32), uint32(v)
+}
+
+type Timespec struct{ SecHi, SecLo, Nsec uint32 }
+
+func TimespecOf(t time.Duration) Timespec {
+	t = max(t, 0)
+	hi, lo := Halves(uint64(t / time.Second))
+	return Timespec{SecHi: hi, SecLo: lo, Nsec: uint32(t % time.Second)}
+}
+
 func pad(n int) int {
 	return (n + 3) &^ 3
 }
