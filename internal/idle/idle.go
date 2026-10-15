@@ -6,6 +6,7 @@ package idle
 import (
 	"errors"
 	"fmt"
+	"iter"
 	"slices"
 	"time"
 
@@ -70,8 +71,8 @@ func (m *Manager) Activity() error {
 	return errors.Join(errs...)
 }
 
-func (m *Manager) Inhibitors() []*Inhibitor {
-	return m.inhibitors
+func (m *Manager) Inhibitors() iter.Seq[*Inhibitor] {
+	return slices.Values(m.inhibitors)
 }
 
 func (i *Inhibitor) Surface() *surface.Surface {

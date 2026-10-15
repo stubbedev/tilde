@@ -27,7 +27,7 @@ func (c *Compositor) Frame(b backend.Output) error {
 }
 
 func (c *Compositor) updateInhibition() error {
-	for _, i := range c.idle.Inhibitors() {
+	for i := range c.idle.Inhibitors() {
 		for _, shown := range c.shown {
 			if slices.Contains(shown, i.Surface()) {
 				return c.idle.SetInhibited(true)
