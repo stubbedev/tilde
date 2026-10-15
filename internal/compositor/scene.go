@@ -17,9 +17,9 @@ import (
 )
 
 func (c *Compositor) Frame(b backend.Output) error {
-	o := c.output(b)
-	if o == nil {
-		return fmt.Errorf("compositor: frame on unknown output %s", b.Name())
+	o, err := c.knownOutput(b, "frame on")
+	if err != nil {
+		return err
 	}
 	if err := c.render(o); err != nil {
 		return fmt.Errorf("compositor: frame on %s: %w", b.Name(), err)

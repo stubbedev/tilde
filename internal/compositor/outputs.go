@@ -179,6 +179,13 @@ func (c *Compositor) output(b backend.Output) *output.Output {
 	return nil
 }
 
+func (c *Compositor) knownOutput(b backend.Output, event string) (*output.Output, error) {
+	if o := c.output(b); o != nil {
+		return o, nil
+	}
+	return nil, fmt.Errorf("compositor: %s unknown output %s", event, b.Name())
+}
+
 func (c *Compositor) outputLive(o *output.Output) bool {
 	return o != nil && c.output(o.Backend()) == o
 }
@@ -223,9 +230,9 @@ func (c *Compositor) OutputRemoved(b backend.Output) error {
 		c.disabled = slices.Delete(c.disabled, i, i+1)
 		return c.outputConfig.Changed()
 	}
-	o := c.output(b)
-	if o == nil {
-		return fmt.Errorf("compositor: removal of unknown output %s", b.Name())
+	o, err := c.knownOutput(b, "removal of")
+	if err != nil {
+		return err
 	}
 	return c.disable(o)
 }
@@ -321,9 +328,9 @@ func (c *Compositor) Configure(heads []outputmanagement.HeadConfig, apply bool) 
 }
 
 func (c *Compositor) OutputDamaged(b backend.Output) error {
-	o := c.output(b)
-	if o == nil {
-		return fmt.Errorf("compositor: damage on unknown output %s", b.Name())
+	o, err := c.knownOutput(b, "damage on")
+	if err != nil {
+		return err
 	}
 	c.sceneOf(o).invalidate()
 	return c.schedule(o)
@@ -333,9 +340,9 @@ func (c *Compositor) OutputChanged(b backend.Output) error {
 	if slices.Contains(c.disabled, b) {
 		return nil
 	}
-	o := c.output(b)
-	if o == nil {
-		return fmt.Errorf("compositor: change of unknown output %s", b.Name())
+	o, err := c.knownOutput(b, "change of")
+	if err != nil {
+		return err
 	}
 	return c.outputResized(o)
 }
@@ -349,9 +356,9 @@ func (c *Compositor) outputResized(o *output.Output) error {
 }
 
 func (c *Compositor) SetOutputScale(b backend.Output, scale output.Scale) error {
-	o := c.output(b)
-	if o == nil {
-		return fmt.Errorf("compositor: scale for unknown output %s", b.Name())
+	o, err := c.knownOutput(b, "scale for")
+	if err != nil {
+		return err
 	}
 	if err := o.Update(o.Position(), scale); err != nil {
 		return err
