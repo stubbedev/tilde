@@ -91,8 +91,10 @@ func New(d *gpu.Display) (*Renderer, error) {
 	if err := r.enter(); err != nil {
 		return nil, err
 	}
-	err := r.setup()
-	return r, errors.Join(err, r.leave("gles: set up"))
+	if err := errors.Join(r.setup(), r.leave("gles: set up")); err != nil {
+		return nil, errors.Join(err, r.Close())
+	}
+	return r, nil
 }
 
 func (r *Renderer) setup() error {
