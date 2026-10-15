@@ -210,7 +210,7 @@ func TestGBMAllocatesExportableBuffers(t *testing.T) {
 	if len(b.Planes) == 0 || b.Planes[0].FD < 0 || b.Planes[0].Stride < 64*4 || b.Size != image.Pt(64, 32) {
 		t.Fatalf("buffer %+v", b.DMABUF)
 	}
-	t.Logf("%s: modifier %#x, planes %+v", dev.Backend(), b.Modifier, b.Planes)
+	t.Logf("%s: modifier %v, planes %+v", dev.Backend(), b.Modifier, b.Planes)
 	if err := b.Close(); err != nil {
 		t.Fatal(err)
 	}

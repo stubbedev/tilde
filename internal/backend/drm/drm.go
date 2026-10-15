@@ -243,7 +243,7 @@ func (b *Backend) plane(id uint32, renderable []fourcc.Modifier) (*plane, error)
 		}
 	}
 	if len(p.modifiers) == 0 {
-		return nil, fmt.Errorf("drm: primary plane %d scans out no XRGB8888 modifier the renderer can draw: plane %#x, renderer %#x", id, scanable, renderable)
+		return nil, fmt.Errorf("drm: primary plane %d scans out no XRGB8888 modifier the renderer can draw: plane %v, renderer %v", id, scanable, renderable)
 	}
 	return p, nil
 }

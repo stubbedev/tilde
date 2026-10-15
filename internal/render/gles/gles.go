@@ -314,7 +314,7 @@ func (r *Renderer) ImportTexture(b gpu.DMABUF) (render.Texture, error) {
 		return nil, err
 	}
 	if external && r.external.id == 0 {
-		return nil, fmt.Errorf("%w: %s samples format %#x with modifier %#x only through GL_OES_EGL_image_external", gpu.ErrUnsupported, r.gl.Renderer(), b.Format, b.Modifier)
+		return nil, fmt.Errorf("%w: %s samples format %v with modifier %v only through GL_OES_EGL_image_external", gpu.ErrUnsupported, r.gl.Renderer(), b.Format, b.Modifier)
 	}
 	img, err := r.d.ImportDMABUF(b)
 	if err != nil {

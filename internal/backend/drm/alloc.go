@@ -99,7 +99,7 @@ func framebuffer(size image.Point, format fourcc.Format, modifier fourcc.Modifie
 	fb := kdrm.FB{Width: uint32(size.X), Height: uint32(size.Y), Format: format} //nolint:gosec // scanout sizes fit
 	switch {
 	case !addable(modifier, withModifiers):
-		return kdrm.FB{}, fmt.Errorf("the buffer has modifier %#x but the device takes no ADDFB2 modifiers, so only an implicit or linear layout can be scanned out", modifier)
+		return kdrm.FB{}, fmt.Errorf("the buffer has modifier %v but the device takes no ADDFB2 modifiers, so only an implicit or linear layout can be scanned out", modifier)
 	case withModifiers && modifier != fourcc.Invalid:
 		fb.Modifier, fb.WithModifier = modifier, true
 	}

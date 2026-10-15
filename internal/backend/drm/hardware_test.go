@@ -132,7 +132,7 @@ func TestStartOnThisCardWithoutMaster(t *testing.T) {
 		if o.Description() == o.Name() {
 			t.Errorf("%s has no EDID description", o.Name())
 		}
-		t.Logf("%s (%s) on CRTC %d and plane %d with modifiers %#x, %+v", o.Name(), o.Description(), o.crtc.id, o.primary.id, o.primary.modifiers, o.State().Mode)
+		t.Logf("%s (%s) on CRTC %d and plane %d with modifiers %v, %+v", o.Name(), o.Description(), o.crtc.id, o.primary.id, o.primary.modifiers, o.State().Mode)
 		cursorImage(t, o)
 		gammaRamps(t, o)
 	}
