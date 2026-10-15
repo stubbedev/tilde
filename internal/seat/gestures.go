@@ -61,12 +61,7 @@ func (pinchObject) Destroy(*spg.ZwpPointerGesturePinchV1) error { return nil }
 func (holdObject) Destroy(*spg.ZwpPointerGestureHoldV1) error   { return nil }
 
 func (s *Seat) gestureTarget() (*server.Client, *clientResources) {
-	g := s.gesture
-	if g.surface == nil {
-		return nil, nil
-	}
-	c := g.surface.Client()
-	return c, s.lookup(c)
+	return s.resourcesAt(s.gesture.surface)
 }
 
 func (s *Seat) GestureBegin(at time.Duration, kind backend.Gesture, fingers uint32) error {

@@ -76,14 +76,11 @@ func (s *Seat) Cursor() Cursor {
 }
 
 func (s *Seat) focusPointers() (*server.Client, []*sw.WlPointer) {
-	if s.pointer.focus == nil {
-		return nil, nil
+	c, r := s.resourcesAt(s.pointer.focus)
+	if r == nil {
+		return c, nil
 	}
-	c := s.pointer.focus.Client()
-	if r := s.lookup(c); r != nil {
-		return c, r.pointers
-	}
-	return c, nil
+	return c, r.pointers
 }
 
 func (s *Seat) SetPointerFocus(target *surface.Surface, x, y float64) error {

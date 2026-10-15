@@ -114,3 +114,61 @@ func TestVirtualPointersMoveClickAndScroll(t *testing.T) {
 	}
 	r.c.DispatchUntil("the scroll stop", func() bool { return slices.Contains(r.in.Log, "axis_stop 0") })
 }
+
+type keySerials struct{ serials []uint32 }
+
+func (*keySerials) Keymap(_ *cw.WlKeyboard, _ cw.WlKeyboardKeymapFormat, fd int, _ uint32) error {
+	return unix.Close(fd)
+}
+
+func (*keySerials) Enter(*cw.WlKeyboard, uint32, *cw.WlSurface, []byte) error { return nil }
+
+func (*keySerials) Leave(*cw.WlKeyboard, uint32, *cw.WlSurface) error { return nil }
+
+func (k *keySerials) Key(_ *cw.WlKeyboard, serial, _, _ uint32, _ cw.WlKeyboardKeyState) error {
+	k.serials = append(k.serials, serial)
+	return nil
+}
+
+func (*keySerials) Modifiers(*cw.WlKeyboard, uint32, uint32, uint32, uint32, uint32) error {
+	return nil
+}
+
+func (*keySerials) RepeatInfo(*cw.WlKeyboard, int32, int32) error { return nil }
+
+func TestEveryKeyboardOfAClientSharesAKeysSerial(t *testing.T) {
+	r := startInput(t)
+	r.expect("kb_enter win", "enter win 80,50", "frame")
+	a, b := &keySerials{}, &keySerials{}
+	for _, k := range []*keySerials{a, b} {
+		if _, err := r.seat.GetKeyboard(k); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r.c.Sync()
+	r.inject(func(b *headless.Backend, _ *headless.Output) error {
+		return errors.Join(b.Keyboard().Key(30, true), b.Keyboard().Key(30, false))
+	})
+	r.c.DispatchUntil("the physical key on both keyboards", func() bool { return len(a.serials) == 2 && len(b.serials) == 2 })
+
+	typist := testclient.Connect(t, r.h.Socket())
+	seat, _ := typist.Seat()
+	mgr, err := cvk.NewZwpVirtualKeyboardManagerV1(typist.Display, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	typist.Bind("zwp_virtual_keyboard_manager_v1", mgr)
+	kb, err := mgr.CreateVirtualKeyboard(seat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fd, size := keymapFD(t, 0)
+	if err := errors.Join(kb.Keymap(uint32(cw.WlKeyboardKeymapFormatXkbV1), fd, size), unix.Close(fd),
+		kb.Key(1, 31, uint32(cw.WlKeyboardKeyStatePressed)), kb.Key(2, 31, uint32(cw.WlKeyboardKeyStateReleased)), typist.Display.Flush()); err != nil {
+		t.Fatal(err)
+	}
+	r.c.DispatchUntil("the virtual key on both keyboards", func() bool { return len(a.serials) == 4 && len(b.serials) == 4 })
+	if !slices.Equal(a.serials, b.serials) {
+		t.Fatalf("one key event reached two keyboards of a client with serials %v and %v", a.serials, b.serials)
+	}
+}

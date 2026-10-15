@@ -9,7 +9,6 @@ import (
 
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/wire"
 )
 
 type VirtualKeyboard struct {
@@ -74,11 +73,7 @@ func (v *VirtualKeyboard) sendModifiers(s *Seat, c *server.Client, kb *sw.WlKeyb
 }
 
 func (s *Seat) focusedKeyboards() (*server.Client, []*sw.WlKeyboard) {
-	if s.keyboard.focus == nil {
-		return nil, nil
-	}
-	c := s.keyboard.focus.Client()
-	r := s.lookup(c)
+	c, r := s.resourcesAt(s.keyboard.focus)
 	if r == nil {
 		return nil, nil
 	}
@@ -89,16 +84,7 @@ func (s *Seat) VirtualKey(v *VirtualKeyboard, code uint32, pressed bool, at time
 	if !v.HasKeymap() {
 		return errors.New("seat: a virtual key without a keymap")
 	}
-	c, kbs := s.focusedKeyboards()
-	state := sw.WlKeyboardKeyStateReleased
-	if pressed {
-		state = sw.WlKeyboardKeyStatePressed
-	}
-	var errs []error
-	for _, kb := range kbs {
-		errs = append(errs, s.useKeymap(c, kb, v), c.Sent(kb.SendKey(s.eventSerial(c, pressed), wire.Millis(at), code, state)))
-	}
-	return errors.Join(errs...)
+	return s.sendKey(v, code, pressed, false, at)
 }
 
 func (s *Seat) VirtualModifiers(v *VirtualKeyboard, depressed, latched, locked, group uint32) error {

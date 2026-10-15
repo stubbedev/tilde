@@ -107,6 +107,14 @@ func (s *Seat) lookup(c *server.Client) *clientResources {
 	return nil
 }
 
+func (s *Seat) resourcesAt(target *surface.Surface) (*server.Client, *clientResources) {
+	if target == nil {
+		return nil, nil
+	}
+	c := target.Client()
+	return c, s.lookup(c)
+}
+
 func (s *Seat) resources(c *server.Client) *clientResources {
 	if r := s.lookup(c); r != nil {
 		return r

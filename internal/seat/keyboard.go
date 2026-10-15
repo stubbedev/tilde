@@ -133,11 +133,11 @@ func (s *Seat) Key(code uint32, pressed bool, at time.Duration) error {
 	if grabbed, err := s.grabKey(code, pressed, modsChanged, at); grabbed {
 		return err
 	}
-	if k.focus == nil {
-		return nil
-	}
-	c := k.focus.Client()
-	r := s.lookup(c)
+	return s.sendKey(nil, code, pressed, modsChanged, at)
+}
+
+func (s *Seat) sendKey(v *VirtualKeyboard, code uint32, pressed, modsChanged bool, at time.Duration) error {
+	c, r := s.resourcesAt(s.keyboard.focus)
 	if r == nil {
 		return nil
 	}
@@ -149,7 +149,7 @@ func (s *Seat) Key(code uint32, pressed bool, at time.Duration) error {
 	serial := s.eventSerial(c, pressed)
 	var errs []error
 	for _, kb := range r.keyboards {
-		errs = append(errs, s.useKeymap(c, kb, nil), c.Sent(kb.SendKey(serial, ms, code, state)))
+		errs = append(errs, s.useKeymap(c, kb, v), c.Sent(kb.SendKey(serial, ms, code, state)))
 		if modsChanged {
 			errs = append(errs, s.sendModifiers(c, kb))
 		}

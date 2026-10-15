@@ -35,11 +35,7 @@ type relativePointer struct{}
 func (relativePointer) Destroy(*srp.ZwpRelativePointerV1) error { return nil }
 
 func (s *Seat) RelativeMotion(at time.Duration, dx, dy, unaccelDX, unaccelDY float64) error {
-	if s.pointer.focus == nil {
-		return nil
-	}
-	c := s.pointer.focus.Client()
-	r := s.lookup(c)
+	c, r := s.resourcesAt(s.pointer.focus)
 	if r == nil {
 		return nil
 	}
