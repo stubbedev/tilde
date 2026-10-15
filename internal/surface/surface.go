@@ -284,7 +284,10 @@ func (h *Hold) Release() error {
 }
 
 func (s *Surface) Retry() error {
-	return s.drain(false)
+	if err := s.drain(false); err != nil {
+		return s.client.Fail(err)
+	}
+	return nil
 }
 
 func From(r *sw.WlSurface) (*Surface, error) {

@@ -99,6 +99,14 @@ func (c *Client) Sent(err error) error {
 	return c.display.loop.Post(c.destroy)
 }
 
+func (c *Client) Fail(err error) error {
+	if c.gone || c.dropping {
+		return nil
+	}
+	c.dropping = true
+	return c.display.loop.Post(func() error { return c.fail(err) })
+}
+
 func (c *Client) Creds() unix.Ucred {
 	return c.creds
 }

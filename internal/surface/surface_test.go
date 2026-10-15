@@ -537,6 +537,36 @@ type fakeRole struct{ name string }
 func (r fakeRole) RoleName() string         { return r.name }
 func (r fakeRole) Committed(*Surface) error { return nil }
 
+type refusingRole struct{}
+
+func (refusingRole) RoleName() string { return "xdg_toplevel" }
+func (refusingRole) Committed(s *Surface) error {
+	return s.Resource().ProtocolError(sw.WlSurfaceErrorInvalidSize, "refused")
+}
+
+func TestAClientErrorInAHeldUpdateDropsOnlyThatClient(t *testing.T) {
+	e := setup(t, 6)
+	s := e.surface()
+	must(t, s.Commit())
+	e.roundtrip()
+	var hold *Hold
+	e.on(func() {
+		surf := find(t, e.rec.commits, s).s
+		if err := surf.SetRole(refusingRole{}); err != nil {
+			t.Error(err)
+		}
+		surf.AddHooks(&Hooks{Commit: func(u *Update) error { hold = u.Hold(); return nil }})
+	})
+	must(t, s.Commit())
+	e.roundtrip()
+	e.on(func() {
+		if err := hold.Release(); err != nil {
+			t.Errorf("Release = %v; a client's error reached the loop", err)
+		}
+	})
+	e.protocolError(uint32(sw.WlSurfaceErrorInvalidSize))
+}
+
 func TestRolesAreExclusive(t *testing.T) {
 	e := setup(t, 6)
 	s := e.surface()
