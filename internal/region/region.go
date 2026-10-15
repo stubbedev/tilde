@@ -38,11 +38,43 @@ func (g Region) Contains(p image.Point) bool {
 }
 
 func (g Region) Area() int {
+	return area(g.rects)
+}
+
+func area(rects []image.Rectangle) int {
 	n := 0
-	for _, r := range g.rects {
+	for _, r := range rects {
 		n += r.Dx() * r.Dy()
 	}
 	return n
+}
+
+func appendClipped(dst, rects []image.Rectangle, bounds image.Rectangle) []image.Rectangle {
+	for _, r := range rects {
+		if c := r.Intersect(bounds); !c.Empty() {
+			dst = append(dst, c)
+		}
+	}
+	return dst
+}
+
+func appendUncovered(rects []image.Rectangle, r image.Rectangle, pieces, scratch *[]image.Rectangle) []image.Rectangle {
+	r = r.Canon()
+	if r.Empty() {
+		return rects
+	}
+	*pieces = append((*pieces)[:0], r)
+	for _, existing := range rects {
+		*scratch = (*scratch)[:0]
+		for _, p := range *pieces {
+			*scratch = minus(p, existing, *scratch)
+		}
+		*pieces, *scratch = *scratch, *pieces
+		if len(*pieces) == 0 {
+			return rects
+		}
+	}
+	return append(rects, *pieces...)
 }
 
 func minus(a, b image.Rectangle, out []image.Rectangle) []image.Rectangle {
@@ -64,19 +96,8 @@ func minus(a, b image.Rectangle, out []image.Rectangle) []image.Rectangle {
 }
 
 func (g Region) Add(r image.Rectangle) Region {
-	r = r.Canon()
-	if r.Empty() {
-		return g
-	}
-	pieces := []image.Rectangle{r}
-	for _, existing := range g.rects {
-		var next []image.Rectangle
-		for _, p := range pieces {
-			next = minus(p, existing, next)
-		}
-		pieces = next
-	}
-	return Region{rects: append(slices.Clone(g.rects), pieces...)}
+	var pieces, scratch []image.Rectangle
+	return Region{rects: appendUncovered(slices.Clone(g.rects), r, &pieces, &scratch)}
 }
 
 func (g Region) Subtract(r image.Rectangle) Region {
@@ -99,13 +120,7 @@ func (g Region) Union(o Region) Region {
 }
 
 func (g Region) Intersect(r image.Rectangle) Region {
-	var out []image.Rectangle
-	for _, existing := range g.rects {
-		if c := existing.Intersect(r); !c.Empty() {
-			out = append(out, c)
-		}
-	}
-	return Region{rects: out}
+	return Region{rects: appendClipped(nil, g.rects, r)}
 }
 
 func (g Region) Map(f func(image.Rectangle) image.Rectangle) Region {

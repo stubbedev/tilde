@@ -19,30 +19,11 @@ func (s *Set) Rects() []image.Rectangle {
 }
 
 func (s *Set) Area() int {
-	n := 0
-	for _, r := range s.rects {
-		n += r.Dx() * r.Dy()
-	}
-	return n
+	return area(s.rects)
 }
 
 func (s *Set) Add(r image.Rectangle) {
-	r = r.Canon()
-	if r.Empty() {
-		return
-	}
-	s.pieces = append(s.pieces[:0], r)
-	for _, existing := range s.rects {
-		s.scratch = s.scratch[:0]
-		for _, p := range s.pieces {
-			s.scratch = minus(p, existing, s.scratch)
-		}
-		s.pieces, s.scratch = s.scratch, s.pieces
-		if len(s.pieces) == 0 {
-			return
-		}
-	}
-	s.rects = append(s.rects, s.pieces...)
+	s.rects = appendUncovered(s.rects, r, &s.pieces, &s.scratch)
 }
 
 func (s *Set) AddSet(o *Set) {
@@ -62,11 +43,5 @@ func (s *Set) CopyFrom(o *Set) {
 }
 
 func (s *Set) Clip(bounds image.Rectangle) {
-	out := s.rects[:0]
-	for _, r := range s.rects {
-		if c := r.Intersect(bounds); !c.Empty() {
-			out = append(out, c)
-		}
-	}
-	s.rects = out
+	s.rects = appendClipped(s.rects[:0], s.rects, bounds)
 }
