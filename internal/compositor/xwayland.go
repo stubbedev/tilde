@@ -140,10 +140,11 @@ func (c *Compositor) XWindowUnmapped(w *xwayland.Window) error {
 }
 
 func (c *Compositor) XWindowChanged(w *xwayland.Window) error {
-	if win := c.windowOf(xToplevel{w, c}); win != nil && w.Urgent() && win != c.active {
-		win.urgent = true
+	var err error
+	if win := c.windowOf(xToplevel{w, c}); win != nil && w.Urgent() {
+		err = c.markUrgent(win)
 	}
-	return errors.Join(c.refreshPointer(), c.scheduleAll(), c.syncForeign())
+	return errors.Join(err, c.refreshPointer(), c.scheduleAll(), c.syncForeign())
 }
 
 func (c *Compositor) XWindowResponsive(w *xwayland.Window, responsive bool) error {
@@ -160,9 +161,7 @@ func (c *Compositor) XWindowRequest(w *xwayland.Window, r xwayland.Request) erro
 	}
 	switch r := r.(type) {
 	case xwayland.Activate:
-		if win != c.active {
-			win.urgent = true
-		}
+		return c.markUrgent(win)
 	case xwayland.SetFullscreen:
 		return c.update(c.wm.SetFullscreen(win.id, r.On))
 	case xwayland.Configure:

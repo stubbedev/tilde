@@ -1,8 +1,6 @@
 package compositor
 
 import (
-	"errors"
-
 	ssb "github.com/stubbedev/tilde/internal/protocol/server/systembell"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	"github.com/stubbedev/tilde/internal/server"
@@ -31,9 +29,8 @@ func (b bell) Ring(_ *ssb.XdgSystemBellV1, wl *sw.WlSurface) error {
 	}
 	c := b.c
 	for _, w := range c.windows {
-		if w.top.Surface() == s && w != c.active && !w.urgent {
-			w.urgent = true
-			return errors.Join(c.scheduleAll(), c.syncForeign())
+		if w.top.Surface() == s {
+			return c.markUrgent(w)
 		}
 	}
 	return nil

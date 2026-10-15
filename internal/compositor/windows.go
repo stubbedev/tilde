@@ -307,6 +307,14 @@ func (c *Compositor) ToplevelChanged(_ *shell.Toplevel, change shell.Change) err
 	return c.syncForeign()
 }
 
+func (c *Compositor) markUrgent(w *window) error {
+	if w == c.active || w.urgent {
+		return nil
+	}
+	w.urgent = true
+	return errors.Join(c.scheduleAll(), c.syncWorkspaces())
+}
+
 func (c *Compositor) ToplevelRequest(t *shell.Toplevel, r shell.Request) error {
 	w := c.windowOf(xdgToplevel{t})
 	if w == nil {
@@ -314,9 +322,7 @@ func (c *Compositor) ToplevelRequest(t *shell.Toplevel, r shell.Request) error {
 	}
 	switch r := r.(type) {
 	case shell.Activate:
-		if w != c.active {
-			w.urgent = true
-		}
+		return c.markUrgent(w)
 	case shell.SetFullscreen:
 		return c.update(c.wm.SetFullscreen(w.id, r.On))
 	case shell.SetMaximized:

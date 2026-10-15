@@ -7,6 +7,7 @@ import (
 	"github.com/stubbedev/tilde/internal/backend/headless"
 	"github.com/stubbedev/tilde/internal/compositor"
 	cew "github.com/stubbedev/tilde/internal/protocol/client/extworkspace"
+	csb "github.com/stubbedev/tilde/internal/protocol/client/systembell"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	"github.com/stubbedev/tilde/internal/testclient"
 	"github.com/stubbedev/tilde/internal/wm"
@@ -103,11 +104,8 @@ func (v *wsView) active(name string) bool {
 	return w != nil && v.states[w]&cew.ExtWorkspaceHandleV1StateActive != 0
 }
 
-func TestExtWorkspacesFollowAndDriveTheWindowManager(t *testing.T) {
-	h := Start(t, small, small)
-	c := testclient.Connect(t, h.Socket())
-	w := c.Window("busy", quadrants)
-	c.DispatchUntil("the window to map", w.Mapped)
+func watchWorkspaces(t *testing.T, h *Harness) (*wsView, *testclient.Client, *cew.ExtWorkspaceManagerV1) {
+	t.Helper()
 	v := &wsView{
 		outputs: map[*cew.ExtWorkspaceGroupHandleV1]int{}, members: map[*cew.ExtWorkspaceHandleV1]*cew.ExtWorkspaceGroupHandleV1{},
 		names: map[*cew.ExtWorkspaceHandleV1]string{}, states: map[*cew.ExtWorkspaceHandleV1]cew.ExtWorkspaceHandleV1State{}, removed: map[*cew.ExtWorkspaceHandleV1]bool{},
@@ -119,6 +117,37 @@ func TestExtWorkspacesFollowAndDriveTheWindowManager(t *testing.T) {
 	}
 	watcher.Bind("ext_workspace_manager_v1", mgr)
 	watcher.DispatchUntil("the first batch", func() bool { return v.dones > 0 })
+	return v, watcher, mgr
+}
+
+func TestAnUrgentWindowMarksItsWorkspaceUrgent(t *testing.T) {
+	h := Start(t, small)
+	c := testclient.Connect(t, h.Socket())
+	first := c.Window("first", quadrants)
+	c.DispatchUntil("the first window to map", first.Mapped)
+	second := c.Window("second", quadrants)
+	c.DispatchUntil("the second window to map", second.Mapped)
+	v, watcher, _ := watchWorkspaces(t, h)
+	if v.states[v.named("1")]&cew.ExtWorkspaceHandleV1StateUrgent != 0 {
+		t.Fatal("workspace 1 started urgent")
+	}
+	bell, err := csb.NewXdgSystemBellV1(c.Display, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Bind("xdg_system_bell_v1", bell)
+	if err := errors.Join(bell.Ring(first.Surface), c.Display.Flush()); err != nil {
+		t.Fatal(err)
+	}
+	watcher.DispatchUntil("workspace 1 urgent", func() bool { return v.states[v.named("1")]&cew.ExtWorkspaceHandleV1StateUrgent != 0 })
+}
+
+func TestExtWorkspacesFollowAndDriveTheWindowManager(t *testing.T) {
+	h := Start(t, small, small)
+	c := testclient.Connect(t, h.Socket())
+	w := c.Window("busy", quadrants)
+	c.DispatchUntil("the window to map", w.Mapped)
+	v, watcher, mgr := watchWorkspaces(t, h)
 	if len(v.groups) != 2 || v.outputs[v.groups[0]] != 1 || v.outputs[v.groups[1]] != 1 {
 		t.Fatalf("groups %d with outputs %v", len(v.groups), v.outputs)
 	}
