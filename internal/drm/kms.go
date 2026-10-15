@@ -358,6 +358,21 @@ type PropertyInfo struct {
 }
 
 func (d *Device) PropertyInfo(id uint32) (PropertyInfo, error) {
+	if info, ok := d.properties[id]; ok {
+		return info, nil
+	}
+	info, err := d.fetchPropertyInfo(id)
+	if err != nil {
+		return PropertyInfo{}, err
+	}
+	if d.properties == nil {
+		d.properties = map[uint32]PropertyInfo{}
+	}
+	d.properties[id] = info
+	return info, nil
+}
+
+func (d *Device) fetchPropertyInfo(id uint32) (PropertyInfo, error) {
 	for {
 		arg := struct {
 			values, enums       uint64

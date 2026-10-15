@@ -41,8 +41,9 @@ func iowr(nr, size uintptr) uintptr {
 }
 
 type Device struct {
-	fd   int
-	path string
+	fd         int
+	path       string
+	properties map[uint32]PropertyInfo
 }
 
 func Open(path string) (*Device, error) {

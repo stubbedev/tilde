@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"image"
+	"maps"
 	"slices"
 	"testing"
 
@@ -173,5 +174,27 @@ func TestDumbBuffersScanOutLinearARGB(t *testing.T) {
 	}
 	if _, err := d.CreateDumb(image.Point{}); err == nil {
 		t.Fatal("an empty dumb buffer was made")
+	}
+}
+
+func TestPropertiesReadTheSameTwice(t *testing.T) {
+	d := card(t)
+	res, err := d.Resources()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.CRTCs) == 0 {
+		t.Skip("the card has no CRTCs")
+	}
+	first, err := d.Properties(res.CRTCs[0], drm.ObjectCRTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := d.Properties(res.CRTCs[0], drm.ObjectCRTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := first["ACTIVE"]; !ok || !maps.Equal(first, second) {
+		t.Fatalf("CRTC %d properties %v, then %v", res.CRTCs[0], first, second)
 	}
 }
