@@ -172,15 +172,21 @@ func atomic(dev *kdrm.Device) error {
 	return nil
 }
 
-func New(l *loop.Loop, dev *kdrm.Device, paths gpu.Paths, vendors edid.Vendors) (*Backend, error) {
+type Options struct {
+	Paths   gpu.Paths
+	Vendors edid.Vendors
+	Report  func(error)
+}
+
+func New(l *loop.Loop, dev *kdrm.Device, opts Options) (*Backend, error) {
 	if err := atomic(dev); err != nil {
 		return nil, err
 	}
-	alloc, err := newGBMAllocator(dev, paths)
+	alloc, err := newGBMAllocator(dev, opts.Paths)
 	if err != nil {
 		return nil, err
 	}
-	b, err := newBackend(l, dev, alloc, vendors)
+	b, err := newBackend(l, dev, alloc, opts)
 	if err != nil {
 		return nil, errors.Join(err, alloc.close())
 	}

@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	kdrm "github.com/stubbedev/tilde/internal/drm"
-	"github.com/stubbedev/tilde/internal/edid"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/render"
@@ -56,12 +55,12 @@ func (a *copyAllocator) close() error {
 	return nil
 }
 
-func NewSecondary(l *loop.Loop, dev *kdrm.Device, primary *Backend, paths gpu.Paths, vendors edid.Vendors, canRender bool) (*Backend, string, error) {
+func NewSecondary(l *loop.Loop, dev *kdrm.Device, primary *Backend, opts Options, canRender bool) (*Backend, string, error) {
 	if err := atomic(dev); err != nil {
 		return nil, "", err
 	}
-	alloc, how := secondaryAllocator(dev, primary, paths, canRender)
-	b, err := newBackend(l, dev, alloc, vendors)
+	alloc, how := secondaryAllocator(dev, primary, opts.Paths, canRender)
+	b, err := newBackend(l, dev, alloc, opts)
 	if err != nil {
 		return nil, "", errors.Join(err, alloc.close())
 	}

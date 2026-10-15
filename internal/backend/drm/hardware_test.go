@@ -114,7 +114,7 @@ func TestStartOnThisCardWithoutMaster(t *testing.T) {
 	if err != nil {
 		t.Skipf("no PNP ID database: %v", err)
 	}
-	b, err := New(l, dev, gpu.PathsFromEnv(os.Getenv), vendors)
+	b, err := New(l, dev, Options{Paths: gpu.PathsFromEnv(os.Getenv), Vendors: vendors, Report: func(err error) { t.Error(err) }})
 	if err != nil {
 		t.Skipf("no EGL vendor drives this card's GBM device here (unset __EGL_VENDOR_LIBRARY_DIRS on a GPU machine): %v", err)
 	}

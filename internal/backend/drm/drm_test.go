@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -40,7 +41,9 @@ const (
 	propHotspotY
 	propGammaLUT
 	propGammaSize
+	propEDID
 	inFormatsBlob = 500
+	edidBlob      = 501
 	fakeNumber    = 0xe200
 )
 
@@ -53,6 +56,8 @@ type commit struct {
 type fakeDevice struct {
 	events, write  int
 	connected      bool
+	unplugged      bool
+	badEDID        bool
 	refuseCursor   bool
 	refuseGamma    bool
 	refuseAsync    bool
@@ -102,10 +107,17 @@ func (f *fakeDevice) CloseHandle(uint32) error { return nil }
 const primeHandles = 1000
 
 func (f *fakeDevice) Resources() (kdrm.Resources, error) {
-	return kdrm.Resources{CRTCs: []uint32{10, 11}, Connectors: []uint32{20}, Encoders: []uint32{30}}, nil
+	res := kdrm.Resources{CRTCs: []uint32{10, 11}, Connectors: []uint32{20}, Encoders: []uint32{30}}
+	if f.unplugged {
+		res.Connectors = nil
+	}
+	return res, nil
 }
 
 func (f *fakeDevice) Connector(id uint32) (kdrm.Connector, error) {
+	if f.unplugged {
+		return kdrm.Connector{}, unix.ENOENT
+	}
 	c := kdrm.Connector{ID: id, Type: 10, TypeID: 1, Encoders: []uint32{30}, Connection: kdrm.Disconnected}
 	if f.connected {
 		c.Connection, c.Modes = kdrm.Connected, modes
@@ -147,7 +159,11 @@ func (f *fakeDevice) Properties(object, kind uint32) (map[string]kdrm.Property, 
 	case kdrm.ObjectCRTC:
 		return map[string]kdrm.Property{"ACTIVE": {ID: propActive}, "MODE_ID": {ID: propModeID}, "GAMMA_LUT": {ID: propGammaLUT}, "GAMMA_LUT_SIZE": {ID: propGammaSize, Value: 4}}, nil
 	case kdrm.ObjectConnector:
-		return map[string]kdrm.Property{"CRTC_ID": {ID: propConnCRTC}}, nil
+		props := map[string]kdrm.Property{"CRTC_ID": {ID: propConnCRTC}}
+		if f.badEDID {
+			props["EDID"] = kdrm.Property{ID: propEDID, Value: edidBlob}
+		}
+		return props, nil
 	}
 	return nil, fmt.Errorf("unknown object type %#x", kind)
 }
@@ -157,6 +173,9 @@ func (f *fakeDevice) PropertyInfo(uint32) (kdrm.PropertyInfo, error) {
 }
 
 func (f *fakeDevice) Blob(id uint32) ([]byte, error) {
+	if id == edidBlob {
+		return []byte("not an EDID"), nil
+	}
 	if id != inFormatsBlob {
 		return nil, fmt.Errorf("no blob %d", id)
 	}
@@ -341,12 +360,13 @@ func (r *recorder) DeviceRemoved(backend.Device) error        { return nil }
 func (r *recorder) Input(backend.Device, backend.Event) error { return nil }
 
 type rig struct {
-	t     *testing.T
-	l     *loop.Loop
-	dev   *fakeDevice
-	alloc *fakeAlloc
-	b     *Backend
-	rec   *recorder
+	t       *testing.T
+	l       *loop.Loop
+	dev     *fakeDevice
+	alloc   *fakeAlloc
+	b       *Backend
+	rec     *recorder
+	reports []error
 }
 
 func start(t *testing.T) *rig {
@@ -369,7 +389,7 @@ func boot(t *testing.T, alloc func(*fakeDevice) allocator) *rig {
 	r := &rig{t: t, l: l, dev: &fakeDevice{events: p[0], write: p[1], connected: true}, rec: &recorder{}}
 	a := alloc(r.dev)
 	r.alloc, _ = a.(*fakeAlloc)
-	if r.b, err = newBackend(l, r.dev, a, nil); err != nil {
+	if r.b, err = newBackend(l, r.dev, a, Options{Report: func(err error) { r.reports = append(r.reports, err) }}); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.b.Start(r.rec); err != nil {
@@ -509,6 +529,30 @@ func TestModeChangesAndDisabling(t *testing.T) {
 	off := r.dev.commits[len(r.dev.commits)-1]
 	if off.flags != kdrm.AtomicAllowModeset || off.values[[2]uint32{10, propActive}] != 0 || off.values[[2]uint32{40, propFB}] != 0 || o.State().Enabled || len(o.buffers) != 0 {
 		t.Fatalf("disable commit %+v, state %+v", off, o.State())
+	}
+}
+
+func TestAConnectorThatVanishesIsAnUnplug(t *testing.T) {
+	r := start(t)
+	r.dev.unplugged = true
+	if err := r.b.Hotplug(); err != nil {
+		t.Fatalf("an MST connector going away: %v", err)
+	}
+	if !slices.Equal(r.rec.log, []string{"added DP-1", "removed DP-1"}) {
+		t.Fatalf("log %v", r.rec.log)
+	}
+}
+
+func TestAnUnreadableEDIDStillLightsTheOutput(t *testing.T) {
+	r := boot(t, func(d *fakeDevice) allocator {
+		d.badEDID = true
+		return &fakeAlloc{soft: soft.New()}
+	})
+	if len(r.b.Outputs()) != 1 || r.b.Outputs()[0].Description() != "DP-1" {
+		t.Fatalf("outputs %v", r.rec.log)
+	}
+	if len(r.reports) != 1 || !strings.Contains(r.reports[0].Error(), "EDID") {
+		t.Fatalf("reports %v, want the unreadable EDID", r.reports)
 	}
 }
 

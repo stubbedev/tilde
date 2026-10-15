@@ -100,6 +100,7 @@ type Backend struct {
 	async     bool
 	number    uint64
 	vendors   edid.Vendors
+	report    func(error)
 	dev       device
 	alloc     allocator
 	handler   backend.Handler
@@ -115,8 +116,11 @@ type Backend struct {
 	gone      bool
 }
 
-func newBackend(l *loop.Loop, dev device, alloc allocator, vendors edid.Vendors) (*Backend, error) {
-	b := &Backend{loop: l, dev: dev, alloc: alloc, vendors: vendors, events: make([]byte, eventBuffer)}
+func newBackend(l *loop.Loop, dev device, alloc allocator, opts Options) (*Backend, error) {
+	if opts.Report == nil {
+		return nil, errors.New("drm: Options.Report is required")
+	}
+	b := &Backend{loop: l, dev: dev, alloc: alloc, vendors: opts.Vendors, report: opts.Report, events: make([]byte, eventBuffer)}
 	modifiers, err := dev.Cap(kdrm.CapAddFB2Modifiers)
 	if err != nil {
 		return nil, fmt.Errorf("drm: ADDFB2 modifier support: %w", err)
@@ -274,9 +278,18 @@ func (b *Backend) scan() error {
 	}
 	var errs []error
 	for _, o := range slices.Clone(b.outputs) {
+		if !slices.Contains(res.Connectors, o.conn.ID) {
+			errs = append(errs, b.remove(o))
+			continue
+		}
 		c, err := b.dev.Connector(o.conn.ID)
-		if err != nil || c.Connection != kdrm.Connected {
+		switch {
+		case errors.Is(err, unix.ENOENT):
+			errs = append(errs, b.remove(o))
+		case err != nil:
 			errs = append(errs, err, b.remove(o))
+		case c.Connection != kdrm.Connected:
+			errs = append(errs, b.remove(o))
 		}
 	}
 	for _, id := range res.Connectors {
@@ -284,6 +297,9 @@ func (b *Backend) scan() error {
 			continue
 		}
 		c, err := b.dev.Connector(id)
+		if errors.Is(err, unix.ENOENT) {
+			continue
+		}
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -345,11 +361,11 @@ func (b *Backend) add(c kdrm.Connector) error {
 		if err != nil {
 			return err
 		}
-		info, err := edid.Parse(data, b.vendors)
-		if err != nil {
-			return fmt.Errorf("drm: %s: %w", c.Name(), err)
+		if info, err := edid.Parse(data, b.vendors); err != nil {
+			b.report(fmt.Errorf("drm: %s has an EDID tilde cannot read, so only its connector names it: %w", c.Name(), err))
+		} else {
+			o.identity = info
 		}
-		o.identity = info
 	}
 	cr.output, p.taken = o, true
 	if cp := b.free(cursorPlane, cr); cp != nil {

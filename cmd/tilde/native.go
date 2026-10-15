@@ -145,10 +145,10 @@ func (n *native) add(g gpuCard) error {
 	}
 	c := &card{name: g.name, device: device, dev: kdrm.FromFD(fd, g.udev.Devnode)}
 	if len(n.cards) == 0 {
-		c.backend, err = drmbackend.New(n.l, c.dev, n.paths, n.vendors)
+		c.backend, err = drmbackend.New(n.l, c.dev, n.drmOptions())
 	} else {
 		var how string
-		if c.backend, how, err = drmbackend.NewSecondary(n.l, c.dev, n.primary().backend, n.paths, n.vendors, g.render); err == nil {
+		if c.backend, how, err = drmbackend.NewSecondary(n.l, c.dev, n.primary().backend, n.drmOptions(), g.render); err == nil {
 			fmt.Fprintf(os.Stderr, "tilde: %s renders the outputs of %s; they reach the screen through %s\n", n.primary().name, g.name, how)
 		}
 	}
@@ -157,6 +157,10 @@ func (n *native) add(g gpuCard) error {
 	}
 	n.cards = append(n.cards, c)
 	return nil
+}
+
+func (n *native) drmOptions() drmbackend.Options {
+	return drmbackend.Options{Paths: n.paths, Vendors: n.vendors, Report: n.report}
 }
 
 func (n *native) addSecondary(g gpuCard) {
