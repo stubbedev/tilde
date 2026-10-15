@@ -2,7 +2,6 @@ package compositor
 
 import (
 	"image"
-	"math"
 
 	"github.com/stubbedev/tilde/internal/backend"
 	spw "github.com/stubbedev/tilde/internal/protocol/server/pointerwarp"
@@ -36,7 +35,7 @@ func (w pointerWarp) WarpPointer(_ *spw.WpPointerWarpV1, wl *sw.WlSurface, _ *sw
 		return err
 	}
 	local := point{x.Float(), y.Float()}
-	inside := image.Pt(int(math.Floor(local.X)), int(math.Floor(local.Y))).In(image.Rectangle{Max: s.Size()})
+	inside := local.pixel().In(image.Rectangle{Max: s.Size()})
 	org, shown := c.originOf(s)
 	if !c.seat.PointerEntered(w.cl, serial) || !inside || !shown {
 		return nil

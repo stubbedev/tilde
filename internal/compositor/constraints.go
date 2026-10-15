@@ -3,7 +3,6 @@ package compositor
 import (
 	"errors"
 	"fmt"
-	"image"
 	"math"
 
 	"github.com/stubbedev/tilde/internal/backend"
@@ -195,7 +194,7 @@ func (k *constraint) area() region.Region {
 }
 
 func (k *constraint) contains(local point) bool {
-	return k.area().Contains(image.Pt(int(math.Floor(local.X)), int(math.Floor(local.Y))))
+	return k.area().Contains(local.pixel())
 }
 
 func (k *constraint) clamp(local point) point {

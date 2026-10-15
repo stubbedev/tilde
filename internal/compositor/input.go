@@ -21,6 +21,10 @@ type point struct {
 	X, Y float64
 }
 
+func (p point) pixel() image.Point {
+	return image.Pt(int(math.Floor(p.X)), int(math.Floor(p.Y)))
+}
+
 func (p point) sub(o image.Point) point {
 	return point{p.X - float64(o.X), p.Y - float64(o.Y)}
 }
@@ -337,7 +341,7 @@ func hitLayers(layers []*layer, p point) (*surface.Surface, point) {
 
 func (c *Compositor) outputAt(p point) *output.Output {
 	for _, o := range c.outputs {
-		if image.Pt(int(math.Floor(p.X)), int(math.Floor(p.Y))).In(o.Logical()) {
+		if p.pixel().In(o.Logical()) {
 			return o
 		}
 	}
@@ -418,7 +422,7 @@ func hitTree(s *surface.Surface, org origin, p point) (*surface.Surface, point) 
 			continue
 		}
 		local := org.local(p)
-		if s.Buffer() != nil && s.AcceptsInput(image.Pt(int(math.Floor(local.X)), int(math.Floor(local.Y)))) {
+		if s.Buffer() != nil && s.AcceptsInput(local.pixel()) {
 			return s, local
 		}
 	}

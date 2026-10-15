@@ -2,8 +2,6 @@ package compositor
 
 import (
 	"errors"
-	"image"
-	"math"
 	"time"
 
 	"github.com/stubbedev/tilde/internal/backend"
@@ -115,6 +113,6 @@ func (c *Compositor) drawDragIcon(pass *frame, o *output.Output, shown []*surfac
 		return shown
 	}
 	p := c.dragAt()
-	at := image.Pt(int(math.Floor(p.X)), int(math.Floor(p.Y))).Add(offset)
+	at := p.pixel().Add(offset)
 	return c.drawTree(pass, o, icon, flat(at), shown)
 }

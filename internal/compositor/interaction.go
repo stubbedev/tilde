@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"math"
 
 	"github.com/stubbedev/tilde/internal/binds"
 	"github.com/stubbedev/tilde/internal/wm"
@@ -21,10 +20,6 @@ type interaction struct {
 	bottom bool
 }
 
-func (c *Compositor) cursorPoint() image.Point {
-	return image.Pt(int(math.Floor(c.cursor.X)), int(math.Floor(c.cursor.Y)))
-}
-
 var ErrNotFromMouseBind = errors.New("only a mouse bind can start a drag")
 
 func (c *Compositor) beginDrag(mode wm.DragMode) error {
@@ -36,7 +31,7 @@ func (c *Compositor) beginDrag(mode wm.DragMode) error {
 	if w == nil || w.layer == wm.LayerFullscreen {
 		return nil
 	}
-	at := c.cursorPoint()
+	at := c.cursor.pixel()
 	mid := w.tile.Min.Add(w.tile.Size().Div(2))
 	c.interaction = &interaction{mode: mode, w: w, button: button.Code, start: at, last: at, rect: w.tile, right: at.X >= mid.X, bottom: at.Y >= mid.Y}
 	if err := c.focusWindow(w); err != nil {
@@ -63,7 +58,7 @@ const minFloat = 32
 
 func (c *Compositor) dragMoved() error {
 	it := c.interaction
-	at := c.cursorPoint()
+	at := c.cursor.pixel()
 	total, step := at.Sub(it.start), at.Sub(it.last)
 	it.last = at
 	floating := it.w.layer == wm.LayerFloating
@@ -102,7 +97,7 @@ func (c *Compositor) endDrag() error {
 	it := c.interaction
 	c.interaction = nil
 	if it.mode == wm.DragMove && it.w.layer == wm.LayerTiled && it.w.tile != (image.Rectangle{}) {
-		if err := c.update(c.wm.Reinsert(it.w.id, c.cursorPoint(), c.settings.Autotile)); err != nil {
+		if err := c.update(c.wm.Reinsert(it.w.id, c.cursor.pixel(), c.settings.Autotile)); err != nil {
 			return fmt.Errorf("compositor: drop window %d: %w", it.w.id, err)
 		}
 	}

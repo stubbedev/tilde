@@ -60,14 +60,14 @@ func (c *Compositor) cursorTexture(name string, scale output.Scale) (*cursorText
 }
 
 func (c *Compositor) drawCursor(pass *frame, o *output.Output, shown []*surface.Surface) ([]*surface.Surface, error) {
-	if !c.seat.HasPointer() || !image.Pt(int(math.Floor(c.cursor.X)), int(math.Floor(c.cursor.Y))).In(o.Logical()) {
+	if !c.seat.HasPointer() || !c.cursor.pixel().In(o.Logical()) {
 		return shown, nil
 	}
 	cur := c.seat.Cursor()
 	name := "default"
 	switch {
 	case cur.Set() && cur.Surface() != nil:
-		at := image.Pt(int(math.Floor(c.cursor.X)), int(math.Floor(c.cursor.Y))).Sub(cur.Hotspot())
+		at := c.cursor.pixel().Sub(cur.Hotspot())
 		return c.drawTree(pass, o, cur.Surface(), flat(at), shown), nil
 	case cur.Set() && cur.Shape() == "":
 		return shown, nil

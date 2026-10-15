@@ -39,10 +39,8 @@ func (c *Compositor) layerOutput(l *shell.LayerSurface) *output.Output {
 	if res := l.Output(); res != nil {
 		return c.layout.Owner(res)
 	}
-	for _, o := range c.outputs {
-		if image.Pt(int(c.cursor.X), int(c.cursor.Y)).In(o.Logical()) {
-			return o
-		}
+	if o := c.outputAt(c.cursor); o != nil {
+		return o
 	}
 	return c.firstOutput()
 }

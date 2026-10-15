@@ -214,7 +214,7 @@ func (c *Compositor) floatRect(t toplevel, size image.Point) image.Rectangle {
 	over := image.Rectangle{}
 	if p := c.windowOf(t.parent()); p != nil {
 		over = p.tile
-	} else if o := c.outputAtRect(image.Rectangle{Min: image.Pt(int(c.cursor.X), int(c.cursor.Y))}); o != nil {
+	} else if o := c.outputAt(c.cursor); o != nil {
 		over = c.usable[o].Add(o.Position())
 	}
 	corner := over.Min.Add(over.Size().Sub(size).Div(2))

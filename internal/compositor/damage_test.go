@@ -93,3 +93,14 @@ func TestModePolicies(t *testing.T) {
 		t.Errorf("no preferred mode chose %+v, want the current one", got)
 	}
 }
+
+func TestAPointFloorsToItsPixel(t *testing.T) {
+	for _, c := range []struct {
+		p    point
+		want image.Point
+	}{{point{0.5, 2.7}, image.Pt(0, 2)}, {point{-0.5, -2.7}, image.Pt(-1, -3)}, {point{-1, 3}, image.Pt(-1, 3)}} {
+		if got := c.p.pixel(); got != c.want {
+			t.Errorf("%+v.pixel() = %v, want %v", c.p, got, c.want)
+		}
+	}
+}
