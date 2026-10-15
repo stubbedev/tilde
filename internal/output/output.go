@@ -29,6 +29,13 @@ const (
 	MaxScale Scale = Unit * 10
 )
 
+func ParseScale(f float64) (Scale, error) {
+	if math.IsNaN(f) || f < MinScale.Float() || f > MaxScale.Float() {
+		return 0, fmt.Errorf("output: scale %g is outside %g to %g", f, MinScale.Float(), MaxScale.Float())
+	}
+	return Scale(math.Round(f * float64(Unit))), nil
+}
+
 func (s Scale) Float() float64 {
 	return float64(s) / float64(Unit)
 }

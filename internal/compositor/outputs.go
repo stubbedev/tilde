@@ -308,9 +308,6 @@ func (c *Compositor) Configure(heads []outputmanagement.HeadConfig, apply bool) 
 		if _, err := rule.mode().choose(b.Modes(), b.State().Mode); err != nil {
 			return fmt.Errorf("compositor: output %s: %w", b.Name(), err)
 		}
-		if s := rule.scale(); s < output.MinScale || s > output.MaxScale {
-			return fmt.Errorf("compositor: output %s: scale %g is outside %g to %g", b.Name(), s.Float(), output.MinScale.Float(), output.MaxScale.Float())
-		}
 	}
 	if !lit {
 		return errors.New("compositor: a configuration that turns off every output would leave nothing on screen")

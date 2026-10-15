@@ -367,7 +367,7 @@ func (p *parser) mode(a *At[string], key string) compositor.ModePolicy {
 	size, rate, hasRate := strings.Cut(a.V, "@")
 	dims, ok := parsePair(size)
 	hz, err := strconv.ParseFloat(rate, 64)
-	if !ok || dims.X <= 0 || dims.Y <= 0 || (hasRate && (err != nil || hz <= 0)) {
+	if !ok || dims.X <= 0 || dims.Y <= 0 || (hasRate && (err != nil || !(hz > 0 && hz*1000 <= math.MaxInt32))) {
 		p.fail(a.Line, key, "%q is not preferred, highres or <width>x<height>[@<hz>]", a.V)
 		return nil
 	}
@@ -397,10 +397,10 @@ func (p *parser) output(i int, r rawOutput) compositor.OutputRule {
 		}
 	}
 	if r.Scale != nil {
-		if r.Scale.V < output.MinScale.Float() || r.Scale.V > output.MaxScale.Float() {
-			p.fail(r.Scale.Line, key+".scale", "%g is outside %g to %g", r.Scale.V, output.MinScale.Float(), output.MaxScale.Float())
+		if s, err := output.ParseScale(r.Scale.V); err != nil {
+			p.fail(r.Scale.Line, key+".scale", "%v", err)
 		} else {
-			rule.Scale = output.Scale(math.Round(r.Scale.V * float64(output.Unit)))
+			rule.Scale = s
 		}
 	}
 	return rule

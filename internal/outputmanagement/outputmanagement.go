@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"math"
 	"slices"
 
 	"github.com/stubbedev/tilde/internal/backend"
@@ -461,11 +460,12 @@ func (ch *configHead) SetScale(obj *swom.ZwlrOutputConfigurationHeadV1, scale wi
 	if f <= 0 {
 		return obj.ProtocolError(swom.ZwlrOutputConfigurationHeadV1ErrorInvalidScale, fmt.Sprintf("scale %g", f))
 	}
-	ch.scale = output.Scale(math.Round(f * float64(output.Unit)))
-	if ch.scale == 0 {
-		ch.unsupported = append(ch.unsupported, fmt.Sprintf("scale %g", f))
-		ch.scale = 1
+	s, err := output.ParseScale(f)
+	if err != nil {
+		ch.unsupported = append(ch.unsupported, err.Error())
+		s = 1
 	}
+	ch.scale = s
 	return nil
 }
 
