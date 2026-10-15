@@ -674,13 +674,23 @@ func (r surfaceRequests) Offset(_ *sw.WlSurface, x, y int32) error {
 	return nil
 }
 
+const maxDamageRects = 32
+
+func addDamage(g region.Region, r image.Rectangle) region.Region {
+	g = g.Add(r)
+	if len(g.Rects()) > maxDamageRects {
+		return region.Rect(g.Bounds())
+	}
+	return g
+}
+
 func (r surfaceRequests) Damage(_ *sw.WlSurface, x, y, w, h int32) error {
-	r.s.pending.damage = r.s.pending.damage.Add(rect(x, y, w, h))
+	r.s.pending.damage = addDamage(r.s.pending.damage, rect(x, y, w, h))
 	return nil
 }
 
 func (r surfaceRequests) DamageBuffer(_ *sw.WlSurface, x, y, w, h int32) error {
-	r.s.pending.bufferDamage = r.s.pending.bufferDamage.Add(rect(x, y, w, h))
+	r.s.pending.bufferDamage = addDamage(r.s.pending.bufferDamage, rect(x, y, w, h))
 	return nil
 }
 

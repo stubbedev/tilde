@@ -339,6 +339,28 @@ func TestSurfaceProtocolErrors(t *testing.T) {
 	}
 }
 
+func TestManyDamageRectanglesCollapseToTheirBounds(t *testing.T) {
+	e := setup(t, 6)
+	s := e.surface()
+	must(t, s.Attach(e.buffer(400, 400), 0, 0))
+	for i := range int32(10000) {
+		x, y := i%100*4, i/100*4
+		must(t, s.Damage(x, y, 2, 2), s.DamageBuffer(x, y, 2, 2))
+		if i%500 == 499 {
+			e.roundtrip()
+		}
+	}
+	must(t, s.Commit())
+	e.roundtrip()
+	c := e.last(s)
+	want := image.Rect(0, 0, 398, 398)
+	for name, d := range map[string]region.Region{"damage": c.damage, "buffer damage": c.bufferDamage} {
+		if n := len(d.Rects()); n > maxDamageRects || d.Bounds() != want {
+			t.Errorf("%s: %d rectangles within %v, want at most %d within %v", name, n, d.Bounds(), maxDamageRects, want)
+		}
+	}
+}
+
 func TestAttachOffsetBeforeVersion5(t *testing.T) {
 	e := setup(t, 4)
 	s := e.surface()
