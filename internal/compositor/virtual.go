@@ -107,8 +107,9 @@ func (m virtualPointers) CreateVirtualPointerWithOutput(_ *svp.ZwlrVirtualPointe
 type virtualPointer struct {
 	c      *Compositor
 	output *output.Output
-	axis   backend.PointerAxis
+	source backend.AxisSource
 	axes   []backend.PointerAxis
+	stops  []backend.PointerAxis
 }
 
 func (v *virtualPointer) input(e backend.Event) error {
@@ -138,15 +139,20 @@ func (v *virtualPointer) Button(_ *svp.ZwlrVirtualPointerV1, ms, button uint32, 
 	return v.input(backend.PointerButton{Time: millis(ms), Button: button, Pressed: state == sw.WlPointerButtonStatePressed})
 }
 
-func (v *virtualPointer) axisFor(obj *svp.ZwlrVirtualPointerV1, ms uint32, axis sw.WlPointerAxis) (*backend.PointerAxis, error) {
-	var o backend.Orientation
+func orientationOf(obj *svp.ZwlrVirtualPointerV1, axis sw.WlPointerAxis) (backend.Orientation, error) {
 	switch axis {
 	case sw.WlPointerAxisVerticalScroll:
-		o = backend.Vertical
+		return backend.Vertical, nil
 	case sw.WlPointerAxisHorizontalScroll:
-		o = backend.Horizontal
-	default:
-		return nil, obj.ProtocolError(svp.ZwlrVirtualPointerV1ErrorInvalidAxis, fmt.Sprintf("axis %d", axis))
+		return backend.Horizontal, nil
+	}
+	return 0, obj.ProtocolError(svp.ZwlrVirtualPointerV1ErrorInvalidAxis, fmt.Sprintf("axis %d", axis))
+}
+
+func (v *virtualPointer) axisFor(obj *svp.ZwlrVirtualPointerV1, ms uint32, axis sw.WlPointerAxis) (*backend.PointerAxis, error) {
+	o, err := orientationOf(obj, axis)
+	if err != nil {
+		return nil, err
 	}
 	for i := range v.axes {
 		if v.axes[i].Orientation == o {
@@ -188,21 +194,29 @@ func (v *virtualPointer) AxisSource(obj *svp.ZwlrVirtualPointerV1, source sw.WlP
 	if !ok {
 		return obj.ProtocolError(svp.ZwlrVirtualPointerV1ErrorInvalidAxisSource, fmt.Sprintf("axis source %d", source))
 	}
-	v.axis.Source = s
+	v.source = s
 	return nil
 }
 
-func (v *virtualPointer) AxisStop(*svp.ZwlrVirtualPointerV1, uint32, sw.WlPointerAxis) error {
+func (v *virtualPointer) AxisStop(obj *svp.ZwlrVirtualPointerV1, ms uint32, axis sw.WlPointerAxis) error {
+	o, err := orientationOf(obj, axis)
+	if err != nil {
+		return err
+	}
+	v.stops = append(v.stops, backend.PointerAxis{Time: millis(ms), Orientation: o, Source: backend.Finger})
 	return nil
 }
 
 func (v *virtualPointer) Frame(*svp.ZwlrVirtualPointerV1) error {
 	var errs []error
 	for _, a := range v.axes {
-		a.Source = v.axis.Source
+		a.Source = v.source
 		errs = append(errs, v.input(a))
 	}
-	v.axes = v.axes[:0]
+	for _, a := range v.stops {
+		errs = append(errs, v.input(a))
+	}
+	v.axes, v.stops, v.source = v.axes[:0], v.stops[:0], backend.Wheel
 	return errors.Join(append(errs, v.input(backend.PointerFrame{}))...)
 }
 

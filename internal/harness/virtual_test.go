@@ -109,4 +109,8 @@ func TestVirtualPointersMoveClickAndScroll(t *testing.T) {
 	r.c.DispatchUntil("the scroll", func() bool {
 		return slices.ContainsFunc(r.in.Log, func(s string) bool { return s == "axis 0 15" })
 	})
+	if err := errors.Join(vp.AxisSource(cw.WlPointerAxisSourceFinger), vp.AxisStop(6, cw.WlPointerAxisVerticalScroll), vp.Frame(), driver.Display.Flush()); err != nil {
+		t.Fatal(err)
+	}
+	r.c.DispatchUntil("the scroll stop", func() bool { return slices.Contains(r.in.Log, "axis_stop 0") })
 }
