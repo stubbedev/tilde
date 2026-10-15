@@ -76,6 +76,29 @@ func cursorImage(t *testing.T, o *Output) {
 	t.Logf("%s cursor plane %d, %v", o.Name(), o.cursor.plane.id, cp.CursorSize())
 }
 
+func gammaRamps(t *testing.T, o *Output) {
+	t.Helper()
+	size := o.GammaSize()
+	if size == 0 {
+		t.Logf("%s has no GAMMA_LUT", o.Name())
+		return
+	}
+	ramps := make([]uint16, 3*size)
+	for i := range ramps {
+		ramps[i] = uint16(i % size * 0xffff / (size - 1))
+	}
+	if err := o.SetGamma(ramps); err != nil {
+		t.Fatal(err)
+	}
+	if o.gamma.next == 0 || !o.gamma.dirty {
+		t.Fatalf("%s gamma: %+v", o.Name(), o.gamma)
+	}
+	if err := o.SetGamma(nil); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("%s gamma LUT of %d entries", o.Name(), size)
+}
+
 func TestStartOnThisCardWithoutMaster(t *testing.T) {
 	dev, err := kdrm.Open("/dev/dri/card0")
 	if err != nil {
@@ -111,7 +134,9 @@ func TestStartOnThisCardWithoutMaster(t *testing.T) {
 		}
 		t.Logf("%s (%s) on CRTC %d and plane %d with modifiers %#x, %+v", o.Name(), o.Description(), o.crtc.id, o.primary.id, o.primary.modifiers, o.State().Mode)
 		cursorImage(t, o)
+		gammaRamps(t, o)
 	}
+	t.Logf("atomic async page flips: %v", b.async)
 	if err := b.Close(); err != nil {
 		t.Fatal(err)
 	}
