@@ -64,6 +64,7 @@ func (f *frame) bounds() image.Rectangle {
 
 type scene struct {
 	prev, cur frame
+	shown     []*surface.Surface
 	content   map[*surface.Surface]*region.Set
 	damage    region.Set
 	repaint   region.Set
@@ -144,16 +145,16 @@ func (sc *scene) presented() {
 	sc.head = (sc.head + maxBufferAge - 1) % maxBufferAge
 	sc.history[sc.head].CopyFrom(&sc.damage)
 	sc.prev, sc.cur = sc.cur, sc.prev
-	sc.cur.ops = sc.cur.ops[:0]
 	sc.drawn = true
+}
+
+func (sc *scene) begin() *frame {
+	sc.cur.ops, sc.cur.cursorFrom = sc.cur.ops[:0], 0
+	return &sc.cur
 }
 
 func (sc *scene) invalidate() {
 	sc.drawn = false
-}
-
-func (sc *scene) skipped() {
-	sc.cur.ops = sc.cur.ops[:0]
 }
 
 func (sc *scene) forget(s *surface.Surface) {

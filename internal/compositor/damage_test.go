@@ -10,7 +10,8 @@ import (
 )
 
 func (sc *scene) frameWith(ops ...drawOp) {
-	sc.cur.ops = append(sc.cur.ops[:0], ops...)
+	f := sc.begin()
+	f.ops = append(f.ops, ops...)
 }
 
 func TestSceneDiffAndBufferAge(t *testing.T) {
@@ -29,7 +30,11 @@ func TestSceneDiffAndBufferAge(t *testing.T) {
 	if d := sc.diff(bounds); !d.Empty() {
 		t.Fatalf("an identical frame damaged %v", d.Rects())
 	}
-	sc.skipped()
+	sc.begin().FillRect(image.Rect(60, 60, 70, 70), render.Color{A: 0xff})
+	sc.frameWith(bg, box(0))
+	if d := sc.diff(bounds); !d.Empty() {
+		t.Fatalf("an abandoned frame left ops behind: %v", d.Rects())
+	}
 	sc.frameWith(bg, box(20))
 	if d := sc.diff(bounds); d.Area() != 200 {
 		t.Fatalf("moving a box damaged %v", d.Rects())

@@ -50,9 +50,9 @@ func (c *Compositor) sceneOf(o *output.Output) *scene {
 func (c *Compositor) render(o *output.Output) error {
 	sc := c.sceneOf(o)
 	bounds := image.Rectangle{Max: o.Backend().State().Mode.Size}
-	pass := &sc.cur
+	pass := sc.begin()
 	pass.FillRect(bounds, Background)
-	shown := c.shown[o][:0]
+	shown := sc.shown[:0]
 	var err error
 	if c.shell.Locked() {
 		shown = c.drawLocked(pass, o, bounds, shown)
@@ -72,12 +72,11 @@ func (c *Compositor) render(o *output.Output) error {
 	} else if shown, err = c.drawCursor(pass, o, shown); err != nil {
 		return err
 	}
-	c.shown[o] = shown
+	c.shown[o], sc.shown = shown, c.shown[o]
 	for _, s := range shown {
 		s.Latch()
 	}
 	if sc.diff(bounds).Empty() {
-		sc.skipped()
 		return errors.Join(c.unchanged(o, sc), c.lockBlanked(o))
 	}
 	if direct, err := c.scanout(o, sc, bounds); err != nil || direct {
