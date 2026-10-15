@@ -185,6 +185,22 @@ type ReadTarget interface {
 	Destroy() error
 }
 
+type PendingRead interface {
+	Wait() error
+	Map() ([]byte, error)
+	Release() error
+}
+
+type AsyncReadTarget interface {
+	ReadTarget
+	ReadAsync() (PendingRead, error)
+}
+
+type AsyncReader interface {
+	AsyncReads() bool
+	NewAsyncTarget(size image.Point) (AsyncReadTarget, error)
+}
+
 type Texture interface {
 	Size() image.Point
 	Update(stride int, data []byte, damage Region) error

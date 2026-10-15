@@ -70,6 +70,7 @@ type Renderer struct {
 	verts     [16]float32
 	pass      pass
 	closed    bool
+	async     bool
 }
 
 func (r *Renderer) enter() error {
@@ -133,6 +134,7 @@ func (r *Renderer) setup() error {
 		r.gl.Uniform1i(r.gl.GetUniformLocation(id, "tex"), 0)
 	}
 	r.gl.GenBuffers(1, &r.vbo)
+	r.async = esMajor(r.gl.Version()) >= 3 && r.d.Has("EGL_KHR_fence_sync")
 	return nil
 }
 
@@ -395,12 +397,14 @@ func (t *texture) Destroy() error {
 }
 
 type Framebuffer struct {
-	r    *Renderer
-	size image.Point
-	fbo  uint32
-	tex  uint32
-	rb   uint32
-	img  *gpu.Image
+	r       *Renderer
+	size    image.Point
+	fbo     uint32
+	tex     uint32
+	rb      uint32
+	pbo     uint32
+	reading bool
+	img     *gpu.Image
 }
 
 func (r *Renderer) NewFramebuffer(size image.Point) (*Framebuffer, error) {
@@ -494,7 +498,7 @@ func (f *Framebuffer) Read(pix []byte, stride int) error {
 }
 
 func (f *Framebuffer) Destroy() error {
-	if f.fbo == 0 && f.tex == 0 && f.rb == 0 && f.img == nil {
+	if f.fbo == 0 && f.tex == 0 && f.rb == 0 && f.pbo == 0 && f.img == nil {
 		return nil
 	}
 	if err := f.r.enter(); err != nil {
@@ -504,7 +508,8 @@ func (f *Framebuffer) Destroy() error {
 	gl.DeleteFramebuffers(1, &f.fbo)
 	gl.DeleteTextures(1, &f.tex)
 	gl.DeleteRenderbuffers(1, &f.rb)
-	f.fbo, f.tex, f.rb = 0, 0, 0
+	gl.DeleteBuffers(1, &f.pbo)
+	f.fbo, f.tex, f.rb, f.pbo = 0, 0, 0, 0
 	err := f.r.leave("gles: destroy a framebuffer")
 	if f.img != nil {
 		err = errors.Join(err, f.img.Destroy())
