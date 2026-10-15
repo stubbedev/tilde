@@ -456,6 +456,7 @@ func (s State) AssignWorkspace(id WorkspaceID, output string) (State, error) {
 			o.Active = s.create(s.firstUnused(), from).ID
 		}
 	}
+	s.dropIfIdle(id)
 	return s, nil
 }
 

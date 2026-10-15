@@ -151,6 +151,15 @@ func TestOutputsComeAndGo(t *testing.T) {
 	}
 }
 
+func TestAssigningAnEmptyActiveWorkspaceAwayDropsIt(t *testing.T) {
+	s := ok(t)(State{}.AddOutput("DP-1", left, left))
+	s = ok(t)(s.AddOutput("DP-2", right, right))
+	s = ok(t)(s.AssignWorkspace(1, "DP-2"))
+	if got := layoutOf(s); len(got) != 2 || got[1] != "" {
+		t.Fatalf("workspaces %v: the empty workspace 1 is neither shown nor holding windows on DP-2", got)
+	}
+}
+
 func TestAssigningAWorkspaceMovesItToAnotherOutput(t *testing.T) {
 	s := ok(t)(State{}.AddOutput("DP-1", left, left))
 	s = ok(t)(s.AddOutput("DP-2", right, right))
