@@ -58,6 +58,7 @@ type Logind struct {
 	done     chan struct{}
 	active   bool
 	seatID   string
+	owner    string
 }
 
 func SystemBus(getenv func(string) string) string {
@@ -84,6 +85,9 @@ func Open(l *loop.Loop, address string, getenv func(string) string, listener Lis
 			err = errors.Join(err, conn.Close())
 		}
 	}()
+	if err := call(conn.BusObject(), "org.freedesktop.DBus.GetNameOwner", login1).Store(&lg.owner); err != nil {
+		return nil, fmt.Errorf("session: find the owner of %s: %w", login1, err)
+	}
 	manager := conn.Object(login1, managerPath)
 	var path dbus.ObjectPath
 	if id := getenv("XDG_SESSION_ID"); id != "" {
@@ -110,9 +114,9 @@ func Open(l *loop.Loop, address string, getenv func(string) string, listener Lis
 		return nil, fmt.Errorf("session: take control of %s: %w", path, err)
 	}
 	for _, opts := range [][]dbus.MatchOption{
-		{dbus.WithMatchObjectPath(path), dbus.WithMatchInterface(sessionIface)},
-		{dbus.WithMatchObjectPath(path), dbus.WithMatchInterface(propsIface), dbus.WithMatchMember("PropertiesChanged")},
-		{dbus.WithMatchObjectPath(managerPath), dbus.WithMatchInterface(managerIface), dbus.WithMatchMember("PrepareForSleep")},
+		{dbus.WithMatchSender(login1), dbus.WithMatchObjectPath(path), dbus.WithMatchInterface(sessionIface)},
+		{dbus.WithMatchSender(login1), dbus.WithMatchObjectPath(path), dbus.WithMatchInterface(propsIface), dbus.WithMatchMember("PropertiesChanged")},
+		{dbus.WithMatchSender(login1), dbus.WithMatchObjectPath(managerPath), dbus.WithMatchInterface(managerIface), dbus.WithMatchMember("PrepareForSleep")},
 	} {
 		if err := conn.AddMatchSignal(opts...); err != nil {
 			return nil, fmt.Errorf("session: subscribe to %s: %w", path, err)
@@ -158,7 +162,20 @@ func (lg *Logind) relay() {
 	}
 }
 
+func closeFDs(body []any) error {
+	var errs []error
+	for _, v := range body {
+		if fd, ok := v.(dbus.UnixFD); ok {
+			errs = append(errs, unix.Close(int(fd)))
+		}
+	}
+	return errors.Join(errs...)
+}
+
 func (lg *Logind) handle(sig *dbus.Signal) error {
+	if sig.Sender != lg.owner {
+		return closeFDs(sig.Body)
+	}
 	switch sig.Name {
 	case sessionIface + ".PauseDevice":
 		var d Device

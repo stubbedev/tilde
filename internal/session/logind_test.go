@@ -218,6 +218,18 @@ func TestLogindSession(t *testing.T) {
 	if _, _, err := lg.TakeDevice("/"); err == nil {
 		t.Fatal("a directory was taken as a device")
 	}
+	forger, err := dbus.Connect(address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer forger.Close()
+	if err := errors.Join(
+		forger.Emit(sessionPath, sessionIface+".PauseDevice", uint32(1), uint32(3), "pause"),
+		forger.Emit(sessionPath, propsIface+".PropertiesChanged", sessionIface, map[string]dbus.Variant{"Active": dbus.MakeVariant(false)}, []string{}),
+		forger.Emit(managerPath, managerIface+".PrepareForSleep", true),
+	); err != nil {
+		t.Fatal(err)
+	}
 	for _, sig := range []struct {
 		name string
 		args []any
