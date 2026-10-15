@@ -713,9 +713,14 @@ func (obj *WlShm) Dispatch(msg *wire.Message) error {
 		if err := msg.Finish(); err != nil {
 			return err
 		}
+		handled := false
 		_, err := CreateWlShmPool(obj.object.Peer(), idID, obj.object.Version(), func(id *WlShmPool) (WlShmPoolHandler, error) {
+			handled = true
 			return obj.handler.CreatePool(obj, id, fd, size)
 		})
+		if !handled {
+			return wire.CloseUnclaimed(err, fd)
+		}
 		return err
 	case 1:
 		if err := msg.Finish(); err != nil {

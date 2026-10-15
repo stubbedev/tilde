@@ -101,9 +101,14 @@ func (obj *WpLinuxDrmSyncobjManagerV1) Dispatch(msg *wire.Message) error {
 		if err := msg.Finish(); err != nil {
 			return err
 		}
+		handled := false
 		_, err := CreateWpLinuxDrmSyncobjTimelineV1(obj.object.Peer(), idID, obj.object.Version(), func(id *WpLinuxDrmSyncobjTimelineV1) (WpLinuxDrmSyncobjTimelineV1Handler, error) {
+			handled = true
 			return obj.handler.ImportTimeline(obj, id, fd)
 		})
+		if !handled {
+			return wire.CloseUnclaimed(err, fd)
+		}
 		return err
 	}
 	return msg.Finish()

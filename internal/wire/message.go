@@ -3,7 +3,10 @@ package wire
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
+
+	"golang.org/x/sys/unix"
 )
 
 type Message struct {
@@ -132,6 +135,16 @@ func (m *Message) FD() int {
 	}
 	m.taken++
 	return fd
+}
+
+func CloseUnclaimed(err error, fds ...int) error {
+	errs := []error{err}
+	for _, fd := range fds {
+		if cerr := unix.Close(fd); cerr != nil {
+			errs = append(errs, fmt.Errorf("wire: close an unclaimed fd %d: %w", fd, cerr))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func (m *Message) Finish() error {

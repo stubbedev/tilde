@@ -306,3 +306,57 @@ func TestUnackedConfiguresDoNotStallOthers(t *testing.T) {
 	}
 	h.Eventually("the windows that acked mapped", mappedToplevels(2))
 }
+
+func TestAnObjectThatCannotBeCreatedClosesItsFDs(t *testing.T) {
+	h := Start(t, small)
+	h.Do(func(*headless.Backend, *compositor.Compositor) error { return nil })
+	baseline := openFDs(t)
+	r := dialRaw(t, h.Socket())
+	registry := r.newID()
+	if err := r.send(displayID, getRegistry, func(e *wire.Encoder) { e.Uint(uint32(registry)) }); err != nil {
+		t.Fatal(err)
+	}
+	var shmName, shmVersion uint32
+	if err := r.sync(time.Now().Add(fuzzTimeout), func(m *wire.Message) {
+		if m.ID == registry && m.Opcode == registryGlobal {
+			if name, iface, version := m.Uint(), m.Str(), m.Uint(); iface == "wl_shm" {
+				shmName, shmVersion = name, version
+			}
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	shm := r.newID()
+	if err := r.send(registry, registryBind, func(e *wire.Encoder) {
+		e.Uint(shmName)
+		e.Str("wl_shm")
+		e.Uint(shmVersion)
+		e.Uint(uint32(shm))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	pool, err := unix.MemfdCreate("pool", unix.MFD_CLOEXEC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Ftruncate(pool, 4096); err != nil {
+		t.Fatal(err)
+	}
+	if err := errors.Join(r.send(shm, 0, func(e *wire.Encoder) {
+		e.Uint(uint32(registry))
+		e.FD(pool)
+		e.Int(4096)
+	}), r.conn.Flush(), unix.Close(pool)); err != nil {
+		t.Fatal(err)
+	}
+	if !r.closedByServer(fuzzTimeout) {
+		t.Fatal("a create_pool reusing a live id was accepted")
+	}
+	if err := r.conn.Close(); err != nil {
+		t.Fatal(err)
+	}
+	h.Do(func(*headless.Backend, *compositor.Compositor) error { return nil })
+	if n := openFDs(t); n != baseline {
+		t.Fatalf("%d file descriptors open after the refused create_pool, %d before", n, baseline)
+	}
+}

@@ -350,15 +350,31 @@ func (g *gen) receive(m *message) {
 		call = append(call, n)
 	}
 	g.printf("\t\tif err := msg.Finish(); err != nil {\n\t\t\treturn err\n\t\t}\n")
+	var fds []string
+	for _, a := range m.args {
+		if a.typ == wire.ArgFD {
+			fds = append(fds, a.goName)
+		}
+	}
 	child := newIDArg(m)
 	invoke := fmt.Sprintf("obj.handler.%s(%s)", m.goName, strings.Join(append([]string{"obj"}, call...), ", "))
 	switch {
+	case child != nil && child.iface != nil && g.hasHandler(child.iface) && len(fds) > 0:
+		t := g.typeRef(child.iface)
+		g.printf("\t\thandled := false\n")
+		g.printf("\t\t_, err := %s(obj.object.Peer(), %sID, obj.object.Version(), func(%s *%s) (%sHandler, error) {\n", g.qualify(child.iface.proto, "Create"+child.iface.goName), child.goName, child.goName, t, t)
+		g.printf("\t\t\thandled = true\n\t\t\treturn %s\n\t\t})\n", invoke)
+		g.printf("\t\tif !handled {\n\t\t\treturn wire.CloseUnclaimed(err, %s)\n\t\t}\n\t\treturn err\n", strings.Join(fds, ", "))
 	case child != nil && child.iface != nil && g.hasHandler(child.iface):
 		t := g.typeRef(child.iface)
 		g.printf("\t\t_, err := %s(obj.object.Peer(), %sID, obj.object.Version(), func(%s *%s) (%sHandler, error) {\n", g.qualify(child.iface.proto, "Create"+child.iface.goName), child.goName, child.goName, t, t)
 		g.printf("\t\t\treturn %s\n\t\t})\n\t\treturn err\n", invoke)
 	case child != nil && child.iface != nil:
-		g.printf("\t\t%[1]s, err := %[2]s(obj.object.Peer(), %[1]sID, obj.object.Version())\n\t\tif err != nil {\n\t\t\treturn err\n\t\t}\n", child.goName, g.qualify(child.iface.proto, "Create"+child.iface.goName))
+		fail := "return err"
+		if len(fds) > 0 {
+			fail = "return wire.CloseUnclaimed(err, " + strings.Join(fds, ", ") + ")"
+		}
+		g.printf("\t\t%[1]s, err := %[2]s(obj.object.Peer(), %[1]sID, obj.object.Version())\n\t\tif err != nil {\n\t\t\t%[3]s\n\t\t}\n", child.goName, g.qualify(child.iface.proto, "Create"+child.iface.goName), fail)
 		g.printf("\t\treturn %s\n", invoke)
 	case m.destructor:
 		g.printf("\t\tif err := %s; err != nil {\n\t\t\treturn err\n\t\t}\n", invoke)

@@ -89,9 +89,14 @@ func (obj *WpSecurityContextManagerV1) Dispatch(msg *wire.Message) error {
 		if err := msg.Finish(); err != nil {
 			return err
 		}
+		handled := false
 		_, err := CreateWpSecurityContextV1(obj.object.Peer(), idID, obj.object.Version(), func(id *WpSecurityContextV1) (WpSecurityContextV1Handler, error) {
+			handled = true
 			return obj.handler.CreateListener(obj, id, listenFD, closeFD)
 		})
+		if !handled {
+			return wire.CloseUnclaimed(err, listenFD, closeFD)
+		}
 		return err
 	}
 	return msg.Finish()
