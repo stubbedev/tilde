@@ -226,12 +226,12 @@ func (c *Compositor) updateEntered(o *output.Output) error {
 			continue
 		}
 		e.outputs = append(e.outputs, o)
-		errs = append(errs, s.Client().Sent(s.Enter(o.Resources(s.Client()))), s.Client().Sent(s.SetPreferredScale(uint32(o.Scale()))))
+		errs = append(errs, s.Client().Sent(s.Enter(o.Resources(s.Client()))), s.Client().Sent(s.SetPreferredScale(uint32(maxScale(e.outputs)))))
 	}
 	for _, e := range c.entered {
 		if slices.Contains(e.outputs, o) && !slices.Contains(shown, e.s) {
 			e.outputs = slices.DeleteFunc(e.outputs, func(x *output.Output) bool { return x == o })
-			errs = append(errs, e.s.Client().Sent(e.s.Leave(o.Resources(e.s.Client()))))
+			errs = append(errs, e.s.Client().Sent(e.s.Leave(o.Resources(e.s.Client()))), e.s.Client().Sent(e.s.SetPreferredScale(uint32(maxScale(e.outputs)))))
 		}
 	}
 	return errors.Join(errs...)

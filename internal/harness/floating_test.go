@@ -190,3 +190,32 @@ func TestAFloatingWindowOverAnotherOutputTakesTheClicksItCovers(t *testing.T) {
 		return false
 	})
 }
+
+func TestAWindowAcrossOutputsPrefersTheHighestScale(t *testing.T) {
+	h := StartWith(t, withBinds(t, bindSpec{chord: "SUPER + mouse:272", action: "movewindow"}), small, small)
+	h.Do(func(b *headless.Backend, c *compositor.Compositor) error {
+		return c.SetOutputScale(b.Outputs()[1], 240)
+	})
+	c := testclient.Connect(t, h.Socket())
+	w := c.ScaledWindow("across", testclient.FractionalScale, testclient.Fill(0, 0, 0xff))
+	c.DispatchUntil("the window to map", w.Mapped)
+	h.dispatch("togglefloating")
+	c.DispatchUntil("a floating window", func() bool { return w.Logical == image.Pt(80, 50) })
+	h.key(keySuper, true)
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+		o, p := b.Outputs()[0], b.Pointer()
+		return errors.Join(p.MoveTo(o, 0.5, 0.5), p.Frame(), p.Button(btnLeft, true), p.Frame(),
+			p.MoveTo(o, 150.0/160, 0.5), p.Frame(), p.Button(btnLeft, false), p.Frame())
+	})
+	h.key(keySuper, false)
+	c.DispatchUntil("the window on both outputs at the higher scale", func() bool { return w.Entered == 2 && w.Preferred120 == 240 })
+	for range 5 {
+		h.dispatch("resizeactive 1 0")
+		if err := c.Display.Roundtrip(); err != nil {
+			t.Fatal(err)
+		}
+		if w.Preferred120 != 240 {
+			t.Fatalf("the preferred scale went back to %d after a configure", w.Preferred120)
+		}
+	}
+}

@@ -81,9 +81,27 @@ func (c *Compositor) outputAtRect(r image.Rectangle) *output.Output {
 func (c *Compositor) wanted(rect image.Rectangle, layer wm.PlacementLayer, activated bool) want {
 	w := want{rect: rect, layer: layer, activated: activated}
 	if o := c.outputAtRect(rect); o != nil {
-		w.placed, w.scale, w.bounds = true, o.Scale(), c.usable[o].Size()
+		w.placed, w.scale, w.bounds = true, c.scaleOver(rect), c.usable[o].Size()
 	}
 	return w
+}
+
+func maxScale(outputs []*output.Output) output.Scale {
+	var s output.Scale
+	for _, o := range outputs {
+		s = max(s, o.Scale())
+	}
+	return s
+}
+
+func (c *Compositor) scaleOver(r image.Rectangle) output.Scale {
+	var covered []*output.Output
+	for _, o := range c.outputs {
+		if o.Logical().Overlaps(r) {
+			covered = append(covered, o)
+		}
+	}
+	return maxScale(covered)
 }
 
 func (c *Compositor) update(s wm.State, err error) error {
@@ -267,8 +285,8 @@ func (c *Compositor) mapToplevel(t toplevel) error {
 		return err
 	}
 	for _, p := range s.Arrange(c.decor.reserved()).Windows {
-		if o := c.outputAtRect(p.Rect); p.ID == w.id && o != nil && t.scaled() {
-			w.scale = o.Scale()
+		if p.ID == w.id && t.scaled() {
+			w.scale = c.scaleOver(p.Rect)
 		}
 	}
 	c.windows = append(c.windows, w)
