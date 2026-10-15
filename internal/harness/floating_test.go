@@ -219,3 +219,15 @@ func TestAWindowAcrossOutputsPrefersTheHighestScale(t *testing.T) {
 		}
 	}
 }
+
+func TestAFloatingWindowIsNeverSmallerThanItAsks(t *testing.T) {
+	h := StartWith(t, func(cfg *compositor.Config) {
+		cfg.Rules = []wm.Rule{{AppID: regexp.MustCompile(`^tilde\.testclient$`), Mode: wm.RuleFloat, Size: image.Pt(40, 30)}}
+	}, desktop)
+	c := testclient.Connect(t, h.Socket())
+	w := c.WindowWith("roomy", testclient.Fill(0, 0, 0xff), func(w *testclient.Window) error { return w.Toplevel.SetMinSize(400, 300) })
+	c.DispatchUntil("the window to map", w.Mapped)
+	if w.Logical != image.Pt(400, 300) {
+		t.Fatalf("a window asking for at least 400x300 floats at %v", w.Logical)
+	}
+}

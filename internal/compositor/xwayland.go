@@ -50,6 +50,10 @@ func (t xToplevel) prefersFloating() bool {
 	return t.PrefersFloating()
 }
 
+func (xToplevel) sizeLimits() (minimum, maximum image.Point) {
+	return image.Point{}, image.Point{}
+}
+
 func (xToplevel) scaled() bool {
 	return false
 }

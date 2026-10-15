@@ -210,7 +210,7 @@ func (c *Compositor) floats(t toplevel) (bool, image.Point) {
 func (c *Compositor) ToplevelInitialCommit(st *shell.Toplevel) error {
 	t := xdgToplevel{st}
 	if float, size := c.floats(t); float {
-		return t.apply(want{rect: image.Rectangle{Max: size}, activated: true})
+		return t.apply(want{rect: image.Rectangle{Max: floatSize(t, size)}, activated: true})
 	}
 	s, err := c.wm.MapWindow(c.nextWindow, c.settings.Autotile)
 	if err != nil {
@@ -225,10 +225,7 @@ func (c *Compositor) ToplevelInitialCommit(st *shell.Toplevel) error {
 }
 
 func (c *Compositor) floatRect(t toplevel, size image.Point) image.Rectangle {
-	if size == (image.Point{}) {
-		size = t.Geometry().Size()
-	}
-	size = size.Add(image.Pt(2*c.decor.BorderWidth, 2*c.decor.BorderWidth))
+	size = floatSize(t, size).Add(image.Pt(2*c.decor.BorderWidth, 2*c.decor.BorderWidth))
 	over := image.Rectangle{}
 	if p := c.windowOf(t.parent()); p != nil {
 		over = p.tile
@@ -237,6 +234,28 @@ func (c *Compositor) floatRect(t toplevel, size image.Point) image.Rectangle {
 	}
 	corner := over.Min.Add(over.Size().Sub(size).Div(2))
 	return image.Rectangle{Min: corner, Max: corner.Add(size)}
+}
+
+func floatSize(t toplevel, ruled image.Point) image.Point {
+	size := ruled
+	if size == (image.Point{}) {
+		size = t.Geometry().Size()
+	}
+	minimum, maximum := t.sizeLimits()
+	return clampSize(size, minimum, maximum)
+}
+
+func clampSize(size, minimum, maximum image.Point) image.Point {
+	clamp := func(v, lo, hi int) int {
+		if lo > 0 {
+			v = max(v, lo)
+		}
+		if hi > 0 {
+			v = min(v, hi)
+		}
+		return v
+	}
+	return image.Pt(clamp(size.X, minimum.X, maximum.X), clamp(size.Y, minimum.Y, maximum.Y))
 }
 
 func (c *Compositor) focusWindow(w *window) error {

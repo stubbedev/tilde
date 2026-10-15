@@ -104,3 +104,17 @@ func TestAPointFloorsToItsPixel(t *testing.T) {
 		}
 	}
 }
+
+func TestFloatingSizesKeepTheClientsLimits(t *testing.T) {
+	for _, c := range []struct {
+		size, minimum, maximum, want image.Point
+	}{
+		{image.Pt(40, 90), image.Pt(400, 300), image.Point{}, image.Pt(400, 300)},
+		{image.Pt(900, 900), image.Point{}, image.Pt(800, 0), image.Pt(800, 900)},
+		{image.Pt(500, 500), image.Pt(100, 100), image.Pt(600, 600), image.Pt(500, 500)},
+	} {
+		if got := clampSize(c.size, c.minimum, c.maximum); got != c.want {
+			t.Errorf("clampSize(%v, %v, %v) = %v, want %v", c.size, c.minimum, c.maximum, got, c.want)
+		}
+	}
+}
