@@ -57,7 +57,7 @@ func (m screencopyManager) frame(res *swsc.ZwlrScreencopyFrameV1, cursor bool, w
 		return nil
 	})
 	o := m.c.layout.Owner(wl)
-	if o == nil || m.c.output(o.Backend()) != o {
+	if !m.c.outputLive(o) {
 		f.used = true
 		return f, m.cl.Sent(res.SendFailed())
 	}
@@ -125,7 +125,9 @@ func (f *screencopyFrame) copy(obj *swsc.ZwlrScreencopyFrameV1, wl *sw.WlBuffer,
 	}
 	k.done = func(at time.Duration, err error) error {
 		if err != nil {
-			f.c.report(fmt.Errorf("compositor: screencopy of %s: %w", f.output.Backend().Name(), err))
+			if !errors.Is(err, errCaptureGone) {
+				f.c.report(fmt.Errorf("compositor: screencopy of %s: %w", f.output.Backend().Name(), err))
+			}
 			if f.dead {
 				return nil
 			}

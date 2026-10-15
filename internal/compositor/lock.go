@@ -29,7 +29,7 @@ func (c *Compositor) LockChanged() error {
 
 func (c *Compositor) LockOutputSize(wl *sw.WlOutput) (image.Point, bool) {
 	o := c.layout.Owner(wl)
-	if o == nil || c.output(o.Backend()) != o {
+	if !c.outputLive(o) {
 		return image.Point{}, false
 	}
 	return o.LogicalSize(), true

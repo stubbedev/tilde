@@ -6,6 +6,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/stubbedev/tilde/internal/backend/headless"
+	"github.com/stubbedev/tilde/internal/compositor"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	cwsc "github.com/stubbedev/tilde/internal/protocol/client/wlrscreencopy"
 	"github.com/stubbedev/tilde/internal/testclient"
@@ -146,5 +148,30 @@ func TestADestroyedWaitingScreencopyIsNeverPainted(t *testing.T) {
 	c.Sync()
 	if gone.ready || gone.failed || slices.ContainsFunc(gonePix, func(b byte) bool { return b != 0 }) {
 		t.Fatalf("a destroyed screencopy was completed (%+v) or painted", *gone)
+	}
+}
+
+func TestAScreencopyOfARemovedOutputFails(t *testing.T) {
+	h := Start(t, small)
+	c := testclient.Connect(t, h.Socket())
+	mgr, err := cwsc.NewZwlrScreencopyManagerV1(c.Display, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Bind("zwlr_screencopy_manager_v1", mgr)
+	f := &copyFrame{}
+	frame, err := mgr.CaptureOutput(f, 0, c.Outputs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.DispatchUntil("the buffer description", func() bool { return f.bufferDone })
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error { return b.RemoveOutput(b.Outputs()[0]) })
+	wl, _ := c.Target(f.size)
+	if err := errors.Join(frame.Copy(wl), c.Display.Flush()); err != nil {
+		t.Fatal(err)
+	}
+	c.DispatchUntil("the capture to fail", func() bool { return f.ready || f.failed })
+	if f.ready {
+		t.Fatal("a capture of a removed output was ready")
 	}
 }

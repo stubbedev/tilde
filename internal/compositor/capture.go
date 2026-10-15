@@ -83,6 +83,9 @@ type capture struct {
 }
 
 func (c *Compositor) queueCapture(k *capture, waitForDamage bool) error {
+	if !c.outputLive(k.output) {
+		return k.done(0, errOutputGone(k.output))
+	}
 	if c.sceneOf(k.output).drawn && !waitForDamage {
 		return c.runCapture(k)
 	}
@@ -135,9 +138,15 @@ func (c *Compositor) dropCaptures(o *output.Output) error {
 	delete(c.captures, o)
 	errs := make([]error, 0, len(pending))
 	for _, k := range pending {
-		errs = append(errs, k.done(0, fmt.Errorf("compositor: %s went away before the capture", o.Backend().Name())))
+		errs = append(errs, k.done(0, errOutputGone(o)))
 	}
 	return errors.Join(errs...)
+}
+
+var errCaptureGone = errors.New("the output went away before the capture")
+
+func errOutputGone(o *output.Output) error {
+	return fmt.Errorf("compositor: %s: %w", o.Backend().Name(), errCaptureGone)
 }
 
 func (c *Compositor) cancelCapture(k *capture) {

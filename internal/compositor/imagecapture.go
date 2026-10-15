@@ -262,7 +262,7 @@ func (src captureSource) area(c *Compositor) (*output.Output, image.Rectangle, b
 	switch {
 	case src.output != nil:
 		o := src.output
-		if c.output(o.Backend()) != o {
+		if !c.outputLive(o) {
 			return nil, image.Rectangle{}, false
 		}
 		return o, c.captureRegion(o, image.Rectangle{}), true
@@ -468,6 +468,9 @@ func (f *captureFrame) Capture(obj *seic.ExtImageCopyCaptureFrameV1) error {
 		return area.Empty() || (s.captured && s.damage.Empty())
 	}
 	k.done = func(at time.Duration, err error) error {
+		if errors.Is(err, errCaptureGone) {
+			return f.fail(seic.ExtImageCopyCaptureFrameV1FailureReasonStopped)
+		}
 		if err != nil {
 			s.c.report(fmt.Errorf("compositor: image capture: %w", err))
 			return f.fail(seic.ExtImageCopyCaptureFrameV1FailureReasonUnknown)

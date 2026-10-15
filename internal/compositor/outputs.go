@@ -179,6 +179,10 @@ func (c *Compositor) output(b backend.Output) *output.Output {
 	return nil
 }
 
+func (c *Compositor) outputLive(o *output.Output) bool {
+	return o != nil && c.output(o.Backend()) == o
+}
+
 func (c *Compositor) OutputAdded(b backend.Output) error {
 	rule := c.outputRule(b)
 	if _, err := c.commitOutput(b, rule); err != nil {
