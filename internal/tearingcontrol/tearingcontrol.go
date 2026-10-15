@@ -16,11 +16,11 @@ import (
 const version = 1
 
 type Manager struct {
-	hints map[*surface.Surface]*hint
+	async *surface.Latched[bool]
 }
 
 func New(d *server.Display) (*Manager, error) {
-	m := &Manager{hints: map[*surface.Surface]*hint{}}
+	m := &Manager{async: surface.NewLatched(false)}
 	if _, err := d.AddGlobal(stc.WpTearingControlManagerV1Interface, version, m.bind); err != nil {
 		return nil, err
 	}
@@ -28,19 +28,15 @@ func New(d *server.Display) (*Manager, error) {
 }
 
 func (m *Manager) Async(s *surface.Surface) bool {
-	h, ok := m.hints[s]
-	return ok && h.async
+	return m.async.Get(s)
 }
 
 func (m *Manager) bind(c *server.Client, id wire.ObjectID, v uint32) error {
-	_, err := stc.NewWpTearingControlManagerV1(c, id, v, requests{m, c})
+	_, err := stc.NewWpTearingControlManagerV1(c, id, v, requests{m})
 	return err
 }
 
-type requests struct {
-	m *Manager
-	c *server.Client
-}
+type requests struct{ m *Manager }
 
 func (requests) Destroy(*stc.WpTearingControlManagerV1) error { return nil }
 
@@ -49,70 +45,22 @@ func (r requests) GetTearingControl(obj *stc.WpTearingControlManagerV1, res *stc
 	if err != nil {
 		return nil, err
 	}
-	h, ok := r.m.hints[s]
-	if ok && h.live {
+	v, ok := r.m.async.Attach(s)
+	if !ok {
 		return nil, obj.ProtocolError(stc.WpTearingControlManagerV1ErrorTearingControlExists, fmt.Sprintf("wl_surface@%d already has a tearing control", wl.Base().ID()))
 	}
-	if !ok {
-		h = &hint{m: r.m, s: s}
-		h.hooks = &surface.Hooks{Commit: h.commit, Destroyed: h.forget}
-		s.AddHooks(h.hooks)
-		r.m.hints[s] = h
-	}
-	h.live = true
-	server.OnDestroy(res, func() error {
-		h.live = false
-		vsync := false
-		h.pending = &vsync
-		return nil
-	})
-	return h, nil
+	server.OnDestroy(res, v.Detach)
+	return hint{v}, nil
 }
 
-type hint struct {
-	m        *Manager
-	s        *surface.Surface
-	hooks    *surface.Hooks
-	live     bool
-	pending  *bool
-	inFlight int
-	async    bool
-}
+type hint struct{ v *surface.LatchedValue[bool] }
 
-func (*hint) Destroy(*stc.WpTearingControlV1) error { return nil }
+func (hint) Destroy(*stc.WpTearingControlV1) error { return nil }
 
-func (h *hint) SetPresentationHint(_ *stc.WpTearingControlV1, v stc.WpTearingControlV1PresentationHint) error {
-	switch v {
-	case stc.WpTearingControlV1PresentationHintVsync, stc.WpTearingControlV1PresentationHintAsync:
-		async := v == stc.WpTearingControlV1PresentationHintAsync
-		h.pending = &async
-		return nil
+func (h hint) SetPresentationHint(obj *stc.WpTearingControlV1, v stc.WpTearingControlV1PresentationHint) error {
+	if !v.Valid(obj.Base().Version()) {
+		return fmt.Errorf("tearingcontrol: presentation hint %d is neither vsync nor async", v)
 	}
-	return fmt.Errorf("tearingcontrol: presentation hint %d is neither vsync nor async", v)
-}
-
-func (h *hint) commit(u *surface.Update) error {
-	if h.pending == nil {
-		return nil
-	}
-	async := *h.pending
-	h.pending = nil
-	h.inFlight++
-	u.OnApply(func() error {
-		h.async = async
-		h.inFlight--
-		if !h.live && h.pending == nil && h.inFlight == 0 && !h.async {
-			return h.forget()
-		}
-		return nil
-	})
-	return nil
-}
-
-func (h *hint) forget() error {
-	h.s.RemoveHooks(h.hooks)
-	if h.m.hints[h.s] == h {
-		delete(h.m.hints, h.s)
-	}
+	h.v.Set(v == stc.WpTearingControlV1PresentationHintAsync)
 	return nil
 }

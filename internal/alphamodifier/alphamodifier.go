@@ -16,11 +16,11 @@ import (
 const version = 1
 
 type Manager struct {
-	surfaces map[*surface.Surface]*modified
+	alpha *surface.Latched[float32]
 }
 
 func New(d *server.Display) (*Manager, error) {
-	m := &Manager{surfaces: map[*surface.Surface]*modified{}}
+	m := &Manager{alpha: surface.NewLatched[float32](1)}
 	if _, err := d.AddGlobal(swam.WpAlphaModifierV1Interface, version, m.bind); err != nil {
 		return nil, err
 	}
@@ -28,34 +28,17 @@ func New(d *server.Display) (*Manager, error) {
 }
 
 func (m *Manager) Alpha(s *surface.Surface) float32 {
-	if a, ok := m.surfaces[s]; ok {
-		return a.current
-	}
-	return 1
+	return m.alpha.Get(s)
 }
 
 func (m *Manager) bind(c *server.Client, id wire.ObjectID, v uint32) error {
-	_, err := swam.NewWpAlphaModifierV1(c, id, v, requests{m, c})
+	_, err := swam.NewWpAlphaModifierV1(c, id, v, requests{m})
 	return err
 }
 
-type requests struct {
-	m *Manager
-	c *server.Client
-}
+type requests struct{ m *Manager }
 
 func (requests) Destroy(*swam.WpAlphaModifierV1) error { return nil }
-
-type modified struct {
-	m        *Manager
-	s        *surface.Surface
-	hooks    *surface.Hooks
-	live     bool
-	pending  *float32
-	inFlight int
-	current  float32
-	gone     bool
-}
 
 func factorOf(f uint32) float32 {
 	return float32(float64(f) / math.MaxUint32)
@@ -66,66 +49,24 @@ func (r requests) GetSurface(obj *swam.WpAlphaModifierV1, res *swam.WpAlphaModif
 	if err != nil {
 		return nil, err
 	}
-	a, ok := r.m.surfaces[s]
-	if ok && a.live {
+	v, ok := r.m.alpha.Attach(s)
+	if !ok {
 		return nil, obj.ProtocolError(swam.WpAlphaModifierV1ErrorAlreadyConstructed, fmt.Sprintf("wl_surface@%d already has an alpha modifier", wl.Base().ID()))
 	}
-	if !ok {
-		a = &modified{m: r.m, s: s, current: 1}
-		a.hooks = &surface.Hooks{Commit: a.commit, Destroyed: a.surfaceGone}
-		s.AddHooks(a.hooks)
-		r.m.surfaces[s] = a
-	}
-	a.live = true
-	server.OnDestroy(res, func() error {
-		a.live = false
-		if !a.gone {
-			one := float32(1)
-			a.pending = &one
-		}
-		return nil
-	})
-	return a, nil
+	server.OnDestroy(res, v.Detach)
+	return modified{v}, nil
 }
 
-func (a *modified) Destroy(*swam.WpAlphaModifierSurfaceV1) error { return nil }
+type modified struct {
+	v *surface.LatchedValue[float32]
+}
 
-func (a *modified) SetMultiplier(obj *swam.WpAlphaModifierSurfaceV1, factor uint32) error {
-	if a.gone {
+func (modified) Destroy(*swam.WpAlphaModifierSurfaceV1) error { return nil }
+
+func (a modified) SetMultiplier(obj *swam.WpAlphaModifierSurfaceV1, factor uint32) error {
+	if a.v.Gone() {
 		return obj.ProtocolError(swam.WpAlphaModifierSurfaceV1ErrorNoSurface, "the wl_surface was destroyed")
 	}
-	f := factorOf(factor)
-	a.pending = &f
+	a.v.Set(factorOf(factor))
 	return nil
-}
-
-func (a *modified) commit(u *surface.Update) error {
-	if a.pending == nil {
-		return nil
-	}
-	f := *a.pending
-	a.pending = nil
-	a.inFlight++
-	u.OnApply(func() error {
-		a.current = f
-		a.inFlight--
-		if !a.live && a.pending == nil && a.inFlight == 0 && a.current == 1 {
-			a.forget()
-		}
-		return nil
-	})
-	return nil
-}
-
-func (a *modified) surfaceGone() error {
-	a.gone = true
-	a.forget()
-	return nil
-}
-
-func (a *modified) forget() {
-	a.s.RemoveHooks(a.hooks)
-	if a.m.surfaces[a.s] == a {
-		delete(a.m.surfaces, a.s)
-	}
 }
