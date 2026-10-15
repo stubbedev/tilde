@@ -1,9 +1,7 @@
 package dmabuf
 
 import (
-	"encoding/binary"
 	"errors"
-	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -21,6 +19,7 @@ import (
 	"github.com/stubbedev/tilde/internal/surface"
 	"github.com/stubbedev/tilde/internal/wire"
 	"github.com/stubbedev/tilde/internal/wlclient"
+	cfb "github.com/stubbedev/tilde/internal/wlclient/feedback"
 )
 
 var formats = []gpu.FormatModifier{
@@ -207,72 +206,20 @@ func (c *client) roundtrip() {
 	}
 }
 
-type gotTranche struct {
-	target  uint64
-	formats []gpu.FormatModifier
-	flags   cld.ZwpLinuxDmabufFeedbackV1TrancheFlags
+type received struct{ batches []cfb.Feedback }
+
+func (r *received) listener() *cfb.Listener {
+	return cfb.NewListener(func(f cfb.Feedback) error {
+		r.batches = append(r.batches, f)
+		return nil
+	})
 }
 
-type received struct {
-	table    []gpu.FormatModifier
-	main     []byte
-	tranches []gotTranche
-	pending  []gotTranche
-	current  gotTranche
-	batches  int
-}
-
-func (f *received) Done(*cld.ZwpLinuxDmabufFeedbackV1) error {
-	f.tranches, f.pending = f.pending, nil
-	f.batches++
-	return nil
-}
-
-func (f *received) FormatTable(_ *cld.ZwpLinuxDmabufFeedbackV1, fd int, size uint32) error {
-	m, err := unix.Mmap(fd, 0, int(size), unix.PROT_READ, unix.MAP_PRIVATE)
-	if err != nil {
-		return errors.Join(err, unix.Close(fd))
+func (r *received) last(n int) ([]cfb.Tranche, bool) {
+	if len(r.batches) != n {
+		return nil, false
 	}
-	f.table = f.table[:0]
-	for at := 0; at+16 <= len(m); at += 16 {
-		f.table = append(f.table, gpu.FormatModifier{Format: fourcc.Format(binary.NativeEndian.Uint32(m[at:])), Modifier: fourcc.Modifier(binary.NativeEndian.Uint64(m[at+8:]))})
-	}
-	return errors.Join(unix.Munmap(m), unix.Close(fd))
-}
-
-func (f *received) MainDevice(_ *cld.ZwpLinuxDmabufFeedbackV1, d []byte) error {
-	f.main = d
-	return nil
-}
-
-func (f *received) TrancheDone(*cld.ZwpLinuxDmabufFeedbackV1) error {
-	f.pending = append(f.pending, f.current)
-	f.current = gotTranche{}
-	return nil
-}
-
-func (f *received) TrancheTargetDevice(_ *cld.ZwpLinuxDmabufFeedbackV1, d []byte) error {
-	if len(d) != 8 {
-		return fmt.Errorf("a %d-byte device number", len(d))
-	}
-	f.current.target = binary.NativeEndian.Uint64(d)
-	return nil
-}
-
-func (f *received) TrancheFormats(_ *cld.ZwpLinuxDmabufFeedbackV1, indices []byte) error {
-	for at := 0; at+2 <= len(indices); at += 2 {
-		i := int(binary.NativeEndian.Uint16(indices[at:]))
-		if i >= len(f.table) {
-			return fmt.Errorf("format index %d past a table of %d", i, len(f.table))
-		}
-		f.current.formats = append(f.current.formats, f.table[i])
-	}
-	return nil
-}
-
-func (f *received) TrancheFlags(_ *cld.ZwpLinuxDmabufFeedbackV1, flags cld.ZwpLinuxDmabufFeedbackV1TrancheFlags) error {
-	f.current.flags = flags
-	return nil
+	return r.batches[n-1].Tranches, true
 }
 
 func TestFeedbackDescribesTheRenderer(t *testing.T) {
@@ -282,21 +229,21 @@ func TestFeedbackDescribesTheRenderer(t *testing.T) {
 	}
 	c := e.connect(5)
 	fb := &received{}
-	if _, err := c.linux.GetDefaultFeedback(fb); err != nil {
+	if _, err := c.linux.GetDefaultFeedback(fb.listener()); err != nil {
 		t.Fatal(err)
 	}
 	c.roundtrip()
-	want := []gotTranche{{target: mainDevice, formats: formats}}
-	if fb.batches != 1 || !slices.Equal(fb.main, binary.NativeEndian.AppendUint64(nil, mainDevice)) || !slices.EqualFunc(fb.tranches, want, sameTranche) {
-		t.Fatalf("received %+v", fb)
+	want := []cfb.Tranche{{Target: mainDevice, Formats: formats}}
+	if got, ok := fb.last(1); !ok || fb.batches[0].Main != mainDevice || !slices.EqualFunc(got, want, sameTranche) {
+		t.Fatalf("received %+v", fb.batches)
 	}
 	if len(c.legacy.formats)+len(c.legacy.modifiers) != 0 {
 		t.Fatalf("a v5 client got legacy events %+v", c.legacy)
 	}
 }
 
-func sameTranche(a, b gotTranche) bool {
-	return a.target == b.target && a.flags == b.flags && slices.Equal(a.formats, b.formats)
+func sameTranche(a, b cfb.Tranche) bool {
+	return a.Target == b.Target && a.Flags == b.Flags && slices.Equal(a.Formats, b.Formats)
 }
 
 func TestASurfaceThatCanBeScannedOutLearnsThePlaneFormats(t *testing.T) {
@@ -304,13 +251,13 @@ func TestASurfaceThatCanBeScannedOutLearnsThePlaneFormats(t *testing.T) {
 	c := e.connect(5)
 	s := c.surface()
 	fb := &received{}
-	if _, err := c.linux.GetSurfaceFeedback(fb, s); err != nil {
+	if _, err := c.linux.GetSurfaceFeedback(fb.listener(), s); err != nil {
 		t.Fatal(err)
 	}
 	c.roundtrip()
-	renderer := gotTranche{target: mainDevice, formats: formats}
-	if fb.batches != 1 || !slices.EqualFunc(fb.tranches, []gotTranche{renderer}, sameTranche) {
-		t.Fatalf("feedback before any scanout: %+v", fb)
+	renderer := cfb.Tranche{Target: mainDevice, Formats: formats}
+	if got, ok := fb.last(1); !ok || !slices.EqualFunc(got, []cfb.Tranche{renderer}, sameTranche) {
+		t.Fatalf("feedback before any scanout: %+v", fb.batches)
 	}
 	plane := gpu.ScanoutTarget{Device: 0xe200, Formats: []gpu.FormatModifier{
 		{Format: fourcc.XRGB8888, Modifier: fourcc.Linear},
@@ -319,14 +266,14 @@ func TestASurfaceThatCanBeScannedOutLearnsThePlaneFormats(t *testing.T) {
 	}}
 	e.scanout(plane)
 	c.roundtrip()
-	scan := gotTranche{target: plane.Device, formats: []gpu.FormatModifier{plane.Formats[0], plane.Formats[2]}, flags: cld.ZwpLinuxDmabufFeedbackV1TrancheFlagsScanout}
-	if fb.batches != 2 || !slices.EqualFunc(fb.tranches, []gotTranche{scan, renderer}, sameTranche) {
-		t.Fatalf("feedback once the surface can be scanned out: %+v", fb)
+	scan := cfb.Tranche{Target: plane.Device, Formats: []gpu.FormatModifier{plane.Formats[0], plane.Formats[2]}, Flags: cld.ZwpLinuxDmabufFeedbackV1TrancheFlagsScanout}
+	if got, ok := fb.last(2); !ok || !slices.EqualFunc(got, []cfb.Tranche{scan, renderer}, sameTranche) {
+		t.Fatalf("feedback once the surface can be scanned out: %+v", fb.batches)
 	}
 	e.scanout(gpu.ScanoutTarget{})
 	c.roundtrip()
-	if fb.batches != 3 || !slices.EqualFunc(fb.tranches, []gotTranche{renderer}, sameTranche) {
-		t.Fatalf("feedback once the surface can no longer be scanned out: %+v", fb)
+	if got, ok := fb.last(3); !ok || !slices.EqualFunc(got, []cfb.Tranche{renderer}, sameTranche) {
+		t.Fatalf("feedback once the surface can no longer be scanned out: %+v", fb.batches)
 	}
 }
 

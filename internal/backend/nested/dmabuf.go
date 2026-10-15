@@ -1,14 +1,10 @@
 package nested
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"image"
-	"os"
-	"path/filepath"
 	"slices"
-	"strings"
 
 	"golang.org/x/sys/unix"
 
@@ -20,115 +16,15 @@ import (
 	"github.com/stubbedev/tilde/internal/render/gles"
 	"github.com/stubbedev/tilde/internal/wire"
 	"github.com/stubbedev/tilde/internal/wlclient"
+	"github.com/stubbedev/tilde/internal/wlclient/feedback"
 )
 
 const (
 	dmabufVersion  = 4
 	dmabufBuffers  = 2
-	formatEntry    = 16
 	dmabufFormat   = fourcc.XRGB8888
 	dmabufHostName = "zwp_linux_dmabuf_v1"
 )
-
-type feedback struct {
-	table   []byte
-	main    uint64
-	target  uint64
-	formats []uint16
-	usable  map[fourcc.Modifier]bool
-	done    bool
-	err     error
-}
-
-func (f *feedback) fail(err error) error {
-	if f.err == nil {
-		f.err = err
-	}
-	return nil
-}
-
-func (f *feedback) Done(*ld.ZwpLinuxDmabufFeedbackV1) error {
-	f.done = true
-	return nil
-}
-
-func (f *feedback) FormatTable(_ *ld.ZwpLinuxDmabufFeedbackV1, fd int, size uint32) error {
-	m, err := unix.Mmap(fd, 0, int(size), unix.PROT_READ, unix.MAP_PRIVATE)
-	if err != nil {
-		return f.fail(errors.Join(fmt.Errorf("nested: map the host's dmabuf format table: %w", err), unix.Close(fd)))
-	}
-	f.table = slices.Clone(m)
-	if err := errors.Join(unix.Munmap(m), unix.Close(fd)); err != nil {
-		return f.fail(err)
-	}
-	return nil
-}
-
-func devT(b []byte) (uint64, error) {
-	if len(b) != 8 {
-		return 0, fmt.Errorf("nested: a dev_t of %d bytes", len(b))
-	}
-	return binary.NativeEndian.Uint64(b), nil
-}
-
-func (f *feedback) MainDevice(_ *ld.ZwpLinuxDmabufFeedbackV1, b []byte) error {
-	dev, err := devT(b)
-	if err != nil {
-		return f.fail(err)
-	}
-	f.main = dev
-	return nil
-}
-
-func (f *feedback) TrancheTargetDevice(_ *ld.ZwpLinuxDmabufFeedbackV1, b []byte) error {
-	dev, err := devT(b)
-	if err != nil {
-		return f.fail(err)
-	}
-	f.target = dev
-	return nil
-}
-
-func (f *feedback) TrancheFormats(_ *ld.ZwpLinuxDmabufFeedbackV1, indices []byte) error {
-	for i := 0; i+1 < len(indices); i += 2 {
-		f.formats = append(f.formats, binary.NativeEndian.Uint16(indices[i:]))
-	}
-	return nil
-}
-
-func (f *feedback) TrancheFlags(*ld.ZwpLinuxDmabufFeedbackV1, ld.ZwpLinuxDmabufFeedbackV1TrancheFlags) error {
-	return nil
-}
-
-func (f *feedback) TrancheDone(*ld.ZwpLinuxDmabufFeedbackV1) error {
-	if f.target == f.main {
-		for _, i := range f.formats {
-			at := int(i) * formatEntry
-			if at+formatEntry > len(f.table) {
-				return f.fail(fmt.Errorf("nested: dmabuf format index %d is outside the host's table", i))
-			}
-			if fourcc.Format(binary.NativeEndian.Uint32(f.table[at:])) == dmabufFormat {
-				f.usable[fourcc.Modifier(binary.NativeEndian.Uint64(f.table[at+8:]))] = true
-			}
-		}
-	}
-	f.formats = f.formats[:0]
-	return nil
-}
-
-func renderNode(dev uint64) (string, error) {
-	dir := fmt.Sprintf("/sys/dev/char/%d:%d/device/drm", unix.Major(dev), unix.Minor(dev))
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return "", fmt.Errorf("nested: find the render node of the host's device %d:%d: %w", unix.Major(dev), unix.Minor(dev), err)
-	}
-	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), "renderD") {
-			return filepath.Join("/dev/dri", e.Name()), nil
-		}
-	}
-	return "", fmt.Errorf("nested: the host's device %d:%d has no render node", unix.Major(dev), unix.Minor(dev))
-}
 
 type dmabufChain struct {
 	linux     *ld.ZwpLinuxDmabufV1
@@ -154,22 +50,13 @@ func newDMABUFChain(host *wlclient.Display, globals registry, reg *cw.WlRegistry
 	if err := reg.Bind(g.name, c.linux); err != nil {
 		return nil, err
 	}
-	fb := &feedback{usable: map[fourcc.Modifier]bool{}}
-	feed, err := c.linux.GetDefaultFeedback(fb)
+	fb, err := feedback.Default(host, c.linux)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("nested: %w", err)
 	}
-	for !fb.done && fb.err == nil {
-		if err := host.Dispatch(); err != nil {
-			return nil, fmt.Errorf("nested: read the host's dmabuf feedback: %w", err)
-		}
-	}
-	if err := errors.Join(fb.err, feed.Destroy()); err != nil {
-		return nil, err
-	}
-	node, err := renderNode(fb.main)
+	node, err := feedback.RenderNode(fb.Main)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("nested: the host's renderer: %w", err)
 	}
 	if c.fd, err = unix.Open(node, unix.O_RDWR|unix.O_CLOEXEC, 0); err != nil {
 		return nil, fmt.Errorf("nested: open %s: %w", node, err)
@@ -182,11 +69,11 @@ func newDMABUFChain(host *wlclient.Display, globals registry, reg *cw.WlRegistry
 		return nil, err
 	}
 	for _, m := range renderable {
-		if !m.ExternalOnly && fb.usable[m.Modifier] {
+		if !m.ExternalOnly && fb.Imports(gpu.FormatModifier{Format: dmabufFormat, Modifier: m.Modifier}) {
 			c.modifiers = append(c.modifiers, m.Modifier)
 		}
 	}
-	if len(c.modifiers) == 0 && !fb.usable[fourcc.Invalid] {
+	if len(c.modifiers) == 0 && !fb.Imports(gpu.FormatModifier{Format: dmabufFormat, Modifier: fourcc.Invalid}) {
 		return nil, fmt.Errorf("nested: the host and %s share no XRGB8888 modifier", node)
 	}
 	slices.Sort(c.modifiers)
