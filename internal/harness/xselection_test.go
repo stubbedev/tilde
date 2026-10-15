@@ -220,11 +220,12 @@ func TestWaylandSelectionsPasteIntoX(t *testing.T) {
 
 type xowner struct {
 	*xclient
-	win    xproto.Window
-	text   []byte
-	refuse bool
-	silent bool
-	done   chan error
+	win     xproto.Window
+	targets []string
+	text    []byte
+	refuse  bool
+	silent  bool
+	done    chan error
 }
 
 func (o *xowner) serve() {
@@ -240,8 +241,15 @@ func (o *xowner) serve() {
 			reply := xproto.SelectionNotifyEvent{Time: e.Time, Requestor: e.Requestor, Selection: e.Selection, Target: e.Target, Property: e.Property}
 			switch e.Target {
 			case o.atoms["TARGETS"]:
-				list := slices.Concat(binary.LittleEndian.AppendUint32(nil, uint32(o.atoms["TARGETS"])), binary.LittleEndian.AppendUint32(nil, uint32(o.atoms["UTF8_STRING"])))
-				xproto.ChangeProperty(o.x, xproto.PropModeReplace, e.Requestor, e.Property, xproto.AtomAtom, 32, 2, list)
+				list := binary.LittleEndian.AppendUint32(nil, uint32(o.atoms["TARGETS"]))
+				targets := o.targets
+				if targets == nil {
+					targets = []string{"UTF8_STRING"}
+				}
+				for _, name := range targets {
+					list = binary.LittleEndian.AppendUint32(list, uint32(o.atoms[name]))
+				}
+				xproto.ChangeProperty(o.x, xproto.PropModeReplace, e.Requestor, e.Property, xproto.AtomAtom, 32, uint32(len(list)/4), list)
 			case o.atoms["UTF8_STRING"]:
 				if o.silent {
 					o.silent = false
@@ -444,4 +452,33 @@ func TestASilentXOwnerDoesNotHoldUpLaterPastes(t *testing.T) {
 	if len(reported) != 1 || !strings.Contains(reported[0].Error(), "sent nothing") {
 		t.Fatalf("reports %v, want the stalled transfer", reported)
 	}
+}
+
+func TestClipboardAndPrimaryFromXKeepTheirOwnTargets(t *testing.T) {
+	h := StartXwayland(t, func(err error) { t.Errorf("xwayland reported: %v", err) }, small)
+	owners := map[string]*xowner{}
+	for name, targets := range map[string][]string{"CLIPBOARD": {"UTF8_STRING"}, "PRIMARY": {"text/html"}} {
+		xc := xDial(t, h)
+		xc.intern("CLIPBOARD", "PRIMARY", "TARGETS", "UTF8_STRING", "INCR", "text/html")
+		o := &xowner{xclient: xc, targets: targets, done: make(chan error, 1)}
+		o.win = xc.window(image.Rect(0, 0, 40, 40), 0xffffff, false, nil)
+		owners[name] = o
+	}
+	h.Eventually("an X window focused", func(_ *headless.Backend, c *compositor.Compositor) bool {
+		ws := windowsOf(c)
+		return len(ws) == 2 && ws[len(ws)-1].Focused
+	})
+	for _, name := range []string{"CLIPBOARD", "PRIMARY"} {
+		o := owners[name]
+		if err := xproto.SetSelectionOwnerChecked(o.x, o.win, o.atoms[name], xproto.TimeCurrentTime).Check(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, o := range owners {
+		go o.serve()
+	}
+	h.Eventually("each selection with its own targets", func(_ *headless.Backend, c *compositor.Compositor) bool {
+		cb, pr := c.CurrentSelection(data.Clipboard), c.CurrentSelection(data.Primary)
+		return cb != nil && pr != nil && slices.Equal(cb.Mimes(), []string{"text/plain;charset=utf-8"}) && slices.Equal(pr.Mimes(), []string{"text/html"})
+	})
 }

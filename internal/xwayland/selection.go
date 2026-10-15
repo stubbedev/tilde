@@ -128,12 +128,11 @@ func (m *wm) selectionOwned(atom xproto.Atom, owner xproto.Window, at xproto.Tim
 	if m.focused == 0 {
 		return nil
 	}
-	xproto.ConvertSelection(m.x, m.sel, sel.atom, m.atoms["TARGETS"], m.atoms["_WL_TARGETS"], at)
+	xproto.ConvertSelection(m.x, m.sel, sel.atom, m.atoms["TARGETS"], sel.atom, at)
 	return nil
 }
 
 func (m *wm) targetsOffered(atom xproto.Atom, offered map[string]xproto.Atom) error {
-	xproto.DeleteProperty(m.x, m.sel, m.atoms["_WL_TARGETS"])
 	sel := m.selectionOf(atom)
 	if sel == nil || len(offered) == 0 {
 		return nil

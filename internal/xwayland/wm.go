@@ -28,7 +28,7 @@ var atomNames = []string{
 	"_NET_WM_STATE", "_NET_WM_STATE_FULLSCREEN", "_NET_WM_STATE_MODAL",
 	"_NET_WM_WINDOW_TYPE", "_NET_WM_WINDOW_TYPE_NORMAL", "_NET_WM_WINDOW_TYPE_DIALOG", "_NET_WM_WINDOW_TYPE_UTILITY",
 	"_NET_WM_WINDOW_TYPE_SPLASH", "_NET_WM_WINDOW_TYPE_TOOLBAR",
-	"CLIPBOARD", "PRIMARY", "TARGETS", "INCR", "_WL_SELECTION", "_WL_TARGETS",
+	"CLIPBOARD", "PRIMARY", "TARGETS", "INCR", "_WL_SELECTION",
 	"_NET_FRAME_EXTENTS", "_NET_REQUEST_FRAME_EXTENTS", "_NET_WM_PING",
 }
 
@@ -197,7 +197,7 @@ func (c *xconn) handle(ev xgb.Event) {
 func (c *xconn) property(e xproto.PropertyNotifyEvent) {
 	switch {
 	case e.Window == c.sel && e.State == xproto.PropertyNewValue && e.Atom == c.atoms["_WL_SELECTION"]:
-		if r, ok := c.read(e.Window, e.Atom); ok {
+		if r, ok := c.read(e.Window, e.Atom, false); ok {
 			c.post(func(m *wm) error { return m.chunk(r.Type, r.Value) })
 		}
 		return
@@ -212,8 +212,8 @@ func (c *xconn) property(e xproto.PropertyNotifyEvent) {
 	}
 }
 
-func (c *xconn) read(win xproto.Window, property xproto.Atom) (*xproto.GetPropertyReply, bool) {
-	r, err := xproto.GetProperty(c.x, false, win, property, xproto.GetPropertyTypeAny, 0, maxSelection/4+1).Reply()
+func (c *xconn) read(win xproto.Window, property xproto.Atom, del bool) (*xproto.GetPropertyReply, bool) {
+	r, err := xproto.GetProperty(c.x, del, win, property, xproto.GetPropertyTypeAny, 0, maxSelection/4+1).Reply()
 	if err != nil {
 		c.report(fmt.Errorf("xwayland: read the selection property: %w", err))
 		return nil, false
@@ -228,7 +228,7 @@ func (c *xconn) converted(e xproto.SelectionNotifyEvent) {
 	if e.Target == c.atoms["TARGETS"] {
 		offered := map[string]xproto.Atom{}
 		if e.Property != 0 {
-			if r, ok := c.read(c.sel, e.Property); ok {
+			if r, ok := c.read(c.sel, e.Property, true); ok {
 				offered = c.mimes(r.Value)
 			}
 		}
@@ -239,7 +239,7 @@ func (c *xconn) converted(e xproto.SelectionNotifyEvent) {
 		c.post(func(m *wm) error { return m.converted(e.Target, 0, nil, false) })
 		return
 	}
-	r, ok := c.read(c.sel, e.Property)
+	r, ok := c.read(c.sel, e.Property, false)
 	c.post(func(m *wm) error {
 		if !ok {
 			return m.converted(e.Target, 0, nil, false)
