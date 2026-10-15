@@ -127,6 +127,16 @@ func (w *Window) Urgent() bool {
 }
 
 func (w *Window) Parent() *Window {
+	p := w.transientFor()
+	for a, steps := p, len(w.wm.windows); a != nil && steps > 0; a, steps = a.transientFor(), steps-1 {
+		if a == w {
+			return nil
+		}
+	}
+	return p
+}
+
+func (w *Window) transientFor() *Window {
 	p := w.wm.windows[w.props.transient]
 	if p == nil || !p.shown || p.override {
 		return nil

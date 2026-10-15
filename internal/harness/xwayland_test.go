@@ -455,3 +455,23 @@ func TestAnXModalDialogKeepsTheFocus(t *testing.T) {
 	h.click(0, 5, 5, btnLeft)
 	h.Eventually("the modal dialog still focused after a click on its parent", dialogFocused)
 }
+
+func TestXModalDialogsTransientForEachOtherDoNotHangTilde(t *testing.T) {
+	h := StartXwayland(t, func(err error) { t.Errorf("xwayland reported: %v", err) }, small)
+	xc := xDial(t, h)
+	modal := map[string][]byte{"WM_CLASS": []byte("first\x00XTest\x00"), "_NET_WM_STATE": xc.atom("_NET_WM_STATE_MODAL")}
+	first := xc.window(image.Rect(10, 10, 90, 70), 0xff0000, false, modal)
+	h.Eventually("the first window mapped", func(_ *headless.Backend, c *compositor.Compositor) bool { return len(windowsOf(c)) == 1 })
+	second := xc.window(image.Rect(0, 0, 40, 30), 0x0000ff, false, map[string][]byte{
+		"WM_CLASS":         []byte("second\x00XTest\x00"),
+		"WM_TRANSIENT_FOR": binary.LittleEndian.AppendUint32(nil, uint32(first)),
+		"_NET_WM_STATE":    xc.atom("_NET_WM_STATE_MODAL"),
+	})
+	h.Eventually("the second window mapped", func(_ *headless.Backend, c *compositor.Compositor) bool { return len(windowsOf(c)) == 2 })
+	cycle := binary.LittleEndian.AppendUint32(nil, uint32(second))
+	if err := xproto.ChangePropertyChecked(xc.x, xproto.PropModeReplace, first, xc.atoms["WM_TRANSIENT_FOR"], xproto.AtomWindow, 32, 1, cycle).Check(); err != nil {
+		t.Fatal(err)
+	}
+	h.click(0, 5, 5, btnLeft)
+	survives(t, h)
+}
