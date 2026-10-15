@@ -299,6 +299,14 @@ func TestDataDeviceProtocolErrors(t *testing.T) {
 			s := p.c.DataSource(map[string]string{"a/b": "x"})
 			return errors.Join(p.cb.Device.SetSelection(s.Data, 0), p.cb.Device.StartDrag(s.Data, p.w.Surface, nil, 0))
 		}, uint32(cw.WlDataDeviceErrorUsedSource)},
+		{"source set as the selection twice", false, func(p *party) error {
+			s := p.c.DataSource(map[string]string{"a/b": "x"})
+			return errors.Join(p.cb.Device.SetSelection(s.Data, 0), p.cb.Device.SetSelection(s.Data, 0))
+		}, uint32(cw.WlDataDeviceErrorUsedSource)},
+		{"dragged source as the selection", true, func(p *party) error {
+			s := p.c.DataSource(map[string]string{"a/b": "x"})
+			return errors.Join(p.cb.Device.StartDrag(s.Data, p.w.Surface, nil, p.in.Press), p.cb.Device.SetSelection(s.Data, 0))
+		}, uint32(cw.WlDataDeviceErrorUsedSource)},
 		{"finish on a selection offer", false, func(p *party) error {
 			s := p.c.DataSource(map[string]string{"a/b": "x"})
 			if err := errors.Join(p.cb.Device.SetSelection(s.Data, 0), p.c.Display.Flush()); err != nil {

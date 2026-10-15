@@ -112,6 +112,8 @@ func (d dataDevice) SetSelection(obj *sw.WlDataDevice, res *sw.WlDataSource, _ u
 	case s == nil:
 	case s.actionsSet:
 		return res.ProtocolError(sw.WlDataSourceErrorInvalidSource, "a drag-and-drop source cannot be the selection")
+	case !s.fresh():
+		return obj.ProtocolError(sw.WlDataDeviceErrorUsedSource, "the source was already used")
 	default:
 		s.use()
 	}
