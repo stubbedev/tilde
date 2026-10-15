@@ -20,7 +20,8 @@ import (
 )
 
 type reader struct {
-	pixels [][]byte
+	pixels  [][]byte
+	buffers []*Buffer
 }
 
 func (r *reader) Committed(s *surface.Surface) error {
@@ -28,6 +29,7 @@ func (r *reader) Committed(s *surface.Surface) error {
 	if !s.Attached() || !ok {
 		return nil
 	}
+	r.buffers = append(r.buffers, b)
 	return b.Read(func(data []byte, stride int) error {
 		r.pixels = append(r.pixels, slices.Clone(data[:b.Size().X*4]))
 		return nil
@@ -292,6 +294,61 @@ func TestReadThroughResizedAndDestroyedPools(t *testing.T) {
 	<-ran
 	if len(got) != 1 || !slices.Equal(got[0], []byte{1, 2, 3, 4, 5, 6, 7, 8}) {
 		t.Fatalf("read %v from a buffer past the old pool size after the pool was destroyed", got)
+	}
+}
+
+func (e *env) onLoop(f func() error) {
+	e.t.Helper()
+	ran := make(chan error)
+	if err := e.loop.Post(func() error {
+		ran <- f()
+		return nil
+	}); err != nil {
+		e.t.Fatal(err)
+	}
+	if err := <-ran; err != nil {
+		e.t.Fatal(err)
+	}
+}
+
+func TestAMappingForWritingFillsTheBufferOffTheLoop(t *testing.T) {
+	e := setup(t)
+	c := e.connect()
+	m := newMemfd(t, 8192)
+	c.show(c.buffer(c.pool(m), 6000, 2, 1, 8, cw.WlShmFormatArgb8888))
+	c.roundtrip()
+	var mapping *Mapping
+	e.onLoop(func() (err error) {
+		mapping, err = e.reader.buffers[0].MapForWriting()
+		return err
+	})
+	t.Cleanup(func() {
+		if err := mapping.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	want := []byte{9, 8, 7, 6, 5, 4, 3, 2}
+	if err := mapping.Write(func(data []byte, stride int) error {
+		if len(data) != 8 || stride != 8 {
+			t.Errorf("%d bytes with stride %d, want one 8-byte row", len(data), stride)
+		}
+		copy(data, want)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.mapping[6000:6008]; !slices.Equal(got, want) {
+		t.Fatalf("the client's pool holds %v, want %v", got, want)
+	}
+	if err := unix.Ftruncate(m.fd, 0); err != nil {
+		t.Fatal(err)
+	}
+	var pe *wire.ProtocolError
+	if err := mapping.Write(func(data []byte, _ int) error {
+		data[0] = 1
+		return nil
+	}); !errors.As(err, &pe) || pe.Code != uint32(sw.WlShmErrorInvalidFD) {
+		t.Fatalf("writing past a truncated pool: %v", err)
 	}
 }
 

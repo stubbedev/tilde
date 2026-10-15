@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"os"
 	"runtime/debug"
 
 	"golang.org/x/sys/unix"
@@ -205,14 +206,44 @@ func (b *Buffer) Write(f func(data []byte, stride int) error) (err error) {
 	if err != nil {
 		return err
 	}
-	return b.guard(m, f)
+	return b.guard(b.within(m, 0), f)
 }
 
 func (b *Buffer) Read(f func(data []byte, stride int) error) (err error) {
-	return b.guard(b.pool.mapping, f)
+	return b.guard(b.within(b.pool.mapping, 0), f)
 }
 
-func (b *Buffer) guard(mapping []byte, f func(data []byte, stride int) error) (err error) {
+func (b *Buffer) within(mapping []byte, at int) []byte {
+	return mapping[b.offset-at : b.offset-at+b.stride*b.size.Y]
+}
+
+type Mapping struct {
+	b     *Buffer
+	pages []byte
+	at    int
+}
+
+func (b *Buffer) MapForWriting() (*Mapping, error) {
+	at := b.offset &^ (os.Getpagesize() - 1)
+	pages, err := unix.Mmap(b.pool.fd, int64(at), b.offset+b.stride*b.size.Y-at, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	if err != nil {
+		return nil, fmt.Errorf("shm: map a %v buffer at offset %d for writing: %w", b.size, b.offset, err)
+	}
+	return &Mapping{b: b, pages: pages, at: at}, nil
+}
+
+func (m *Mapping) Write(f func(data []byte, stride int) error) error {
+	return m.b.guard(m.b.within(m.pages, m.at), f)
+}
+
+func (m *Mapping) Close() error {
+	if err := unix.Munmap(m.pages); err != nil {
+		return fmt.Errorf("shm: unmap a %v buffer mapped for writing: %w", m.b.size, err)
+	}
+	return nil
+}
+
+func (b *Buffer) guard(data []byte, f func(data []byte, stride int) error) (err error) {
 	old := debug.SetPanicOnFault(true)
 	defer debug.SetPanicOnFault(old)
 	defer func() {
@@ -224,5 +255,5 @@ func (b *Buffer) guard(mapping []byte, f func(data []byte, stride int) error) (e
 			err = shmError(b.resource, sw.WlShmErrorInvalidFD, "error accessing the buffer's pool at %#x: the client shrank its file", fault.Addr())
 		}
 	}()
-	return f(mapping[b.offset:b.offset+b.stride*b.size.Y], b.stride)
+	return f(data, b.stride)
 }
