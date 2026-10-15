@@ -44,6 +44,14 @@ goroutines exist only at the edges, for blocking work such as D-Bus. They
 post closures to the loop's mailbox and never read or write state
 themselves. Nothing in the compositor takes a lock to protect its state.
 
+Screen capture into shared memory is one such edge (#131). The loop draws
+the capture, starts an asynchronous read into a pixel buffer and maps the
+client's buffer privately; a goroutine waits on the GPU fence, the loop maps
+the pixel buffer, and a second goroutine copies the rows into the private
+mapping. Each step hands back to the loop through the mailbox, so the loop
+never waits on the GPU or copies a frame. On close, the compositor waits for
+these goroutines and releases what their posted closures would have.
+
 ## Pure core
 
 `internal/wm` (#21) knows nothing about Wayland, X11 or rendering. It is a

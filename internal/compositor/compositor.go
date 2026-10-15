@@ -8,6 +8,7 @@ import (
 	"image"
 	"os"
 	"slices"
+	"sync"
 
 	gtext "github.com/stubbedev/gelm/render"
 
@@ -161,6 +162,8 @@ type Compositor struct {
 	wlrManagers     []*wlrManager
 	wsManagers      []*wsManager
 	captures        map[*output.Output][]*capture
+	reads           map[*asyncRead]struct{}
+	offLoopWork     sync.WaitGroup
 	captureSessions []*captureSession
 	cursorSessions  []*cursorSession
 	scannedOut      map[*dmabuf.Buffer]*scannedOut
@@ -227,6 +230,7 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		hwCursors:     map[*output.Output]*hwCursor{},
 		blanked:       map[*output.Output]bool{},
 		captures:      map[*output.Output][]*capture{},
+		reads:         map[*asyncRead]struct{}{},
 		scannedOut:    map[*dmabuf.Buffer]*scannedOut{},
 		filled:        map[*output.Output]filling{},
 		constraints:   map[*surface.Surface]*constraint{},
@@ -381,7 +385,7 @@ func (c *Compositor) explicitSync(l *loop.Loop, display *server.Display) error {
 }
 
 func (c *Compositor) Close() error {
-	errs := []error{c.dropDecor()}
+	errs := []error{c.endReads(), c.dropDecor()}
 	for b, tex := range c.imported {
 		errs = append(errs, tex.Destroy())
 		delete(c.imported, b)

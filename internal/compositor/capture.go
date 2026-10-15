@@ -33,12 +33,22 @@ type captureRenderer interface {
 var opaque = render.Color{A: 0xff}
 
 type captureTarget interface {
-	fill(c *Compositor, k capture) error
+	fill(c *Compositor, k *capture, finish func(error) error) error
 }
 
-type shmCapture struct{ b *shm.Buffer }
+type shmCapture struct {
+	b       *shm.Buffer
+	scratch *captureScratch
+}
 
-func (t shmCapture) fill(c *Compositor, k capture) (err error) {
+func (t shmCapture) fill(c *Compositor, k *capture, finish func(error) error) error {
+	if r, ok := c.asyncReader(); ok {
+		return c.readAsync(r, t.b, t.scratch, k, finish)
+	}
+	return finish(t.read(c, k))
+}
+
+func (t shmCapture) read(c *Compositor, k *capture) (err error) {
 	target, err := c.renderer.NewTarget(k.size)
 	if err != nil {
 		return err
@@ -55,7 +65,11 @@ type dmabufCapture struct {
 	r captureRenderer
 }
 
-func (t dmabufCapture) fill(c *Compositor, k capture) (err error) {
+func (t dmabufCapture) fill(c *Compositor, k *capture, finish func(error) error) error {
+	return finish(t.draw(c, k))
+}
+
+func (t dmabufCapture) draw(c *Compositor, k *capture) (err error) {
 	target, err := t.r.ImportTarget(t.b.DMABUF())
 	if err != nil {
 		return err
@@ -67,7 +81,7 @@ func (t dmabufCapture) fill(c *Compositor, k capture) (err error) {
 	return t.r.Finish()
 }
 
-func paint(r render.Renderer, target render.Target, k capture) error {
+func paint(r render.Renderer, target render.Target, k *capture) error {
 	p, err := r.Begin(target, render.Region{image.Rectangle{Max: k.size}})
 	if err != nil {
 		return err
@@ -77,13 +91,15 @@ func paint(r render.Renderer, target render.Target, k capture) error {
 }
 
 type capture struct {
-	output *output.Output
-	size   image.Point
-	clear  render.Color
-	draw   func(render.Pass) error
-	target captureTarget
-	waits  func(damage *region.Set) bool
-	done   func(at time.Duration, err error) error
+	output  *output.Output
+	size    image.Point
+	clear   render.Color
+	draw    func(render.Pass) error
+	target  captureTarget
+	waits   func(damage *region.Set) bool
+	painted func() error
+	done    func(at time.Duration, err error) error
+	read    *asyncRead
 }
 
 type frameState uint8
@@ -141,7 +157,7 @@ func (c *Compositor) runCaptures(o *output.Output) error {
 }
 
 func (c *Compositor) wakeCaptures(o *output.Output) error {
-	if !c.sceneOf(o).drawn {
+	if !c.outputLive(o) || !c.sceneOf(o).drawn {
 		return nil
 	}
 	return c.flushCaptures(o, &region.Set{})
@@ -182,13 +198,16 @@ func (c *Compositor) dropCaptures(o *output.Output) error {
 	return errors.Join(errs...)
 }
 
-var errCaptureGone = errors.New("the output went away before the capture")
+var errCaptureGone = errors.New("the capture's source or frame went away")
 
 func errOutputGone(o *output.Output) error {
 	return fmt.Errorf("compositor: %s: %w", o.Backend().Name(), errCaptureGone)
 }
 
 func (c *Compositor) cancelCapture(k *capture) {
+	if k.read != nil {
+		k.read.cancelled = true
+	}
 	pending := slices.DeleteFunc(c.captures[k.output], func(x *capture) bool { return x == k })
 	if len(pending) == 0 {
 		delete(c.captures, k.output)
@@ -198,8 +217,12 @@ func (c *Compositor) cancelCapture(k *capture) {
 }
 
 func (c *Compositor) runCapture(k *capture) error {
-	err := k.target.fill(c, *k)
-	return k.done(backend.Now(), err)
+	at := backend.Now()
+	var err error
+	if k.painted != nil {
+		err = k.painted()
+	}
+	return errors.Join(err, k.target.fill(c, k, func(err error) error { return k.done(at, err) }))
 }
 
 func (c *Compositor) outputDraw(o *output.Output, region image.Rectangle, cursor bool) func(render.Pass) error {
@@ -283,14 +306,14 @@ func (c *Compositor) captureRegion(o *output.Output, logical image.Rectangle) im
 
 var errConstraints = errors.New("the buffer breaks the capture's constraints")
 
-func shmTarget(b *shm.Buffer, size image.Point, formats []render.Format) (captureTarget, error) {
+func shmTarget(b *shm.Buffer, size image.Point, formats []render.Format, scratch *captureScratch) (captureTarget, error) {
 	switch {
 	case b.Size() != size:
 		return nil, fmt.Errorf("%w: the buffer is %v, the capture is %v", errConstraints, b.Size(), size)
 	case !slices.Contains(formats, b.Format()):
 		return nil, fmt.Errorf("%w: format %d cannot hold a capture", errConstraints, b.Format())
 	}
-	return shmCapture{b}, nil
+	return shmCapture{b: b, scratch: scratch}, nil
 }
 
 func (c *Compositor) dmabufTarget(b *dmabuf.Buffer, size image.Point) (captureTarget, error) {

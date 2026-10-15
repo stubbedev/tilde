@@ -86,43 +86,45 @@ func screenshot(t *testing.T, c *testclient.Client, mgr *cwsc.ZwlrScreencopyMana
 }
 
 func TestScreencopyCapturesOutputsAndRegions(t *testing.T) {
-	h := Start(t, small)
-	c := testclient.Connect(t, h.Socket())
-	w := c.Window("shot", quadrants)
-	c.DispatchUntil("the window to map", w.Mapped)
-	settle(t, h)
-	mgr, err := cwsc.NewZwlrScreencopyManagerV1(c.Display, 3)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c.Bind(mgr)
+	onEachRenderer(t, func(t *testing.T, start starter) {
+		h := start(t, small)
+		c := testclient.Connect(t, h.Socket())
+		w := c.Window("shot", quadrants)
+		c.DispatchUntil("the window to map", w.Mapped)
+		settle(t, h)
+		mgr, err := cwsc.NewZwlrScreencopyManagerV1(c.Display, 3)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.Bind(mgr)
 
-	f, _, pix := screenshot(t, c, mgr, image.Rectangle{}, false)
-	c.DispatchUntil("the full capture", func() bool { return f.ready || f.failed })
-	stride := int(f.stride)
-	if f.failed || f.size != image.Pt(160, 100) || rgbAt(pix, stride, 20, 20) != [3]byte{0xff, 0, 0} || rgbAt(pix, stride, 140, 80) != [3]byte{0xff, 0xff, 0} {
-		t.Fatalf("capture %+v: %v and %v", *f, rgbAt(pix, stride, 20, 20), rgbAt(pix, stride, 140, 80))
-	}
+		f, _, pix := screenshot(t, c, mgr, image.Rectangle{}, false)
+		c.DispatchUntil("the full capture", func() bool { return f.ready || f.failed })
+		stride := int(f.stride)
+		if f.failed || f.size != image.Pt(160, 100) || rgbAt(pix, stride, 20, 20) != [3]byte{0xff, 0, 0} || rgbAt(pix, stride, 140, 80) != [3]byte{0xff, 0xff, 0} {
+			t.Fatalf("capture %+v: %v and %v", *f, rgbAt(pix, stride, 20, 20), rgbAt(pix, stride, 140, 80))
+		}
 
-	f, _, pix = screenshot(t, c, mgr, image.Rect(100, 10, 140, 30), false)
-	c.DispatchUntil("the region capture", func() bool { return f.ready || f.failed })
-	if f.failed || f.size != image.Pt(40, 20) || rgbAt(pix, int(f.stride), 5, 5) != [3]byte{0, 0xff, 0} {
-		t.Fatalf("region capture %+v: %v", *f, rgbAt(pix, int(f.stride), 5, 5))
-	}
+		f, _, pix = screenshot(t, c, mgr, image.Rect(100, 10, 140, 30), false)
+		c.DispatchUntil("the region capture", func() bool { return f.ready || f.failed })
+		if f.failed || f.size != image.Pt(40, 20) || rgbAt(pix, int(f.stride), 5, 5) != [3]byte{0, 0xff, 0} {
+			t.Fatalf("region capture %+v: %v", *f, rgbAt(pix, int(f.stride), 5, 5))
+		}
 
-	quiesce(t, h, c, w)
-	f, _, _ = screenshot(t, c, mgr, image.Rectangle{}, true)
-	settle(t, h)
-	if err := c.Display.Roundtrip(); err != nil || f.ready {
-		t.Fatalf("a damage capture was ready without damage (%v)", err)
-	}
-	if err := errors.Join(w.Surface.Attach(c.Buffer(w.Logical, 1, quadrants), 0, 0), w.Surface.Damage(0, 0, 10, 10), w.Surface.Commit(), c.Display.Flush()); err != nil {
-		t.Fatal(err)
-	}
-	c.DispatchUntil("the damage capture", func() bool { return f.ready })
-	if !image.Rect(0, 0, 10, 10).In(f.damage) || f.damage == image.Rect(0, 0, 160, 100) {
-		t.Fatalf("a damage capture reported %v", f.damage)
-	}
+		quiesce(t, h, c, w)
+		f, _, _ = screenshot(t, c, mgr, image.Rectangle{}, true)
+		settle(t, h)
+		if err := c.Display.Roundtrip(); err != nil || f.ready {
+			t.Fatalf("a damage capture was ready without damage (%v)", err)
+		}
+		if err := errors.Join(w.Surface.Attach(c.Buffer(w.Logical, 1, quadrants), 0, 0), w.Surface.Damage(0, 0, 10, 10), w.Surface.Commit(), c.Display.Flush()); err != nil {
+			t.Fatal(err)
+		}
+		c.DispatchUntil("the damage capture", func() bool { return f.ready })
+		if !image.Rect(0, 0, 10, 10).In(f.damage) || f.damage == image.Rect(0, 0, 160, 100) {
+			t.Fatalf("a damage capture reported %v", f.damage)
+		}
+	})
 }
 
 func TestADestroyedWaitingScreencopyIsNeverPainted(t *testing.T) {

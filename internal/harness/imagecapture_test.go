@@ -16,6 +16,7 @@ import (
 	ceis "github.com/stubbedev/tilde/internal/protocol/client/extimagecapturesource"
 	ceic "github.com/stubbedev/tilde/internal/protocol/client/extimagecopycapture"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
+	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/testclient"
 	"github.com/stubbedev/tilde/internal/testenv"
 )
@@ -197,40 +198,42 @@ func (r *captureRig) waiting(session *ceic.ExtImageCopyCaptureSessionV1, size im
 }
 
 func TestImageCopyCaptureOfOutputsAndWindows(t *testing.T) {
-	h := Start(t, small)
-	c := testclient.Connect(t, h.Socket())
-	w := c.Window("captured", quadrants)
-	c.DispatchUntil("the window to map", w.Mapped)
-	quiesce(t, h, c, w)
-	r := newCaptureRig(t, h, c)
+	onEachRenderer(t, func(t *testing.T, start starter) {
+		h := start(t, small)
+		c := testclient.Connect(t, h.Socket())
+		w := c.Window("captured", quadrants)
+		c.DispatchUntil("the window to map", w.Mapped)
+		quiesce(t, h, c, w)
+		r := newCaptureRig(t, h, c)
 
-	session, view := r.outputSession(0)
-	if view.size != image.Pt(160, 100) || len(view.formats) != 2 {
-		t.Fatalf("constraints %+v", *view)
-	}
-	if pix := r.first(session, view.size); rgbAt(pix, 160*4, 20, 20) != [3]byte{0xff, 0, 0} {
-		t.Fatalf("the output frame shows %v", rgbAt(pix, 160*4, 20, 20))
-	}
-	f, _ := r.waiting(session, view.size)
-	if err := errors.Join(w.Surface.Attach(c.Buffer(w.Logical, 1, quadrants), 0, 0), w.Surface.Damage(0, 0, 4, 4), w.Surface.Commit(), c.Display.Flush()); err != nil {
-		t.Fatal(err)
-	}
-	c.DispatchUntil("the second output frame after damage", func() bool { return f.ready })
-	if !image.Rect(0, 0, 4, 4).In(f.damage) || f.damage == image.Rect(0, 0, 160, 100) {
-		t.Fatalf("the second frame reported damage %v", f.damage)
-	}
+		session, view := r.outputSession(0)
+		if view.size != image.Pt(160, 100) || len(view.formats) != 2 {
+			t.Fatalf("constraints %+v", *view)
+		}
+		if pix := r.first(session, view.size); rgbAt(pix, 160*4, 20, 20) != [3]byte{0xff, 0, 0} {
+			t.Fatalf("the output frame shows %v", rgbAt(pix, 160*4, 20, 20))
+		}
+		f, _ := r.waiting(session, view.size)
+		if err := errors.Join(w.Surface.Attach(c.Buffer(w.Logical, 1, quadrants), 0, 0), w.Surface.Damage(0, 0, 4, 4), w.Surface.Commit(), c.Display.Flush()); err != nil {
+			t.Fatal(err)
+		}
+		c.DispatchUntil("the second output frame after damage", func() bool { return f.ready })
+		if !image.Rect(0, 0, 4, 4).In(f.damage) || f.damage == image.Rect(0, 0, 160, 100) {
+			t.Fatalf("the second frame reported damage %v", f.damage)
+		}
 
-	wsession, wview := r.windowSession()
-	if wview.size != image.Pt(160, 100) {
-		t.Fatalf("window constraints %+v", *wview)
-	}
-	if pix := r.first(wsession, wview.size); rgbAt(pix, 160*4, 140, 80) != [3]byte{0xff, 0xff, 0} {
-		t.Fatalf("the window frame shows %v", rgbAt(pix, 160*4, 140, 80))
-	}
-	if err := errors.Join(w.Destroy(), c.Display.Flush()); err != nil {
-		t.Fatal(err)
-	}
-	c.DispatchUntil("the window session stopped", func() bool { return wview.stopped })
+		wsession, wview := r.windowSession()
+		if wview.size != image.Pt(160, 100) {
+			t.Fatalf("window constraints %+v", *wview)
+		}
+		if pix := r.first(wsession, wview.size); rgbAt(pix, 160*4, 140, 80) != [3]byte{0xff, 0xff, 0} {
+			t.Fatalf("the window frame shows %v", rgbAt(pix, 160*4, 140, 80))
+		}
+		if err := errors.Join(w.Destroy(), c.Display.Flush()); err != nil {
+			t.Fatal(err)
+		}
+		c.DispatchUntil("the window session stopped", func() bool { return wview.stopped })
+	})
 }
 
 func TestImageCopyCaptureOfAHiddenWindow(t *testing.T) {
@@ -399,30 +402,66 @@ func TestCursorSessionsFollowThePointer(t *testing.T) {
 }
 
 func TestADestroyedWaitingFrameLeavesTheDamageToTheNext(t *testing.T) {
-	h := Start(t, small)
+	onEachRenderer(t, func(t *testing.T, start starter) {
+		h := start(t, small)
+		c := testclient.Connect(t, h.Socket())
+		w := c.Window("captured", quadrants)
+		c.DispatchUntil("the window to map", w.Mapped)
+		quiesce(t, h, c, w)
+		r := newCaptureRig(t, h, c)
+		session, view := r.outputSession(0)
+		r.first(session, view.size)
+
+		gone, frame, gonePix := grab(t, c, session, view.size)
+		settle(t, h)
+		if err := errors.Join(frame.Destroy(), c.Display.Roundtrip()); err != nil {
+			t.Fatal(err)
+		}
+		next, _ := r.waiting(session, view.size)
+		if err := errors.Join(w.Surface.Attach(c.Buffer(w.Logical, 1, quadrants), 0, 0), w.Surface.Damage(0, 0, 4, 4), w.Surface.Commit(), c.Display.Flush()); err != nil {
+			t.Fatal(err)
+		}
+		c.DispatchUntil("the next frame after damage", func() bool { return next.ready || next.failed })
+		if next.failed || !image.Rect(0, 0, 4, 4).In(next.damage) {
+			t.Fatalf("the next frame %+v", *next)
+		}
+		if gone.ready || gone.failed || slices.ContainsFunc(gonePix, func(b byte) bool { return b != 0 }) {
+			t.Fatalf("a destroyed frame was completed (%+v) or painted", *gone)
+		}
+	})
+}
+
+func TestAFrameDestroyedWhileItIsReadBackLeavesFullDamageToTheNext(t *testing.T) {
+	h := StartGLES(t, func(*compositor.Config) {}, small)
+	async := false
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+		r, ok := b.Renderer().(render.AsyncReader)
+		async = ok && r.AsyncReads()
+		return nil
+	})
+	if !async {
+		t.Skip("this renderer reads captures back synchronously")
+	}
 	c := testclient.Connect(t, h.Socket())
 	w := c.Window("captured", quadrants)
 	c.DispatchUntil("the window to map", w.Mapped)
 	quiesce(t, h, c, w)
 	r := newCaptureRig(t, h, c)
 	session, view := r.outputSession(0)
-	r.first(session, view.size)
-
 	gone, frame, gonePix := grab(t, c, session, view.size)
-	settle(t, h)
 	if err := errors.Join(frame.Destroy(), c.Display.Roundtrip()); err != nil {
 		t.Fatal(err)
 	}
-	next, _ := r.waiting(session, view.size)
-	if err := errors.Join(w.Surface.Attach(c.Buffer(w.Logical, 1, quadrants), 0, 0), w.Surface.Damage(0, 0, 4, 4), w.Surface.Commit(), c.Display.Flush()); err != nil {
+	pix := r.first(session, view.size)
+	if rgbAt(pix, 160*4, 20, 20) != [3]byte{0xff, 0, 0} {
+		t.Fatalf("the frame after an abandoned one shows %v", rgbAt(pix, 160*4, 20, 20))
+	}
+	settle(t, h)
+	if err := c.Display.Roundtrip(); err != nil {
 		t.Fatal(err)
 	}
-	c.DispatchUntil("the next frame after damage", func() bool { return next.ready || next.failed })
-	if next.failed || !image.Rect(0, 0, 4, 4).In(next.damage) {
-		t.Fatalf("the next frame %+v", *next)
-	}
 	if gone.ready || gone.failed || slices.ContainsFunc(gonePix, func(b byte) bool { return b != 0 }) {
-		t.Fatalf("a destroyed frame was completed (%+v) or painted", *gone)
+		t.Fatalf("a frame destroyed while it was read back was completed (%+v) or painted", *gone)
 	}
 }
 

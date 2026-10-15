@@ -104,7 +104,7 @@ func (f *screencopyFrame) copy(obj *swsc.ZwlrScreencopyFrameV1, wl *sw.WlBuffer,
 	if !ok {
 		return obj.ProtocolError(swsc.ZwlrScreencopyFrameV1ErrorInvalidBuffer, "not a shared-memory buffer")
 	}
-	target, err := shmTarget(b, f.region.Size(), []render.Format{render.XRGB8888})
+	target, err := shmTarget(b, f.region.Size(), []render.Format{render.XRGB8888}, nil)
 	if err != nil {
 		return obj.ProtocolError(swsc.ZwlrScreencopyFrameV1ErrorInvalidBuffer, "%v", err)
 	}

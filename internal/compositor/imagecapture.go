@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"slices"
 	"time"
 
 	"github.com/stubbedev/tilde/internal/dmabuf"
@@ -165,6 +166,7 @@ func (m imageCaptures) CreateSession(obj *seic.ExtImageCopyCaptureManagerV1, res
 
 func (c *Compositor) openCaptureSession(s *captureSession) (*captureSession, error) {
 	server.Track(s.res, &c.captureSessions, s)
+	server.OnDestroy(s.res, s.scratch.drop)
 	return s, s.sync()
 }
 
@@ -261,6 +263,7 @@ type captureSession struct {
 	cursor   bool
 	size     image.Point
 	frame    *captureFrame
+	scratch  captureScratch
 	damage   region.Set
 	cursorAt image.Rectangle
 	captured bool
@@ -491,32 +494,39 @@ func (f *captureFrame) Capture(obj *seic.ExtImageCopyCaptureFrameV1) error {
 		_, area, _ := s.target()
 		return area.Empty() || (s.captured && s.damage.Empty())
 	}
-	k.done = func(at time.Duration, err error) error {
-		if errors.Is(err, errCaptureGone) {
-			return f.fail(seic.ExtImageCopyCaptureFrameV1FailureReasonStopped)
+	var damage []image.Rectangle
+	k.painted = func() error {
+		damage = []image.Rectangle{{Max: size}}
+		if s.captured {
+			damage = slices.Clone(s.damage.Rects())
 		}
-		if err != nil {
-			return f.broke(err)
-		}
-		err = f.ready(at, size)
 		s.captured = true
 		s.damage.Reset()
-		if s.cursor {
-			box, boxErr := s.c.cursorBounds(o)
-			s.cursorAt, err = box, errors.Join(err, boxErr)
+		if !s.cursor {
+			return nil
 		}
+		box, err := s.c.cursorBounds(o)
+		s.cursorAt = box
 		return err
+	}
+	k.done = func(at time.Duration, err error) error {
+		if err == nil {
+			return f.ready(at, damage)
+		}
+		s.captured = false
+		if errors.Is(err, errCaptureGone) {
+			err = f.fail(seic.ExtImageCopyCaptureFrameV1FailureReasonStopped)
+		} else {
+			err = f.broke(err)
+		}
+		return errors.Join(err, s.c.wakeCaptures(o))
 	}
 	return s.c.queueCapture(k, k.waits(nil))
 }
 
-func (f *captureFrame) ready(at time.Duration, size image.Point) error {
+func (f *captureFrame) ready(at time.Duration, damage []image.Rectangle) error {
 	if !f.finish() {
 		return nil
-	}
-	damage := []image.Rectangle{{Max: size}}
-	if f.s.captured {
-		damage = f.s.damage.Rects()
 	}
 	errs := []error{f.res.SendTransform(sw.WlOutputTransformNormal)}
 	for _, r := range damage {
@@ -533,7 +543,7 @@ func (f *captureFrame) ready(at time.Duration, size image.Point) error {
 func (f *captureFrame) target(size image.Point) (captureTarget, error) {
 	switch b := f.buffer.Handler().(type) {
 	case *shm.Buffer:
-		return shmTarget(b, size, captureFormats)
+		return shmTarget(b, size, captureFormats, &f.s.scratch)
 	case *dmabuf.Buffer:
 		return f.s.c.dmabufTarget(b, size)
 	}

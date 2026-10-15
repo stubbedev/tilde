@@ -215,3 +215,19 @@ func TestIntegerScaleIsScaledOnce(t *testing.T) {
 	h.Eventually("the window on the output", showing(scaled.Size.X-2, scaled.Size.Y-2, [3]byte{0xff, 0xff, 0}))
 	golden.Assert(t, "scaled", h.Snapshot(0))
 }
+
+type starter func(t *testing.T, modes ...backend.Mode) *Harness
+
+func onEachRenderer(t *testing.T, test func(t *testing.T, start starter)) {
+	for _, r := range []struct {
+		name  string
+		start starter
+	}{
+		{"soft", Start},
+		{"gles", func(t *testing.T, modes ...backend.Mode) *Harness {
+			return StartGLES(t, func(*compositor.Config) {}, modes...)
+		}},
+	} {
+		t.Run(r.name, func(t *testing.T) { test(t, r.start) })
+	}
+}
