@@ -79,10 +79,6 @@ func Listen(l *loop.Loop, path string, h Handler, report func(error)) (*Server, 
 	return s, nil
 }
 
-func (s *Server) Path() string {
-	return s.ln.Addr().String()
-}
-
 func (s *Server) Close() error {
 	var err error
 	s.closing.Do(func() {

@@ -64,7 +64,7 @@ func XKBLibrary(t testing.TB) *xkb.Library {
 
 func Keymap(t testing.TB) *xkb.Keymap {
 	t.Helper()
-	km, err := xkb.Open(os.Getenv)
+	km, err := XKBLibrary(t).Compile(xkb.NamesFromEnv(os.Getenv))
 	if err != nil {
 		missing(t, "no keymap: %v", err)
 	}

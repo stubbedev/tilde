@@ -36,6 +36,7 @@ type Harness struct {
 	backend    *headless.Backend
 	compositor *compositor.Compositor
 	ipc        *ipc.Server
+	ipcPath    string
 	trace      *syncBuffer
 	xwayland   *xwayland.Server
 	xlog       *syncBuffer
@@ -130,6 +131,7 @@ func start(t *testing.T, s setup, modes ...backend.Mode) *Harness {
 	if err != nil {
 		t.Fatalf("harness: %v", err)
 	}
+	h.ipcPath = socket
 	if h.ipc, err = ipc.Listen(h.loop, socket, h.compositor, cfg.Report); err != nil {
 		t.Fatalf("harness: %v", err)
 	}
@@ -279,7 +281,7 @@ func (h *Harness) Wakeups() int {
 }
 
 func (h *Harness) IPCSocket() string {
-	return h.ipc.Path()
+	return h.ipcPath
 }
 
 func (h *Harness) Trace() string {
