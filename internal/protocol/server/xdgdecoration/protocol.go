@@ -112,12 +112,28 @@ const (
 	ZxdgToplevelDecorationV1ErrorInvalidMode        ZxdgToplevelDecorationV1Error = 3
 )
 
+func (v ZxdgToplevelDecorationV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZxdgToplevelDecorationV1ErrorUnconfiguredBuffer, ZxdgToplevelDecorationV1ErrorAlreadyConstructed, ZxdgToplevelDecorationV1ErrorOrphaned, ZxdgToplevelDecorationV1ErrorInvalidMode:
+		return true
+	}
+	return false
+}
+
 type ZxdgToplevelDecorationV1Mode uint32
 
 const (
 	ZxdgToplevelDecorationV1ModeClientSide ZxdgToplevelDecorationV1Mode = 1
 	ZxdgToplevelDecorationV1ModeServerSide ZxdgToplevelDecorationV1Mode = 2
 )
+
+func (v ZxdgToplevelDecorationV1Mode) Valid(version uint32) bool {
+	switch v {
+	case ZxdgToplevelDecorationV1ModeClientSide, ZxdgToplevelDecorationV1ModeServerSide:
+		return true
+	}
+	return false
+}
 
 type ZxdgToplevelDecorationV1Handler interface {
 	Destroy(obj *ZxdgToplevelDecorationV1) error

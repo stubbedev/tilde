@@ -30,6 +30,14 @@ const (
 	ZwlrVirtualPointerV1ErrorInvalidAxisSource ZwlrVirtualPointerV1Error = 1
 )
 
+func (v ZwlrVirtualPointerV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwlrVirtualPointerV1ErrorInvalidAxis, ZwlrVirtualPointerV1ErrorInvalidAxisSource:
+		return true
+	}
+	return false
+}
+
 type ZwlrVirtualPointerV1 struct {
 	object wire.Object
 }

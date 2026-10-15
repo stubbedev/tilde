@@ -22,6 +22,14 @@ const (
 	WpAlphaModifierV1ErrorAlreadyConstructed WpAlphaModifierV1Error = 0
 )
 
+func (v WpAlphaModifierV1Error) Valid(version uint32) bool {
+	switch v {
+	case WpAlphaModifierV1ErrorAlreadyConstructed:
+		return true
+	}
+	return false
+}
+
 type WpAlphaModifierV1Handler interface {
 	Destroy(obj *WpAlphaModifierV1) error
 	GetSurface(obj *WpAlphaModifierV1, id *WpAlphaModifierSurfaceV1, surface *wayland.WlSurface) (WpAlphaModifierSurfaceV1Handler, error)
@@ -114,6 +122,14 @@ type WpAlphaModifierSurfaceV1Error uint32
 const (
 	WpAlphaModifierSurfaceV1ErrorNoSurface WpAlphaModifierSurfaceV1Error = 0
 )
+
+func (v WpAlphaModifierSurfaceV1Error) Valid(version uint32) bool {
+	switch v {
+	case WpAlphaModifierSurfaceV1ErrorNoSurface:
+		return true
+	}
+	return false
+}
 
 type WpAlphaModifierSurfaceV1Handler interface {
 	Destroy(obj *WpAlphaModifierSurfaceV1) error

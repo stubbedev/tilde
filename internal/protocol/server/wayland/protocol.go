@@ -28,6 +28,14 @@ const (
 	WlDisplayErrorImplementation WlDisplayError = 3
 )
 
+func (v WlDisplayError) Valid(version uint32) bool {
+	switch v {
+	case WlDisplayErrorInvalidObject, WlDisplayErrorInvalidMethod, WlDisplayErrorNoMemory, WlDisplayErrorImplementation:
+		return true
+	}
+	return false
+}
+
 type WlDisplayHandler interface {
 	Sync(obj *WlDisplay, callback *WlCallback) error
 	GetRegistry(obj *WlDisplay, registry *WlRegistry) (WlRegistryHandler, error)
@@ -395,6 +403,14 @@ const (
 	WlShmPoolErrorInvalidStride WlShmPoolError = 1
 )
 
+func (v WlShmPoolError) Valid(version uint32) bool {
+	switch v {
+	case WlShmPoolErrorInvalidFormat, WlShmPoolErrorInvalidStride:
+		return true
+	}
+	return false
+}
+
 type WlShmPoolHandler interface {
 	CreateBuffer(obj *WlShmPool, id *WlBuffer, offset int32, width int32, height int32, stride int32, format WlShmFormat) (WlBufferHandler, error)
 	Destroy(obj *WlShmPool) error
@@ -503,6 +519,14 @@ const (
 	WlShmErrorInvalidStride WlShmError = 1
 	WlShmErrorInvalidFD     WlShmError = 2
 )
+
+func (v WlShmError) Valid(version uint32) bool {
+	switch v {
+	case WlShmErrorInvalidFormat, WlShmErrorInvalidStride, WlShmErrorInvalidFD:
+		return true
+	}
+	return false
+}
 
 type WlShmFormat uint32
 
@@ -656,6 +680,14 @@ const (
 	WlShmFormatY8                   WlShmFormat = 1497715271
 	WlShmFormatXyyy2101010          WlShmFormat = 876695641
 )
+
+func (v WlShmFormat) Valid(version uint32) bool {
+	switch v {
+	case WlShmFormatArgb8888, WlShmFormatXrgb8888, WlShmFormatC8, WlShmFormatRgb332, WlShmFormatBgr233, WlShmFormatXrgb4444, WlShmFormatXbgr4444, WlShmFormatRgbx4444, WlShmFormatBgrx4444, WlShmFormatArgb4444, WlShmFormatAbgr4444, WlShmFormatRgba4444, WlShmFormatBgra4444, WlShmFormatXrgb1555, WlShmFormatXbgr1555, WlShmFormatRgbx5551, WlShmFormatBgrx5551, WlShmFormatArgb1555, WlShmFormatAbgr1555, WlShmFormatRgba5551, WlShmFormatBgra5551, WlShmFormatRgb565, WlShmFormatBgr565, WlShmFormatRgb888, WlShmFormatBgr888, WlShmFormatXbgr8888, WlShmFormatRgbx8888, WlShmFormatBgrx8888, WlShmFormatAbgr8888, WlShmFormatRgba8888, WlShmFormatBgra8888, WlShmFormatXrgb2101010, WlShmFormatXbgr2101010, WlShmFormatRgbx1010102, WlShmFormatBgrx1010102, WlShmFormatArgb2101010, WlShmFormatAbgr2101010, WlShmFormatRgba1010102, WlShmFormatBgra1010102, WlShmFormatYuyv, WlShmFormatYvyu, WlShmFormatUyvy, WlShmFormatVyuy, WlShmFormatAyuv, WlShmFormatNv12, WlShmFormatNv21, WlShmFormatNv16, WlShmFormatNv61, WlShmFormatYuv410, WlShmFormatYvu410, WlShmFormatYuv411, WlShmFormatYvu411, WlShmFormatYuv420, WlShmFormatYvu420, WlShmFormatYuv422, WlShmFormatYvu422, WlShmFormatYuv444, WlShmFormatYvu444, WlShmFormatR8, WlShmFormatR16, WlShmFormatRg88, WlShmFormatGr88, WlShmFormatRg1616, WlShmFormatGr1616, WlShmFormatXrgb16161616f, WlShmFormatXbgr16161616f, WlShmFormatArgb16161616f, WlShmFormatAbgr16161616f, WlShmFormatXyuv8888, WlShmFormatVuy888, WlShmFormatVuy101010, WlShmFormatY210, WlShmFormatY212, WlShmFormatY216, WlShmFormatY410, WlShmFormatY412, WlShmFormatY416, WlShmFormatXvyu2101010, WlShmFormatXvyu1216161616, WlShmFormatXvyu16161616, WlShmFormatY0l0, WlShmFormatX0l0, WlShmFormatY0l2, WlShmFormatX0l2, WlShmFormatYuv4208bit, WlShmFormatYuv42010bit, WlShmFormatXrgb8888A8, WlShmFormatXbgr8888A8, WlShmFormatRgbx8888A8, WlShmFormatBgrx8888A8, WlShmFormatRgb888A8, WlShmFormatBgr888A8, WlShmFormatRgb565A8, WlShmFormatBgr565A8, WlShmFormatNv24, WlShmFormatNv42, WlShmFormatP210, WlShmFormatP010, WlShmFormatP012, WlShmFormatP016, WlShmFormatAxbxgxrx106106106106, WlShmFormatNv15, WlShmFormatQ410, WlShmFormatQ401, WlShmFormatXrgb16161616, WlShmFormatXbgr16161616, WlShmFormatArgb16161616, WlShmFormatAbgr16161616, WlShmFormatC1, WlShmFormatC2, WlShmFormatC4, WlShmFormatD1, WlShmFormatD2, WlShmFormatD4, WlShmFormatD8, WlShmFormatR1, WlShmFormatR2, WlShmFormatR4, WlShmFormatR10, WlShmFormatR12, WlShmFormatAvuy8888, WlShmFormatXvuy8888, WlShmFormatP030, WlShmFormatRgb161616, WlShmFormatBgr161616, WlShmFormatR16f, WlShmFormatGr1616f, WlShmFormatBgr161616f, WlShmFormatR32f, WlShmFormatGr3232f, WlShmFormatBgr323232f, WlShmFormatAbgr32323232f, WlShmFormatNv20, WlShmFormatNv30, WlShmFormatS010, WlShmFormatS210, WlShmFormatS410, WlShmFormatS012, WlShmFormatS212, WlShmFormatS412, WlShmFormatS016, WlShmFormatS216, WlShmFormatS416, WlShmFormatXvuy2101010, WlShmFormatP230, WlShmFormatT430, WlShmFormatY8, WlShmFormatXyyy2101010:
+		return true
+	}
+	return false
+}
 
 type WlShmHandler interface {
 	CreatePool(obj *WlShm, id *WlShmPool, fd int, size int32) (WlShmPoolHandler, error)
@@ -858,6 +890,14 @@ const (
 	WlDataOfferErrorInvalidOffer      WlDataOfferError = 3
 )
 
+func (v WlDataOfferError) Valid(version uint32) bool {
+	switch v {
+	case WlDataOfferErrorInvalidFinish, WlDataOfferErrorInvalidActionMask, WlDataOfferErrorInvalidAction, WlDataOfferErrorInvalidOffer:
+		return true
+	}
+	return false
+}
+
 type WlDataOfferHandler interface {
 	Accept(obj *WlDataOffer, serial uint32, mimeType *string) error
 	Receive(obj *WlDataOffer, mimeType string, fd int) error
@@ -1015,6 +1055,14 @@ const (
 	WlDataSourceErrorInvalidActionMask WlDataSourceError = 0
 	WlDataSourceErrorInvalidSource     WlDataSourceError = 1
 )
+
+func (v WlDataSourceError) Valid(version uint32) bool {
+	switch v {
+	case WlDataSourceErrorInvalidActionMask, WlDataSourceErrorInvalidSource:
+		return true
+	}
+	return false
+}
 
 type WlDataSourceHandler interface {
 	Offer(obj *WlDataSource, mimeType string) error
@@ -1186,6 +1234,14 @@ const (
 	WlDataDeviceErrorRole       WlDataDeviceError = 0
 	WlDataDeviceErrorUsedSource WlDataDeviceError = 1
 )
+
+func (v WlDataDeviceError) Valid(version uint32) bool {
+	switch v {
+	case WlDataDeviceErrorRole, WlDataDeviceErrorUsedSource:
+		return true
+	}
+	return false
+}
 
 type WlDataDeviceHandler interface {
 	StartDrag(obj *WlDataDevice, source *WlDataSource, origin *WlSurface, icon *WlSurface, serial uint32) error
@@ -1390,6 +1446,11 @@ func (v WlDataDeviceManagerDndAction) Has(flag WlDataDeviceManagerDndAction) boo
 	return v&flag == flag
 }
 
+func (v WlDataDeviceManagerDndAction) Valid(version uint32) bool {
+	known := WlDataDeviceManagerDndAction(0x7)
+	return v&^known == 0
+}
+
 type WlDataDeviceManagerHandler interface {
 	CreateDataSource(obj *WlDataDeviceManager, id *WlDataSource) (WlDataSourceHandler, error)
 	GetDataDevice(obj *WlDataDeviceManager, id *WlDataDevice, seat *WlSeat) (WlDataDeviceHandler, error)
@@ -1487,6 +1548,14 @@ type WlShellError uint32
 const (
 	WlShellErrorRole WlShellError = 0
 )
+
+func (v WlShellError) Valid(version uint32) bool {
+	switch v {
+	case WlShellErrorRole:
+		return true
+	}
+	return false
+}
 
 type WlShellHandler interface {
 	GetShellSurface(obj *WlShell, id *WlShellSurface, surface *WlSurface) (WlShellSurfaceHandler, error)
@@ -1597,6 +1666,11 @@ func (v WlShellSurfaceResize) Has(flag WlShellSurfaceResize) bool {
 	return v&flag == flag
 }
 
+func (v WlShellSurfaceResize) Valid(version uint32) bool {
+	known := WlShellSurfaceResize(0xf)
+	return v&^known == 0
+}
+
 type WlShellSurfaceTransient uint32
 
 const (
@@ -1607,6 +1681,11 @@ func (v WlShellSurfaceTransient) Has(flag WlShellSurfaceTransient) bool {
 	return v&flag == flag
 }
 
+func (v WlShellSurfaceTransient) Valid(version uint32) bool {
+	known := WlShellSurfaceTransient(0x1)
+	return v&^known == 0
+}
+
 type WlShellSurfaceFullscreenMethod uint32
 
 const (
@@ -1615,6 +1694,14 @@ const (
 	WlShellSurfaceFullscreenMethodDriver  WlShellSurfaceFullscreenMethod = 2
 	WlShellSurfaceFullscreenMethodFill    WlShellSurfaceFullscreenMethod = 3
 )
+
+func (v WlShellSurfaceFullscreenMethod) Valid(version uint32) bool {
+	switch v {
+	case WlShellSurfaceFullscreenMethodDefault, WlShellSurfaceFullscreenMethodScale, WlShellSurfaceFullscreenMethodDriver, WlShellSurfaceFullscreenMethodFill:
+		return true
+	}
+	return false
+}
 
 type WlShellSurfaceHandler interface {
 	Pong(obj *WlShellSurface, serial uint32) error
@@ -1815,6 +1902,14 @@ const (
 	WlSurfaceErrorDefunctRoleObject WlSurfaceError = 4
 	WlSurfaceErrorNoBuffer          WlSurfaceError = 5
 )
+
+func (v WlSurfaceError) Valid(version uint32) bool {
+	switch v {
+	case WlSurfaceErrorInvalidScale, WlSurfaceErrorInvalidTransform, WlSurfaceErrorInvalidSize, WlSurfaceErrorInvalidOffset, WlSurfaceErrorDefunctRoleObject, WlSurfaceErrorNoBuffer:
+		return true
+	}
+	return false
+}
 
 type WlSurfaceHandler interface {
 	Destroy(obj *WlSurface) error
@@ -2057,11 +2152,24 @@ func (v WlSeatCapability) Has(flag WlSeatCapability) bool {
 	return v&flag == flag
 }
 
+func (v WlSeatCapability) Valid(version uint32) bool {
+	known := WlSeatCapability(0x7)
+	return v&^known == 0
+}
+
 type WlSeatError uint32
 
 const (
 	WlSeatErrorMissingCapability WlSeatError = 0
 )
+
+func (v WlSeatError) Valid(version uint32) bool {
+	switch v {
+	case WlSeatErrorMissingCapability:
+		return true
+	}
+	return false
+}
 
 type WlSeatHandler interface {
 	GetPointer(obj *WlSeat, id *WlPointer) (WlPointerHandler, error)
@@ -2210,6 +2318,14 @@ const (
 	WlPointerErrorRole WlPointerError = 0
 )
 
+func (v WlPointerError) Valid(version uint32) bool {
+	switch v {
+	case WlPointerErrorRole:
+		return true
+	}
+	return false
+}
+
 type WlPointerButtonState uint32
 
 const (
@@ -2217,12 +2333,28 @@ const (
 	WlPointerButtonStatePressed  WlPointerButtonState = 1
 )
 
+func (v WlPointerButtonState) Valid(version uint32) bool {
+	switch v {
+	case WlPointerButtonStateReleased, WlPointerButtonStatePressed:
+		return true
+	}
+	return false
+}
+
 type WlPointerAxis uint32
 
 const (
 	WlPointerAxisVerticalScroll   WlPointerAxis = 0
 	WlPointerAxisHorizontalScroll WlPointerAxis = 1
 )
+
+func (v WlPointerAxis) Valid(version uint32) bool {
+	switch v {
+	case WlPointerAxisVerticalScroll, WlPointerAxisHorizontalScroll:
+		return true
+	}
+	return false
+}
 
 type WlPointerAxisSource uint32
 
@@ -2233,12 +2365,30 @@ const (
 	WlPointerAxisSourceWheelTilt  WlPointerAxisSource = 3
 )
 
+func (v WlPointerAxisSource) Valid(version uint32) bool {
+	switch v {
+	case WlPointerAxisSourceWheel, WlPointerAxisSourceFinger, WlPointerAxisSourceContinuous:
+		return true
+	case WlPointerAxisSourceWheelTilt:
+		return version >= 6
+	}
+	return false
+}
+
 type WlPointerAxisRelativeDirection uint32
 
 const (
 	WlPointerAxisRelativeDirectionIdentical WlPointerAxisRelativeDirection = 0
 	WlPointerAxisRelativeDirectionInverted  WlPointerAxisRelativeDirection = 1
 )
+
+func (v WlPointerAxisRelativeDirection) Valid(version uint32) bool {
+	switch v {
+	case WlPointerAxisRelativeDirectionIdentical, WlPointerAxisRelativeDirectionInverted:
+		return true
+	}
+	return false
+}
 
 type WlPointerHandler interface {
 	SetCursor(obj *WlPointer, serial uint32, surface *WlSurface, hotspotX int32, hotspotY int32) error
@@ -2496,6 +2646,14 @@ const (
 	WlKeyboardKeymapFormatXkbV1    WlKeyboardKeymapFormat = 1
 )
 
+func (v WlKeyboardKeymapFormat) Valid(version uint32) bool {
+	switch v {
+	case WlKeyboardKeymapFormatNoKeymap, WlKeyboardKeymapFormatXkbV1:
+		return true
+	}
+	return false
+}
+
 type WlKeyboardKeyState uint32
 
 const (
@@ -2503,6 +2661,16 @@ const (
 	WlKeyboardKeyStatePressed  WlKeyboardKeyState = 1
 	WlKeyboardKeyStateRepeated WlKeyboardKeyState = 2
 )
+
+func (v WlKeyboardKeyState) Valid(version uint32) bool {
+	switch v {
+	case WlKeyboardKeyStateReleased, WlKeyboardKeyStatePressed:
+		return true
+	case WlKeyboardKeyStateRepeated:
+		return version >= 10
+	}
+	return false
+}
 
 type WlKeyboardHandler interface {
 	Release(obj *WlKeyboard) error
@@ -2842,6 +3010,14 @@ const (
 	WlOutputSubpixelVerticalBgr   WlOutputSubpixel = 5
 )
 
+func (v WlOutputSubpixel) Valid(version uint32) bool {
+	switch v {
+	case WlOutputSubpixelUnknown, WlOutputSubpixelNone, WlOutputSubpixelHorizontalRgb, WlOutputSubpixelHorizontalBgr, WlOutputSubpixelVerticalRgb, WlOutputSubpixelVerticalBgr:
+		return true
+	}
+	return false
+}
+
 type WlOutputTransform uint32
 
 const (
@@ -2855,6 +3031,14 @@ const (
 	WlOutputTransformFlipped270 WlOutputTransform = 7
 )
 
+func (v WlOutputTransform) Valid(version uint32) bool {
+	switch v {
+	case WlOutputTransformNormal, WlOutputTransform90, WlOutputTransform180, WlOutputTransform270, WlOutputTransformFlipped, WlOutputTransformFlipped90, WlOutputTransformFlipped180, WlOutputTransformFlipped270:
+		return true
+	}
+	return false
+}
+
 type WlOutputMode uint32
 
 const (
@@ -2864,6 +3048,11 @@ const (
 
 func (v WlOutputMode) Has(flag WlOutputMode) bool {
 	return v&flag == flag
+}
+
+func (v WlOutputMode) Valid(version uint32) bool {
+	known := WlOutputMode(0x3)
+	return v&^known == 0
 }
 
 type WlOutputHandler interface {
@@ -3113,6 +3302,14 @@ const (
 	WlSubcompositorErrorBadParent  WlSubcompositorError = 1
 )
 
+func (v WlSubcompositorError) Valid(version uint32) bool {
+	switch v {
+	case WlSubcompositorErrorBadSurface, WlSubcompositorErrorBadParent:
+		return true
+	}
+	return false
+}
+
 type WlSubcompositorHandler interface {
 	Destroy(obj *WlSubcompositor) error
 	GetSubsurface(obj *WlSubcompositor, id *WlSubsurface, surface *WlSurface, parent *WlSurface) (WlSubsurfaceHandler, error)
@@ -3210,6 +3407,14 @@ type WlSubsurfaceError uint32
 const (
 	WlSubsurfaceErrorBadSurface WlSubsurfaceError = 0
 )
+
+func (v WlSubsurfaceError) Valid(version uint32) bool {
+	switch v {
+	case WlSubsurfaceErrorBadSurface:
+		return true
+	}
+	return false
+}
 
 type WlSubsurfaceHandler interface {
 	Destroy(obj *WlSubsurface) error
@@ -3327,6 +3532,14 @@ type WlFixesError uint32
 const (
 	WlFixesErrorInvalidAckRemove WlFixesError = 0
 )
+
+func (v WlFixesError) Valid(version uint32) bool {
+	switch v {
+	case WlFixesErrorInvalidAckRemove:
+		return true
+	}
+	return false
+}
 
 type WlFixesHandler interface {
 	Destroy(obj *WlFixes) error

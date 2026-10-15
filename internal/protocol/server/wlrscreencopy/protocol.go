@@ -134,6 +134,14 @@ const (
 	ZwlrScreencopyFrameV1ErrorInvalidBuffer ZwlrScreencopyFrameV1Error = 1
 )
 
+func (v ZwlrScreencopyFrameV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwlrScreencopyFrameV1ErrorAlreadyUsed, ZwlrScreencopyFrameV1ErrorInvalidBuffer:
+		return true
+	}
+	return false
+}
+
 type ZwlrScreencopyFrameV1Flags uint32
 
 const (
@@ -142,6 +150,11 @@ const (
 
 func (v ZwlrScreencopyFrameV1Flags) Has(flag ZwlrScreencopyFrameV1Flags) bool {
 	return v&flag == flag
+}
+
+func (v ZwlrScreencopyFrameV1Flags) Valid(version uint32) bool {
+	known := ZwlrScreencopyFrameV1Flags(0x1)
+	return v&^known == 0
 }
 
 type ZwlrScreencopyFrameV1Handler interface {

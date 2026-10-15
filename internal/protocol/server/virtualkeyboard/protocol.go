@@ -24,6 +24,14 @@ const (
 	ZwpVirtualKeyboardV1ErrorNoKeymap ZwpVirtualKeyboardV1Error = 0
 )
 
+func (v ZwpVirtualKeyboardV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwpVirtualKeyboardV1ErrorNoKeymap:
+		return true
+	}
+	return false
+}
+
 type ZwpVirtualKeyboardV1Handler interface {
 	Keymap(obj *ZwpVirtualKeyboardV1, format uint32, fd int, size uint32) error
 	Key(obj *ZwpVirtualKeyboardV1, time uint32, key uint32, state uint32) error
@@ -132,6 +140,14 @@ type ZwpVirtualKeyboardManagerV1Error uint32
 const (
 	ZwpVirtualKeyboardManagerV1ErrorUnauthorized ZwpVirtualKeyboardManagerV1Error = 0
 )
+
+func (v ZwpVirtualKeyboardManagerV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwpVirtualKeyboardManagerV1ErrorUnauthorized:
+		return true
+	}
+	return false
+}
 
 type ZwpVirtualKeyboardManagerV1Handler interface {
 	CreateVirtualKeyboard(obj *ZwpVirtualKeyboardManagerV1, seat *wayland.WlSeat, id *ZwpVirtualKeyboardV1) (ZwpVirtualKeyboardV1Handler, error)

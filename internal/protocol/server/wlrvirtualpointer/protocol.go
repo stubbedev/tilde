@@ -30,6 +30,14 @@ const (
 	ZwlrVirtualPointerV1ErrorInvalidAxisSource ZwlrVirtualPointerV1Error = 1
 )
 
+func (v ZwlrVirtualPointerV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwlrVirtualPointerV1ErrorInvalidAxis, ZwlrVirtualPointerV1ErrorInvalidAxisSource:
+		return true
+	}
+	return false
+}
+
 type ZwlrVirtualPointerV1Handler interface {
 	Motion(obj *ZwlrVirtualPointerV1, time uint32, dx wire.Fixed, dy wire.Fixed) error
 	MotionAbsolute(obj *ZwlrVirtualPointerV1, time uint32, x uint32, y uint32, xExtent uint32, yExtent uint32) error

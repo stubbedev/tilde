@@ -167,11 +167,29 @@ const (
 	WpCursorShapeDeviceV1ShapeAllResize    WpCursorShapeDeviceV1Shape = 36
 )
 
+func (v WpCursorShapeDeviceV1Shape) Valid(version uint32) bool {
+	switch v {
+	case WpCursorShapeDeviceV1ShapeDefault, WpCursorShapeDeviceV1ShapeContextMenu, WpCursorShapeDeviceV1ShapeHelp, WpCursorShapeDeviceV1ShapePointer, WpCursorShapeDeviceV1ShapeProgress, WpCursorShapeDeviceV1ShapeWait, WpCursorShapeDeviceV1ShapeCell, WpCursorShapeDeviceV1ShapeCrosshair, WpCursorShapeDeviceV1ShapeText, WpCursorShapeDeviceV1ShapeVerticalText, WpCursorShapeDeviceV1ShapeAlias, WpCursorShapeDeviceV1ShapeCopy, WpCursorShapeDeviceV1ShapeMove, WpCursorShapeDeviceV1ShapeNoDrop, WpCursorShapeDeviceV1ShapeNotAllowed, WpCursorShapeDeviceV1ShapeGrab, WpCursorShapeDeviceV1ShapeGrabbing, WpCursorShapeDeviceV1ShapeEResize, WpCursorShapeDeviceV1ShapeNResize, WpCursorShapeDeviceV1ShapeNeResize, WpCursorShapeDeviceV1ShapeNwResize, WpCursorShapeDeviceV1ShapeSResize, WpCursorShapeDeviceV1ShapeSeResize, WpCursorShapeDeviceV1ShapeSwResize, WpCursorShapeDeviceV1ShapeWResize, WpCursorShapeDeviceV1ShapeEwResize, WpCursorShapeDeviceV1ShapeNsResize, WpCursorShapeDeviceV1ShapeNeswResize, WpCursorShapeDeviceV1ShapeNwseResize, WpCursorShapeDeviceV1ShapeColResize, WpCursorShapeDeviceV1ShapeRowResize, WpCursorShapeDeviceV1ShapeAllScroll, WpCursorShapeDeviceV1ShapeZoomIn, WpCursorShapeDeviceV1ShapeZoomOut:
+		return true
+	case WpCursorShapeDeviceV1ShapeDndAsk, WpCursorShapeDeviceV1ShapeAllResize:
+		return version >= 2
+	}
+	return false
+}
+
 type WpCursorShapeDeviceV1Error uint32
 
 const (
 	WpCursorShapeDeviceV1ErrorInvalidShape WpCursorShapeDeviceV1Error = 1
 )
+
+func (v WpCursorShapeDeviceV1Error) Valid(version uint32) bool {
+	switch v {
+	case WpCursorShapeDeviceV1ErrorInvalidShape:
+		return true
+	}
+	return false
+}
 
 type WpCursorShapeDeviceV1 struct {
 	object wire.Object

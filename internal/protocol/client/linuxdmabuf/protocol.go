@@ -219,6 +219,14 @@ const (
 	ZwpLinuxBufferParamsV1ErrorInvalidDevTSize   ZwpLinuxBufferParamsV1Error = 8
 )
 
+func (v ZwpLinuxBufferParamsV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwpLinuxBufferParamsV1ErrorAlreadyUsed, ZwpLinuxBufferParamsV1ErrorPlaneIdx, ZwpLinuxBufferParamsV1ErrorPlaneSet, ZwpLinuxBufferParamsV1ErrorIncomplete, ZwpLinuxBufferParamsV1ErrorInvalidFormat, ZwpLinuxBufferParamsV1ErrorInvalidDimensions, ZwpLinuxBufferParamsV1ErrorOutOfBounds, ZwpLinuxBufferParamsV1ErrorInvalidWlBuffer, ZwpLinuxBufferParamsV1ErrorInvalidDevTSize:
+		return true
+	}
+	return false
+}
+
 type ZwpLinuxBufferParamsV1Flags uint32
 
 const (
@@ -229,6 +237,11 @@ const (
 
 func (v ZwpLinuxBufferParamsV1Flags) Has(flag ZwpLinuxBufferParamsV1Flags) bool {
 	return v&flag == flag
+}
+
+func (v ZwpLinuxBufferParamsV1Flags) Valid(version uint32) bool {
+	known := ZwpLinuxBufferParamsV1Flags(0x7)
+	return v&^known == 0
 }
 
 type ZwpLinuxBufferParamsV1Handler interface {
@@ -412,6 +425,17 @@ const (
 
 func (v ZwpLinuxDmabufFeedbackV1TrancheFlags) Has(flag ZwpLinuxDmabufFeedbackV1TrancheFlags) bool {
 	return v&flag == flag
+}
+
+func (v ZwpLinuxDmabufFeedbackV1TrancheFlags) Valid(version uint32) bool {
+	var known ZwpLinuxDmabufFeedbackV1TrancheFlags
+	if version >= 4 {
+		known |= 0x1
+	}
+	if version >= 6 {
+		known |= 0x2
+	}
+	return v&^known == 0
 }
 
 type ZwpLinuxDmabufFeedbackV1Handler interface {

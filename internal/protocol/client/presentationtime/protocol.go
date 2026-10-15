@@ -26,6 +26,14 @@ const (
 	WpPresentationErrorInvalidFlag      WpPresentationError = 1
 )
 
+func (v WpPresentationError) Valid(version uint32) bool {
+	switch v {
+	case WpPresentationErrorInvalidTimestamp, WpPresentationErrorInvalidFlag:
+		return true
+	}
+	return false
+}
+
 type WpPresentationHandler interface {
 	ClockID(obj *WpPresentation, clkID uint32) error
 }
@@ -155,6 +163,11 @@ const (
 
 func (v WpPresentationFeedbackKind) Has(flag WpPresentationFeedbackKind) bool {
 	return v&flag == flag
+}
+
+func (v WpPresentationFeedbackKind) Valid(version uint32) bool {
+	known := WpPresentationFeedbackKind(0xf)
+	return v&^known == 0
 }
 
 type WpPresentationFeedbackHandler interface {

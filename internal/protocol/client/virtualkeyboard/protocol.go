@@ -24,6 +24,14 @@ const (
 	ZwpVirtualKeyboardV1ErrorNoKeymap ZwpVirtualKeyboardV1Error = 0
 )
 
+func (v ZwpVirtualKeyboardV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwpVirtualKeyboardV1ErrorNoKeymap:
+		return true
+	}
+	return false
+}
+
 type ZwpVirtualKeyboardV1 struct {
 	object wire.Object
 }
@@ -122,6 +130,14 @@ type ZwpVirtualKeyboardManagerV1Error uint32
 const (
 	ZwpVirtualKeyboardManagerV1ErrorUnauthorized ZwpVirtualKeyboardManagerV1Error = 0
 )
+
+func (v ZwpVirtualKeyboardManagerV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwpVirtualKeyboardManagerV1ErrorUnauthorized:
+		return true
+	}
+	return false
+}
 
 type ZwpVirtualKeyboardManagerV1 struct {
 	object wire.Object

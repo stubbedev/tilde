@@ -127,6 +127,14 @@ const (
 	XdgActivationTokenV1ErrorAlreadyUsed XdgActivationTokenV1Error = 0
 )
 
+func (v XdgActivationTokenV1Error) Valid(version uint32) bool {
+	switch v {
+	case XdgActivationTokenV1ErrorAlreadyUsed:
+		return true
+	}
+	return false
+}
+
 type XdgActivationTokenV1Handler interface {
 	Done(obj *XdgActivationTokenV1, token string) error
 }

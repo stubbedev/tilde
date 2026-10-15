@@ -23,12 +23,28 @@ const (
 	ZwpPointerConstraintsV1ErrorAlreadyConstrained ZwpPointerConstraintsV1Error = 1
 )
 
+func (v ZwpPointerConstraintsV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwpPointerConstraintsV1ErrorAlreadyConstrained:
+		return true
+	}
+	return false
+}
+
 type ZwpPointerConstraintsV1Lifetime uint32
 
 const (
 	ZwpPointerConstraintsV1LifetimeOneshot    ZwpPointerConstraintsV1Lifetime = 1
 	ZwpPointerConstraintsV1LifetimePersistent ZwpPointerConstraintsV1Lifetime = 2
 )
+
+func (v ZwpPointerConstraintsV1Lifetime) Valid(version uint32) bool {
+	switch v {
+	case ZwpPointerConstraintsV1LifetimeOneshot, ZwpPointerConstraintsV1LifetimePersistent:
+		return true
+	}
+	return false
+}
 
 type ZwpPointerConstraintsV1 struct {
 	object wire.Object

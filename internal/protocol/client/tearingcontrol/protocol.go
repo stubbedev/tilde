@@ -22,6 +22,14 @@ const (
 	WpTearingControlManagerV1ErrorTearingControlExists WpTearingControlManagerV1Error = 0
 )
 
+func (v WpTearingControlManagerV1Error) Valid(version uint32) bool {
+	switch v {
+	case WpTearingControlManagerV1ErrorTearingControlExists:
+		return true
+	}
+	return false
+}
+
 type WpTearingControlManagerV1 struct {
 	object wire.Object
 }
@@ -112,6 +120,14 @@ const (
 	WpTearingControlV1PresentationHintVsync WpTearingControlV1PresentationHint = 0
 	WpTearingControlV1PresentationHintAsync WpTearingControlV1PresentationHint = 1
 )
+
+func (v WpTearingControlV1PresentationHint) Valid(version uint32) bool {
+	switch v {
+	case WpTearingControlV1PresentationHintVsync, WpTearingControlV1PresentationHintAsync:
+		return true
+	}
+	return false
+}
 
 type WpTearingControlV1 struct {
 	object wire.Object

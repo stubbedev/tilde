@@ -22,6 +22,14 @@ const (
 	WpFractionalScaleManagerV1ErrorFractionalScaleExists WpFractionalScaleManagerV1Error = 0
 )
 
+func (v WpFractionalScaleManagerV1Error) Valid(version uint32) bool {
+	switch v {
+	case WpFractionalScaleManagerV1ErrorFractionalScaleExists:
+		return true
+	}
+	return false
+}
+
 type WpFractionalScaleManagerV1Handler interface {
 	Destroy(obj *WpFractionalScaleManagerV1) error
 	GetFractionalScale(obj *WpFractionalScaleManagerV1, id *WpFractionalScaleV1, surface *wayland.WlSurface) (WpFractionalScaleV1Handler, error)

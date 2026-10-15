@@ -22,6 +22,14 @@ const (
 	ZxdgExporterV2ErrorInvalidSurface ZxdgExporterV2Error = 0
 )
 
+func (v ZxdgExporterV2Error) Valid(version uint32) bool {
+	switch v {
+	case ZxdgExporterV2ErrorInvalidSurface:
+		return true
+	}
+	return false
+}
+
 type ZxdgExporterV2Handler interface {
 	Destroy(obj *ZxdgExporterV2) error
 	ExportToplevel(obj *ZxdgExporterV2, id *ZxdgExportedV2, surface *wayland.WlSurface) (ZxdgExportedV2Handler, error)
@@ -283,6 +291,14 @@ type ZxdgImportedV2Error uint32
 const (
 	ZxdgImportedV2ErrorInvalidSurface ZxdgImportedV2Error = 0
 )
+
+func (v ZxdgImportedV2Error) Valid(version uint32) bool {
+	switch v {
+	case ZxdgImportedV2ErrorInvalidSurface:
+		return true
+	}
+	return false
+}
 
 type ZxdgImportedV2Handler interface {
 	Destroy(obj *ZxdgImportedV2) error

@@ -119,6 +119,14 @@ const (
 	XdgActivationTokenV1ErrorAlreadyUsed XdgActivationTokenV1Error = 0
 )
 
+func (v XdgActivationTokenV1Error) Valid(version uint32) bool {
+	switch v {
+	case XdgActivationTokenV1ErrorAlreadyUsed:
+		return true
+	}
+	return false
+}
+
 type XdgActivationTokenV1Handler interface {
 	SetSerial(obj *XdgActivationTokenV1, serial uint32, seat *wayland.WlSeat) error
 	SetAppID(obj *XdgActivationTokenV1, appID string) error

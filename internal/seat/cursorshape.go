@@ -54,7 +54,7 @@ func (shapeDevice) Destroy(*scs.WpCursorShapeDeviceV1) error {
 
 func (d shapeDevice) SetShape(obj *scs.WpCursorShapeDeviceV1, serial uint32, shape scs.WpCursorShapeDeviceV1Shape) error {
 	name, ok := shapeName(shape)
-	if !ok || (obj.Base().Version() < 2 && shape > scs.WpCursorShapeDeviceV1ShapeZoomOut) {
+	if !ok || !shape.Valid(obj.Base().Version()) {
 		return obj.ProtocolError(scs.WpCursorShapeDeviceV1ErrorInvalidShape, fmt.Sprintf("invalid shape %d", shape))
 	}
 	p := &d.s.pointer

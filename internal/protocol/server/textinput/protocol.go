@@ -43,6 +43,14 @@ const (
 	ZwpTextInputV3ChangeCauseOther       ZwpTextInputV3ChangeCause = 1
 )
 
+func (v ZwpTextInputV3ChangeCause) Valid(version uint32) bool {
+	switch v {
+	case ZwpTextInputV3ChangeCauseInputMethod, ZwpTextInputV3ChangeCauseOther:
+		return true
+	}
+	return false
+}
+
 type ZwpTextInputV3ContentHint uint32
 
 const (
@@ -66,6 +74,14 @@ func (v ZwpTextInputV3ContentHint) Has(flag ZwpTextInputV3ContentHint) bool {
 	return v&flag == flag
 }
 
+func (v ZwpTextInputV3ContentHint) Valid(version uint32) bool {
+	known := ZwpTextInputV3ContentHint(0x3ff)
+	if version >= 2 {
+		known |= 0x1c00
+	}
+	return v&^known == 0
+}
+
 type ZwpTextInputV3ContentPurpose uint32
 
 const (
@@ -85,11 +101,27 @@ const (
 	ZwpTextInputV3ContentPurposeTerminal ZwpTextInputV3ContentPurpose = 13
 )
 
+func (v ZwpTextInputV3ContentPurpose) Valid(version uint32) bool {
+	switch v {
+	case ZwpTextInputV3ContentPurposeNormal, ZwpTextInputV3ContentPurposeAlpha, ZwpTextInputV3ContentPurposeDigits, ZwpTextInputV3ContentPurposeNumber, ZwpTextInputV3ContentPurposePhone, ZwpTextInputV3ContentPurposeURL, ZwpTextInputV3ContentPurposeEmail, ZwpTextInputV3ContentPurposeName, ZwpTextInputV3ContentPurposePassword, ZwpTextInputV3ContentPurposePin, ZwpTextInputV3ContentPurposeDate, ZwpTextInputV3ContentPurposeTime, ZwpTextInputV3ContentPurposeDatetime, ZwpTextInputV3ContentPurposeTerminal:
+		return true
+	}
+	return false
+}
+
 type ZwpTextInputV3Error uint32
 
 const (
 	ZwpTextInputV3ErrorInvalidAction ZwpTextInputV3Error = 0
 )
+
+func (v ZwpTextInputV3Error) Valid(version uint32) bool {
+	switch v {
+	case ZwpTextInputV3ErrorInvalidAction:
+		return true
+	}
+	return false
+}
 
 type ZwpTextInputV3Action uint32
 
@@ -97,6 +129,14 @@ const (
 	ZwpTextInputV3ActionNone   ZwpTextInputV3Action = 0
 	ZwpTextInputV3ActionSubmit ZwpTextInputV3Action = 1
 )
+
+func (v ZwpTextInputV3Action) Valid(version uint32) bool {
+	switch v {
+	case ZwpTextInputV3ActionNone, ZwpTextInputV3ActionSubmit:
+		return true
+	}
+	return false
+}
 
 type ZwpTextInputV3PreeditHint uint32
 
@@ -109,6 +149,14 @@ const (
 	ZwpTextInputV3PreeditHintSpellingError ZwpTextInputV3PreeditHint = 6
 	ZwpTextInputV3PreeditHintComposeError  ZwpTextInputV3PreeditHint = 7
 )
+
+func (v ZwpTextInputV3PreeditHint) Valid(version uint32) bool {
+	switch v {
+	case ZwpTextInputV3PreeditHintWhole, ZwpTextInputV3PreeditHintSelection, ZwpTextInputV3PreeditHintPrediction, ZwpTextInputV3PreeditHintPrefix, ZwpTextInputV3PreeditHintSuffix, ZwpTextInputV3PreeditHintSpellingError, ZwpTextInputV3PreeditHintComposeError:
+		return true
+	}
+	return false
+}
 
 type ZwpTextInputV3Handler interface {
 	Destroy(obj *ZwpTextInputV3) error

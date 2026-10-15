@@ -22,6 +22,14 @@ const (
 	WpViewporterErrorViewportExists WpViewporterError = 0
 )
 
+func (v WpViewporterError) Valid(version uint32) bool {
+	switch v {
+	case WpViewporterErrorViewportExists:
+		return true
+	}
+	return false
+}
+
 type WpViewporter struct {
 	object wire.Object
 }
@@ -115,6 +123,14 @@ const (
 	WpViewportErrorOutOfBuffer WpViewportError = 2
 	WpViewportErrorNoSurface   WpViewportError = 3
 )
+
+func (v WpViewportError) Valid(version uint32) bool {
+	switch v {
+	case WpViewportErrorBadValue, WpViewportErrorBadSize, WpViewportErrorOutOfBuffer, WpViewportErrorNoSurface:
+		return true
+	}
+	return false
+}
 
 type WpViewport struct {
 	object wire.Object

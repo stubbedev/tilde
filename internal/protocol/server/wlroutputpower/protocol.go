@@ -110,11 +110,27 @@ const (
 	ZwlrOutputPowerV1ModeOn  ZwlrOutputPowerV1Mode = 1
 )
 
+func (v ZwlrOutputPowerV1Mode) Valid(version uint32) bool {
+	switch v {
+	case ZwlrOutputPowerV1ModeOff, ZwlrOutputPowerV1ModeOn:
+		return true
+	}
+	return false
+}
+
 type ZwlrOutputPowerV1Error uint32
 
 const (
 	ZwlrOutputPowerV1ErrorInvalidMode ZwlrOutputPowerV1Error = 1
 )
+
+func (v ZwlrOutputPowerV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwlrOutputPowerV1ErrorInvalidMode:
+		return true
+	}
+	return false
+}
 
 type ZwlrOutputPowerV1Handler interface {
 	SetMode(obj *ZwlrOutputPowerV1, mode ZwlrOutputPowerV1Mode) error

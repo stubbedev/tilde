@@ -79,7 +79,7 @@ func (layerShell) Destroy(*swlr.ZwlrLayerShellV1) error {
 }
 
 func (m layerShell) GetLayerSurface(obj *swlr.ZwlrLayerShellV1, res *swlr.ZwlrLayerSurfaceV1, wl *sw.WlSurface, out *sw.WlOutput, layer Layer, namespace string) (swlr.ZwlrLayerSurfaceV1Handler, error) {
-	if layer > swlr.ZwlrLayerShellV1LayerOverlay {
+	if !layer.Valid(obj.Base().Version()) {
 		return nil, obj.ProtocolError(swlr.ZwlrLayerShellV1ErrorInvalidLayer, fmt.Sprintf("layer %d", layer))
 	}
 	surf, err := surface.From(wl)
@@ -259,7 +259,7 @@ func (l *LayerSurface) SetMargin(_ *swlr.ZwlrLayerSurfaceV1, top, right, bottom,
 }
 
 func (l *LayerSurface) SetKeyboardInteractivity(obj *swlr.ZwlrLayerSurfaceV1, k Interactivity) error {
-	if k > swlr.ZwlrLayerSurfaceV1KeyboardInteractivityOnDemand || (k == swlr.ZwlrLayerSurfaceV1KeyboardInteractivityOnDemand && obj.Base().Version() < 4) {
+	if !k.Valid(obj.Base().Version()) {
 		return obj.ProtocolError(swlr.ZwlrLayerSurfaceV1ErrorInvalidKeyboardInteractivity, fmt.Sprintf("keyboard interactivity %d at version %d", k, obj.Base().Version()))
 	}
 	l.pending.Interactivity = k
@@ -290,7 +290,7 @@ func (l *LayerSurface) Destroy(*swlr.ZwlrLayerSurfaceV1) error {
 }
 
 func (l *LayerSurface) SetLayer(_ *swlr.ZwlrLayerSurfaceV1, layer Layer) error {
-	if layer > swlr.ZwlrLayerShellV1LayerOverlay {
+	if !layer.Valid(l.manager.Base().Version()) {
 		return l.manager.ProtocolError(swlr.ZwlrLayerShellV1ErrorInvalidLayer, fmt.Sprintf("layer %d", layer))
 	}
 	l.pending.Layer = layer

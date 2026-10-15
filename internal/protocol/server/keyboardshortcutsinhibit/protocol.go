@@ -22,6 +22,14 @@ const (
 	ZwpKeyboardShortcutsInhibitManagerV1ErrorAlreadyInhibited ZwpKeyboardShortcutsInhibitManagerV1Error = 0
 )
 
+func (v ZwpKeyboardShortcutsInhibitManagerV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwpKeyboardShortcutsInhibitManagerV1ErrorAlreadyInhibited:
+		return true
+	}
+	return false
+}
+
 type ZwpKeyboardShortcutsInhibitManagerV1Handler interface {
 	Destroy(obj *ZwpKeyboardShortcutsInhibitManagerV1) error
 	InhibitShortcuts(obj *ZwpKeyboardShortcutsInhibitManagerV1, id *ZwpKeyboardShortcutsInhibitorV1, surface *wayland.WlSurface, seat *wayland.WlSeat) (ZwpKeyboardShortcutsInhibitorV1Handler, error)

@@ -151,11 +151,29 @@ const (
 	ZwlrForeignToplevelHandleV1StateFullscreen ZwlrForeignToplevelHandleV1State = 3
 )
 
+func (v ZwlrForeignToplevelHandleV1State) Valid(version uint32) bool {
+	switch v {
+	case ZwlrForeignToplevelHandleV1StateMaximized, ZwlrForeignToplevelHandleV1StateMinimized, ZwlrForeignToplevelHandleV1StateActivated:
+		return true
+	case ZwlrForeignToplevelHandleV1StateFullscreen:
+		return version >= 2
+	}
+	return false
+}
+
 type ZwlrForeignToplevelHandleV1Error uint32
 
 const (
 	ZwlrForeignToplevelHandleV1ErrorInvalidRectangle ZwlrForeignToplevelHandleV1Error = 0
 )
+
+func (v ZwlrForeignToplevelHandleV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwlrForeignToplevelHandleV1ErrorInvalidRectangle:
+		return true
+	}
+	return false
+}
 
 type ZwlrForeignToplevelHandleV1Handler interface {
 	SetMaximized(obj *ZwlrForeignToplevelHandleV1) error

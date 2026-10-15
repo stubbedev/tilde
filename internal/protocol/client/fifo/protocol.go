@@ -22,6 +22,14 @@ const (
 	WpFifoManagerV1ErrorAlreadyExists WpFifoManagerV1Error = 0
 )
 
+func (v WpFifoManagerV1Error) Valid(version uint32) bool {
+	switch v {
+	case WpFifoManagerV1ErrorAlreadyExists:
+		return true
+	}
+	return false
+}
+
 type WpFifoManagerV1 struct {
 	object wire.Object
 }
@@ -112,6 +120,14 @@ type WpFifoV1Error uint32
 const (
 	WpFifoV1ErrorSurfaceDestroyed WpFifoV1Error = 0
 )
+
+func (v WpFifoV1Error) Valid(version uint32) bool {
+	switch v {
+	case WpFifoV1ErrorSurfaceDestroyed:
+		return true
+	}
+	return false
+}
 
 type WpFifoV1 struct {
 	object wire.Object

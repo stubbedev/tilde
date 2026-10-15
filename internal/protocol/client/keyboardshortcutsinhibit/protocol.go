@@ -22,6 +22,14 @@ const (
 	ZwpKeyboardShortcutsInhibitManagerV1ErrorAlreadyInhibited ZwpKeyboardShortcutsInhibitManagerV1Error = 0
 )
 
+func (v ZwpKeyboardShortcutsInhibitManagerV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwpKeyboardShortcutsInhibitManagerV1ErrorAlreadyInhibited:
+		return true
+	}
+	return false
+}
+
 type ZwpKeyboardShortcutsInhibitManagerV1 struct {
 	object wire.Object
 }

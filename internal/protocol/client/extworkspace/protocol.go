@@ -158,6 +158,11 @@ func (v ExtWorkspaceGroupHandleV1GroupCapabilities) Has(flag ExtWorkspaceGroupHa
 	return v&flag == flag
 }
 
+func (v ExtWorkspaceGroupHandleV1GroupCapabilities) Valid(version uint32) bool {
+	known := ExtWorkspaceGroupHandleV1GroupCapabilities(0x1)
+	return v&^known == 0
+}
+
 type ExtWorkspaceGroupHandleV1Handler interface {
 	Capabilities(obj *ExtWorkspaceGroupHandleV1, capabilities ExtWorkspaceGroupHandleV1GroupCapabilities) error
 	OutputEnter(obj *ExtWorkspaceGroupHandleV1, output *wayland.WlOutput) error
@@ -312,6 +317,11 @@ func (v ExtWorkspaceHandleV1State) Has(flag ExtWorkspaceHandleV1State) bool {
 	return v&flag == flag
 }
 
+func (v ExtWorkspaceHandleV1State) Valid(version uint32) bool {
+	known := ExtWorkspaceHandleV1State(0x7)
+	return v&^known == 0
+}
+
 type ExtWorkspaceHandleV1WorkspaceCapabilities uint32
 
 const (
@@ -323,6 +333,11 @@ const (
 
 func (v ExtWorkspaceHandleV1WorkspaceCapabilities) Has(flag ExtWorkspaceHandleV1WorkspaceCapabilities) bool {
 	return v&flag == flag
+}
+
+func (v ExtWorkspaceHandleV1WorkspaceCapabilities) Valid(version uint32) bool {
+	known := ExtWorkspaceHandleV1WorkspaceCapabilities(0xf)
+	return v&^known == 0
 }
 
 type ExtWorkspaceHandleV1Handler interface {

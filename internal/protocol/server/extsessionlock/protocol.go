@@ -113,6 +113,14 @@ const (
 	ExtSessionLockV1ErrorAlreadyConstructed ExtSessionLockV1Error = 4
 )
 
+func (v ExtSessionLockV1Error) Valid(version uint32) bool {
+	switch v {
+	case ExtSessionLockV1ErrorInvalidDestroy, ExtSessionLockV1ErrorInvalidUnlock, ExtSessionLockV1ErrorRole, ExtSessionLockV1ErrorDuplicateOutput, ExtSessionLockV1ErrorAlreadyConstructed:
+		return true
+	}
+	return false
+}
+
 type ExtSessionLockV1Handler interface {
 	Destroy(obj *ExtSessionLockV1) error
 	GetLockSurface(obj *ExtSessionLockV1, id *ExtSessionLockSurfaceV1, surface *wayland.WlSurface, output *wayland.WlOutput) (ExtSessionLockSurfaceV1Handler, error)
@@ -237,6 +245,14 @@ const (
 	ExtSessionLockSurfaceV1ErrorDimensionsMismatch   ExtSessionLockSurfaceV1Error = 2
 	ExtSessionLockSurfaceV1ErrorInvalidSerial        ExtSessionLockSurfaceV1Error = 3
 )
+
+func (v ExtSessionLockSurfaceV1Error) Valid(version uint32) bool {
+	switch v {
+	case ExtSessionLockSurfaceV1ErrorCommitBeforeFirstAck, ExtSessionLockSurfaceV1ErrorNullBuffer, ExtSessionLockSurfaceV1ErrorDimensionsMismatch, ExtSessionLockSurfaceV1ErrorInvalidSerial:
+		return true
+	}
+	return false
+}
 
 type ExtSessionLockSurfaceV1Handler interface {
 	Destroy(obj *ExtSessionLockSurfaceV1) error

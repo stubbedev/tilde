@@ -141,6 +141,14 @@ const (
 	ExtDataControlDeviceV1ErrorUsedSource ExtDataControlDeviceV1Error = 1
 )
 
+func (v ExtDataControlDeviceV1Error) Valid(version uint32) bool {
+	switch v {
+	case ExtDataControlDeviceV1ErrorUsedSource:
+		return true
+	}
+	return false
+}
+
 type ExtDataControlDeviceV1Handler interface {
 	DataOffer(obj *ExtDataControlDeviceV1, id *ExtDataControlOfferV1) (ExtDataControlOfferV1Handler, error)
 	Selection(obj *ExtDataControlDeviceV1, id *ExtDataControlOfferV1) error
@@ -297,6 +305,14 @@ type ExtDataControlSourceV1Error uint32
 const (
 	ExtDataControlSourceV1ErrorInvalidOffer ExtDataControlSourceV1Error = 1
 )
+
+func (v ExtDataControlSourceV1Error) Valid(version uint32) bool {
+	switch v {
+	case ExtDataControlSourceV1ErrorInvalidOffer:
+		return true
+	}
+	return false
+}
 
 type ExtDataControlSourceV1Handler interface {
 	Send(obj *ExtDataControlSourceV1, mimeType string, fd int) error

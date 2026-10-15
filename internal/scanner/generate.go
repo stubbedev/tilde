@@ -201,7 +201,73 @@ func (g *gen) enum(e *enum) {
 	g.printf(")\n")
 	if e.bitfield {
 		g.printf("\nfunc (v %s) Has(flag %s) bool {\n\treturn v&flag == flag\n}\n", e.goName, e.goName)
+		g.bitfieldValid(e)
+		return
 	}
+	g.enumValid(e)
+}
+
+func (g *gen) enumValid(e *enum) {
+	g.printf("\nfunc (v %s) Valid(version uint32) bool {\n\tswitch v {\n", e.goName)
+	for _, since := range entrySinces(e) {
+		var names []string
+		for _, en := range e.entries {
+			if en.since == since && !slices.Contains(names, en.goName) && firstWithValue(e, en) {
+				names = append(names, en.goName)
+			}
+		}
+		if since <= 1 {
+			g.printf("\tcase %s:\n\t\treturn true\n", strings.Join(names, ", "))
+			continue
+		}
+		g.printf("\tcase %s:\n\t\treturn version >= %d\n", strings.Join(names, ", "), since)
+	}
+	g.printf("\t}\n\treturn false\n}\n")
+}
+
+func (g *gen) bitfieldValid(e *enum) {
+	g.printf("\nfunc (v %s) Valid(version uint32) bool {\n", e.goName)
+	if len(e.entries) == 0 {
+		g.printf("\treturn v == 0\n}\n")
+		return
+	}
+	for i, since := range entrySinces(e) {
+		var mask uint32
+		for _, en := range e.entries {
+			if en.since == since {
+				mask |= en.value
+			}
+		}
+		switch {
+		case i == 0 && since <= 1:
+			g.printf("\tknown := %s(%#x)\n", e.goName, mask)
+		case i == 0:
+			g.printf("\tvar known %s\n\tif version >= %d {\n\t\tknown |= %#x\n\t}\n", e.goName, since, mask)
+		default:
+			g.printf("\tif version >= %d {\n\t\tknown |= %#x\n\t}\n", since, mask)
+		}
+	}
+	g.printf("\treturn v&^known == 0\n}\n")
+}
+
+func entrySinces(e *enum) []uint32 {
+	var out []uint32
+	for _, en := range e.entries {
+		if !slices.Contains(out, en.since) {
+			out = append(out, en.since)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+func firstWithValue(e *enum, en entry) bool {
+	for _, other := range e.entries {
+		if other.value == en.value {
+			return other.goName == en.goName
+		}
+	}
+	return false
 }
 
 func (g *gen) valueType(a *arg) string {

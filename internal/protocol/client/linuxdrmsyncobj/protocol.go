@@ -24,6 +24,14 @@ const (
 	WpLinuxDrmSyncobjManagerV1ErrorInvalidTimeline WpLinuxDrmSyncobjManagerV1Error = 1
 )
 
+func (v WpLinuxDrmSyncobjManagerV1Error) Valid(version uint32) bool {
+	switch v {
+	case WpLinuxDrmSyncobjManagerV1ErrorSurfaceExists, WpLinuxDrmSyncobjManagerV1ErrorInvalidTimeline:
+		return true
+	}
+	return false
+}
+
 type WpLinuxDrmSyncobjManagerV1 struct {
 	object wire.Object
 }
@@ -196,6 +204,14 @@ const (
 	WpLinuxDrmSyncobjSurfaceV1ErrorNoReleasePoint    WpLinuxDrmSyncobjSurfaceV1Error = 5
 	WpLinuxDrmSyncobjSurfaceV1ErrorConflictingPoints WpLinuxDrmSyncobjSurfaceV1Error = 6
 )
+
+func (v WpLinuxDrmSyncobjSurfaceV1Error) Valid(version uint32) bool {
+	switch v {
+	case WpLinuxDrmSyncobjSurfaceV1ErrorNoSurface, WpLinuxDrmSyncobjSurfaceV1ErrorUnsupportedBuffer, WpLinuxDrmSyncobjSurfaceV1ErrorNoBuffer, WpLinuxDrmSyncobjSurfaceV1ErrorNoAcquirePoint, WpLinuxDrmSyncobjSurfaceV1ErrorNoReleasePoint, WpLinuxDrmSyncobjSurfaceV1ErrorConflictingPoints:
+		return true
+	}
+	return false
+}
 
 type WpLinuxDrmSyncobjSurfaceV1 struct {
 	object wire.Object

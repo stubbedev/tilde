@@ -50,6 +50,7 @@ type xmlEnum struct {
 type xmlEntry struct {
 	Name  string `xml:"name,attr"`
 	Value string `xml:"value,attr"`
+	Since string `xml:"since,attr"`
 }
 
 type protocol struct {
@@ -100,6 +101,7 @@ type enum struct {
 type entry struct {
 	goName string
 	value  uint32
+	since  uint32
 }
 
 var argTypeTable = []struct {
@@ -255,12 +257,16 @@ func parseEnum(x xmlEnum, owner *iface) (*enum, error) {
 		if err != nil {
 			return nil, fmt.Errorf("enum %s: entry %s: invalid value %q", x.Name, xe.Name, xe.Value)
 		}
+		since, err := parseVersion(xe.Since, fmt.Sprintf("enum %s: entry %s", x.Name, xe.Name))
+		if err != nil {
+			return nil, err
+		}
 		goName := e.goName + camel(xe.Name)
 		if seen[goName] {
 			return nil, fmt.Errorf("enum %s: entry %s duplicates another entry's Go name", x.Name, xe.Name)
 		}
 		seen[goName] = true
-		e.entries = append(e.entries, entry{goName: goName, value: uint32(v)})
+		e.entries = append(e.entries, entry{goName: goName, value: uint32(v), since: since})
 	}
 	return e, nil
 }

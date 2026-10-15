@@ -37,6 +37,14 @@ const (
 	ZwpInputMethodV2ErrorRole ZwpInputMethodV2Error = 0
 )
 
+func (v ZwpInputMethodV2Error) Valid(version uint32) bool {
+	switch v {
+	case ZwpInputMethodV2ErrorRole:
+		return true
+	}
+	return false
+}
+
 type ZwpInputMethodV2Handler interface {
 	CommitString(obj *ZwpInputMethodV2, text string) error
 	SetPreeditString(obj *ZwpInputMethodV2, text string, cursorBegin int32, cursorEnd int32) error

@@ -178,7 +178,7 @@ func (p *positioner) SetAnchorRect(obj *sxdg.XdgPositioner, x, y, w, h int32) er
 }
 
 func (p *positioner) SetAnchor(obj *sxdg.XdgPositioner, a sxdg.XdgPositionerAnchor) error {
-	if a > sxdg.XdgPositionerAnchorBottomRight {
+	if !a.Valid(obj.Base().Version()) {
 		return invalidInput(obj, "anchor %d", a)
 	}
 	p.rules.Anchor = a
@@ -186,7 +186,7 @@ func (p *positioner) SetAnchor(obj *sxdg.XdgPositioner, a sxdg.XdgPositionerAnch
 }
 
 func (p *positioner) SetGravity(obj *sxdg.XdgPositioner, g sxdg.XdgPositionerGravity) error {
-	if g > sxdg.XdgPositionerGravityBottomRight {
+	if !g.Valid(obj.Base().Version()) {
 		return invalidInput(obj, "gravity %d", g)
 	}
 	p.rules.Gravity = g

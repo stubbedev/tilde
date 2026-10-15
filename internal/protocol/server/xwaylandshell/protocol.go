@@ -22,6 +22,14 @@ const (
 	XwaylandShellV1ErrorRole XwaylandShellV1Error = 0
 )
 
+func (v XwaylandShellV1Error) Valid(version uint32) bool {
+	switch v {
+	case XwaylandShellV1ErrorRole:
+		return true
+	}
+	return false
+}
+
 type XwaylandShellV1Handler interface {
 	Destroy(obj *XwaylandShellV1) error
 	GetXwaylandSurface(obj *XwaylandShellV1, id *XwaylandSurfaceV1, surface *wayland.WlSurface) (XwaylandSurfaceV1Handler, error)
@@ -115,6 +123,14 @@ const (
 	XwaylandSurfaceV1ErrorAlreadyAssociated XwaylandSurfaceV1Error = 0
 	XwaylandSurfaceV1ErrorInvalidSerial     XwaylandSurfaceV1Error = 1
 )
+
+func (v XwaylandSurfaceV1Error) Valid(version uint32) bool {
+	switch v {
+	case XwaylandSurfaceV1ErrorAlreadyAssociated, XwaylandSurfaceV1ErrorInvalidSerial:
+		return true
+	}
+	return false
+}
 
 type XwaylandSurfaceV1Handler interface {
 	SetSerial(obj *XwaylandSurfaceV1, serialLo uint32, serialHi uint32) error

@@ -167,6 +167,14 @@ const (
 	ZwlrOutputHeadV1AdaptiveSyncStateEnabled  ZwlrOutputHeadV1AdaptiveSyncState = 1
 )
 
+func (v ZwlrOutputHeadV1AdaptiveSyncState) Valid(version uint32) bool {
+	switch v {
+	case ZwlrOutputHeadV1AdaptiveSyncStateDisabled, ZwlrOutputHeadV1AdaptiveSyncStateEnabled:
+		return true
+	}
+	return false
+}
+
 type ZwlrOutputHeadV1Handler interface {
 	Name(obj *ZwlrOutputHeadV1, name string) error
 	Description(obj *ZwlrOutputHeadV1, description string) error
@@ -485,6 +493,14 @@ const (
 	ZwlrOutputConfigurationV1ErrorAlreadyUsed           ZwlrOutputConfigurationV1Error = 3
 )
 
+func (v ZwlrOutputConfigurationV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwlrOutputConfigurationV1ErrorAlreadyConfiguredHead, ZwlrOutputConfigurationV1ErrorUnconfiguredHead, ZwlrOutputConfigurationV1ErrorAlreadyUsed:
+		return true
+	}
+	return false
+}
+
 type ZwlrOutputConfigurationV1Handler interface {
 	Succeeded(obj *ZwlrOutputConfigurationV1) error
 	Failed(obj *ZwlrOutputConfigurationV1) error
@@ -653,6 +669,16 @@ const (
 	ZwlrOutputConfigurationHeadV1ErrorInvalidScale             ZwlrOutputConfigurationHeadV1Error = 5
 	ZwlrOutputConfigurationHeadV1ErrorInvalidAdaptiveSyncState ZwlrOutputConfigurationHeadV1Error = 6
 )
+
+func (v ZwlrOutputConfigurationHeadV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwlrOutputConfigurationHeadV1ErrorAlreadySet, ZwlrOutputConfigurationHeadV1ErrorInvalidMode, ZwlrOutputConfigurationHeadV1ErrorInvalidCustomMode, ZwlrOutputConfigurationHeadV1ErrorInvalidTransform, ZwlrOutputConfigurationHeadV1ErrorInvalidScale:
+		return true
+	case ZwlrOutputConfigurationHeadV1ErrorInvalidAdaptiveSyncState:
+		return version >= 4
+	}
+	return false
+}
 
 type ZwlrOutputConfigurationHeadV1 struct {
 	object wire.Object

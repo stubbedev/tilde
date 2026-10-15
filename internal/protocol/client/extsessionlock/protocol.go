@@ -113,6 +113,14 @@ const (
 	ExtSessionLockV1ErrorAlreadyConstructed ExtSessionLockV1Error = 4
 )
 
+func (v ExtSessionLockV1Error) Valid(version uint32) bool {
+	switch v {
+	case ExtSessionLockV1ErrorInvalidDestroy, ExtSessionLockV1ErrorInvalidUnlock, ExtSessionLockV1ErrorRole, ExtSessionLockV1ErrorDuplicateOutput, ExtSessionLockV1ErrorAlreadyConstructed:
+		return true
+	}
+	return false
+}
+
 type ExtSessionLockV1Handler interface {
 	Locked(obj *ExtSessionLockV1) error
 	Finished(obj *ExtSessionLockV1) error
@@ -267,6 +275,14 @@ const (
 	ExtSessionLockSurfaceV1ErrorDimensionsMismatch   ExtSessionLockSurfaceV1Error = 2
 	ExtSessionLockSurfaceV1ErrorInvalidSerial        ExtSessionLockSurfaceV1Error = 3
 )
+
+func (v ExtSessionLockSurfaceV1Error) Valid(version uint32) bool {
+	switch v {
+	case ExtSessionLockSurfaceV1ErrorCommitBeforeFirstAck, ExtSessionLockSurfaceV1ErrorNullBuffer, ExtSessionLockSurfaceV1ErrorDimensionsMismatch, ExtSessionLockSurfaceV1ErrorInvalidSerial:
+		return true
+	}
+	return false
+}
 
 type ExtSessionLockSurfaceV1Handler interface {
 	Configure(obj *ExtSessionLockSurfaceV1, serial uint32, width uint32, height uint32) error

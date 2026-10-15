@@ -141,6 +141,14 @@ const (
 	ZwlrDataControlDeviceV1ErrorUsedSource ZwlrDataControlDeviceV1Error = 1
 )
 
+func (v ZwlrDataControlDeviceV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwlrDataControlDeviceV1ErrorUsedSource:
+		return true
+	}
+	return false
+}
+
 type ZwlrDataControlDeviceV1Handler interface {
 	DataOffer(obj *ZwlrDataControlDeviceV1, id *ZwlrDataControlOfferV1) (ZwlrDataControlOfferV1Handler, error)
 	Selection(obj *ZwlrDataControlDeviceV1, id *ZwlrDataControlOfferV1) error
@@ -300,6 +308,14 @@ type ZwlrDataControlSourceV1Error uint32
 const (
 	ZwlrDataControlSourceV1ErrorInvalidOffer ZwlrDataControlSourceV1Error = 1
 )
+
+func (v ZwlrDataControlSourceV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwlrDataControlSourceV1ErrorInvalidOffer:
+		return true
+	}
+	return false
+}
 
 type ZwlrDataControlSourceV1Handler interface {
 	Send(obj *ZwlrDataControlSourceV1, mimeType string, fd int) error

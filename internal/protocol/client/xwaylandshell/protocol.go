@@ -22,6 +22,14 @@ const (
 	XwaylandShellV1ErrorRole XwaylandShellV1Error = 0
 )
 
+func (v XwaylandShellV1Error) Valid(version uint32) bool {
+	switch v {
+	case XwaylandShellV1ErrorRole:
+		return true
+	}
+	return false
+}
+
 type XwaylandShellV1 struct {
 	object wire.Object
 }
@@ -112,6 +120,14 @@ const (
 	XwaylandSurfaceV1ErrorAlreadyAssociated XwaylandSurfaceV1Error = 0
 	XwaylandSurfaceV1ErrorInvalidSerial     XwaylandSurfaceV1Error = 1
 )
+
+func (v XwaylandSurfaceV1Error) Valid(version uint32) bool {
+	switch v {
+	case XwaylandSurfaceV1ErrorAlreadyAssociated, XwaylandSurfaceV1ErrorInvalidSerial:
+		return true
+	}
+	return false
+}
 
 type XwaylandSurfaceV1 struct {
 	object wire.Object

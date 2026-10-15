@@ -22,6 +22,14 @@ const (
 	XdgWmDialogV1ErrorAlreadyUsed XdgWmDialogV1Error = 0
 )
 
+func (v XdgWmDialogV1Error) Valid(version uint32) bool {
+	switch v {
+	case XdgWmDialogV1ErrorAlreadyUsed:
+		return true
+	}
+	return false
+}
+
 type XdgWmDialogV1Handler interface {
 	Destroy(obj *XdgWmDialogV1) error
 	GetXdgDialog(obj *XdgWmDialogV1, id *XdgDialogV1, toplevel *xdgshell.XdgToplevel) (XdgDialogV1Handler, error)

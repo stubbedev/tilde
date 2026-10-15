@@ -254,6 +254,14 @@ const (
 	ZwpTabletToolV2TypeLens     ZwpTabletToolV2Type = 327
 )
 
+func (v ZwpTabletToolV2Type) Valid(version uint32) bool {
+	switch v {
+	case ZwpTabletToolV2TypePen, ZwpTabletToolV2TypeEraser, ZwpTabletToolV2TypeBrush, ZwpTabletToolV2TypePencil, ZwpTabletToolV2TypeAirbrush, ZwpTabletToolV2TypeFinger, ZwpTabletToolV2TypeMouse, ZwpTabletToolV2TypeLens:
+		return true
+	}
+	return false
+}
+
 type ZwpTabletToolV2Capability uint32
 
 const (
@@ -265,6 +273,14 @@ const (
 	ZwpTabletToolV2CapabilityWheel    ZwpTabletToolV2Capability = 6
 )
 
+func (v ZwpTabletToolV2Capability) Valid(version uint32) bool {
+	switch v {
+	case ZwpTabletToolV2CapabilityTilt, ZwpTabletToolV2CapabilityPressure, ZwpTabletToolV2CapabilityDistance, ZwpTabletToolV2CapabilityRotation, ZwpTabletToolV2CapabilitySlider, ZwpTabletToolV2CapabilityWheel:
+		return true
+	}
+	return false
+}
+
 type ZwpTabletToolV2ButtonState uint32
 
 const (
@@ -272,11 +288,27 @@ const (
 	ZwpTabletToolV2ButtonStatePressed  ZwpTabletToolV2ButtonState = 1
 )
 
+func (v ZwpTabletToolV2ButtonState) Valid(version uint32) bool {
+	switch v {
+	case ZwpTabletToolV2ButtonStateReleased, ZwpTabletToolV2ButtonStatePressed:
+		return true
+	}
+	return false
+}
+
 type ZwpTabletToolV2Error uint32
 
 const (
 	ZwpTabletToolV2ErrorRole ZwpTabletToolV2Error = 0
 )
+
+func (v ZwpTabletToolV2Error) Valid(version uint32) bool {
+	switch v {
+	case ZwpTabletToolV2ErrorRole:
+		return true
+	}
+	return false
+}
 
 type ZwpTabletToolV2Handler interface {
 	Type(obj *ZwpTabletToolV2, toolType ZwpTabletToolV2Type) error
@@ -535,6 +567,14 @@ const (
 	ZwpTabletV2BustypeI2c       ZwpTabletV2Bustype = 24
 )
 
+func (v ZwpTabletV2Bustype) Valid(version uint32) bool {
+	switch v {
+	case ZwpTabletV2BustypeUsb, ZwpTabletV2BustypeBluetooth, ZwpTabletV2BustypeVirtual, ZwpTabletV2BustypeSerial, ZwpTabletV2BustypeI2c:
+		return true
+	}
+	return false
+}
+
 type ZwpTabletV2Handler interface {
 	Name(obj *ZwpTabletV2, name string) error
 	ID(obj *ZwpTabletV2, vid uint32, pid uint32) error
@@ -669,6 +709,14 @@ const (
 	ZwpTabletPadRingV2SourceFinger ZwpTabletPadRingV2Source = 1
 )
 
+func (v ZwpTabletPadRingV2Source) Valid(version uint32) bool {
+	switch v {
+	case ZwpTabletPadRingV2SourceFinger:
+		return true
+	}
+	return false
+}
+
 type ZwpTabletPadRingV2Handler interface {
 	Source(obj *ZwpTabletPadRingV2, source ZwpTabletPadRingV2Source) error
 	Angle(obj *ZwpTabletPadRingV2, degrees wire.Fixed) error
@@ -798,6 +846,14 @@ type ZwpTabletPadStripV2Source uint32
 const (
 	ZwpTabletPadStripV2SourceFinger ZwpTabletPadStripV2Source = 1
 )
+
+func (v ZwpTabletPadStripV2Source) Valid(version uint32) bool {
+	switch v {
+	case ZwpTabletPadStripV2SourceFinger:
+		return true
+	}
+	return false
+}
 
 type ZwpTabletPadStripV2Handler interface {
 	Source(obj *ZwpTabletPadStripV2, source ZwpTabletPadStripV2Source) error
@@ -1081,6 +1137,14 @@ const (
 	ZwpTabletPadV2ButtonStateReleased ZwpTabletPadV2ButtonState = 0
 	ZwpTabletPadV2ButtonStatePressed  ZwpTabletPadV2ButtonState = 1
 )
+
+func (v ZwpTabletPadV2ButtonState) Valid(version uint32) bool {
+	switch v {
+	case ZwpTabletPadV2ButtonStateReleased, ZwpTabletPadV2ButtonStatePressed:
+		return true
+	}
+	return false
+}
 
 type ZwpTabletPadV2Handler interface {
 	Group(obj *ZwpTabletPadV2, padGroup *ZwpTabletPadGroupV2) (ZwpTabletPadGroupV2Handler, error)

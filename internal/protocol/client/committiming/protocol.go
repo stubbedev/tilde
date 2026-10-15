@@ -22,6 +22,14 @@ const (
 	WpCommitTimingManagerV1ErrorCommitTimerExists WpCommitTimingManagerV1Error = 0
 )
 
+func (v WpCommitTimingManagerV1Error) Valid(version uint32) bool {
+	switch v {
+	case WpCommitTimingManagerV1ErrorCommitTimerExists:
+		return true
+	}
+	return false
+}
+
 type WpCommitTimingManagerV1 struct {
 	object wire.Object
 }
@@ -113,6 +121,14 @@ const (
 	WpCommitTimerV1ErrorTimestampExists  WpCommitTimerV1Error = 1
 	WpCommitTimerV1ErrorSurfaceDestroyed WpCommitTimerV1Error = 2
 )
+
+func (v WpCommitTimerV1Error) Valid(version uint32) bool {
+	switch v {
+	case WpCommitTimerV1ErrorInvalidTimestamp, WpCommitTimerV1ErrorTimestampExists, WpCommitTimerV1ErrorSurfaceDestroyed:
+		return true
+	}
+	return false
+}
 
 type WpCommitTimerV1 struct {
 	object wire.Object

@@ -22,6 +22,14 @@ const (
 	ZxdgExporterV2ErrorInvalidSurface ZxdgExporterV2Error = 0
 )
 
+func (v ZxdgExporterV2Error) Valid(version uint32) bool {
+	switch v {
+	case ZxdgExporterV2ErrorInvalidSurface:
+		return true
+	}
+	return false
+}
+
 type ZxdgExporterV2 struct {
 	object wire.Object
 }
@@ -292,6 +300,14 @@ type ZxdgImportedV2Error uint32
 const (
 	ZxdgImportedV2ErrorInvalidSurface ZxdgImportedV2Error = 0
 )
+
+func (v ZxdgImportedV2Error) Valid(version uint32) bool {
+	switch v {
+	case ZxdgImportedV2ErrorInvalidSurface:
+		return true
+	}
+	return false
+}
 
 type ZxdgImportedV2Handler interface {
 	Destroyed(obj *ZxdgImportedV2) error

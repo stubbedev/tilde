@@ -22,6 +22,14 @@ const (
 	WpFractionalScaleManagerV1ErrorFractionalScaleExists WpFractionalScaleManagerV1Error = 0
 )
 
+func (v WpFractionalScaleManagerV1Error) Valid(version uint32) bool {
+	switch v {
+	case WpFractionalScaleManagerV1ErrorFractionalScaleExists:
+		return true
+	}
+	return false
+}
+
 type WpFractionalScaleManagerV1 struct {
 	object wire.Object
 }

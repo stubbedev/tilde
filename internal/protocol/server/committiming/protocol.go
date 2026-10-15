@@ -22,6 +22,14 @@ const (
 	WpCommitTimingManagerV1ErrorCommitTimerExists WpCommitTimingManagerV1Error = 0
 )
 
+func (v WpCommitTimingManagerV1Error) Valid(version uint32) bool {
+	switch v {
+	case WpCommitTimingManagerV1ErrorCommitTimerExists:
+		return true
+	}
+	return false
+}
+
 type WpCommitTimingManagerV1Handler interface {
 	Destroy(obj *WpCommitTimingManagerV1) error
 	GetTimer(obj *WpCommitTimingManagerV1, id *WpCommitTimerV1, surface *wayland.WlSurface) (WpCommitTimerV1Handler, error)
@@ -116,6 +124,14 @@ const (
 	WpCommitTimerV1ErrorTimestampExists  WpCommitTimerV1Error = 1
 	WpCommitTimerV1ErrorSurfaceDestroyed WpCommitTimerV1Error = 2
 )
+
+func (v WpCommitTimerV1Error) Valid(version uint32) bool {
+	switch v {
+	case WpCommitTimerV1ErrorInvalidTimestamp, WpCommitTimerV1ErrorTimestampExists, WpCommitTimerV1ErrorSurfaceDestroyed:
+		return true
+	}
+	return false
+}
 
 type WpCommitTimerV1Handler interface {
 	SetTimestamp(obj *WpCommitTimerV1, tvSecHi uint32, tvSecLo uint32, tvNsec uint32) error

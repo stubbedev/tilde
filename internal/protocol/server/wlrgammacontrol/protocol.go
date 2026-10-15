@@ -109,6 +109,14 @@ const (
 	ZwlrGammaControlV1ErrorInvalidGamma ZwlrGammaControlV1Error = 1
 )
 
+func (v ZwlrGammaControlV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwlrGammaControlV1ErrorInvalidGamma:
+		return true
+	}
+	return false
+}
+
 type ZwlrGammaControlV1Handler interface {
 	SetGamma(obj *ZwlrGammaControlV1, fd int) error
 	Destroy(obj *ZwlrGammaControlV1) error

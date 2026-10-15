@@ -22,6 +22,14 @@ const (
 	WpSecurityContextManagerV1ErrorNested          WpSecurityContextManagerV1Error = 2
 )
 
+func (v WpSecurityContextManagerV1Error) Valid(version uint32) bool {
+	switch v {
+	case WpSecurityContextManagerV1ErrorInvalidListenFD, WpSecurityContextManagerV1ErrorNested:
+		return true
+	}
+	return false
+}
+
 type WpSecurityContextManagerV1 struct {
 	object wire.Object
 }
@@ -111,6 +119,14 @@ const (
 	WpSecurityContextV1ErrorAlreadySet      WpSecurityContextV1Error = 2
 	WpSecurityContextV1ErrorInvalidMetadata WpSecurityContextV1Error = 3
 )
+
+func (v WpSecurityContextV1Error) Valid(version uint32) bool {
+	switch v {
+	case WpSecurityContextV1ErrorAlreadyUsed, WpSecurityContextV1ErrorAlreadySet, WpSecurityContextV1ErrorInvalidMetadata:
+		return true
+	}
+	return false
+}
 
 type WpSecurityContextV1 struct {
 	object wire.Object

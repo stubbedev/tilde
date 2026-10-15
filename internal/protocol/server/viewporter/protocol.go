@@ -22,6 +22,14 @@ const (
 	WpViewporterErrorViewportExists WpViewporterError = 0
 )
 
+func (v WpViewporterError) Valid(version uint32) bool {
+	switch v {
+	case WpViewporterErrorViewportExists:
+		return true
+	}
+	return false
+}
+
 type WpViewporterHandler interface {
 	Destroy(obj *WpViewporter) error
 	GetViewport(obj *WpViewporter, id *WpViewport, surface *wayland.WlSurface) (WpViewportHandler, error)
@@ -118,6 +126,14 @@ const (
 	WpViewportErrorOutOfBuffer WpViewportError = 2
 	WpViewportErrorNoSurface   WpViewportError = 3
 )
+
+func (v WpViewportError) Valid(version uint32) bool {
+	switch v {
+	case WpViewportErrorBadValue, WpViewportErrorBadSize, WpViewportErrorOutOfBuffer, WpViewportErrorNoSurface:
+		return true
+	}
+	return false
+}
 
 type WpViewportHandler interface {
 	Destroy(obj *WpViewport) error

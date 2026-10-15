@@ -33,6 +33,14 @@ const (
 	XdgWmBaseErrorUnresponsive        XdgWmBaseError = 6
 )
 
+func (v XdgWmBaseError) Valid(version uint32) bool {
+	switch v {
+	case XdgWmBaseErrorRole, XdgWmBaseErrorDefunctSurfaces, XdgWmBaseErrorNotTheTopmostPopup, XdgWmBaseErrorInvalidPopupParent, XdgWmBaseErrorInvalidSurfaceState, XdgWmBaseErrorInvalidPositioner, XdgWmBaseErrorUnresponsive:
+		return true
+	}
+	return false
+}
+
 type XdgWmBaseHandler interface {
 	Ping(obj *XdgWmBase, serial uint32) error
 }
@@ -190,6 +198,14 @@ const (
 	XdgPositionerErrorInvalidInput XdgPositionerError = 0
 )
 
+func (v XdgPositionerError) Valid(version uint32) bool {
+	switch v {
+	case XdgPositionerErrorInvalidInput:
+		return true
+	}
+	return false
+}
+
 type XdgPositionerAnchor uint32
 
 const (
@@ -203,6 +219,14 @@ const (
 	XdgPositionerAnchorTopRight    XdgPositionerAnchor = 7
 	XdgPositionerAnchorBottomRight XdgPositionerAnchor = 8
 )
+
+func (v XdgPositionerAnchor) Valid(version uint32) bool {
+	switch v {
+	case XdgPositionerAnchorNone, XdgPositionerAnchorTop, XdgPositionerAnchorBottom, XdgPositionerAnchorLeft, XdgPositionerAnchorRight, XdgPositionerAnchorTopLeft, XdgPositionerAnchorBottomLeft, XdgPositionerAnchorTopRight, XdgPositionerAnchorBottomRight:
+		return true
+	}
+	return false
+}
 
 type XdgPositionerGravity uint32
 
@@ -218,6 +242,14 @@ const (
 	XdgPositionerGravityBottomRight XdgPositionerGravity = 8
 )
 
+func (v XdgPositionerGravity) Valid(version uint32) bool {
+	switch v {
+	case XdgPositionerGravityNone, XdgPositionerGravityTop, XdgPositionerGravityBottom, XdgPositionerGravityLeft, XdgPositionerGravityRight, XdgPositionerGravityTopLeft, XdgPositionerGravityBottomLeft, XdgPositionerGravityTopRight, XdgPositionerGravityBottomRight:
+		return true
+	}
+	return false
+}
+
 type XdgPositionerConstraintAdjustment uint32
 
 const (
@@ -232,6 +264,11 @@ const (
 
 func (v XdgPositionerConstraintAdjustment) Has(flag XdgPositionerConstraintAdjustment) bool {
 	return v&flag == flag
+}
+
+func (v XdgPositionerConstraintAdjustment) Valid(version uint32) bool {
+	known := XdgPositionerConstraintAdjustment(0x3f)
+	return v&^known == 0
 }
 
 type XdgPositioner struct {
@@ -405,6 +442,14 @@ const (
 	XdgSurfaceErrorInvalidSize        XdgSurfaceError = 5
 	XdgSurfaceErrorDefunctRoleObject  XdgSurfaceError = 6
 )
+
+func (v XdgSurfaceError) Valid(version uint32) bool {
+	switch v {
+	case XdgSurfaceErrorNotConstructed, XdgSurfaceErrorAlreadyConstructed, XdgSurfaceErrorUnconfiguredBuffer, XdgSurfaceErrorInvalidSerial, XdgSurfaceErrorInvalidSize, XdgSurfaceErrorDefunctRoleObject:
+		return true
+	}
+	return false
+}
 
 type XdgSurfaceHandler interface {
 	Configure(obj *XdgSurface, serial uint32) error
@@ -602,6 +647,14 @@ const (
 	XdgToplevelErrorInvalidSize       XdgToplevelError = 2
 )
 
+func (v XdgToplevelError) Valid(version uint32) bool {
+	switch v {
+	case XdgToplevelErrorInvalidResizeEdge, XdgToplevelErrorInvalidParent, XdgToplevelErrorInvalidSize:
+		return true
+	}
+	return false
+}
+
 type XdgToplevelResizeEdge uint32
 
 const (
@@ -615,6 +668,14 @@ const (
 	XdgToplevelResizeEdgeTopRight    XdgToplevelResizeEdge = 9
 	XdgToplevelResizeEdgeBottomRight XdgToplevelResizeEdge = 10
 )
+
+func (v XdgToplevelResizeEdge) Valid(version uint32) bool {
+	switch v {
+	case XdgToplevelResizeEdgeNone, XdgToplevelResizeEdgeTop, XdgToplevelResizeEdgeBottom, XdgToplevelResizeEdgeLeft, XdgToplevelResizeEdgeTopLeft, XdgToplevelResizeEdgeBottomLeft, XdgToplevelResizeEdgeRight, XdgToplevelResizeEdgeTopRight, XdgToplevelResizeEdgeBottomRight:
+		return true
+	}
+	return false
+}
 
 type XdgToplevelState uint32
 
@@ -634,6 +695,20 @@ const (
 	XdgToplevelStateConstrainedBottom XdgToplevelState = 13
 )
 
+func (v XdgToplevelState) Valid(version uint32) bool {
+	switch v {
+	case XdgToplevelStateMaximized, XdgToplevelStateFullscreen, XdgToplevelStateResizing, XdgToplevelStateActivated:
+		return true
+	case XdgToplevelStateTiledLeft, XdgToplevelStateTiledRight, XdgToplevelStateTiledTop, XdgToplevelStateTiledBottom:
+		return version >= 2
+	case XdgToplevelStateSuspended:
+		return version >= 6
+	case XdgToplevelStateConstrainedLeft, XdgToplevelStateConstrainedRight, XdgToplevelStateConstrainedTop, XdgToplevelStateConstrainedBottom:
+		return version >= 7
+	}
+	return false
+}
+
 type XdgToplevelWmCapabilities uint32
 
 const (
@@ -642,6 +717,14 @@ const (
 	XdgToplevelWmCapabilitiesFullscreen XdgToplevelWmCapabilities = 3
 	XdgToplevelWmCapabilitiesMinimize   XdgToplevelWmCapabilities = 4
 )
+
+func (v XdgToplevelWmCapabilities) Valid(version uint32) bool {
+	switch v {
+	case XdgToplevelWmCapabilitiesWindowMenu, XdgToplevelWmCapabilitiesMaximize, XdgToplevelWmCapabilitiesFullscreen, XdgToplevelWmCapabilitiesMinimize:
+		return true
+	}
+	return false
+}
 
 type XdgToplevelHandler interface {
 	Configure(obj *XdgToplevel, width int32, height int32, states []byte) error
@@ -922,6 +1005,14 @@ type XdgPopupError uint32
 const (
 	XdgPopupErrorInvalidGrab XdgPopupError = 0
 )
+
+func (v XdgPopupError) Valid(version uint32) bool {
+	switch v {
+	case XdgPopupErrorInvalidGrab:
+		return true
+	}
+	return false
+}
 
 type XdgPopupHandler interface {
 	Configure(obj *XdgPopup, x int32, y int32, width int32, height int32) error

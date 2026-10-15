@@ -12,7 +12,10 @@ import (
 	"golang.org/x/sys/unix"
 
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
+	scs "github.com/stubbedev/tilde/internal/protocol/server/cursorshape"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
+	swlr "github.com/stubbedev/tilde/internal/protocol/server/wlrlayershell"
+	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
 	"github.com/stubbedev/tilde/internal/wire"
 )
 
@@ -565,5 +568,27 @@ func TestMalformedRequestsAreProtocolErrors(t *testing.T) {
 	}
 	if err := deliver(t, client, server); !errors.Is(err, wire.ErrNoHandler) {
 		t.Fatalf("handler returning no handler = %v, want ErrNoHandler", err)
+	}
+}
+
+func TestGeneratedEnumsKnowTheirValuesAndVersions(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		valid bool
+		want  bool
+	}{
+		{"a seat capability", sw.WlSeatCapability(7).Valid(1), true},
+		{"an unknown seat capability bit", sw.WlSeatCapability(8).Valid(9), false},
+		{"on-demand keyboard focus at version 3", swlr.ZwlrLayerSurfaceV1KeyboardInteractivityOnDemand.Valid(3), false},
+		{"on-demand keyboard focus at version 4", swlr.ZwlrLayerSurfaceV1KeyboardInteractivityOnDemand.Valid(4), true},
+		{"the dnd-ask cursor at version 1", scs.WpCursorShapeDeviceV1ShapeDndAsk.Valid(1), false},
+		{"the dnd-ask cursor at version 2", scs.WpCursorShapeDeviceV1ShapeDndAsk.Valid(2), true},
+		{"cursor shape 0", scs.WpCursorShapeDeviceV1Shape(0).Valid(2), false},
+		{"an anchor past bottom_right", sxdg.XdgPositionerAnchor(9).Valid(7), false},
+		{"every constraint adjustment", sxdg.XdgPositionerConstraintAdjustment(0x3f).Valid(1), true},
+	} {
+		if tc.valid != tc.want {
+			t.Errorf("%s: Valid = %t, want %t", tc.name, tc.valid, tc.want)
+		}
 	}
 }

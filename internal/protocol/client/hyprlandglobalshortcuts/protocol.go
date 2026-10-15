@@ -21,6 +21,14 @@ const (
 	HyprlandGlobalShortcutsManagerV1ErrorAlreadyTaken HyprlandGlobalShortcutsManagerV1Error = 0
 )
 
+func (v HyprlandGlobalShortcutsManagerV1Error) Valid(version uint32) bool {
+	switch v {
+	case HyprlandGlobalShortcutsManagerV1ErrorAlreadyTaken:
+		return true
+	}
+	return false
+}
+
 type HyprlandGlobalShortcutsManagerV1 struct {
 	object wire.Object
 }

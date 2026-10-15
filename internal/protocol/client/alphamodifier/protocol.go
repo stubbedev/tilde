@@ -22,6 +22,14 @@ const (
 	WpAlphaModifierV1ErrorAlreadyConstructed WpAlphaModifierV1Error = 0
 )
 
+func (v WpAlphaModifierV1Error) Valid(version uint32) bool {
+	switch v {
+	case WpAlphaModifierV1ErrorAlreadyConstructed:
+		return true
+	}
+	return false
+}
+
 type WpAlphaModifierV1 struct {
 	object wire.Object
 }
@@ -111,6 +119,14 @@ type WpAlphaModifierSurfaceV1Error uint32
 const (
 	WpAlphaModifierSurfaceV1ErrorNoSurface WpAlphaModifierSurfaceV1Error = 0
 )
+
+func (v WpAlphaModifierSurfaceV1Error) Valid(version uint32) bool {
+	switch v {
+	case WpAlphaModifierSurfaceV1ErrorNoSurface:
+		return true
+	}
+	return false
+}
 
 type WpAlphaModifierSurfaceV1 struct {
 	object wire.Object

@@ -24,6 +24,14 @@ const (
 	ExtImageCopyCaptureManagerV1ErrorInvalidOption ExtImageCopyCaptureManagerV1Error = 1
 )
 
+func (v ExtImageCopyCaptureManagerV1Error) Valid(version uint32) bool {
+	switch v {
+	case ExtImageCopyCaptureManagerV1ErrorInvalidOption:
+		return true
+	}
+	return false
+}
+
 type ExtImageCopyCaptureManagerV1Options uint32
 
 const (
@@ -32,6 +40,11 @@ const (
 
 func (v ExtImageCopyCaptureManagerV1Options) Has(flag ExtImageCopyCaptureManagerV1Options) bool {
 	return v&flag == flag
+}
+
+func (v ExtImageCopyCaptureManagerV1Options) Valid(version uint32) bool {
+	known := ExtImageCopyCaptureManagerV1Options(0x1)
+	return v&^known == 0
 }
 
 type ExtImageCopyCaptureManagerV1 struct {
@@ -173,6 +186,14 @@ type ExtImageCopyCaptureSessionV1Error uint32
 const (
 	ExtImageCopyCaptureSessionV1ErrorDuplicateFrame ExtImageCopyCaptureSessionV1Error = 1
 )
+
+func (v ExtImageCopyCaptureSessionV1Error) Valid(version uint32) bool {
+	switch v {
+	case ExtImageCopyCaptureSessionV1ErrorDuplicateFrame:
+		return true
+	}
+	return false
+}
 
 type ExtImageCopyCaptureSessionV1Handler interface {
 	BufferSize(obj *ExtImageCopyCaptureSessionV1, width uint32, height uint32) error
@@ -336,6 +357,14 @@ const (
 	ExtImageCopyCaptureFrameV1ErrorAlreadyCaptured     ExtImageCopyCaptureFrameV1Error = 3
 )
 
+func (v ExtImageCopyCaptureFrameV1Error) Valid(version uint32) bool {
+	switch v {
+	case ExtImageCopyCaptureFrameV1ErrorNoBuffer, ExtImageCopyCaptureFrameV1ErrorInvalidBufferDamage, ExtImageCopyCaptureFrameV1ErrorAlreadyCaptured:
+		return true
+	}
+	return false
+}
+
 type ExtImageCopyCaptureFrameV1FailureReason uint32
 
 const (
@@ -343,6 +372,14 @@ const (
 	ExtImageCopyCaptureFrameV1FailureReasonBufferConstraints ExtImageCopyCaptureFrameV1FailureReason = 1
 	ExtImageCopyCaptureFrameV1FailureReasonStopped           ExtImageCopyCaptureFrameV1FailureReason = 2
 )
+
+func (v ExtImageCopyCaptureFrameV1FailureReason) Valid(version uint32) bool {
+	switch v {
+	case ExtImageCopyCaptureFrameV1FailureReasonUnknown, ExtImageCopyCaptureFrameV1FailureReasonBufferConstraints, ExtImageCopyCaptureFrameV1FailureReasonStopped:
+		return true
+	}
+	return false
+}
 
 type ExtImageCopyCaptureFrameV1Handler interface {
 	Transform(obj *ExtImageCopyCaptureFrameV1, transform wayland.WlOutputTransform) error
@@ -510,6 +547,14 @@ type ExtImageCopyCaptureCursorSessionV1Error uint32
 const (
 	ExtImageCopyCaptureCursorSessionV1ErrorDuplicateSession ExtImageCopyCaptureCursorSessionV1Error = 1
 )
+
+func (v ExtImageCopyCaptureCursorSessionV1Error) Valid(version uint32) bool {
+	switch v {
+	case ExtImageCopyCaptureCursorSessionV1ErrorDuplicateSession:
+		return true
+	}
+	return false
+}
 
 type ExtImageCopyCaptureCursorSessionV1Handler interface {
 	Enter(obj *ExtImageCopyCaptureCursorSessionV1) error

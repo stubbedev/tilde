@@ -25,6 +25,14 @@ const (
 	ZwlrLayerShellV1ErrorAlreadyConstructed ZwlrLayerShellV1Error = 2
 )
 
+func (v ZwlrLayerShellV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwlrLayerShellV1ErrorRole, ZwlrLayerShellV1ErrorInvalidLayer, ZwlrLayerShellV1ErrorAlreadyConstructed:
+		return true
+	}
+	return false
+}
+
 type ZwlrLayerShellV1Layer uint32
 
 const (
@@ -33,6 +41,14 @@ const (
 	ZwlrLayerShellV1LayerTop        ZwlrLayerShellV1Layer = 2
 	ZwlrLayerShellV1LayerOverlay    ZwlrLayerShellV1Layer = 3
 )
+
+func (v ZwlrLayerShellV1Layer) Valid(version uint32) bool {
+	switch v {
+	case ZwlrLayerShellV1LayerBackground, ZwlrLayerShellV1LayerBottom, ZwlrLayerShellV1LayerTop, ZwlrLayerShellV1LayerOverlay:
+		return true
+	}
+	return false
+}
 
 type ZwlrLayerShellV1Handler interface {
 	GetLayerSurface(obj *ZwlrLayerShellV1, id *ZwlrLayerSurfaceV1, surface *wayland.WlSurface, output *wayland.WlOutput, layer ZwlrLayerShellV1Layer, namespace string) (ZwlrLayerSurfaceV1Handler, error)
@@ -144,6 +160,16 @@ const (
 	ZwlrLayerSurfaceV1KeyboardInteractivityOnDemand  ZwlrLayerSurfaceV1KeyboardInteractivity = 2
 )
 
+func (v ZwlrLayerSurfaceV1KeyboardInteractivity) Valid(version uint32) bool {
+	switch v {
+	case ZwlrLayerSurfaceV1KeyboardInteractivityNone, ZwlrLayerSurfaceV1KeyboardInteractivityExclusive:
+		return true
+	case ZwlrLayerSurfaceV1KeyboardInteractivityOnDemand:
+		return version >= 4
+	}
+	return false
+}
+
 type ZwlrLayerSurfaceV1Error uint32
 
 const (
@@ -153,6 +179,14 @@ const (
 	ZwlrLayerSurfaceV1ErrorInvalidKeyboardInteractivity ZwlrLayerSurfaceV1Error = 3
 	ZwlrLayerSurfaceV1ErrorInvalidExclusiveEdge         ZwlrLayerSurfaceV1Error = 4
 )
+
+func (v ZwlrLayerSurfaceV1Error) Valid(version uint32) bool {
+	switch v {
+	case ZwlrLayerSurfaceV1ErrorInvalidSurfaceState, ZwlrLayerSurfaceV1ErrorInvalidSize, ZwlrLayerSurfaceV1ErrorInvalidAnchor, ZwlrLayerSurfaceV1ErrorInvalidKeyboardInteractivity, ZwlrLayerSurfaceV1ErrorInvalidExclusiveEdge:
+		return true
+	}
+	return false
+}
 
 type ZwlrLayerSurfaceV1Anchor uint32
 
@@ -165,6 +199,11 @@ const (
 
 func (v ZwlrLayerSurfaceV1Anchor) Has(flag ZwlrLayerSurfaceV1Anchor) bool {
 	return v&flag == flag
+}
+
+func (v ZwlrLayerSurfaceV1Anchor) Valid(version uint32) bool {
+	known := ZwlrLayerSurfaceV1Anchor(0xf)
+	return v&^known == 0
 }
 
 type ZwlrLayerSurfaceV1Handler interface {

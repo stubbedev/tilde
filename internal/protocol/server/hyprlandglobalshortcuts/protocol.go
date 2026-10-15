@@ -21,6 +21,14 @@ const (
 	HyprlandGlobalShortcutsManagerV1ErrorAlreadyTaken HyprlandGlobalShortcutsManagerV1Error = 0
 )
 
+func (v HyprlandGlobalShortcutsManagerV1Error) Valid(version uint32) bool {
+	switch v {
+	case HyprlandGlobalShortcutsManagerV1ErrorAlreadyTaken:
+		return true
+	}
+	return false
+}
+
 type HyprlandGlobalShortcutsManagerV1Handler interface {
 	RegisterShortcut(obj *HyprlandGlobalShortcutsManagerV1, shortcut *HyprlandGlobalShortcutV1, id string, appID string, description string, triggerDescription string) (HyprlandGlobalShortcutV1Handler, error)
 	Destroy(obj *HyprlandGlobalShortcutsManagerV1) error
