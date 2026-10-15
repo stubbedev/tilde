@@ -13,9 +13,22 @@ import (
 )
 
 type VirtualKeyboard struct {
-	fd   int
-	size uint32
-	mods [4]uint32
+	fd      int
+	size    uint32
+	mods    [4]uint32
+	version uint64
+}
+
+type sentKeymap struct {
+	v       *VirtualKeyboard
+	version uint64
+}
+
+func (v *VirtualKeyboard) sent() sentKeymap {
+	if v == nil {
+		return sentKeymap{}
+	}
+	return sentKeymap{v: v, version: v.version}
 }
 
 func NewVirtualKeyboard() *VirtualKeyboard {
@@ -29,6 +42,7 @@ func (v *VirtualKeyboard) HasKeymap() bool {
 func (v *VirtualKeyboard) SetKeymap(fd int, size uint32) error {
 	err := v.Close()
 	v.fd, v.size = fd, size
+	v.version++
 	return err
 }
 
@@ -45,10 +59,10 @@ func (v *VirtualKeyboard) Close() error {
 }
 
 func (s *Seat) useKeymap(c *server.Client, kb *sw.WlKeyboard, v *VirtualKeyboard) error {
-	if s.keymaps[kb] == v {
+	if s.keymaps[kb] == v.sent() {
 		return nil
 	}
-	s.keymaps[kb] = v
+	s.keymaps[kb] = v.sent()
 	if v == nil {
 		return errors.Join(c.Sent(kb.SendKeymap(sw.WlKeyboardKeymapFormatXkbV1, s.cfg.Keymap.FD(), s.cfg.Keymap.Size())), s.sendModifiers(c, kb))
 	}
@@ -92,7 +106,7 @@ func (s *Seat) VirtualModifiers(v *VirtualKeyboard, depressed, latched, locked, 
 	c, kbs := s.focusedKeyboards()
 	var errs []error
 	for _, kb := range kbs {
-		if s.keymaps[kb] == v {
+		if s.keymaps[kb].v == v {
 			errs = append(errs, v.sendModifiers(s, c, kb))
 		}
 	}

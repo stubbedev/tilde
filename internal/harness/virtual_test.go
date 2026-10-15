@@ -3,6 +3,7 @@ package harness
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -17,16 +18,17 @@ import (
 
 const typedKeymap = "xkb_keymap { xkb_keycodes \"typed\" {}; };\x00"
 
-func keymapFD(t *testing.T) (int, uint32) {
+func keymapFD(t *testing.T, padding int) (int, uint32) {
 	t.Helper()
 	fd, err := unix.MemfdCreate("keymap", unix.MFD_CLOEXEC)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := unix.Write(fd, []byte(typedKeymap)); err != nil {
+	keymap := typedKeymap + strings.Repeat("\n", padding)
+	if _, err := unix.Write(fd, []byte(keymap)); err != nil {
 		t.Fatal(err)
 	}
-	return fd, uint32(len(typedKeymap))
+	return fd, uint32(len(keymap))
 }
 
 func TestVirtualKeyboardsTypeWithTheirOwnKeymap(t *testing.T) {
@@ -44,7 +46,7 @@ func TestVirtualKeyboardsTypeWithTheirOwnKeymap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fd, size := keymapFD(t)
+	fd, size := keymapFD(t, 0)
 	if err := errors.Join(kb.Keymap(uint32(cw.WlKeyboardKeymapFormatXkbV1), fd, size), unix.Close(fd),
 		kb.Key(1, 30, uint32(cw.WlKeyboardKeyStatePressed)), kb.Key(2, 30, uint32(cw.WlKeyboardKeyStateReleased)), typist.Display.Flush()); err != nil {
 		t.Fatal(err)
@@ -52,6 +54,15 @@ func TestVirtualKeyboardsTypeWithTheirOwnKeymap(t *testing.T) {
 	r.expect("key 30 1", "key 30 0")
 	if r.in.KeymapSize != size {
 		t.Fatalf("typed with a %d-byte keymap, want the virtual keyboard's %d", r.in.KeymapSize, size)
+	}
+	fd, size = keymapFD(t, 7)
+	if err := errors.Join(kb.Keymap(uint32(cw.WlKeyboardKeymapFormatXkbV1), fd, size), unix.Close(fd),
+		kb.Key(3, 30, uint32(cw.WlKeyboardKeyStatePressed)), kb.Key(4, 30, uint32(cw.WlKeyboardKeyStateReleased)), typist.Display.Flush()); err != nil {
+		t.Fatal(err)
+	}
+	r.expect("key 30 1", "key 30 0")
+	if r.in.KeymapSize != size {
+		t.Fatalf("after a second keymap, typed with a %d-byte keymap, want the new %d", r.in.KeymapSize, size)
 	}
 	r.inject(func(b *headless.Backend, _ *headless.Output) error {
 		return errors.Join(b.Keyboard().Key(31, true), b.Keyboard().Key(31, false))
