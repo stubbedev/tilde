@@ -28,10 +28,20 @@ const (
 	imageCaptureVersion  = 1
 )
 
-type captureSource struct {
-	output *output.Output
-	window *window
+type captureSource interface {
+	area(c *Compositor) (*output.Output, image.Rectangle, bool)
+	paint(c *Compositor, o *output.Output, area image.Rectangle, cursor bool) (render.Color, func(render.Pass) error)
 }
+
+type outputSource struct{ output *output.Output }
+
+type windowSource struct{ window *window }
+
+type cursorSource struct{ session *cursorSession }
+
+type goneSource struct{}
+
+type sourceHandle struct{ source captureSource }
 
 func (c *Compositor) addImageCapture(d *server.Display) error {
 	if _, err := d.AddGlobal(seis.ExtOutputImageCaptureSourceManagerV1Interface, captureSourceVersion, func(cl *server.Client, id wire.ObjectID, version uint32) error {
@@ -102,7 +112,7 @@ type outputSources struct{ c *Compositor }
 func (outputSources) Destroy(*seis.ExtOutputImageCaptureSourceManagerV1) error { return nil }
 
 func (m outputSources) CreateSource(_ *seis.ExtOutputImageCaptureSourceManagerV1, _ *seis.ExtImageCaptureSourceV1, wl *sw.WlOutput) (seis.ExtImageCaptureSourceV1Handler, error) {
-	return &captureSource{output: m.c.layout.Owner(wl)}, nil
+	return &sourceHandle{outputSource{m.c.layout.Owner(wl)}}, nil
 }
 
 type toplevelSources struct{ c *Compositor }
@@ -115,15 +125,23 @@ func (m toplevelSources) CreateSource(_ *seis.ExtForeignToplevelImageCaptureSour
 	for _, l := range m.c.extLists {
 		for w, h := range l.handles {
 			if h.resource == handle {
-				return &captureSource{window: w}, nil
+				return &sourceHandle{windowSource{w}}, nil
 			}
 		}
 	}
-	return &captureSource{}, nil
+	return &sourceHandle{goneSource{}}, nil
 }
 
-func (*captureSource) Destroy(*seis.ExtImageCaptureSourceV1) error {
+func (*sourceHandle) Destroy(*seis.ExtImageCaptureSourceV1) error {
 	return nil
+}
+
+func sourceOf(source *seis.ExtImageCaptureSourceV1) (captureSource, error) {
+	h, ok := source.Handler().(*sourceHandle)
+	if !ok {
+		return nil, fmt.Errorf("compositor: capture source@%d has handler %T", source.Base().ID(), source.Handler())
+	}
+	return h.source, nil
 }
 
 type imageCaptures struct {
@@ -138,11 +156,11 @@ func (m imageCaptures) CreateSession(obj *seic.ExtImageCopyCaptureManagerV1, res
 	if options&^seic.ExtImageCopyCaptureManagerV1OptionsPaintCursors != 0 {
 		return nil, obj.ProtocolError(seic.ExtImageCopyCaptureManagerV1ErrorInvalidOption, fmt.Sprintf("options %#x", options))
 	}
-	src, ok := source.Handler().(*captureSource)
-	if !ok {
-		return nil, fmt.Errorf("compositor: capture source@%d has handler %T", source.Base().ID(), source.Handler())
+	src, err := sourceOf(source)
+	if err != nil {
+		return nil, err
 	}
-	return m.c.openCaptureSession(&captureSession{c: m.c, cl: m.cl, res: res, offer: m.offer, source: *src, cursor: options&seic.ExtImageCopyCaptureManagerV1OptionsPaintCursors != 0})
+	return m.c.openCaptureSession(&captureSession{c: m.c, cl: m.cl, res: res, offer: m.offer, source: src, cursor: options&seic.ExtImageCopyCaptureManagerV1OptionsPaintCursors != 0})
 }
 
 func (c *Compositor) openCaptureSession(s *captureSession) (*captureSession, error) {
@@ -155,11 +173,11 @@ func (c *Compositor) openCaptureSession(s *captureSession) (*captureSession, err
 }
 
 func (m imageCaptures) CreatePointerCursorSession(_ *seic.ExtImageCopyCaptureManagerV1, res *seic.ExtImageCopyCaptureCursorSessionV1, source *seis.ExtImageCaptureSourceV1, _ *sw.WlPointer) (seic.ExtImageCopyCaptureCursorSessionV1Handler, error) {
-	src, ok := source.Handler().(*captureSource)
-	if !ok {
-		return nil, fmt.Errorf("compositor: capture source@%d has handler %T", source.Base().ID(), source.Handler())
+	src, err := sourceOf(source)
+	if err != nil {
+		return nil, err
 	}
-	k := &cursorSession{c: m.c, cl: m.cl, res: res, offer: m.offer, source: *src}
+	k := &cursorSession{c: m.c, cl: m.cl, res: res, offer: m.offer, source: src}
 	m.c.cursorSessions = append(m.c.cursorSessions, k)
 	m.cl.OnDestroy(res, func() error {
 		m.c.cursorSessions = slices.DeleteFunc(m.c.cursorSessions, func(x *cursorSession) bool { return x == k })
@@ -188,7 +206,7 @@ func (k *cursorSession) GetCaptureSession(obj *seic.ExtImageCopyCaptureCursorSes
 	if k.capture != nil {
 		return nil, obj.ProtocolError(seic.ExtImageCopyCaptureCursorSessionV1ErrorDuplicateSession, "the cursor session already has a capture session")
 	}
-	s, err := k.c.openCaptureSession(&captureSession{c: k.c, cl: k.cl, res: res, offer: k.offer, source: k.source, pointer: k})
+	s, err := k.c.openCaptureSession(&captureSession{c: k.c, cl: k.cl, res: res, offer: k.offer, source: cursorSource{k}})
 	k.capture = s
 	return s, err
 }
@@ -249,7 +267,6 @@ type captureSession struct {
 	offer    *dmabufOffer
 	source   captureSource
 	cursor   bool
-	pointer  *cursorSession
 	size     image.Point
 	frame    *captureFrame
 	damage   region.Set
@@ -258,30 +275,51 @@ type captureSession struct {
 	stopped  bool
 }
 
-func (src captureSource) area(c *Compositor) (*output.Output, image.Rectangle, bool) {
-	switch {
-	case src.output != nil:
-		o := src.output
-		if !c.outputLive(o) {
-			return nil, image.Rectangle{}, false
-		}
-		return o, c.captureRegion(o, image.Rectangle{}), true
-	case src.window != nil:
-		w := src.window
-		if !slices.Contains(c.windows, w) || w.output == nil {
-			return nil, image.Rectangle{}, false
-		}
-		return w.output, c.windowRegion(w), true
+func (src outputSource) area(c *Compositor) (*output.Output, image.Rectangle, bool) {
+	if !c.outputLive(src.output) {
+		return nil, image.Rectangle{}, false
 	}
+	return src.output, c.captureRegion(src.output, image.Rectangle{}), true
+}
+
+func (src outputSource) paint(c *Compositor, o *output.Output, area image.Rectangle, cursor bool) (render.Color, func(render.Pass) error) {
+	return opaque, c.outputDraw(o, area, cursor)
+}
+
+func (src windowSource) area(c *Compositor) (*output.Output, image.Rectangle, bool) {
+	w := src.window
+	if !slices.Contains(c.windows, w) || w.output == nil {
+		return nil, image.Rectangle{}, false
+	}
+	return w.output, c.windowRegion(w), true
+}
+
+func (src windowSource) paint(c *Compositor, _ *output.Output, _ image.Rectangle, cursor bool) (render.Color, func(render.Pass) error) {
+	return opaque, c.windowDraw(src.window, cursor)
+}
+
+func (src cursorSource) area(c *Compositor) (*output.Output, image.Rectangle, bool) {
+	o, _, ok := src.session.source.area(c)
+	if !ok {
+		return nil, image.Rectangle{}, false
+	}
+	return o, src.session.box, true
+}
+
+func (cursorSource) paint(c *Compositor, o *output.Output, _ image.Rectangle, _ bool) (render.Color, func(render.Pass) error) {
+	return render.Color{}, c.pointerDraw(o)
+}
+
+func (goneSource) area(*Compositor) (*output.Output, image.Rectangle, bool) {
 	return nil, image.Rectangle{}, false
 }
 
+func (goneSource) paint(*Compositor, *output.Output, image.Rectangle, bool) (render.Color, func(render.Pass) error) {
+	return render.Color{}, func(render.Pass) error { return nil }
+}
+
 func (s *captureSession) target() (*output.Output, image.Rectangle, bool) {
-	o, area, ok := s.source.area(s.c)
-	if !ok || s.pointer == nil {
-		return o, area, ok
-	}
-	return o, s.pointer.box, true
+	return s.source.area(s.c)
 }
 
 func (s *captureSession) sync() error {
@@ -295,7 +333,7 @@ func (s *captureSession) sync() error {
 	if !ok {
 		s.stopped = true
 		var err error
-		if f := s.frame; f != nil && f.capturing {
+		if f := s.frame; f != nil && f.state == frameCapturing {
 			err = f.fail(seic.ExtImageCopyCaptureFrameV1FailureReasonStopped)
 		}
 		return errors.Join(err, s.cl.Sent(s.res.SendStopped()))
@@ -309,7 +347,8 @@ func (s *captureSession) sync() error {
 }
 
 func (s *captureSession) noteDamage(o *output.Output, frame *region.Set) {
-	if s.stopped || s.pointer != nil || s.source.output != o {
+	src, ok := s.source.(outputSource)
+	if s.stopped || !ok || src.output != o {
 		return
 	}
 	if _, area, ok := s.target(); ok {
@@ -320,8 +359,8 @@ func (s *captureSession) noteDamage(o *output.Output, frame *region.Set) {
 func (c *Compositor) noteCommit(sf *surface.Surface) error {
 	var errs []error
 	for _, s := range c.captureSessions {
-		w := s.source.window
-		if w == nil || s.stopped || s.pointer != nil || !c.inWindow(w, sf) {
+		src, ok := s.source.(windowSource)
+		if !ok || s.stopped || !c.inWindow(src.window, sf) {
 			continue
 		}
 		o, area, ok := s.target()
@@ -358,7 +397,7 @@ func (c *Compositor) noteCursor(o *output.Output, repaint bool) error {
 			}
 		}
 		s.cursorAt = box
-		if s.source.window != nil || !repaint {
+		if _, window := s.source.(windowSource); window || !repaint {
 			errs = append(errs, c.wakeCaptures(o))
 		}
 	}
@@ -387,10 +426,7 @@ func (s *captureSession) CreateFrame(obj *seic.ExtImageCopyCaptureSessionV1, res
 	f := &captureFrame{s: s, res: res}
 	s.frame = f
 	s.cl.OnDestroy(res, func() error {
-		f.dead = true
-		if f.pending != nil {
-			s.c.cancelCapture(f.pending)
-		}
+		f.end(s.c)
 		if s.frame == f {
 			s.frame = nil
 		}
@@ -404,13 +440,10 @@ func (*captureSession) Destroy(*seic.ExtImageCopyCaptureSessionV1) error {
 }
 
 type captureFrame struct {
-	s         *captureSession
-	res       *seic.ExtImageCopyCaptureFrameV1
-	buffer    *sw.WlBuffer
-	pending   *capture
-	capturing bool
-	done      bool
-	dead      bool
+	s      *captureSession
+	res    *seic.ExtImageCopyCaptureFrameV1
+	buffer *sw.WlBuffer
+	frameLife
 }
 
 func (f *captureFrame) AttachBuffer(_ *seic.ExtImageCopyCaptureFrameV1, b *sw.WlBuffer) error {
@@ -426,8 +459,7 @@ func (f *captureFrame) DamageBuffer(obj *seic.ExtImageCopyCaptureFrameV1, x, y, 
 }
 
 func (f *captureFrame) fail(reason seic.ExtImageCopyCaptureFrameV1FailureReason) error {
-	f.capturing, f.done = false, true
-	if f.dead {
+	if !f.finish() {
 		return nil
 	}
 	return f.s.cl.Sent(f.res.SendFailed(reason))
@@ -436,7 +468,7 @@ func (f *captureFrame) fail(reason seic.ExtImageCopyCaptureFrameV1FailureReason)
 func (f *captureFrame) Capture(obj *seic.ExtImageCopyCaptureFrameV1) error {
 	s := f.s
 	switch {
-	case f.capturing || f.done:
+	case f.state != frameIdle:
 		return obj.ProtocolError(seic.ExtImageCopyCaptureFrameV1ErrorAlreadyCaptured, "the frame was already captured")
 	case f.buffer == nil:
 		return obj.ProtocolError(seic.ExtImageCopyCaptureFrameV1ErrorNoBuffer, "capture without a buffer")
@@ -447,22 +479,14 @@ func (f *captureFrame) Capture(obj *seic.ExtImageCopyCaptureFrameV1) error {
 	if !ok {
 		return f.fail(seic.ExtImageCopyCaptureFrameV1FailureReasonStopped)
 	}
-	size := area.Size()
-	if s.pointer != nil {
-		size = s.size
-	}
+	size := s.size
 	target, err := f.target(size)
 	if err != nil {
 		return f.fail(seic.ExtImageCopyCaptureFrameV1FailureReasonBufferConstraints)
 	}
-	k := &capture{output: o, size: size, clear: opaque, draw: s.c.outputDraw(o, area, s.cursor), target: target}
-	switch {
-	case s.pointer != nil:
-		k.clear, k.draw = render.Color{}, s.c.pointerDraw(o)
-	case s.source.window != nil:
-		k.draw = s.c.windowDraw(s.source.window, s.cursor)
-	}
-	f.capturing, f.pending = true, k
+	clear, draw := s.source.paint(s.c, o, area, s.cursor)
+	k := &capture{output: o, size: size, clear: clear, draw: draw, target: target}
+	f.start(k)
 	k.waits = func(*region.Set) bool {
 		_, area, _ := s.target()
 		return area.Empty() || (s.captured && s.damage.Empty())
@@ -475,7 +499,6 @@ func (f *captureFrame) Capture(obj *seic.ExtImageCopyCaptureFrameV1) error {
 			s.c.report(fmt.Errorf("compositor: image capture: %w", err))
 			return f.fail(seic.ExtImageCopyCaptureFrameV1FailureReasonUnknown)
 		}
-		f.capturing, f.done = false, true
 		err = f.ready(at, size)
 		s.captured = true
 		s.damage.Reset()
@@ -489,7 +512,7 @@ func (f *captureFrame) Capture(obj *seic.ExtImageCopyCaptureFrameV1) error {
 }
 
 func (f *captureFrame) ready(at time.Duration, size image.Point) error {
-	if f.dead {
+	if !f.finish() {
 		return nil
 	}
 	damage := []image.Rectangle{{Max: size}}

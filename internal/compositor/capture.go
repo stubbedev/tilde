@@ -82,6 +82,41 @@ type capture struct {
 	done   func(at time.Duration, err error) error
 }
 
+type frameState uint8
+
+const (
+	frameIdle frameState = iota
+	frameCapturing
+	frameDone
+	frameGone
+)
+
+type frameLife struct {
+	state   frameState
+	pending *capture
+}
+
+func (l *frameLife) start(k *capture) {
+	l.state, l.pending = frameCapturing, k
+}
+
+func (l *frameLife) finish() (alive bool) {
+	l.pending = nil
+	if l.state == frameGone {
+		return false
+	}
+	l.state = frameDone
+	return true
+}
+
+func (l *frameLife) end(c *Compositor) {
+	l.state = frameGone
+	if l.pending != nil {
+		c.cancelCapture(l.pending)
+		l.pending = nil
+	}
+}
+
 func (c *Compositor) queueCapture(k *capture, waitForDamage bool) error {
 	if !c.outputLive(k.output) {
 		return k.done(0, errOutputGone(k.output))

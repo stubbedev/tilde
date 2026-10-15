@@ -422,3 +422,66 @@ func TestADestroyedWaitingFrameLeavesTheDamageToTheNext(t *testing.T) {
 		t.Fatalf("a destroyed frame was completed (%+v) or painted", *gone)
 	}
 }
+
+func TestAnImageCopyFrameCapturesOnce(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		wait bool
+	}{{"while it waits", true}, {"once it is ready", false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := Start(t, small)
+			c := testclient.Connect(t, h.Socket())
+			w := c.Window("captured", quadrants)
+			c.DispatchUntil("the window to map", w.Mapped)
+			quiesce(t, h, c, w)
+			r := newCaptureRig(t, h, c)
+			session, view := r.outputSession(0)
+			var frame *ceic.ExtImageCopyCaptureFrameV1
+			if tc.wait {
+				r.first(session, view.size)
+				f, fr, _ := grab(t, c, session, view.size)
+				settle(t, h)
+				if err := c.Display.Roundtrip(); err != nil || f.ready {
+					t.Fatalf("a frame was ready without damage (%v)", err)
+				}
+				frame = fr
+			} else {
+				f, fr, _ := grab(t, c, session, view.size)
+				c.DispatchUntil("the frame", func() bool { return f.ready || f.failed })
+				frame = fr
+			}
+			if err := frame.Capture(); err != nil {
+				t.Fatal(err)
+			}
+			c.ExpectProtocolError(uint32(ceic.ExtImageCopyCaptureFrameV1ErrorAlreadyCaptured))
+		})
+	}
+}
+
+func TestACaptureOfAClosedToplevelStops(t *testing.T) {
+	h := Start(t, small)
+	c := testclient.Connect(t, h.Socket())
+	w := c.Window("closing", quadrants)
+	c.DispatchUntil("the window to map", w.Mapped)
+	r := newCaptureRig(t, h, c)
+	c.DispatchUntil("the window listed", func() bool { return len(r.list.order) == 1 })
+	handle := r.list.order[0]
+	if err := errors.Join(w.Destroy(), c.Display.Roundtrip()); err != nil {
+		t.Fatal(err)
+	}
+	src, err := r.toplevels.CreateSource(handle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	view := &captureView{}
+	session, err := r.mgr.CreateSession(view, src, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.DispatchUntil("the session stopped", func() bool { return view.stopped })
+	f, _, _ := grab(t, c, session, image.Pt(160, 100))
+	c.DispatchUntil("the frame to fail", func() bool { return f.failed || f.ready })
+	if f.ready || f.reason != ceic.ExtImageCopyCaptureFrameV1FailureReasonStopped {
+		t.Fatalf("a frame of a closed toplevel: %+v", *f)
+	}
+}

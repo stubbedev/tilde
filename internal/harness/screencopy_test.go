@@ -175,3 +175,20 @@ func TestAScreencopyOfARemovedOutputFails(t *testing.T) {
 		t.Fatal("a capture of a removed output was ready")
 	}
 }
+
+func TestAScreencopyFrameCopiesOnce(t *testing.T) {
+	h := Start(t, small)
+	c := testclient.Connect(t, h.Socket())
+	mgr, err := cwsc.NewZwlrScreencopyManagerV1(c.Display, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Bind("zwlr_screencopy_manager_v1", mgr)
+	f, frame, _ := screenshot(t, c, mgr, image.Rectangle{}, false)
+	c.DispatchUntil("the capture", func() bool { return f.ready || f.failed })
+	wl, _ := c.Target(f.size)
+	if err := frame.Copy(wl); err != nil {
+		t.Fatal(err)
+	}
+	c.ExpectProtocolError(uint32(cwsc.ZwlrScreencopyFrameV1ErrorAlreadyUsed))
+}
