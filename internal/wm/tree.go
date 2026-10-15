@@ -24,16 +24,22 @@ func (l Layout) split() bool {
 	return l == SplitH || l == SplitV
 }
 
+var layoutNames = []string{SplitH: "h", SplitV: "v", Tabbed: "tab"}
+
 func (l Layout) String() string {
-	switch l {
-	case SplitH:
-		return "h"
-	case SplitV:
-		return "v"
-	case Tabbed:
-		return "tab"
+	return enumName(layoutNames, l, "Layout")
+}
+
+func enumName[E ~uint8](names []string, e E, kind string) string {
+	if int(e) < len(names) && names[e] != "" {
+		return names[e]
 	}
-	return fmt.Sprintf("Layout(%d)", uint8(l))
+	return fmt.Sprintf("%s(%d)", kind, uint8(e))
+}
+
+func parseEnum[E ~uint8](names []string, s string) (E, bool) {
+	i := slices.Index(names, s)
+	return E(i), i > 0
 }
 
 type CollapsePolicy uint8

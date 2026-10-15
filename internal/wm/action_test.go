@@ -157,3 +157,27 @@ func TestActionReferenceIsCurrent(t *testing.T) {
 		t.Fatalf("%s is stale; run go test ./internal/wm -update", path)
 	}
 }
+
+func TestEnumArgumentsParseByName(t *testing.T) {
+	for _, tc := range []struct {
+		in   string
+		want Action
+	}{
+		{"focus l", FocusAction{Dir: Left}},
+		{"focus r", FocusAction{Dir: Right}},
+		{"move u", MoveAction{Dir: Up}},
+		{"move d", MoveAction{Dir: Down}},
+	} {
+		if got, err := ParseAction(tc.in); err != nil || got != tc.want {
+			t.Errorf("%q parsed to %v (%v), want %v", tc.in, got, err, tc.want)
+		}
+	}
+	for _, in := range []string{"focus x", "focus ", "move le", "makegroup q", "makegroup", "dpms maybe", "dpms "} {
+		if a, err := ParseAction(in); !errors.Is(err, ErrBadAction) {
+			t.Errorf("%q parsed to %v, %v; want a bad action", in, a, err)
+		}
+	}
+	if s := Direction(9).String(); s != "Direction(9)" {
+		t.Errorf("an unknown direction prints as %q", s)
+	}
+}

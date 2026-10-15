@@ -3,7 +3,6 @@ package wm
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 )
@@ -102,11 +101,15 @@ type (
 	}
 )
 
+func (m PowerMode) String() string {
+	return enumName(powerModes, m, "PowerMode")
+}
+
 func (a DPMSAction) String() string {
 	if a.Output == "" {
-		return "dpms " + powerModes[a.Mode]
+		return "dpms " + a.Mode.String()
 	}
-	return "dpms " + powerModes[a.Mode] + " " + a.Output
+	return "dpms " + a.Mode.String() + " " + a.Output
 }
 
 func (a DPMSAction) apply(s State, _ Settings) (State, []Effect, error) {
@@ -274,15 +277,13 @@ func badArgs(spec ActionSpec, format string, args ...any) error {
 }
 
 func parseDirection(s string) (Direction, bool) {
-	switch s {
-	case "l", "left":
-		return Left, true
-	case "r", "right":
-		return Right, true
-	case "u", "up":
-		return Up, true
-	case "d", "down":
-		return Down, true
+	if d, ok := parseEnum[Direction](directionNames, s); ok {
+		return d, true
+	}
+	for d, name := range directionNames {
+		if name != "" && s == name[:1] {
+			return Direction(d), true
+		}
 	}
 	return 0, false
 }
@@ -297,15 +298,7 @@ func parseWorkspace(s string) (WorkspaceTarget, bool) {
 }
 
 func parseLayout(s string) (Layout, bool) {
-	switch s {
-	case "h":
-		return SplitH, true
-	case "v":
-		return SplitV, true
-	case "tab":
-		return Tabbed, true
-	}
-	return 0, false
+	return parseEnum[Layout](layoutNames, s)
 }
 
 func exactly(spec ActionSpec, args []string, n int) error {
@@ -374,11 +367,11 @@ var Actions = []ActionSpec{
 			if len(args) == 0 || len(args) > 2 {
 				return nil, badArgs(spec, "needs on, off or toggle and an optional output")
 			}
-			i := slices.Index(powerModes, args[0])
-			if i <= 0 {
+			mode, ok := parseEnum[PowerMode](powerModes, args[0])
+			if !ok {
 				return nil, badArgs(spec, "%q is not on, off or toggle", args[0])
 			}
-			a := DPMSAction{Mode: PowerMode(i)}
+			a := DPMSAction{Mode: mode}
 			if len(args) == 2 {
 				a.Output = args[1]
 			}

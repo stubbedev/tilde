@@ -23,18 +23,10 @@ func (d Direction) forward() bool {
 	return d == Right || d == Down
 }
 
+var directionNames = []string{Left: "left", Right: "right", Up: "up", Down: "down"}
+
 func (d Direction) String() string {
-	switch d {
-	case Left:
-		return "left"
-	case Right:
-		return "right"
-	case Up:
-		return "up"
-	case Down:
-		return "down"
-	}
-	return fmt.Sprintf("Direction(%d)", uint8(d))
+	return enumName(directionNames, d, "Direction")
 }
 
 func along(l Layout, d Direction) bool {
