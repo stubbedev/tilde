@@ -96,7 +96,8 @@ func Encode(e Event) ([]byte, error) {
 }
 
 func sameOutput(a, b Output) bool {
-	return a.Description == b.Description && a.Rect == b.Rect && a.Scale == b.Scale && a.Mode == b.Mode && a.Powered == b.Powered
+	a.Workspace, a.Focused = b.Workspace, b.Focused
+	return a == b
 }
 
 func focusedOutput(s Snapshot) string {

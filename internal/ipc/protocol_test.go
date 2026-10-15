@@ -110,3 +110,26 @@ func TestDiff(t *testing.T) {
 		t.Fatalf("diff\n got %s\nwant %s", strings.Join(got, "\n     "), strings.Join(want, "\n     "))
 	}
 }
+
+func TestEveryOutputFieldButWorkspaceAndFocusCountsAsAChange(t *testing.T) {
+	base := Output{Name: "DP-1", Description: "d", Rect: Rect{Width: 10, Height: 10}, Scale: 1, Mode: Mode{Width: 10, Height: 10, RefreshMHz: 60000}, Workspace: 1, Focused: true, Powered: true}
+	changed := func(f func(*Output)) bool {
+		o := base
+		f(&o)
+		return !sameOutput(base, o)
+	}
+	for name, f := range map[string]func(*Output){
+		"description": func(o *Output) { o.Description = "e" },
+		"rect":        func(o *Output) { o.Rect.X = 5 },
+		"scale":       func(o *Output) { o.Scale = 2 },
+		"mode":        func(o *Output) { o.Mode.RefreshMHz = 144000 },
+		"powered":     func(o *Output) { o.Powered = false },
+	} {
+		if !changed(f) {
+			t.Errorf("a different %s was not a change", name)
+		}
+	}
+	if changed(func(o *Output) { o.Workspace, o.Focused = 2, false }) {
+		t.Error("the workspace and focus, which have their own events, counted as an output change")
+	}
+}
