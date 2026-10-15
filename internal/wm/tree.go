@@ -105,10 +105,10 @@ func (g *Group) remove(i int) {
 	case g.Focus > i, g.Focus == i && i > 0:
 		g.Focus--
 	}
-	if count := len(g.Children); count > 0 {
-		shift := (1 - ratio) / float64(count)
+	if count := float64(len(g.Children)); count > 0 {
+		scale := count / (count + 1 - ratio)
 		for j := range g.Children {
-			g.Children[j].Ratio -= shift
+			g.Children[j].Ratio *= scale
 		}
 	}
 }

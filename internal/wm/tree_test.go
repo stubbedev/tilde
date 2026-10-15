@@ -173,6 +173,9 @@ func checkInvariants(t *testing.T, tree Tree, live []WindowID) {
 		}
 		sum := 0.0
 		for _, c := range g.Children {
+			if c.Ratio <= 0 {
+				t.Fatalf("tree %s has a child with ratio %g", tree, c.Ratio)
+			}
 			sum += c.Ratio
 			if sub, ok := c.Node.(*Group); ok {
 				check(sub)
@@ -223,7 +226,7 @@ func TestRandomOperationsKeepTheTreeValid(t *testing.T) {
 		next := WindowID(1)
 		for step := range 60 {
 			var err error
-			switch op := rng.IntN(8); {
+			switch op := rng.IntN(9); {
 			case op <= 1 || len(live) == 0:
 				tree, err = tree.Insert(next, Layout(1+rng.IntN(2)))
 				live = append(live, next)
@@ -234,6 +237,8 @@ func TestRandomOperationsKeepTheTreeValid(t *testing.T) {
 				live = slices.Delete(live, i, i+1)
 			case op == 3:
 				tree, err = tree.Focus(live[rng.IntN(len(live))])
+			case op == 8:
+				tree, _, err = tree.Resize(live[rng.IntN(len(live))], image.Rect(0, 0, 1920, 1080), Direction(1+rng.IntN(4)), rng.IntN(2000)-1000)
 			case op >= 6:
 				tree, _, err = tree.Move(live[rng.IntN(len(live))], Direction(1+rng.IntN(4)), CollapsePolicy(rng.IntN(3)))
 			default:
@@ -271,5 +276,20 @@ func TestAutotileSplitsNarrowColumnsVertically(t *testing.T) {
 	}
 	if got := tree.String(); got != "h[1 2 3 *4]" {
 		t.Fatalf("without autotile: %s", got)
+	}
+}
+
+func TestRemovingAChildKeepsItsSiblingsPositive(t *testing.T) {
+	g := &Group{Children: []Child{{Ratio: 0.05}, {Ratio: 0.05}, {Ratio: 2.9}}}
+	g.remove(0)
+	sum := 0.0
+	for _, c := range g.Children {
+		if c.Ratio <= 0 {
+			t.Fatalf("ratios %+v after removing a narrow child", g.Children)
+		}
+		sum += c.Ratio
+	}
+	if math.Abs(sum-2) > 1e-9 {
+		t.Fatalf("ratios sum to %g, want 2", sum)
 	}
 }
