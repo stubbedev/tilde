@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"unsafe"
 )
 
 const (
@@ -47,6 +48,9 @@ const (
 	ArrayBuffer                   = 0x8892
 	StaticDraw                    = 0x88E4
 	StreamDraw                    = 0x88E0
+	StreamRead                    = 0x88E1
+	PixelPackBuffer               = 0x88EB
+	MapReadBit                    = 0x0001
 	glVendor                      = 0x1F00
 	glRenderer                    = 0x1F01
 	glVersion                     = 0x1F02
@@ -133,6 +137,8 @@ type GL struct {
 	DisableVertexAttribArray func(index uint32)
 	DrawArrays               func(mode uint32, first, count int32)
 	readPixels               func(x, y, width, height int32, format, typ uint32, pixels *byte)
+	mapBufferRange           func(target uint32, offset, length int, access uint32) unsafe.Pointer
+	unmapBuffer              func(target uint32) uint8
 	Flush                    func()
 	Finish                   func()
 	imageTargetTexture2D     func(target uint32, image uintptr)
@@ -205,6 +211,8 @@ func (gl *GL) load(l *Library, path string) error {
 	return errors.Join(
 		l.proc(symbol{&gl.imageTargetTexture2D, "glEGLImageTargetTexture2DOES"}),
 		l.proc(symbol{&gl.imageTargetRenderbuffer, "glEGLImageTargetRenderbufferStorageOES"}),
+		l.proc(symbol{&gl.mapBufferRange, "glMapBufferRange"}),
+		l.proc(symbol{&gl.unmapBuffer, "glUnmapBuffer"}),
 	)
 }
 
@@ -240,6 +248,26 @@ func (gl *GL) TexSubImage2D(target uint32, x, y, width, height int32, format uin
 func (gl *GL) ReadPixels(x, y, width, height int32, format uint32, pixels []byte) {
 	gl.readPixels(x, y, width, height, format, UnsignedByte, first(pixels))
 	runtime.KeepAlive(pixels)
+}
+
+func (gl *GL) ReadPixelsIntoBuffer(x, y, width, height int32, format uint32) {
+	gl.readPixels(x, y, width, height, format, UnsignedByte, nil)
+}
+
+func (gl *GL) AllocateBuffer(target uint32, size int, usage uint32) {
+	gl.bufferData(target, size, nil, usage)
+}
+
+func (gl *GL) MapBufferForReading(target uint32, size int) []byte {
+	p := gl.mapBufferRange(target, 0, size, MapReadBit)
+	if p == nil {
+		return nil
+	}
+	return unsafe.Slice((*byte)(p), size) //nolint:gosec // glMapBufferRange mapped size bytes at p
+}
+
+func (gl *GL) UnmapBuffer(target uint32) bool {
+	return gl.unmapBuffer(target) != 0
 }
 
 func (gl *GL) BufferData(target uint32, values []float32, usage uint32) {

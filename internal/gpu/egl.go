@@ -34,6 +34,9 @@ const (
 	eglImagePreserved          = 0x30D2
 	eglTrue                    = 1
 	eglSyncNativeFence         = 0x3144
+	eglSyncFence               = 0x30F9
+	eglForever                 = ^uint64(0)
+	eglConditionSatisfied      = 0x30F6
 	eglSyncNativeFenceFD       = 0x3145
 	eglNoNativeFenceFD         = -1
 )
@@ -90,6 +93,7 @@ type eglFuncs struct {
 	destroySync        func(dpy, sync uintptr) uint32
 	dupNativeFenceFD   func(dpy, sync uintptr) int32
 	waitSync           func(dpy, sync uintptr, flags int32) int32
+	clientWaitSync     func(dpy, sync uintptr, flags int32, timeout uint64) int32
 }
 
 var initialized = struct {
@@ -142,6 +146,7 @@ func Load(paths Paths) (*Library, error) {
 		{&e.destroySync, "eglDestroySyncKHR"},
 		{&e.dupNativeFenceFD, "eglDupNativeFenceFDANDROID"},
 		{&e.waitSync, "eglWaitSyncKHR"},
+		{&e.clientWaitSync, "eglClientWaitSyncKHR"},
 	} {
 		if err := l.proc(x); err != nil {
 			return nil, errors.Join(err, l.Close())
@@ -461,6 +466,19 @@ func (d *Display) Fence() (*Sync, error) {
 	return &Sync{d: d, h: h}, nil
 }
 
+func (d *Display) PlainFence() (*Sync, error) {
+	if !d.Has("EGL_KHR_fence_sync") {
+		return nil, fmt.Errorf("%w: EGL_KHR_fence_sync", ErrUnsupported)
+	}
+	attribs := []int32{eglNone}
+	h := d.lib.egl.createSync(d.dpy, eglSyncFence, &attribs[0])
+	if h == 0 {
+		return nil, d.lib.fail("eglCreateSyncKHR(fence)")
+	}
+	d.lib.gl.Flush()
+	return &Sync{d: d, h: h}, nil
+}
+
 func (d *Display) ImportFence(fd int) (*Sync, error) {
 	if err := d.requireFences(); err != nil {
 		return nil, err
@@ -487,6 +505,15 @@ func (s *Sync) Wait() error {
 	}
 	if s.d.lib.egl.waitSync(s.d.dpy, s.h, 0) != eglTrue {
 		return s.d.lib.fail("eglWaitSyncKHR")
+	}
+	return nil
+}
+
+func (s *Sync) ClientWait() error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	if s.d.lib.egl.clientWaitSync(s.d.dpy, s.h, 0, eglForever) != eglConditionSatisfied {
+		return s.d.lib.fail("eglClientWaitSyncKHR")
 	}
 	return nil
 }
