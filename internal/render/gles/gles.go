@@ -170,18 +170,11 @@ type texture struct {
 	img    *gpu.Image
 }
 
-func fits(size image.Point, stride int, data []byte) error {
-	if size.X <= 0 || size.Y <= 0 || stride < size.X*4 || stride%4 != 0 || len(data) < stride*(size.Y-1)+size.X*4 {
-		return fmt.Errorf("gles: %v pixels with stride %d do not fit %d bytes", size, stride, len(data))
-	}
-	return nil
-}
-
 func (r *Renderer) NewTexture(format render.Format, size image.Point, stride int, data []byte) (render.Texture, error) {
 	if !slices.Contains(r.Formats(), format) {
 		return nil, fmt.Errorf("gles: unsupported texture format %d", format)
 	}
-	if err := fits(size, stride, data); err != nil {
+	if err := render.CheckPixels(size, stride, len(data)); err != nil {
 		return nil, err
 	}
 	if err := r.enter(); err != nil {
@@ -192,7 +185,7 @@ func (r *Renderer) NewTexture(format render.Format, size image.Point, stride int
 	r.gl.BindTexture(gpu.Texture2D, t.id)
 	r.gl.TexParameteri(gpu.Texture2D, gpu.TextureWrapS, gpu.ClampToEdge)
 	r.gl.TexParameteri(gpu.Texture2D, gpu.TextureWrapT, gpu.ClampToEdge)
-	r.gl.PixelStorei(gpu.UnpackRowLengthExt, int32(stride/4))                                    //nolint:gosec // bounded by fits
+	r.gl.PixelStorei(gpu.UnpackRowLengthExt, int32(stride/4))                                    //nolint:gosec // bounded by CheckPixels
 	r.gl.TexImage2D(gpu.Texture2D, gpu.BGRAExt, int32(size.X), int32(size.Y), gpu.BGRAExt, data) //nolint:gosec // texture sizes fit GLsizei
 	r.gl.PixelStorei(gpu.UnpackRowLengthExt, 0)
 	if err := r.leave("gles: new texture"); err != nil {
@@ -345,7 +338,7 @@ func (t *texture) Update(stride int, data []byte, damage render.Region) error {
 	if t.img != nil {
 		return errors.New("gles: a dmabuf texture is updated by its client, not uploaded")
 	}
-	if err := fits(t.size, stride, data); err != nil {
+	if err := render.CheckPixels(t.size, stride, len(data)); err != nil {
 		return err
 	}
 	gl := t.r.gl
@@ -353,7 +346,7 @@ func (t *texture) Update(stride int, data []byte, damage render.Region) error {
 		return err
 	}
 	gl.BindTexture(gpu.Texture2D, t.id)
-	gl.PixelStorei(gpu.UnpackRowLengthExt, int32(stride/4)) //nolint:gosec // bounded by fits
+	gl.PixelStorei(gpu.UnpackRowLengthExt, int32(stride/4)) //nolint:gosec // bounded by CheckPixels
 	bounds := image.Rectangle{Max: t.size}
 	for _, d := range damage {
 		d = d.Intersect(bounds)
@@ -471,7 +464,7 @@ func (f *Framebuffer) Size() image.Point {
 }
 
 func (f *Framebuffer) Read(pix []byte, stride int) error {
-	if err := fits(f.size, stride, pix); err != nil {
+	if err := render.CheckPixels(f.size, stride, len(pix)); err != nil {
 		return err
 	}
 	if err := f.r.enter(); err != nil {
@@ -479,7 +472,7 @@ func (f *Framebuffer) Read(pix []byte, stride int) error {
 	}
 	gl := f.r.gl
 	gl.BindFramebuffer(gpu.Framebuffer, f.fbo)
-	gl.PixelStorei(gpu.PackRowLengthNV, int32(stride/4))                    //nolint:gosec // bounded by fits
+	gl.PixelStorei(gpu.PackRowLengthNV, int32(stride/4))                    //nolint:gosec // bounded by CheckPixels
 	gl.ReadPixels(0, 0, int32(f.size.X), int32(f.size.Y), gpu.BGRAExt, pix) //nolint:gosec // framebuffer sizes fit GLsizei
 	gl.PixelStorei(gpu.PackRowLengthNV, 0)
 	gl.BindFramebuffer(gpu.Framebuffer, 0)

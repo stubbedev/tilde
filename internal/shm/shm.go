@@ -119,10 +119,14 @@ func (p *pool) CreateBuffer(obj *sw.WlShmPool, res *sw.WlBuffer, offset, width, 
 	if !ok {
 		return nil, shmError(obj, sw.WlShmErrorInvalidFormat, "unsupported format %#x", uint32(format))
 	}
-	if width <= 0 || height <= 0 || offset < 0 || int64(stride) < int64(width)*4 || int64(offset)+int64(stride)*int64(height) > int64(len(p.mapping)) {
+	size := image.Pt(int(width), int(height))
+	if offset < 0 || int(offset)+int(stride)*int(height) > len(p.mapping) {
 		return nil, shmError(obj, sw.WlShmErrorInvalidStride, "invalid buffer: offset %d, %dx%d, stride %d in a %d-byte pool", offset, width, height, stride, len(p.mapping))
 	}
-	b := &Buffer{pool: p, resource: res, offset: int(offset), size: image.Pt(int(width), int(height)), stride: int(stride), format: f}
+	if err := render.CheckPixels(size, int(stride), len(p.mapping)-int(offset)); err != nil {
+		return nil, shmError(obj, sw.WlShmErrorInvalidStride, "invalid buffer: %v", err)
+	}
+	b := &Buffer{pool: p, resource: res, offset: int(offset), size: size, stride: int(stride), format: f}
 	p.refs++
 	p.c.OnDestroy(res, p.unref)
 	return b, nil

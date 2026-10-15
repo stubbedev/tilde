@@ -238,6 +238,8 @@ func TestPoolAndBufferValidation(t *testing.T) {
 		}, sw.WlShmErrorInvalidFD},
 		{"unsupported format", func(c *client, m *memfd) { c.buffer(c.pool(m), 0, 4, 4, 16, cw.WlShmFormatAbgr8888) }, sw.WlShmErrorInvalidFormat},
 		{"short stride", func(c *client, m *memfd) { c.buffer(c.pool(m), 0, 4, 4, 12, cw.WlShmFormatArgb8888) }, sw.WlShmErrorInvalidStride},
+		{"stride between pixels", func(c *client, m *memfd) { c.buffer(c.pool(m), 0, 4, 4, 17, cw.WlShmFormatArgb8888) }, sw.WlShmErrorInvalidStride},
+		{"zero width", func(c *client, m *memfd) { c.buffer(c.pool(m), 0, 0, 4, 16, cw.WlShmFormatArgb8888) }, sw.WlShmErrorInvalidStride},
 		{"past the pool", func(c *client, m *memfd) { c.buffer(c.pool(m), 4096-15, 4, 1, 16, cw.WlShmFormatArgb8888) }, sw.WlShmErrorInvalidStride},
 		{"negative offset", func(c *client, m *memfd) { c.buffer(c.pool(m), -4, 1, 1, 4, cw.WlShmFormatArgb8888) }, sw.WlShmErrorInvalidStride},
 		{"shrinking resize", func(c *client, m *memfd) {

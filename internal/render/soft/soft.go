@@ -26,8 +26,8 @@ func (b *Buffer) Size() image.Point {
 }
 
 func (b *Buffer) Read(pix []byte, stride int) error {
-	if stride < b.W*4 || len(pix) < stride*(b.H-1)+b.W*4 {
-		return fmt.Errorf("soft: reading %dx%d needs stride %d and %d bytes", b.W, b.H, b.W*4, b.W*4*b.H)
+	if err := render.CheckPixels(b.Size(), stride, len(pix)); err != nil {
+		return err
 	}
 	for y := range b.H {
 		copy(pix[y*stride:y*stride+b.W*4], b.Pix[y*b.Stride:])
@@ -56,18 +56,11 @@ func (t *texture) Size() image.Point {
 	return t.size
 }
 
-func fits(size image.Point, stride int, data []byte) error {
-	if size.X <= 0 || size.Y <= 0 || stride < size.X*4 || len(data) < stride*(size.Y-1)+size.X*4 {
-		return fmt.Errorf("soft: %v pixels with stride %d do not fit %d bytes", size, stride, len(data))
-	}
-	return nil
-}
-
 func (t *texture) Update(stride int, data []byte, damage render.Region) error {
 	if t.pix == nil {
 		return errors.New("soft: update of a destroyed texture")
 	}
-	if err := fits(t.size, stride, data); err != nil {
+	if err := render.CheckPixels(t.size, stride, len(data)); err != nil {
 		return err
 	}
 	bounds := image.Rectangle{Max: t.size}
@@ -109,7 +102,7 @@ func (r *Renderer) NewTexture(format render.Format, size image.Point, stride int
 	if !slices.Contains(r.Formats(), format) {
 		return nil, fmt.Errorf("soft: unsupported texture format %d", format)
 	}
-	if err := fits(size, stride, data); err != nil {
+	if err := render.CheckPixels(size, stride, len(data)); err != nil {
 		return nil, err
 	}
 	t := &texture{owner: r, pix: make([]byte, size.X*size.Y*4), stride: size.X * 4, size: size, opaque: format == render.XRGB8888}

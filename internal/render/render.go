@@ -152,6 +152,20 @@ func CheckDraw(texture image.Point, src FRect, transform Transform, alpha float3
 
 type Region []image.Rectangle
 
+func CheckPixels(size image.Point, stride, n int) error {
+	switch {
+	case size.X <= 0 || size.Y <= 0:
+		return fmt.Errorf("render: %v is not a positive size", size)
+	case stride < size.X*4:
+		return fmt.Errorf("render: stride %d is shorter than a row of %d pixels", stride, size.X)
+	case stride%4 != 0:
+		return fmt.Errorf("render: stride %d is not a whole number of pixels", stride)
+	case n < stride*(size.Y-1)+size.X*4:
+		return fmt.Errorf("render: %v pixels with stride %d do not fit %d bytes", size, stride, n)
+	}
+	return nil
+}
+
 type Target interface {
 	Size() image.Point
 }

@@ -2,6 +2,7 @@ package render_test
 
 import (
 	"image"
+	"strings"
 	"testing"
 
 	"github.com/stubbedev/tilde/internal/render"
@@ -69,6 +70,26 @@ func TestFRectAgreesWithRect(t *testing.T) {
 		want := tr.Rect(r, size)
 		if got != (render.FRect{X: float64(want.Min.X), Y: float64(want.Min.Y), W: float64(want.Dx()), H: float64(want.Dy())}) {
 			t.Errorf("transform %d: FRect %+v, Rect %v", tr, got, want)
+		}
+	}
+}
+
+func TestCheckPixelsNamesTheBrokenRule(t *testing.T) {
+	for _, c := range []struct {
+		size      image.Point
+		stride, n int
+		want      string
+	}{
+		{image.Pt(4, 2), 16, 32, ""},
+		{image.Pt(4, 2), 20, 36, ""},
+		{image.Pt(0, 2), 16, 32, "not a positive size"},
+		{image.Pt(4, 2), 12, 32, "shorter than a row"},
+		{image.Pt(4, 2), 17, 64, "not a whole number of pixels"},
+		{image.Pt(4, 2), 16, 31, "do not fit 31 bytes"},
+	} {
+		err := render.CheckPixels(c.size, c.stride, c.n)
+		if c.want == "" && err != nil || c.want != "" && (err == nil || !strings.Contains(err.Error(), c.want)) {
+			t.Errorf("CheckPixels(%v, %d, %d) = %v, want %q", c.size, c.stride, c.n, err, c.want)
 		}
 	}
 }
