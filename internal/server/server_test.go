@@ -358,8 +358,14 @@ func TestClientThatStopsReadingIsDisconnected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer unix.Close(fd)
+	wrote := make(chan struct{})
+	defer func() {
+		_ = unix.Shutdown(fd, unix.SHUT_WR)
+		<-wrote
+		_ = unix.Close(fd)
+	}()
 	if err := unix.Connect(fd, &unix.SockaddrUnix{Name: filepath.Join(h.dir, h.disp.Name())}); err != nil {
+		close(wrote)
 		t.Fatal(err)
 	}
 	const syncs = 40000
@@ -370,6 +376,7 @@ func TestClientThatStopsReadingIsDisconnected(t *testing.T) {
 		req = binary.NativeEndian.AppendUint32(req, uint32(2+i))
 	}
 	go func() {
+		defer close(wrote)
 		for len(req) > 0 {
 			n, err := unix.Write(fd, req)
 			if err != nil {
