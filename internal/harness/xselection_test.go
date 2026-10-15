@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -364,4 +365,35 @@ func TestARefusedXPasteIsReportedNotFatal(t *testing.T) {
 		return len(reported) == 1 && strings.Contains(reported[0].Error(), "refused the conversion")
 	})
 	survives(t, h)
+}
+
+func TestAnXSelectionDiesWithXwayland(t *testing.T) {
+	reports := make(chan error, 8)
+	h := StartXwayland(t, func(err error) { reports <- err }, small)
+	xc := xDial(t, h)
+	xc.intern("CLIPBOARD", "TARGETS", "UTF8_STRING", "INCR")
+	o := &xowner{xclient: xc, text: []byte("from x"), done: make(chan error, 1)}
+	o.win = xc.window(image.Rect(0, 0, 40, 40), 0xffffff, false, nil)
+	h.Eventually("the X window focused", func(_ *headless.Backend, c *compositor.Compositor) bool {
+		ws := windowsOf(c)
+		return len(ws) > 0 && ws[len(ws)-1].Focused
+	})
+	if err := xproto.SetSelectionOwnerChecked(xc.x, o.win, xc.atoms["CLIPBOARD"], xproto.TimeCurrentTime).Check(); err != nil {
+		t.Fatal(err)
+	}
+	go o.serve()
+	h.Eventually("the X selection taken for Wayland", func(_ *headless.Backend, c *compositor.Compositor) bool {
+		return c.CurrentSelection(data.Clipboard) != nil
+	})
+	h.Do(func(*headless.Backend, *compositor.Compositor) error {
+		return syscall.Kill(h.xwayland.Pid(), syscall.SIGKILL)
+	})
+	select {
+	case <-reports:
+	case <-time.After(clientTimeout):
+		t.Fatal("the crash was not reported")
+	}
+	h.Eventually("the dead X selection cleared", func(_ *headless.Backend, c *compositor.Compositor) bool {
+		return c.CurrentSelection(data.Clipboard) == nil
+	})
 }

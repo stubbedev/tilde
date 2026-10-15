@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"maps"
 	"slices"
 	"time"
 
@@ -505,12 +506,28 @@ func (m *wm) hide(w *Window) error {
 
 func (m *wm) close() error {
 	var errs []error
-	for _, w := range m.windows {
+	for _, id := range slices.Sorted(maps.Keys(m.windows)) {
+		w := m.windows[id]
+		if w.timer != nil {
+			errs = append(errs, w.timer.Remove())
+			w.timer = nil
+		}
 		errs = append(errs, m.hide(w))
 	}
 	clear(m.windows)
-	if len(errs) > 0 {
-		return errors.Join(errs...)
+	for _, sel := range m.selections {
+		if sel.x == nil {
+			continue
+		}
+		if m.listener.CurrentSelection(sel.kind) == data.Source(sel.x) {
+			errs = append(errs, m.listener.SetSelection(sel.kind, nil))
+		}
+		sel.x = nil
 	}
-	return nil
+	for _, in := range m.incoming {
+		errs = append(errs, in.out.Close())
+	}
+	m.incoming = nil
+	clear(m.outgoing)
+	return errors.Join(errs...)
 }
