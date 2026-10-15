@@ -44,7 +44,6 @@ type device interface {
 	DestroyBlob(id uint32) error
 	CreateDumb(size image.Point) (kdrm.Dumb, error)
 	DestroyDumb(b kdrm.Dumb) error
-	UnmapDumb(b kdrm.Dumb) error
 	AddFB2(fb kdrm.FB) (uint32, error)
 	PrimeFDToHandle(fd int) (uint32, error)
 	CloseHandle(handle uint32) error
@@ -58,7 +57,6 @@ type scanout struct {
 	fb        uint32
 	prepare   func() error
 	free      func() error
-	drop      func() error
 	presented uint64
 }
 
@@ -124,7 +122,6 @@ type Backend struct {
 	cursor    image.Point
 	paused    bool
 	closed    bool
-	gone      bool
 }
 
 func newBackend(l *loop.Loop, dev device, alloc allocator, opts Options) (*Backend, error) {
@@ -475,7 +472,7 @@ func (b *Backend) Unplug() error {
 	if b.closed {
 		return nil
 	}
-	b.closed, b.gone = true, true
+	b.closed = true
 	var errs []error
 	for len(b.outputs) > 0 {
 		o := b.outputs[0]
@@ -776,7 +773,7 @@ func (o *Output) Scanout(d gpu.DMABUF, release func() error, tear bool) (bool, e
 	if err != nil {
 		return false, nil
 	}
-	s := &scanout{client: true, fb: fb, free: func() error { return errors.Join(remove(), release()) }, drop: release}
+	s := &scanout{client: true, fb: fb, free: func() error { return errors.Join(remove(), release()) }}
 	flags := uint32(kdrm.AtomicNonblock | kdrm.AtomicPageFlipEvent)
 	torn := tear && o.tearable(fb, flags|kdrm.AtomicPageFlipAsync)
 	if torn {
@@ -933,11 +930,8 @@ func (o *Output) flipped(e kdrm.FlipEvent) error {
 }
 
 func (o *Output) dropScanout(s *scanout) error {
-	switch {
-	case s == nil || !s.client:
+	if s == nil || !s.client {
 		return nil
-	case o.b.gone:
-		return s.drop()
 	}
 	return s.free()
 }
@@ -951,11 +945,7 @@ func (o *Output) dropScanouts() error {
 func (o *Output) freeBuffers() error {
 	errs := []error{o.dropScanouts()}
 	for _, s := range o.buffers {
-		if o.b.gone {
-			errs = append(errs, s.drop())
-		} else {
-			errs = append(errs, s.free())
-		}
+		errs = append(errs, s.free())
 	}
 	o.buffers, o.drawing, o.queued, o.front = nil, nil, nil, nil
 	return errors.Join(errs...)
@@ -963,7 +953,7 @@ func (o *Output) freeBuffers() error {
 
 func (o *Output) release() error {
 	err := errors.Join(o.freeBuffers(), o.releaseGamma())
-	if o.modeBlob != 0 && !o.b.gone {
+	if o.modeBlob != 0 {
 		err = errors.Join(err, o.b.dev.DestroyBlob(o.modeBlob))
 		o.modeBlob = 0
 	}

@@ -443,9 +443,16 @@ func (d *Device) CreateBlob(data []byte) (uint32, error) {
 	return arg.id, err
 }
 
+func released(err error) error {
+	if errors.Is(err, unix.ENODEV) {
+		return nil
+	}
+	return err
+}
+
 func (d *Device) DestroyBlob(id uint32) error {
 	arg := id
-	return d.ioctl("DRM_IOCTL_MODE_DESTROYPROPBLOB", ioctlDestroyPropBlob, unsafe.Pointer(&arg), unsafe.Sizeof(arg)) //nolint:gosec // the kernel reads this value during the call
+	return released(d.ioctl("DRM_IOCTL_MODE_DESTROYPROPBLOB", ioctlDestroyPropBlob, unsafe.Pointer(&arg), unsafe.Sizeof(arg))) //nolint:gosec // the kernel reads this value during the call
 }
 
 func (d *Device) PrimeFDToHandle(fd int) (uint32, error) {
@@ -461,7 +468,7 @@ func (d *Device) PrimeFDToHandle(fd int) (uint32, error) {
 
 func (d *Device) CloseHandle(handle uint32) error {
 	arg := struct{ handle, pad uint32 }{handle: handle}
-	return d.ioctlW("DRM_IOCTL_GEM_CLOSE", ioctlGEMClose, unsafe.Pointer(&arg), unsafe.Sizeof(arg)) //nolint:gosec // the kernel reads this struct during the call
+	return released(d.ioctlW("DRM_IOCTL_GEM_CLOSE", ioctlGEMClose, unsafe.Pointer(&arg), unsafe.Sizeof(arg))) //nolint:gosec // the kernel reads this struct during the call
 }
 
 type FB struct {
@@ -496,7 +503,7 @@ func (d *Device) AddFB2(fb FB) (uint32, error) {
 
 func (d *Device) RemoveFB(id uint32) error {
 	arg := id
-	return d.ioctl("DRM_IOCTL_MODE_RMFB", ioctlRmFB, unsafe.Pointer(&arg), unsafe.Sizeof(arg)) //nolint:gosec // the kernel reads this value during the call
+	return released(d.ioctl("DRM_IOCTL_MODE_RMFB", ioctlRmFB, unsafe.Pointer(&arg), unsafe.Sizeof(arg))) //nolint:gosec // the kernel reads this value during the call
 }
 
 type Dumb struct {
@@ -531,7 +538,7 @@ func (d *Device) CreateDumb(size image.Point) (Dumb, error) {
 	return b, nil
 }
 
-func (d *Device) UnmapDumb(b Dumb) error {
+func unmapDumb(b Dumb) error {
 	if b.Pix == nil {
 		return nil
 	}
@@ -542,9 +549,9 @@ func (d *Device) UnmapDumb(b Dumb) error {
 }
 
 func (d *Device) DestroyDumb(b Dumb) error {
-	err := d.UnmapDumb(b)
+	err := unmapDumb(b)
 	arg := b.Handle
-	return errors.Join(err, d.ioctl("DRM_IOCTL_MODE_DESTROY_DUMB", ioctlDestroyDumb, unsafe.Pointer(&arg), unsafe.Sizeof(arg))) //nolint:gosec // the kernel reads this value during the call
+	return errors.Join(err, released(d.ioctl("DRM_IOCTL_MODE_DESTROY_DUMB", ioctlDestroyDumb, unsafe.Pointer(&arg), unsafe.Sizeof(arg)))) //nolint:gosec // the kernel reads this value during the call
 }
 
 type FlipEvent struct {

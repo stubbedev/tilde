@@ -84,8 +84,6 @@ func (a *gbmAllocator) allocate(size image.Point, format fourcc.Format, modifier
 	}
 	return &scanout{target: target, fb: id, free: func() error {
 		return errors.Join(remove(), target.Destroy(), bo.Close())
-	}, drop: func() error {
-		return errors.Join(target.Destroy(), bo.Close())
 	}}, nil
 }
 

@@ -71,7 +71,6 @@ func (a *blitAllocator) allocate(size image.Point, format fourcc.Format, modifie
 		fb:      out.fb,
 		prepare: func() error { return a.blit(s.tex, out.target, size) },
 		free:    func() error { return errors.Join(s.free(), out.free()) },
-		drop:    func() error { return errors.Join(s.free(), out.drop()) },
 	}, nil
 }
 

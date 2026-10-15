@@ -58,6 +58,7 @@ type fakeDevice struct {
 	events, write  int
 	connected      bool
 	unplugged      bool
+	gone           bool
 	badEDID        bool
 	refuseCursor   bool
 	refuseGamma    bool
@@ -205,7 +206,9 @@ func (f *fakeDevice) CreateBlob(data []byte) (uint32, error) {
 }
 
 func (f *fakeDevice) DestroyBlob(id uint32) error {
-	f.destroyed = append(f.destroyed, id)
+	if !f.gone {
+		f.destroyed = append(f.destroyed, id)
+	}
 	return nil
 }
 
@@ -227,11 +230,13 @@ func (f *fakeDevice) DestroyDumb(b kdrm.Dumb) error {
 	if !f.live[b.Handle] {
 		return fmt.Errorf("dumb buffer %d destroyed twice", b.Handle)
 	}
-	delete(f.live, b.Handle)
-	return f.UnmapDumb(b)
+	if !f.gone {
+		delete(f.live, b.Handle)
+	}
+	return f.unmap(b)
 }
 
-func (f *fakeDevice) UnmapDumb(b kdrm.Dumb) error {
+func (f *fakeDevice) unmap(b kdrm.Dumb) error {
 	if f.unmapped == nil {
 		f.unmapped = map[uint32]bool{}
 	}
@@ -256,7 +261,9 @@ func (f *fakeDevice) AddFB2(fb kdrm.FB) (uint32, error) {
 }
 
 func (f *fakeDevice) RemoveFB(uint32) error {
-	f.removedFBs++
+	if !f.gone {
+		f.removedFBs++
+	}
 	return nil
 }
 
@@ -303,7 +310,7 @@ func (a *fakeAlloc) allocate(size image.Point, _ fourcc.Format, modifiers []four
 		return nil, fmt.Errorf("allocated with modifiers %v", modifiers)
 	}
 	a.next++
-	return &scanout{target: soft.NewBuffer(size.X, size.Y), fb: 900 + a.next, free: func() error { a.freed++; return nil }, drop: func() error { return nil }}, nil
+	return &scanout{target: soft.NewBuffer(size.X, size.Y), fb: 900 + a.next, free: func() error { a.freed++; return nil }}, nil
 }
 
 func (a *fakeAlloc) fence() (int, error) {
@@ -906,6 +913,7 @@ func TestUnpluggedDevicesDropTheirOutputsWithoutTouchingTheDevice(t *testing.T) 
 	r := boot(t, func(dev *fakeDevice) allocator { return &copyAllocator{dev: dev, primary: soft.New()} })
 	r.settle()
 	commits, dumbs, fbs := len(r.dev.commits), len(r.dev.live), r.dev.removedFBs
+	r.dev.gone = true
 	if err := r.b.Unplug(); err != nil {
 		t.Fatal(err)
 	}

@@ -163,11 +163,7 @@ func (c *cursor) sent() {
 func (c *cursor) release() error {
 	errs := make([]error, 0, 2*len(c.buffers)+1)
 	for _, b := range c.buffers {
-		if c.o.b.gone {
-			errs = append(errs, c.o.b.dev.UnmapDumb(b.dumb))
-		} else {
-			errs = append(errs, c.o.b.dev.RemoveFB(b.fb), c.o.b.dev.DestroyDumb(b.dumb))
-		}
+		errs = append(errs, c.o.b.dev.RemoveFB(b.fb), c.o.b.dev.DestroyDumb(b.dumb))
 	}
 	if c.target != nil {
 		errs = append(errs, c.target.Destroy())

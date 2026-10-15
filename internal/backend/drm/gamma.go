@@ -60,7 +60,7 @@ func (o *Output) SetGamma(ramps []uint16) error {
 }
 
 func (o *Output) destroyBlob(blob uint32) error {
-	if blob == 0 || o.b.gone {
+	if blob == 0 {
 		return nil
 	}
 	return o.b.dev.DestroyBlob(blob)
