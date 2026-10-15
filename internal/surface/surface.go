@@ -79,7 +79,7 @@ type compositorRequests struct {
 
 func (r compositorRequests) CreateSurface(_ *sw.WlCompositor, res *sw.WlSurface) (sw.WlSurfaceHandler, error) {
 	s := &Surface{manager: r.m, client: r.c, resource: res}
-	s.current.scale, s.current.inputInfinite = 1, true
+	s.current.scale = 1
 	s.order = []*Surface{s}
 	s.pendingOrder = []*Surface{s}
 	server.OnDestroy(res, s.destroy)
@@ -141,25 +141,22 @@ const (
 )
 
 type state struct {
-	set           field
-	buffer        Buffer
-	offset        image.Point
-	damage        region.Region
-	bufferDamage  region.Region
-	scale         int32
-	transform     render.Transform
-	opaque        region.Region
-	input         region.Region
-	inputInfinite bool
-	source        render.FRect
-	hasSource     bool
-	dest          image.Point
-	hasDest       bool
-	frames        []*sw.WlCallback
-	feedbacks     []*spt.WpPresentationFeedback
+	set          field
+	buffer       Buffer
+	offset       image.Point
+	damage       region.Region
+	bufferDamage region.Region
+	scale        int32
+	transform    render.Transform
+	opaque       region.Region
+	input        opt[region.Region]
+	source       opt[render.FRect]
+	dest         opt[image.Point]
+	frames       []*sw.WlCallback
+	feedbacks    []*spt.WpPresentationFeedback
 }
 
-func (dst *state) merge(src *state) {
+func (dst *state) overlay(src *state) {
 	if src.set&fieldBuffer != 0 {
 		dst.buffer = src.buffer
 	}
@@ -176,15 +173,23 @@ func (dst *state) merge(src *state) {
 		dst.opaque = src.opaque
 	}
 	if src.set&fieldInput != 0 {
-		dst.input, dst.inputInfinite = src.input, src.inputInfinite
+		dst.input = src.input
 	}
 	if src.set&fieldSource != 0 {
-		dst.source, dst.hasSource = src.source, src.hasSource
+		dst.source = src.source
 	}
 	if src.set&fieldDest != 0 {
-		dst.dest, dst.hasDest = src.dest, src.hasDest
+		dst.dest = src.dest
 	}
 	dst.set |= src.set
+}
+
+func (st *state) geometry() geometry {
+	return geometry{buffer: st.buffer, scale: st.scale, transform: st.transform, source: st.source, dest: st.dest}
+}
+
+func (dst *state) merge(src *state) {
+	dst.overlay(src)
 	dst.damage = dst.damage.Union(src.damage)
 	dst.bufferDamage = dst.bufferDamage.Union(src.bufferDamage)
 	dst.frames = append(dst.frames, src.frames...)
@@ -324,28 +329,11 @@ func (s *Surface) Transform() render.Transform {
 }
 
 func (s *Surface) geometry(over ...*state) geometry {
-	g := geometry{
-		buffer: s.current.buffer, scale: s.current.scale, transform: s.current.transform,
-		source: s.current.source, hasSource: s.current.hasSource, dest: s.current.dest, hasDest: s.current.hasDest,
+	st := state{buffer: s.current.buffer, scale: s.current.scale, transform: s.current.transform, source: s.current.source, dest: s.current.dest}
+	for _, o := range over {
+		st.overlay(o)
 	}
-	for _, st := range over {
-		if st.set&fieldBuffer != 0 {
-			g.buffer = st.buffer
-		}
-		if st.set&fieldScale != 0 {
-			g.scale = st.scale
-		}
-		if st.set&fieldTransform != 0 {
-			g.transform = st.transform
-		}
-		if st.set&fieldSource != 0 {
-			g.source, g.hasSource = st.source, st.hasSource
-		}
-		if st.set&fieldDest != 0 {
-			g.dest, g.hasDest = st.dest, st.hasDest
-		}
-	}
-	return g
+	return st.geometry()
 }
 
 func (s *Surface) Size() image.Point {
@@ -380,15 +368,17 @@ func (s *Surface) AcceptsInput(p image.Point) bool {
 	if !p.In(image.Rectangle{Max: s.Size()}) {
 		return false
 	}
-	return s.current.inputInfinite || s.current.input.Contains(p)
+	input, bounded := s.current.input.get()
+	return !bounded || input.Contains(p)
 }
 
 func (s *Surface) Input() region.Region {
 	bounds := image.Rectangle{Max: s.Size()}
-	if s.current.inputInfinite {
+	input, bounded := s.current.input.get()
+	if !bounded {
 		return region.Rect(bounds)
 	}
-	return s.current.input.Intersect(bounds)
+	return input.Intersect(bounds)
 }
 
 func (s *Surface) Stack() iter.Seq[*Surface] {
@@ -501,9 +491,9 @@ func (s *Surface) checkSize() error {
 	case errors.Is(err, errInvalidSize):
 		return s.protocolError(sw.WlSurfaceErrorInvalidSize, "buffer %v is not a multiple of scale %d", g.buffer.Size(), g.scale)
 	case errors.Is(err, errBadSize):
-		return s.viewport.badSize(g.source)
+		return s.viewport.badSize(g.src())
 	case errors.Is(err, errOutOfBuffer):
-		return s.viewport.outOfBuffer(g.source, g.unscaled())
+		return s.viewport.outOfBuffer(g.src(), g.unscaled())
 	}
 	return err
 }
@@ -723,12 +713,12 @@ func (r surfaceRequests) SetOpaqueRegion(_ *sw.WlSurface, g *sw.WlRegion) error 
 
 func (r surfaceRequests) SetInputRegion(_ *sw.WlSurface, g *sw.WlRegion) error {
 	r.s.pending.set |= fieldInput
-	r.s.pending.input, r.s.pending.inputInfinite = region.Region{}, g == nil
+	r.s.pending.input = opt[region.Region]{}
 	if g == nil {
 		return nil
 	}
 	v, err := RegionValue(g)
-	r.s.pending.input = v
+	r.s.pending.input = some(v)
 	return err
 }
 

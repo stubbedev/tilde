@@ -37,7 +37,7 @@ func (viewporterRequests) GetViewport(obj *svp.WpViewporter, res *svp.WpViewport
 		if s.viewport == v {
 			s.viewport = nil
 			s.pending.set |= fieldSource | fieldDest
-			s.pending.hasSource, s.pending.hasDest = false, false
+			s.pending.source, s.pending.dest = opt[render.FRect]{}, opt[image.Point]{}
 		}
 		return nil
 	})
@@ -68,13 +68,13 @@ func (v *viewport) SetSource(_ *svp.WpViewport, x, y, w, h wire.Fixed) error {
 	st := &v.s.pending
 	st.set |= fieldSource
 	if x == unset && y == unset && w == unset && h == unset {
-		st.hasSource = false
+		st.source = opt[render.FRect]{}
 		return nil
 	}
 	if x < 0 || y < 0 || w <= 0 || h <= 0 {
 		return v.resource.ProtocolError(svp.WpViewportErrorBadValue, "invalid source %v,%v %vx%v", x.Float(), y.Float(), w.Float(), h.Float())
 	}
-	st.source, st.hasSource = render.FRect{X: x.Float(), Y: y.Float(), W: w.Float(), H: h.Float()}, true
+	st.source = some(render.FRect{X: x.Float(), Y: y.Float(), W: w.Float(), H: h.Float()})
 	return nil
 }
 
@@ -85,13 +85,13 @@ func (v *viewport) SetDestination(_ *svp.WpViewport, w, h int32) error {
 	st := &v.s.pending
 	st.set |= fieldDest
 	if w == -1 && h == -1 {
-		st.hasDest = false
+		st.dest = opt[image.Point]{}
 		return nil
 	}
 	if w <= 0 || h <= 0 {
 		return v.resource.ProtocolError(svp.WpViewportErrorBadValue, "invalid destination %dx%d", w, h)
 	}
-	st.dest, st.hasDest = image.Pt(int(w), int(h)), true
+	st.dest = some(image.Pt(int(w), int(h)))
 	return nil
 }
 

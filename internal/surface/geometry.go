@@ -18,10 +18,8 @@ type geometry struct {
 	buffer    Buffer
 	scale     int32
 	transform render.Transform
-	source    render.FRect
-	hasSource bool
-	dest      image.Point
-	hasDest   bool
+	source    opt[render.FRect]
+	dest      opt[image.Point]
 }
 
 func (g geometry) unscaled() image.Point {
@@ -33,21 +31,22 @@ func (g geometry) unscaled() image.Point {
 }
 
 func (g geometry) src() render.FRect {
-	if g.hasSource {
-		return g.source
+	if source, ok := g.source.get(); ok {
+		return source
 	}
 	u := g.unscaled()
 	return render.FRect{W: float64(u.X), H: float64(u.Y)}
 }
 
 func (g geometry) size() image.Point {
-	switch {
-	case g.buffer == nil:
+	if g.buffer == nil {
 		return image.Point{}
-	case g.hasDest:
-		return g.dest
-	case g.hasSource:
-		return image.Pt(int(g.source.W), int(g.source.H))
+	}
+	if dest, ok := g.dest.get(); ok {
+		return dest
+	}
+	if source, ok := g.source.get(); ok {
+		return image.Pt(int(source.W), int(source.H))
 	}
 	return g.unscaled()
 }
@@ -60,14 +59,15 @@ func (g geometry) validate() error {
 	if size.X%int(g.scale) != 0 || size.Y%int(g.scale) != 0 {
 		return errInvalidSize
 	}
-	if !g.hasSource {
+	source, ok := g.source.get()
+	if !ok {
 		return nil
 	}
-	if !g.hasDest && (g.source.W != math.Trunc(g.source.W) || g.source.H != math.Trunc(g.source.H)) {
+	if _, scaled := g.dest.get(); !scaled && (source.W != math.Trunc(source.W) || source.H != math.Trunc(source.H)) {
 		return errBadSize
 	}
 	u := g.unscaled()
-	if g.source.X+g.source.W > float64(u.X) || g.source.Y+g.source.H > float64(u.Y) {
+	if source.X+source.W > float64(u.X) || source.Y+source.H > float64(u.Y) {
 		return errOutOfBuffer
 	}
 	return nil
