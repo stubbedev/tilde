@@ -39,10 +39,11 @@ func (m manager) CreateListener(obj *swsc.WpSecurityContextManagerV1, res *swsc.
 	if _, sandboxed := m.c.SecurityContext(); sandboxed {
 		return nil, errors.Join(obj.ProtocolError(swsc.WpSecurityContextManagerV1ErrorNested, "a sandboxed client cannot create a security context"), closeBoth())
 	}
-	if err := server.ListeningSocket(listenFD); err != nil {
+	listener, err := server.ListeningSocket(listenFD)
+	if err != nil {
 		return nil, errors.Join(obj.ProtocolError(swsc.WpSecurityContextManagerV1ErrorInvalidListenFD, fmt.Sprintf("listen_fd: %v", err)), closeBoth())
 	}
-	ctx := &context{d: m.d, listenFD: listenFD, closeFD: closeFD}
+	ctx := &context{d: m.d, listener: listener, closeFD: closeFD}
 	server.OnDestroy(res, func() error {
 		if ctx.committed {
 			return nil
@@ -54,7 +55,7 @@ func (m manager) CreateListener(obj *swsc.WpSecurityContextManagerV1, res *swsc.
 
 type context struct {
 	d         *server.Display
-	listenFD  int
+	listener  server.Listener
 	closeFD   int
 	engine    *string
 	appID     *string
@@ -100,8 +101,8 @@ func (x *context) Commit(obj *swsc.WpSecurityContextV1) error {
 	}
 	x.committed = true
 	meta := server.SecurityContext{Engine: orEmpty(x.engine), AppID: orEmpty(x.appID), InstanceID: orEmpty(x.instance)}
-	if err := x.d.AddSandbox(x.listenFD, x.closeFD, meta); err != nil {
-		return errors.Join(err, unix.Close(x.listenFD), unix.Close(x.closeFD))
+	if err := x.d.AddSandbox(x.listener, x.closeFD, meta); err != nil {
+		return errors.Join(err, x.listener.Close(), unix.Close(x.closeFD))
 	}
 	return nil
 }

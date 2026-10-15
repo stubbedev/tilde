@@ -57,25 +57,29 @@ func (d *Display) visibility(iface *wire.Interface, visible func(*Client) bool) 
 	return func(c *Client) bool { return c.unsandboxed() && visible(c) }
 }
 
-func ListeningSocket(fd int) error {
+type Listener struct{ fd int }
+
+func ListeningSocket(fd int) (Listener, error) {
 	domain, err := unix.GetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_DOMAIN)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrNotListening, err)
+		return Listener{}, fmt.Errorf("%w: %w", ErrNotListening, err)
 	}
 	accepting, err := unix.GetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_ACCEPTCONN)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrNotListening, err)
+		return Listener{}, fmt.Errorf("%w: %w", ErrNotListening, err)
 	}
 	if domain != unix.AF_UNIX || accepting != 1 {
-		return ErrNotListening
+		return Listener{}, ErrNotListening
 	}
-	return nil
+	return Listener{fd}, nil
 }
 
-func (d *Display) AddSandbox(listenFD, closeFD int, ctx SecurityContext) error {
-	if err := ListeningSocket(listenFD); err != nil {
-		return err
-	}
+func (l Listener) Close() error {
+	return unix.Close(l.fd)
+}
+
+func (d *Display) AddSandbox(listener Listener, closeFD int, ctx SecurityContext) error {
+	listenFD := listener.fd
 	if err := unix.SetNonblock(listenFD, true); err != nil {
 		return fmt.Errorf("server: make the sandbox socket non-blocking: %w", err)
 	}
