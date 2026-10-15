@@ -56,34 +56,42 @@ type context struct {
 	d         *server.Display
 	listenFD  int
 	closeFD   int
-	meta      server.SecurityContext
-	set       [3]bool
+	engine    *string
+	appID     *string
+	instance  *string
 	committed bool
 }
 
 func (*context) Destroy(*swsc.WpSecurityContextV1) error { return nil }
 
-func (x *context) setOnce(obj *swsc.WpSecurityContextV1, field int, name string, value string, into *string) error {
+func (x *context) setOnce(obj *swsc.WpSecurityContextV1, name, value string, field **string) error {
 	if x.committed {
 		return obj.ProtocolError(swsc.WpSecurityContextV1ErrorAlreadyUsed, "the security context was already committed")
 	}
-	if x.set[field] {
+	if *field != nil {
 		return obj.ProtocolError(swsc.WpSecurityContextV1ErrorAlreadySet, fmt.Sprintf("the %s is already set", name))
 	}
-	x.set[field], *into = true, value
+	*field = &value
 	return nil
 }
 
 func (x *context) SetSandboxEngine(obj *swsc.WpSecurityContextV1, name string) error {
-	return x.setOnce(obj, 0, "sandbox engine", name, &x.meta.Engine)
+	return x.setOnce(obj, "sandbox engine", name, &x.engine)
 }
 
 func (x *context) SetAppID(obj *swsc.WpSecurityContextV1, appID string) error {
-	return x.setOnce(obj, 1, "app ID", appID, &x.meta.AppID)
+	return x.setOnce(obj, "app ID", appID, &x.appID)
 }
 
 func (x *context) SetInstanceID(obj *swsc.WpSecurityContextV1, instanceID string) error {
-	return x.setOnce(obj, 2, "instance ID", instanceID, &x.meta.InstanceID)
+	return x.setOnce(obj, "instance ID", instanceID, &x.instance)
+}
+
+func orEmpty(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 func (x *context) Commit(obj *swsc.WpSecurityContextV1) error {
@@ -91,7 +99,8 @@ func (x *context) Commit(obj *swsc.WpSecurityContextV1) error {
 		return obj.ProtocolError(swsc.WpSecurityContextV1ErrorAlreadyUsed, "the security context was already committed")
 	}
 	x.committed = true
-	if err := x.d.AddSandbox(x.listenFD, x.closeFD, x.meta); err != nil {
+	meta := server.SecurityContext{Engine: orEmpty(x.engine), AppID: orEmpty(x.appID), InstanceID: orEmpty(x.instance)}
+	if err := x.d.AddSandbox(x.listenFD, x.closeFD, meta); err != nil {
 		return errors.Join(err, unix.Close(x.listenFD), unix.Close(x.closeFD))
 	}
 	return nil
