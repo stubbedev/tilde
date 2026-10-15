@@ -145,6 +145,19 @@ func (s State) FocusedOutput() string {
 	return s.focused
 }
 
+func (s State) ActiveOn(output string) (WorkspaceID, bool) {
+	o := s.output(output)
+	if o == nil {
+		return 0, false
+	}
+	return o.Active, true
+}
+
+func (s State) Shown(w Workspace) bool {
+	id, ok := s.ActiveOn(w.Output)
+	return ok && id == w.ID
+}
+
 func (s *State) output(name string) *Output {
 	for i := range s.outputs {
 		if s.outputs[i].Name == name {
@@ -196,10 +209,7 @@ func (s *State) firstUnused() WorkspaceID {
 
 func (s *State) dropIfIdle(id WorkspaceID) {
 	w := s.workspace(id)
-	if w == nil || !w.empty() {
-		return
-	}
-	if o := s.output(w.Output); o != nil && o.Active == id {
+	if w == nil || !w.empty() || s.Shown(*w) {
 		return
 	}
 	s.workspaces = slices.DeleteFunc(s.workspaces, func(x Workspace) bool { return x.ID == id })

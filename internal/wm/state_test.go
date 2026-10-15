@@ -49,6 +49,29 @@ func TestOutputsStartOnTheFirstFreeWorkspace(t *testing.T) {
 	}
 }
 
+func TestEachOutputShowsItsActiveWorkspace(t *testing.T) {
+	s := ok(t)(State{}.AddOutput("DP-1", left, left))
+	s = ok(t)(s.AddOutput("DP-2", right, right))
+	s = ok(t)(s.MapWindow(1, Autotile{}))
+	s = ok(t)(s.SwitchWorkspace(3))
+	for _, tc := range []struct {
+		output string
+		want   WorkspaceID
+	}{{"DP-1", 3}, {"DP-2", 2}} {
+		if id, found := s.ActiveOn(tc.output); !found || id != tc.want {
+			t.Errorf("%s shows %d (%t), want %d", tc.output, id, found, tc.want)
+		}
+	}
+	if _, found := s.ActiveOn("HDMI-1"); found {
+		t.Error("an unknown output has an active workspace")
+	}
+	for _, w := range s.Workspaces() {
+		if want := w.ID != 1; s.Shown(w) != want {
+			t.Errorf("workspace %d shown %t, want %t", w.ID, s.Shown(w), want)
+		}
+	}
+}
+
 func TestSwitchingWorkspacesCreatesAndDropsThem(t *testing.T) {
 	s := ok(t)(State{}.AddOutput("DP-1", left, left))
 	s = ok(t)(s.AddOutput("DP-2", right, right))

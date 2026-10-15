@@ -124,9 +124,9 @@ func (wsSpaceRequests) Deactivate(*sew.ExtWorkspaceHandleV1) error { return nil 
 func (wsSpaceRequests) Remove(*sew.ExtWorkspaceHandleV1) error     { return nil }
 func (wsSpaceRequests) Destroy(*sew.ExtWorkspaceHandleV1) error    { return nil }
 
-func (c *Compositor) workspaceState(w wm.Workspace, active map[string]wm.WorkspaceID) sew.ExtWorkspaceHandleV1State {
+func (c *Compositor) workspaceState(w wm.Workspace) sew.ExtWorkspaceHandleV1State {
 	var st sew.ExtWorkspaceHandleV1State
-	if active[w.Output] == w.ID {
+	if c.wm.Shown(w) {
 		st |= sew.ExtWorkspaceHandleV1StateActive
 	}
 	for _, win := range c.windows {
@@ -163,10 +163,6 @@ func (c *Compositor) syncWorkspaceManager(m *wsManager) error {
 			sent(res.SendOutputEnter(wl))
 		}
 	}
-	active := map[string]wm.WorkspaceID{}
-	for _, o := range c.wm.Outputs() {
-		active[o.Name] = o.Active
-	}
 	live := map[wm.WorkspaceID]bool{}
 	for _, w := range c.wm.Workspaces() {
 		live[w.ID] = true
@@ -184,7 +180,7 @@ func (c *Compositor) syncWorkspaceManager(m *wsManager) error {
 				res.SendCoordinates(binary.LittleEndian.AppendUint32(nil, uint32(w.ID))), //nolint:gosec // workspace ids are small positive numbers
 				res.SendCapabilities(sew.ExtWorkspaceHandleV1WorkspaceCapabilitiesActivate|sew.ExtWorkspaceHandleV1WorkspaceCapabilitiesAssign)))
 		}
-		if st := c.workspaceState(w, active); st != sp.state {
+		if st := c.workspaceState(w); st != sp.state {
 			sp.state = st
 			sent(sp.resource.SendState(st))
 		}

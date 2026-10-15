@@ -13,27 +13,24 @@ func (c *Compositor) OnDispatch(f func(wm.Action)) {
 func (c *Compositor) Snapshot() ipc.Snapshot {
 	s := c.wm
 	focusedOutput := s.FocusedOutput()
-	active := map[string]wm.WorkspaceID{}
-	for _, o := range s.Outputs() {
-		active[o.Name] = o.Active
-	}
 	snap := ipc.Snapshot{Submap: c.submap, Layout: c.keyboardLayout()}
 	for _, o := range c.outputs {
 		b := o.Backend()
 		mode := b.State().Mode
+		active, _ := s.ActiveOn(b.Name())
 		snap.Outputs = append(snap.Outputs, ipc.Output{
 			Name:        b.Name(),
 			Description: b.Description(),
 			Rect:        ipc.RectOf(o.Logical()),
 			Scale:       float64(o.Scale()) / float64(output.Unit),
 			Mode:        ipc.Mode{Width: mode.Size.X, Height: mode.Size.Y, RefreshMHz: mode.RefreshMHz},
-			Workspace:   active[b.Name()],
+			Workspace:   active,
 			Focused:     b.Name() == focusedOutput,
 			Powered:     !b.State().Off,
 		})
 	}
 	for _, w := range s.Workspaces() {
-		visible := active[w.Output] == w.ID
+		visible := s.Shown(w)
 		snap.Workspaces = append(snap.Workspaces, ipc.Workspace{
 			ID:      w.ID,
 			Output:  w.Output,

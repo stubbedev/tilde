@@ -160,12 +160,8 @@ func TestKeybinds(t *testing.T) {
 func showingWorkspace(id wm.WorkspaceID) func(*headless.Backend, *compositor.Compositor) bool {
 	return func(_ *headless.Backend, c *compositor.Compositor) bool {
 		s := c.WM()
-		for _, o := range s.Outputs() {
-			if o.Name == s.FocusedOutput() {
-				return o.Active == id
-			}
-		}
-		return false
+		active, ok := s.ActiveOn(s.FocusedOutput())
+		return ok && active == id
 	}
 }
 
