@@ -11,10 +11,18 @@ import (
 )
 
 type repeat struct {
-	timer  *loop.Timer
+	timer *loop.Timer
+	held  *repeating
+}
+
+type repeating struct {
 	key    uint32
 	action wm.Action
-	active bool
+}
+
+func (r *repeat) stop() error {
+	r.held = nil
+	return r.timer.Disarm()
 }
 
 func (c *Compositor) run(a wm.Action, trigger binds.Trigger) {
@@ -47,9 +55,8 @@ func (c *Compositor) bindKey(code uint32, pressed bool) (bool, error) {
 		}
 		c.held = slices.Delete(c.held, i, i+1)
 		released := c.releaseShortcuts(binds.Key{Code: code})
-		if c.repeat.active && c.repeat.key == code {
-			c.repeat.active = false
-			return true, errors.Join(released, c.repeat.timer.Disarm())
+		if h := c.repeat.held; h != nil && h.key == code {
+			return true, errors.Join(released, c.repeat.stop())
 		}
 		return true, released
 	}
@@ -66,14 +73,15 @@ func (c *Compositor) bindKey(code uint32, pressed bool) (bool, error) {
 	if !b.Flags.Repeating || c.seatConfig.RepeatRate == 0 {
 		return true, nil
 	}
-	c.repeat.key, c.repeat.action, c.repeat.active = code, b.Action, true
+	c.repeat.held = &repeating{code, b.Action}
 	return true, c.repeat.timer.Arm(time.Duration(c.seatConfig.RepeatDelay) * time.Millisecond)
 }
 
 func (c *Compositor) repeatFired() error {
-	if !c.repeat.active {
+	h := c.repeat.held
+	if h == nil {
 		return nil
 	}
-	c.run(c.repeat.action, nil)
+	c.run(h.action, nil)
 	return c.repeat.timer.Arm(time.Second / time.Duration(c.seatConfig.RepeatRate))
 }

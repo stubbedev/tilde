@@ -339,8 +339,7 @@ func (c *Compositor) Reconfigure(cfg Config) error {
 	c.adopt(cfg, m)
 	c.outputOverrides = nil
 	c.submap = ""
-	c.repeat.active = false
-	if err := errors.Join(c.dropDecor(), c.seat.Reconfigure(pending), c.repeat.timer.Disarm(), c.applyOutputRules(), c.scheduleAll()); err != nil {
+	if err := errors.Join(c.dropDecor(), c.seat.Reconfigure(pending), c.repeat.stop(), c.applyOutputRules(), c.scheduleAll()); err != nil {
 		c.report(fmt.Errorf("compositor: apply the new config: %w", err))
 	}
 	return nil
