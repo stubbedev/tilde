@@ -391,12 +391,14 @@ func (c *Compositor) surfaceAt(p point) (*surface.Surface, point, *window) {
 			}
 		}
 	}
-	for _, w := range slices.Backward(c.stack) {
-		if w.layer == wm.LayerFullscreen || !w.visible {
-			continue
-		}
-		if s, local := hitTree(w.top.Surface(), c.windowOrigin(w), p); s != nil {
-			return s, local, w
+	for _, layer := range slices.Backward(windowLayers) {
+		for _, w := range slices.Backward(c.stack) {
+			if w.layer != layer || !w.visible {
+				continue
+			}
+			if s, local := hitTree(w.top.Surface(), c.windowOrigin(w), p); s != nil {
+				return s, local, w
+			}
 		}
 	}
 	if s, local := hitLayers(c.layersAt(o, belowWindows...), p); s != nil {
@@ -424,6 +426,25 @@ func hitTree(s *surface.Surface, org origin, p point) (*surface.Surface, point) 
 }
 
 func (c *Compositor) originOf(target *surface.Surface) (origin, bool) {
+	if org, ok := c.baseOrigin(target); ok {
+		return org, true
+	}
+	for _, placed := range c.inputPopups() {
+		if org, ok := treeOrigin(placed.popup.Surface, flat(placed.at.Min), target); ok {
+			return org, true
+		}
+	}
+	return origin{}, false
+}
+
+func (c *Compositor) baseOrigin(target *surface.Surface) (origin, bool) {
+	for _, o := range c.outputs {
+		if ls := c.lockSurfaceOn(o); ls != nil {
+			if org, ok := treeOrigin(ls.Surface(), flat(o.Position()), target); ok {
+				return org, true
+			}
+		}
+	}
 	for _, w := range c.unmanaged {
 		if org, ok := treeOrigin(w.Surface(), c.unmanagedOrigin(w), target); ok {
 			return org, true

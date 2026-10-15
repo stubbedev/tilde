@@ -42,7 +42,7 @@ type placedInputPopup struct {
 func (c *Compositor) inputPopups() []placedInputPopup {
 	var placed []placedInputPopup
 	for _, p := range c.inputMethods.Popups() {
-		org, ok := c.originOf(p.Anchor)
+		org, ok := c.baseOrigin(p.Anchor)
 		if !ok || p.Surface.Buffer() == nil {
 			continue
 		}

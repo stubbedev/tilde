@@ -226,3 +226,18 @@ func TestPoweringOffBeforeTheLockFrameStillConfirmsTheLock(t *testing.T) {
 	})
 	l.seen("locked")
 }
+
+func TestTouchesFollowAFingerOnTheLockScreen(t *testing.T) {
+	h := Start(t, small)
+	l := lockSession(t, h)
+	l.seen("locked")
+	l.cover(image.Pt(160, 100), 0xff, 0, 0)
+	h.Eventually("the lock surface shown", showing(5, 5, [3]byte{0, 0, 0xff}))
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+		o := b.Outputs()[0]
+		return errors.Join(b.Touch().Down(1, o, 0.25, 0.5), b.Touch().Frame(), b.Touch().Motion(1, 0.5, 0.5), b.Touch().Frame())
+	})
+	l.c.DispatchUntil("the finger's motion on the lock surface", func() bool {
+		return slices.Contains(l.in.Log, "touch_motion 1 80,50")
+	})
+}

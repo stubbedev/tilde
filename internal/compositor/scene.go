@@ -107,11 +107,13 @@ func (c *Compositor) render(o *output.Output) error {
 	return errors.Join(c.lockBlanked(o), c.runCaptures(o))
 }
 
+var windowLayers = []wm.PlacementLayer{wm.LayerTiled, wm.LayerFloating}
+
 func (c *Compositor) drawDesktop(pass *frame, o *output.Output, shown []*surface.Surface) ([]*surface.Surface, error) {
 	for _, e := range c.layersAt(o, belowWindows...) {
 		shown = c.drawTree(pass, o, e.surface.Surface(), flat(e.bounds().Min), shown)
 	}
-	for _, layer := range []wm.PlacementLayer{wm.LayerTiled, wm.LayerFloating} {
+	for _, layer := range windowLayers {
 		for _, w := range c.stack {
 			if w.layer == layer {
 				shown = c.drawWindow(pass, o, w, shown)

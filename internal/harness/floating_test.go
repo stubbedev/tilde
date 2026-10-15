@@ -143,3 +143,50 @@ func TestWindowRulesFloatAndSize(t *testing.T) {
 	}
 	h.Eventually("the friends list centred", showing(70, 20, blueColor))
 }
+
+func TestAFloatingWindowOverAnotherOutputTakesTheClicksItCovers(t *testing.T) {
+	h := StartWith(t, withBinds(t, bindSpec{chord: "SUPER + mouse:272", action: "movewindow"}), small, small)
+	c := testclient.Connect(t, h.Socket())
+	float := c.Window("float", testclient.Fill(0, 0, 0xff))
+	c.DispatchUntil("the floating window to map", float.Mapped)
+	h.dispatch("togglefloating")
+	c.DispatchUntil("a floating window", func() bool { return float.Logical == image.Pt(80, 50) })
+	h.key(keySuper, true)
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+		o, p := b.Outputs()[0], b.Pointer()
+		return errors.Join(p.MoveTo(o, 0.5, 0.5), p.Frame(), p.Button(btnLeft, true), p.Frame(),
+			p.MoveTo(o, 150.0/160, 0.5), p.Frame(), p.Button(btnLeft, false), p.Frame())
+	})
+	h.key(keySuper, false)
+	h.Eventually("the floating window over the second output", func(_ *headless.Backend, comp *compositor.Compositor) bool {
+		for _, w := range comp.Snapshot().Windows {
+			if w.Title == "float" {
+				return w.Rect.X+w.Rect.Width > 170
+			}
+		}
+		return false
+	})
+	h.dispatch("workspace 2")
+	tiled := c.Window("tiled", testclient.Fill(0xff, 0, 0))
+	c.DispatchUntil("the tiled window to map", tiled.Mapped)
+	h.Eventually("the tiled window on the second output", func(_ *headless.Backend, comp *compositor.Compositor) bool {
+		for _, w := range comp.Snapshot().Windows {
+			if w.Title == "tiled" {
+				return w.Rect.X >= 160
+			}
+		}
+		return false
+	})
+	h.Eventually("the floating window drawn over the tiled one", func(b *headless.Backend, _ *compositor.Compositor) bool {
+		return pixel(b.Outputs()[1].Snapshot(), 5, 50) == redColor
+	})
+	h.click(1, 5, 50, btnLeft)
+	h.Eventually("the click went to the window drawn there", func(_ *headless.Backend, comp *compositor.Compositor) bool {
+		for _, w := range comp.Snapshot().Windows {
+			if w.Focused {
+				return w.Title == "float"
+			}
+		}
+		return false
+	})
+}
