@@ -362,10 +362,10 @@ func (im *inputMethod) DeleteSurroundingText(_ *sim.ZwpInputMethodV2, before, af
 	return nil
 }
 
-func (im *inputMethod) Commit(_ *sim.ZwpInputMethodV2, _ uint32) error {
+func (im *inputMethod) Commit(_ *sim.ZwpInputMethodV2, serial uint32) error {
 	st := im.pending
 	im.pending = imState{}
-	if im.inert || !im.active || im.m.active == nil {
+	if im.inert || !im.active || im.m.active == nil || serial != im.dones {
 		return nil
 	}
 	return im.m.active.relay(st)

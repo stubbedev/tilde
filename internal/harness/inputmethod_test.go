@@ -223,6 +223,18 @@ func TestAnInputMethodTypesIntoTheFocusedTextInput(t *testing.T) {
 	until(t, m.c, "the input method deactivated with the focus", &m.log.log, "deactivate", "done")
 }
 
+func TestAnInputMethodCommitWithAStaleSerialChangesNothing(t *testing.T) {
+	h := Start(t, small)
+	ty := typing(t, h, "editor")
+	until(t, ty.c, "the focused text input entered", &ty.log.log, "enter")
+	m := inputMethod(t, h)
+	ty.commit(t, ty.ti.Enable)
+	until(t, m.c, "the input method activated", &m.log.log, "activate", "done")
+	send(t, func() error { return m.im.CommitString("stale") }, func() error { return m.im.Commit(m.log.dones + 1) }, m.c.Display.Flush)
+	m.commit(t, func() error { return m.im.CommitString("fresh") })
+	until(t, ty.c, "only the current commit", &ty.log.log, `commit "fresh"`, "done 1")
+}
+
 func TestAnInputMethodGrabsTheKeyboard(t *testing.T) {
 	h := Start(t, small)
 	ty := typing(t, h, "editor")
