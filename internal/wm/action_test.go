@@ -121,16 +121,16 @@ func TestDispatch(t *testing.T) {
 	if effects := run("kill"); !slices.Equal(effects, []Effect{Close{ID: 1}}) {
 		t.Fatalf("kill gave %v", effects)
 	}
-	if effects := run("reload"); !slices.Equal(effects, []Effect{Reload{}}) {
+	if effects := run("reload"); !slices.Equal(effects, []Effect{ReloadAction{}}) {
 		t.Fatalf("reload gave %v", effects)
 	}
-	if effects := run("exit"); !slices.Equal(effects, []Effect{Exit{}}) {
+	if effects := run("exit"); !slices.Equal(effects, []Effect{ExitAction{}}) {
 		t.Fatalf("exit gave %v", effects)
 	}
-	if effects := run("exec foot --server"); !slices.Equal(effects, []Effect{Exec{Command: "foot --server"}}) {
+	if effects := run("exec foot --server"); !slices.Equal(effects, []Effect{ExecAction{Command: "foot --server"}}) {
 		t.Fatalf("exec gave %v", effects)
 	}
-	if effects := run("global obs:record"); !slices.Equal(effects, []Effect{Shortcut{AppID: "obs", ID: "record"}}) {
+	if effects := run("global obs:record"); !slices.Equal(effects, []Effect{GlobalAction{AppID: "obs", ID: "record"}}) {
 		t.Fatalf("global gave %v", effects)
 	}
 	run("makegroup tab ephemeral")

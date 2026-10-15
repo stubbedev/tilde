@@ -43,23 +43,23 @@ func (c *Compositor) perform(e wm.Effect, trigger binds.Trigger) error {
 			return fmt.Errorf("close unknown window %d", e.ID)
 		}
 		return w.top.close()
-	case wm.Exec:
+	case wm.ExecAction:
 		return c.spawn(e.Command)
-	case wm.Shortcut:
+	case wm.GlobalAction:
 		return c.pressShortcut(e, trigger)
-	case wm.SetSubmap:
+	case wm.SubmapAction:
 		c.submap = e.Name
 		return nil
-	case wm.BeginDrag:
+	case wm.DragAction:
 		return c.beginDrag(e.Mode, trigger)
-	case wm.Power:
+	case wm.DPMSAction:
 		return c.dpms(e)
-	case wm.Reload:
+	case wm.ReloadAction:
 		if c.reload == nil {
 			return errors.New("no config file to reload")
 		}
 		return c.reload()
-	case wm.Exit:
+	case wm.ExitAction:
 		if c.exit == nil {
 			return errors.New("nothing to exit to: this compositor was started without a way to stop")
 		}

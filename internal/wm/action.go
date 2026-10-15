@@ -24,19 +24,7 @@ const (
 	DragResize
 )
 
-type (
-	Close     struct{ ID WindowID }
-	Exec      struct{ Command string }
-	SetSubmap struct{ Name string }
-	BeginDrag struct{ Mode DragMode }
-	Reload    struct{}
-	Exit      struct{}
-	Shortcut  struct{ AppID, ID string }
-	Power     struct {
-		Mode   PowerMode
-		Output string
-	}
-)
+type Close struct{ ID WindowID }
 
 type PowerMode uint8
 
@@ -48,14 +36,18 @@ const (
 
 var powerModes = []string{PowerOn: "on", PowerOff: "off", PowerToggle: "toggle"}
 
-func (Close) isEffect()     {}
-func (Exec) isEffect()      {}
-func (SetSubmap) isEffect() {}
-func (BeginDrag) isEffect() {}
-func (Reload) isEffect()    {}
-func (Exit) isEffect()      {}
-func (Shortcut) isEffect()  {}
-func (Power) isEffect()     {}
+func (Close) isEffect()        {}
+func (ExecAction) isEffect()   {}
+func (SubmapAction) isEffect() {}
+func (DragAction) isEffect()   {}
+func (ReloadAction) isEffect() {}
+func (ExitAction) isEffect()   {}
+func (GlobalAction) isEffect() {}
+func (DPMSAction) isEffect()   {}
+
+func emit(s State, e Effect) (State, []Effect, error) {
+	return s, []Effect{e}, nil
+}
 
 type Settings struct {
 	Collapse CollapsePolicy
@@ -118,25 +110,25 @@ func (a DPMSAction) String() string {
 }
 
 func (a DPMSAction) apply(s State, _ Settings) (State, []Effect, error) {
-	return s, []Effect{Power(a)}, nil
+	return emit(s, a)
 }
 
 func (a GlobalAction) String() string { return "global " + a.AppID + ":" + a.ID }
 
 func (a GlobalAction) apply(s State, _ Settings) (State, []Effect, error) {
-	return s, []Effect{Shortcut(a)}, nil
+	return emit(s, a)
 }
 
 func (ReloadAction) String() string { return "reload" }
 
 func (ExitAction) String() string { return "exit" }
 
-func (ExitAction) apply(s State, _ Settings) (State, []Effect, error) {
-	return s, []Effect{Exit{}}, nil
+func (a ExitAction) apply(s State, _ Settings) (State, []Effect, error) {
+	return emit(s, a)
 }
 
-func (ReloadAction) apply(s State, _ Settings) (State, []Effect, error) {
-	return s, []Effect{Reload{}}, nil
+func (a ReloadAction) apply(s State, _ Settings) (State, []Effect, error) {
+	return emit(s, a)
 }
 
 func (a ResizeAction) String() string { return fmt.Sprintf("resizeactive %d %d", a.DX, a.DY) }
@@ -166,7 +158,7 @@ func (FullscreenAction) apply(s State, _ Settings) (State, []Effect, error) {
 }
 
 func (a DragAction) apply(s State, _ Settings) (State, []Effect, error) {
-	return s, []Effect{BeginDrag(a)}, nil
+	return emit(s, a)
 }
 
 func (a FocusAction) String() string     { return "focus " + a.Dir.String() }
@@ -192,7 +184,7 @@ func (a SubmapAction) String() string {
 }
 
 func (a SubmapAction) apply(s State, _ Settings) (State, []Effect, error) {
-	return s, []Effect{SetSubmap(a)}, nil
+	return emit(s, a)
 }
 
 func (a FocusAction) apply(s State, _ Settings) (State, []Effect, error) {
@@ -232,7 +224,7 @@ func (KillAction) apply(s State, _ Settings) (State, []Effect, error) {
 }
 
 func (a ExecAction) apply(s State, _ Settings) (State, []Effect, error) {
-	return s, []Effect{Exec(a)}, nil
+	return emit(s, a)
 }
 
 func (a MakeGroupAction) apply(s State, _ Settings) (State, []Effect, error) {

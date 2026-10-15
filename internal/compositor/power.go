@@ -45,7 +45,7 @@ func (c *Compositor) SetPower(o *output.Output, on bool) error {
 	return errors.Join(err, c.power.Changed(o))
 }
 
-func (c *Compositor) dpms(e wm.Power) error {
+func (c *Compositor) dpms(e wm.DPMSAction) error {
 	var targets []*output.Output
 	for _, o := range c.outputs {
 		if e.Output == "" || o.Backend().Name() == e.Output {

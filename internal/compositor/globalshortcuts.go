@@ -74,7 +74,7 @@ func (c *Compositor) globalShortcut(appID, id string) *globalShortcut {
 	return nil
 }
 
-func (c *Compositor) pressShortcut(s wm.Shortcut, trigger binds.Trigger) error {
+func (c *Compositor) pressShortcut(s wm.GlobalAction, trigger binds.Trigger) error {
 	g := c.globalShortcut(s.AppID, s.ID)
 	if g == nil {
 		return fmt.Errorf("no application registered the global shortcut %s:%s", s.AppID, s.ID)
