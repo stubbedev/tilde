@@ -213,7 +213,7 @@ func (b *wmBase) GetXdgSurface(obj *sxdg.XdgWmBase, res *sxdg.XdgSurface, wl *sw
 	if err != nil {
 		return nil, err
 	}
-	if surf.Buffer() != nil {
+	if surf.HasBuffer() {
 		return nil, obj.ProtocolError(sxdg.XdgWmBaseErrorInvalidSurfaceState, "the wl_surface already has a buffer")
 	}
 	xs := &XdgSurface{base: b, resource: res, surface: surf}

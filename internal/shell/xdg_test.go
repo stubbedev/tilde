@@ -452,6 +452,12 @@ func TestXdgProtocolErrors(t *testing.T) {
 			_, err = c.wm.GetXdgSurface(&xdgSurfaceEvents{}, b)
 			must(c.t, err)
 		}, uint32(sxdg.XdgWmBaseErrorRole)},
+		{"surface with a pending buffer", func(c *client) {
+			s, err := c.comp.CreateSurface(struct{ cw.WlSurfaceHandler }{})
+			must(c.t, err, s.Attach(c.buffer(4, 4), 0, 0))
+			_, err = c.wm.GetXdgSurface(&xdgSurfaceEvents{}, s)
+			must(c.t, err)
+		}, uint32(sxdg.XdgWmBaseErrorInvalidSurfaceState)},
 		{"surface with a buffer", func(c *client) {
 			s, err := c.comp.CreateSurface(struct{ cw.WlSurfaceHandler }{})
 			must(c.t, err, s.Attach(c.buffer(4, 4), 0, 0), s.Commit())

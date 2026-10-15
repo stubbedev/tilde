@@ -86,7 +86,7 @@ func (m layerShell) GetLayerSurface(obj *swlr.ZwlrLayerShellV1, res *swlr.ZwlrLa
 	if err != nil {
 		return nil, err
 	}
-	if surf.Buffer() != nil {
+	if surf.HasBuffer() {
 		return nil, obj.ProtocolError(swlr.ZwlrLayerShellV1ErrorAlreadyConstructed, "the wl_surface already has a buffer")
 	}
 	l := &LayerSurface{shell: m.sh, client: m.c, manager: obj, resource: res, surface: surf, output: out, namespace: namespace}

@@ -152,7 +152,7 @@ func (l *SessionLock) GetLockSurface(obj *sel.ExtSessionLockV1, res *sel.ExtSess
 	switch {
 	case slices.ContainsFunc(l.surfaces, func(o *LockSurface) bool { return o.output == output }):
 		return nil, obj.ProtocolError(sel.ExtSessionLockV1ErrorDuplicateOutput, "the output already has a lock surface")
-	case s.Attached() || s.Buffer() != nil:
+	case s.HasBuffer():
 		return nil, obj.ProtocolError(sel.ExtSessionLockV1ErrorAlreadyConstructed, "the surface already has a buffer")
 	}
 	if err := s.SetRole(ls); err != nil {

@@ -266,6 +266,10 @@ func (s *Surface) RemoveHooks(h *Hooks) {
 	s.hooks = slices.DeleteFunc(s.hooks, func(x *Hooks) bool { return x == h })
 }
 
+func (s *Surface) HasBuffer() bool {
+	return s.current.buffer != nil || s.pending.set&fieldBuffer != 0 && s.pending.buffer != nil
+}
+
 func (s *Surface) PendingBuffer() (Buffer, bool) {
 	return s.pending.buffer, s.pending.set&fieldBuffer != 0
 }

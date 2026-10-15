@@ -30,7 +30,7 @@ func (decorationManager) GetToplevelDecoration(_ *sxd.ZxdgDecorationManagerV1, r
 	switch {
 	case t.decoration != nil:
 		return nil, res.ProtocolError(sxd.ZxdgToplevelDecorationV1ErrorAlreadyConstructed, "the xdg_toplevel already has a decoration object")
-	case t.xs.surface.Buffer() != nil:
+	case t.xs.surface.HasBuffer():
 		return nil, res.ProtocolError(sxd.ZxdgToplevelDecorationV1ErrorUnconfiguredBuffer, "the xdg_toplevel already has a buffer")
 	}
 	t.decoration = res
