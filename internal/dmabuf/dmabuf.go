@@ -14,6 +14,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/stubbedev/tilde/internal/fourcc"
 	"github.com/stubbedev/tilde/internal/gpu"
 	sld "github.com/stubbedev/tilde/internal/protocol/server/linuxdmabuf"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
@@ -91,9 +92,9 @@ func New(d *server.Display, imp Importer, l Listener) (*Manager, error) {
 func formatTable(formats []gpu.FormatModifier) (int, error) {
 	table := make([]byte, 0, len(formats)*tableEntry)
 	for _, f := range formats {
-		table = binary.NativeEndian.AppendUint32(table, f.Format)
+		table = binary.NativeEndian.AppendUint32(table, uint32(f.Format))
 		table = binary.NativeEndian.AppendUint32(table, 0)
-		table = binary.NativeEndian.AppendUint64(table, f.Modifier)
+		table = binary.NativeEndian.AppendUint64(table, uint64(f.Modifier))
 	}
 	fd, err := unix.MemfdCreate("tilde-dmabuf-formats", unix.MFD_CLOEXEC|unix.MFD_ALLOW_SEALING)
 	if err != nil {
@@ -134,12 +135,12 @@ func (m *Manager) bind(c *server.Client, id wire.ObjectID, version uint32) error
 	for i, f := range m.formats {
 		if version < 3 {
 			if i == 0 || m.formats[i-1].Format != f.Format {
-				errs = append(errs, res.SendFormat(f.Format))
+				errs = append(errs, res.SendFormat(uint32(f.Format)))
 			}
 			continue
 		}
-		hi, lo := wire.Halves(f.Modifier)
-		errs = append(errs, res.SendModifier(f.Format, hi, lo))
+		hi, lo := wire.Halves(uint64(f.Modifier))
+		errs = append(errs, res.SendModifier(uint32(f.Format), hi, lo))
 	}
 	return errors.Join(errs...)
 }
@@ -238,7 +239,7 @@ type plane struct {
 	fd       int
 	offset   uint32
 	stride   uint32
-	modifier uint64
+	modifier fourcc.Modifier
 }
 
 type params struct {
@@ -269,7 +270,7 @@ func (p *params) Destroy(*sld.ZwpLinuxBufferParamsV1) error {
 }
 
 func (p *params) Add(obj *sld.ZwpLinuxBufferParamsV1, fd int, idx, offset, stride, hi, lo uint32) error {
-	modifier := wire.Join(hi, lo)
+	modifier := fourcc.Modifier(wire.Join(hi, lo))
 	var err error
 	switch {
 	case p.used:
@@ -282,7 +283,7 @@ func (p *params) Add(obj *sld.ZwpLinuxBufferParamsV1, fd int, idx, offset, strid
 	if err == nil {
 		for i, pl := range p.planes {
 			if pl != nil && pl.modifier != modifier {
-				err = fail(obj, sld.ZwpLinuxBufferParamsV1ErrorInvalidFormat, "plane %d has modifier %#x, but plane %d has %#x", idx, modifier, i, pl.modifier)
+				err = fail(obj, sld.ZwpLinuxBufferParamsV1ErrorInvalidFormat, "plane %d has modifier %v, but plane %d has %v", idx, modifier, i, pl.modifier)
 				break
 			}
 		}
@@ -294,13 +295,13 @@ func (p *params) Add(obj *sld.ZwpLinuxBufferParamsV1, fd int, idx, offset, strid
 	return nil
 }
 
-var verticalSubsampling = map[uint32][]int{
-	gpu.FormatARGB8888: {1}, gpu.FormatXRGB8888: {1}, gpu.FormatABGR8888: {1}, gpu.FormatXBGR8888: {1},
-	fourcc("NV12"): {1, 2}, fourcc("NV21"): {1, 2}, fourcc("NV16"): {1, 1}, fourcc("P010"): {1, 2},
-	fourcc("YU12"): {1, 2, 2}, fourcc("YV12"): {1, 2, 2},
+var verticalSubsampling = map[fourcc.Format][]int{
+	fourcc.ARGB8888: {1}, fourcc.XRGB8888: {1}, fourcc.ABGR8888: {1}, fourcc.XBGR8888: {1},
+	fourcc.NV12: {1, 2}, fourcc.NV21: {1, 2}, fourcc.NV16: {1, 1}, fourcc.P010: {1, 2},
+	fourcc.YUV420: {1, 2, 2}, fourcc.YVU420: {1, 2, 2},
 }
 
-func planeRows(format uint32, plane int, height int32) uint64 {
+func planeRows(format fourcc.Format, plane int, height int32) uint64 {
 	sub := 1
 	if subs, ok := verticalSubsampling[format]; ok {
 		sub = subs[plane]
@@ -308,11 +309,7 @@ func planeRows(format uint32, plane int, height int32) uint64 {
 	return uint64((int(height) + sub - 1) / sub) //nolint:gosec // height was checked to be positive
 }
 
-func fourcc(s string) uint32 {
-	return uint32(s[0]) | uint32(s[1])<<8 | uint32(s[2])<<16 | uint32(s[3])<<24
-}
-
-func (p *params) build(width, height int32, format uint32, flags sld.ZwpLinuxBufferParamsV1Flags) (gpu.DMABUF, error) {
+func (p *params) build(width, height int32, format fourcc.Format, flags sld.ZwpLinuxBufferParamsV1Flags) (gpu.DMABUF, error) {
 	obj := p.res
 	if p.used {
 		return gpu.DMABUF{}, fail(obj, sld.ZwpLinuxBufferParamsV1ErrorAlreadyUsed, "params already created a buffer")
@@ -332,10 +329,10 @@ func (p *params) build(width, height int32, format uint32, flags sld.ZwpLinuxBuf
 	}
 	modifier := p.planes[0].modifier
 	if !slices.Contains(p.m.formats, gpu.FormatModifier{Format: format, Modifier: modifier}) {
-		return gpu.DMABUF{}, fail(obj, sld.ZwpLinuxBufferParamsV1ErrorInvalidFormat, "format %#x with modifier %#x is not supported", format, modifier)
+		return gpu.DMABUF{}, fail(obj, sld.ZwpLinuxBufferParamsV1ErrorInvalidFormat, "format %v with modifier %v is not supported", format, modifier)
 	}
 	if subs, ok := verticalSubsampling[format]; ok && n != len(subs) {
-		return gpu.DMABUF{}, fail(obj, sld.ZwpLinuxBufferParamsV1ErrorIncomplete, "format %#x has %d planes, not %d", format, len(subs), n)
+		return gpu.DMABUF{}, fail(obj, sld.ZwpLinuxBufferParamsV1ErrorIncomplete, "format %v has %d planes, not %d", format, len(subs), n)
 	}
 	if width <= 0 || height <= 0 {
 		return gpu.DMABUF{}, fail(obj, sld.ZwpLinuxBufferParamsV1ErrorInvalidDimensions, "invalid size %dx%d", width, height)
@@ -350,7 +347,7 @@ func (p *params) build(width, height int32, format uint32, flags sld.ZwpLinuxBuf
 			return gpu.DMABUF{}, fail(obj, sld.ZwpLinuxBufferParamsV1ErrorOutOfBounds, "plane %d ends past 4 GiB", i)
 		}
 		if size, err := unix.Seek(pl.fd, 0, unix.SEEK_END); err == nil {
-			if pl.offset >= uint32(size) || (modifier == gpu.ModifierLinear && end > uint64(size)) { //nolint:gosec // a dmabuf of 4 GiB or more fails the check above
+			if pl.offset >= uint32(size) || (modifier == fourcc.Linear && end > uint64(size)) { //nolint:gosec // a dmabuf of 4 GiB or more fails the check above
 				return gpu.DMABUF{}, fail(obj, sld.ZwpLinuxBufferParamsV1ErrorOutOfBounds, "plane %d at offset %d with stride %d does not fit %d bytes", i, pl.offset, pl.stride, size)
 			}
 		}
@@ -372,19 +369,19 @@ func closeAll(b gpu.DMABUF) error {
 	return errors.Join(errs...)
 }
 
-func (p *params) check(width, height int32, format uint32, flags sld.ZwpLinuxBufferParamsV1Flags) (gpu.DMABUF, error) {
+func (p *params) check(width, height int32, format fourcc.Format, flags sld.ZwpLinuxBufferParamsV1Flags) (gpu.DMABUF, error) {
 	b, err := p.build(width, height, format, flags)
 	if err != nil {
 		return gpu.DMABUF{}, err
 	}
 	if err := p.m.importer.CheckDMABUF(b); err != nil {
-		return gpu.DMABUF{}, errors.Join(fmt.Errorf("dmabuf: import %dx%d format %#x with modifier %#x: %w", width, height, format, b.Modifier, err), closeAll(b))
+		return gpu.DMABUF{}, errors.Join(fmt.Errorf("dmabuf: import %dx%d format %v with modifier %v: %w", width, height, format, b.Modifier, err), closeAll(b))
 	}
 	return b, nil
 }
 
 func (p *params) Create(obj *sld.ZwpLinuxBufferParamsV1, width, height int32, format uint32, flags sld.ZwpLinuxBufferParamsV1Flags) error {
-	b, err := p.check(width, height, format, flags)
+	b, err := p.check(width, height, fourcc.Format(format), flags)
 	var pe *wire.ProtocolError
 	switch {
 	case errors.As(err, &pe):
@@ -401,7 +398,7 @@ func (p *params) Create(obj *sld.ZwpLinuxBufferParamsV1, width, height int32, fo
 }
 
 func (p *params) CreateImmed(obj *sld.ZwpLinuxBufferParamsV1, res *sw.WlBuffer, width, height int32, format uint32, flags sld.ZwpLinuxBufferParamsV1Flags) (sw.WlBufferHandler, error) {
-	b, err := p.check(width, height, format, flags)
+	b, err := p.check(width, height, fourcc.Format(format), flags)
 	var pe *wire.ProtocolError
 	switch {
 	case errors.As(err, &pe):

@@ -8,6 +8,7 @@ import (
 
 	"github.com/stubbedev/tilde/internal/backend/headless"
 	"github.com/stubbedev/tilde/internal/compositor"
+	"github.com/stubbedev/tilde/internal/fourcc"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/surface"
 	"github.com/stubbedev/tilde/internal/testclient"
@@ -23,10 +24,10 @@ func scanouts(h *Harness) uint64 {
 }
 
 var primaryPlane = gpu.ScanoutTarget{Device: 0xe201, Formats: []gpu.FormatModifier{
-	{Format: gpu.FormatXRGB8888, Modifier: gpu.ModifierLinear},
-	{Format: gpu.FormatARGB8888, Modifier: gpu.ModifierLinear},
-	{Format: gpu.FormatXRGB8888, Modifier: 7},
-	{Format: gpu.FormatXRGB8888, Modifier: gpu.ModifierInvalid},
+	{Format: fourcc.XRGB8888, Modifier: fourcc.Linear},
+	{Format: fourcc.ARGB8888, Modifier: fourcc.Linear},
+	{Format: fourcc.XRGB8888, Modifier: 7},
+	{Format: fourcc.XRGB8888, Modifier: fourcc.Invalid},
 }}
 
 type scanoutScene struct {

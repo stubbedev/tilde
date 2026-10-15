@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stubbedev/tilde/internal/backend"
+	"github.com/stubbedev/tilde/internal/fourcc"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/render"
@@ -400,7 +401,7 @@ func TestClientBuffersAreReleasedWhenTheOutputStopsShowingThem(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			format := gpu.FormatModifier{Format: gpu.FormatXRGB8888, Modifier: gpu.ModifierLinear}
+			format := gpu.FormatModifier{Format: fourcc.XRGB8888, Modifier: fourcc.Linear}
 			o.AllowScanout(gpu.ScanoutTarget{Formats: []gpu.FormatModifier{format}})
 			released := 0
 			buf := gpu.DMABUF{Size: mode100.Size, Format: format.Format, Modifier: format.Modifier}

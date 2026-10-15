@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/stubbedev/tilde/internal/fourcc"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	cld "github.com/stubbedev/tilde/internal/protocol/client/linuxdmabuf"
@@ -23,10 +24,10 @@ import (
 )
 
 var formats = []gpu.FormatModifier{
-	{Format: gpu.FormatARGB8888, Modifier: gpu.ModifierLinear},
-	{Format: gpu.FormatARGB8888, Modifier: gpu.ModifierInvalid},
-	{Format: gpu.FormatXRGB8888, Modifier: gpu.ModifierLinear},
-	{Format: fourcc("NV12"), Modifier: gpu.ModifierLinear},
+	{Format: fourcc.ARGB8888, Modifier: fourcc.Linear},
+	{Format: fourcc.ARGB8888, Modifier: fourcc.Invalid},
+	{Format: fourcc.XRGB8888, Modifier: fourcc.Linear},
+	{Format: fourcc.NV12, Modifier: fourcc.Linear},
 }
 
 type importer struct {
@@ -136,17 +137,17 @@ func (r registry) Global(_ *cw.WlRegistry, name uint32, iface string, _ uint32) 
 func (registry) GlobalRemove(*cw.WlRegistry, uint32) error { return nil }
 
 type legacy struct {
-	formats   []uint32
+	formats   []fourcc.Format
 	modifiers []gpu.FormatModifier
 }
 
 func (l *legacy) Format(_ *cld.ZwpLinuxDmabufV1, f uint32) error {
-	l.formats = append(l.formats, f)
+	l.formats = append(l.formats, fourcc.Format(f))
 	return nil
 }
 
 func (l *legacy) Modifier(_ *cld.ZwpLinuxDmabufV1, f, hi, lo uint32) error {
-	l.modifiers = append(l.modifiers, gpu.FormatModifier{Format: f, Modifier: wire.Join(hi, lo)})
+	l.modifiers = append(l.modifiers, gpu.FormatModifier{Format: fourcc.Format(f), Modifier: fourcc.Modifier(wire.Join(hi, lo))})
 	return nil
 }
 
@@ -234,7 +235,7 @@ func (f *received) FormatTable(_ *cld.ZwpLinuxDmabufFeedbackV1, fd int, size uin
 	}
 	f.table = f.table[:0]
 	for at := 0; at+16 <= len(m); at += 16 {
-		f.table = append(f.table, gpu.FormatModifier{Format: binary.NativeEndian.Uint32(m[at:]), Modifier: binary.NativeEndian.Uint64(m[at+8:])})
+		f.table = append(f.table, gpu.FormatModifier{Format: fourcc.Format(binary.NativeEndian.Uint32(m[at:])), Modifier: fourcc.Modifier(binary.NativeEndian.Uint64(m[at+8:]))})
 	}
 	return errors.Join(unix.Munmap(m), unix.Close(fd))
 }
@@ -312,9 +313,9 @@ func TestASurfaceThatCanBeScannedOutLearnsThePlaneFormats(t *testing.T) {
 		t.Fatalf("feedback before any scanout: %+v", fb)
 	}
 	plane := gpu.ScanoutTarget{Device: 0xe200, Formats: []gpu.FormatModifier{
-		{Format: gpu.FormatXRGB8888, Modifier: gpu.ModifierLinear},
-		{Format: gpu.FormatXRGB8888, Modifier: 7},
-		{Format: gpu.FormatARGB8888, Modifier: gpu.ModifierInvalid},
+		{Format: fourcc.XRGB8888, Modifier: fourcc.Linear},
+		{Format: fourcc.XRGB8888, Modifier: 7},
+		{Format: fourcc.ARGB8888, Modifier: fourcc.Invalid},
 	}}
 	e.scanout(plane)
 	c.roundtrip()
@@ -337,7 +338,7 @@ func TestLegacyEventsWithoutADevice(t *testing.T) {
 	if c := e.connect(3); !slices.Equal(c.legacy.modifiers, formats) {
 		t.Fatalf("modifiers %+v", c.legacy.modifiers)
 	}
-	if c := e.connect(2); !slices.Equal(c.legacy.formats, []uint32{gpu.FormatARGB8888, gpu.FormatXRGB8888, fourcc("NV12")}) {
+	if c := e.connect(2); !slices.Equal(c.legacy.formats, []fourcc.Format{fourcc.ARGB8888, fourcc.XRGB8888, fourcc.NV12}) {
 		t.Fatalf("formats %+v", c.legacy.formats)
 	}
 }
@@ -383,7 +384,7 @@ func TestBuffersAreCheckedAndCreated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := errors.Join(p.Add(fd, 0, 0, 256, 0, 0), p.Create(64, 16, gpu.FormatXRGB8888, 0)); err != nil {
+	if err := errors.Join(p.Add(fd, 0, 0, 256, 0, 0), p.Create(64, 16, uint32(fourcc.XRGB8888), 0)); err != nil {
 		t.Fatal(err)
 	}
 	c.roundtrip()
@@ -393,7 +394,7 @@ func TestBuffersAreCheckedAndCreated(t *testing.T) {
 	e.imp.mu.Lock()
 	checked := e.imp.checked
 	e.imp.mu.Unlock()
-	if len(checked) != 1 || checked[0].Format != gpu.FormatXRGB8888 || checked[0].Planes[0].Stride != 256 {
+	if len(checked) != 1 || checked[0].Format != fourcc.XRGB8888 || checked[0].Planes[0].Stride != 256 {
 		t.Fatalf("checked %+v", checked)
 	}
 	if err := result.buffer.Destroy(); err != nil {
@@ -414,7 +415,7 @@ func TestBuffersAreCheckedAndCreated(t *testing.T) {
 	if p, err = c.linux.CreateParams(refused); err != nil {
 		t.Fatal(err)
 	}
-	if err := errors.Join(p.Add(fd, 0, 0, 256, 0, 0), p.Create(64, 16, gpu.FormatXRGB8888, 0)); err != nil {
+	if err := errors.Join(p.Add(fd, 0, 0, 256, 0, 0), p.Create(64, 16, uint32(fourcc.XRGB8888), 0)); err != nil {
 		t.Fatal(err)
 	}
 	c.roundtrip()
@@ -427,11 +428,11 @@ func TestBuffersAreCheckedAndCreated(t *testing.T) {
 	if err := p.Add(memfd(t, 64*16*4), 0, 0, 256, 0, 0); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.CreateImmed(releases{}, 64, 16, gpu.FormatXRGB8888, 0); err != nil {
+	if _, err := p.CreateImmed(releases{}, 64, 16, uint32(fourcc.XRGB8888), 0); err != nil {
 		t.Fatal(err)
 	}
 	var pe *wire.ProtocolError
-	if err := c.d.Roundtrip(); !errors.As(err, &pe) || pe.Code != uint32(cld.ZwpLinuxBufferParamsV1ErrorInvalidWlBuffer) || !strings.Contains(pe.Message, "format 0x34325258 with modifier 0x0") {
+	if err := c.d.Roundtrip(); !errors.As(err, &pe) || pe.Code != uint32(cld.ZwpLinuxBufferParamsV1ErrorInvalidWlBuffer) || !strings.Contains(pe.Message, "format XR24 with modifier linear") {
 		t.Fatalf("an immediate buffer the GPU refuses: %v", err)
 	}
 }
@@ -446,7 +447,7 @@ func TestTightlyPackedNV12IsInBounds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := errors.Join(p.Add(fd, 0, 0, w, 0, 0), p.Add(fd, 1, w*h, w, 0, 0), p.Create(w, h, fourcc("NV12"), 0)); err != nil {
+	if err := errors.Join(p.Add(fd, 0, 0, w, 0, 0), p.Add(fd, 1, w*h, w, 0, 0), p.Create(w, h, uint32(fourcc.NV12), 0)); err != nil {
 		t.Fatal(err)
 	}
 	c.roundtrip()
@@ -470,31 +471,31 @@ func TestParamsErrors(t *testing.T) {
 			return errors.Join(p.Add(fd, 0, 0, 256, 0, 0), p.Add(fd, 1, 0, 256, 0, 1))
 		}},
 		"missing plane": {3, func(_ *testing.T, p *cld.ZwpLinuxBufferParamsV1, fd int) error {
-			return errors.Join(p.Add(fd, 1, 0, 256, 0, 0), p.Create(64, 16, gpu.FormatXRGB8888, 0))
+			return errors.Join(p.Add(fd, 1, 0, 256, 0, 0), p.Create(64, 16, uint32(fourcc.XRGB8888), 0))
 		}},
 		"too few planes": {3, func(_ *testing.T, p *cld.ZwpLinuxBufferParamsV1, fd int) error {
-			return errors.Join(p.Add(fd, 0, 0, 64, 0, 0), p.Create(64, 16, fourcc("NV12"), 0))
+			return errors.Join(p.Add(fd, 0, 0, 64, 0, 0), p.Create(64, 16, uint32(fourcc.NV12), 0))
 		}},
 		"unknown format": {4, func(_ *testing.T, p *cld.ZwpLinuxBufferParamsV1, fd int) error {
-			return errors.Join(p.Add(fd, 0, 0, 256, 0, 0), p.Create(64, 16, fourcc("RG16"), 0))
+			return errors.Join(p.Add(fd, 0, 0, 256, 0, 0), p.Create(64, 16, 'R'|'G'<<8|'1'<<16|'6'<<24, 0))
 		}},
 		"unknown modifier": {4, func(_ *testing.T, p *cld.ZwpLinuxBufferParamsV1, fd int) error {
-			return errors.Join(p.Add(fd, 0, 0, 256, 1, 2), p.Create(64, 16, gpu.FormatXRGB8888, 0))
+			return errors.Join(p.Add(fd, 0, 0, 256, 1, 2), p.Create(64, 16, uint32(fourcc.XRGB8888), 0))
 		}},
 		"dimensions": {5, func(_ *testing.T, p *cld.ZwpLinuxBufferParamsV1, fd int) error {
-			return errors.Join(p.Add(fd, 0, 0, 256, 0, 0), p.Create(0, 16, gpu.FormatXRGB8888, 0))
+			return errors.Join(p.Add(fd, 0, 0, 256, 0, 0), p.Create(0, 16, uint32(fourcc.XRGB8888), 0))
 		}},
 		"out of bounds": {6, func(_ *testing.T, p *cld.ZwpLinuxBufferParamsV1, fd int) error {
-			return errors.Join(p.Add(fd, 0, 0, 256, 0, 0), p.Create(64, 64, gpu.FormatXRGB8888, 0))
+			return errors.Join(p.Add(fd, 0, 0, 256, 0, 0), p.Create(64, 64, uint32(fourcc.XRGB8888), 0))
 		}},
 		"used twice": {0, func(_ *testing.T, p *cld.ZwpLinuxBufferParamsV1, fd int) error {
-			return errors.Join(p.Add(fd, 0, 0, 256, 0, 0), p.Create(64, 16, gpu.FormatXRGB8888, 0), p.Create(64, 16, gpu.FormatXRGB8888, 0))
+			return errors.Join(p.Add(fd, 0, 0, 256, 0, 0), p.Create(64, 16, uint32(fourcc.XRGB8888), 0), p.Create(64, 16, uint32(fourcc.XRGB8888), 0))
 		}},
 		"refused immediate": {7, func(_ *testing.T, p *cld.ZwpLinuxBufferParamsV1, fd int) error {
 			if err := p.Add(fd, 0, 0, 256, 0, 0); err != nil {
 				return err
 			}
-			_, err := p.CreateImmed(releases{}, 64, 16, gpu.FormatXRGB8888, cld.ZwpLinuxBufferParamsV1FlagsYInvert)
+			_, err := p.CreateImmed(releases{}, 64, 16, uint32(fourcc.XRGB8888), cld.ZwpLinuxBufferParamsV1FlagsYInvert)
 			return err
 		}},
 	}

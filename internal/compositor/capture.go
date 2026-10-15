@@ -9,6 +9,7 @@ import (
 
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/dmabuf"
+	"github.com/stubbedev/tilde/internal/fourcc"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/output"
 	"github.com/stubbedev/tilde/internal/region"
@@ -21,7 +22,7 @@ var captureFormats = []render.Format{render.XRGB8888, render.ARGB8888}
 
 type captureRenderer interface {
 	ImportTarget(b gpu.DMABUF) (render.ReadTarget, error)
-	RenderableModifiers(format uint32) ([]uint64, error)
+	RenderableModifiers(format fourcc.Format) ([]fourcc.Modifier, error)
 	MainDevice() (uint64, error)
 	Finish() error
 }

@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/stubbedev/tilde/internal/fourcc"
 	"github.com/stubbedev/tilde/internal/gpu"
 	ld "github.com/stubbedev/tilde/internal/protocol/client/linuxdmabuf"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
@@ -25,7 +26,7 @@ const (
 	dmabufVersion  = 4
 	dmabufBuffers  = 2
 	formatEntry    = 16
-	dmabufFormat   = gpu.FormatXRGB8888
+	dmabufFormat   = fourcc.XRGB8888
 	dmabufHostName = "zwp_linux_dmabuf_v1"
 )
 
@@ -34,7 +35,7 @@ type feedback struct {
 	main    uint64
 	target  uint64
 	formats []uint16
-	usable  map[uint64]bool
+	usable  map[fourcc.Modifier]bool
 	done    bool
 	err     error
 }
@@ -106,8 +107,8 @@ func (f *feedback) TrancheDone(*ld.ZwpLinuxDmabufFeedbackV1) error {
 			if at+formatEntry > len(f.table) {
 				return f.fail(fmt.Errorf("nested: dmabuf format index %d is outside the host's table", i))
 			}
-			if binary.NativeEndian.Uint32(f.table[at:]) == dmabufFormat {
-				f.usable[binary.NativeEndian.Uint64(f.table[at+8:])] = true
+			if fourcc.Format(binary.NativeEndian.Uint32(f.table[at:])) == dmabufFormat {
+				f.usable[fourcc.Modifier(binary.NativeEndian.Uint64(f.table[at+8:]))] = true
 			}
 		}
 	}
@@ -137,7 +138,7 @@ type dmabufChain struct {
 	gbm       *gpu.GBM
 	display   *gpu.Display
 	gles      *gles.Renderer
-	modifiers []uint64
+	modifiers []fourcc.Modifier
 }
 
 func newDMABUFChain(host *wlclient.Display, globals registry, reg *cw.WlRegistry, paths gpu.Paths) (c *dmabufChain, err error) {
@@ -157,7 +158,7 @@ func newDMABUFChain(host *wlclient.Display, globals registry, reg *cw.WlRegistry
 	if err := reg.Bind(g.name, c.linux); err != nil {
 		return nil, err
 	}
-	fb := &feedback{usable: map[uint64]bool{}}
+	fb := &feedback{usable: map[fourcc.Modifier]bool{}}
 	feed, err := c.linux.GetDefaultFeedback(fb)
 	if err != nil {
 		return nil, err
@@ -201,7 +202,7 @@ func newDMABUFChain(host *wlclient.Display, globals registry, reg *cw.WlRegistry
 			c.modifiers = append(c.modifiers, m.Modifier)
 		}
 	}
-	if len(c.modifiers) == 0 && !fb.usable[gpu.ModifierInvalid] {
+	if len(c.modifiers) == 0 && !fb.usable[fourcc.Invalid] {
 		return nil, fmt.Errorf("nested: the host and %s share no XRGB8888 modifier", node)
 	}
 	slices.Sort(c.modifiers)
@@ -257,13 +258,13 @@ func (c *dmabufChain) hostBuffer(o *Output, buf *buffer, d gpu.DMABUF) (*cw.WlBu
 	if err != nil {
 		return nil, err
 	}
-	hi, lo := wire.Halves(d.Modifier)
+	hi, lo := wire.Halves(uint64(d.Modifier))
 	for i, p := range d.Planes {
 		if err := params.Add(p.FD, uint32(i), p.Offset, p.Stride, hi, lo); err != nil {
 			return nil, err
 		}
 	}
-	wl, err := params.CreateImmed(bufferEvents{o, buf}, int32(d.Size.X), int32(d.Size.Y), d.Format, 0) //nolint:gosec // buffer sizes fit the protocol
+	wl, err := params.CreateImmed(bufferEvents{o, buf}, int32(d.Size.X), int32(d.Size.Y), uint32(d.Format), 0) //nolint:gosec // buffer sizes fit the protocol
 	if err != nil {
 		return nil, err
 	}

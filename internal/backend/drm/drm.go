@@ -14,14 +14,15 @@ import (
 	"github.com/stubbedev/tilde/internal/backend"
 	kdrm "github.com/stubbedev/tilde/internal/drm"
 	"github.com/stubbedev/tilde/internal/edid"
+	"github.com/stubbedev/tilde/internal/fourcc"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/render"
 )
 
 const (
-	scanoutFormat = gpu.FormatXRGB8888
-	cursorFormat  = gpu.FormatARGB8888
+	scanoutFormat = fourcc.XRGB8888
+	cursorFormat  = fourcc.ARGB8888
 	buffersPerOut = 2
 	cursorBuffers = 3
 	eventBuffer   = 1024
@@ -63,8 +64,8 @@ type scanout struct {
 
 type allocator interface {
 	renderer() render.Renderer
-	renderable(format uint32) ([]uint64, error)
-	allocate(size image.Point, format uint32, modifiers []uint64) (*scanout, error)
+	renderable(format fourcc.Format) ([]fourcc.Modifier, error)
+	allocate(size image.Point, format fourcc.Format, modifiers []fourcc.Modifier) (*scanout, error)
 	fence() (int, error)
 	close() error
 }
@@ -87,7 +88,7 @@ type plane struct {
 	id        uint32
 	kind      planeKind
 	possible  uint32
-	modifiers []uint64
+	modifiers []fourcc.Modifier
 	clients   []gpu.FormatModifier
 	props     map[string]kdrm.Property
 	taken     bool
@@ -176,7 +177,7 @@ func newBackend(l *loop.Loop, dev device, alloc allocator, opts Options) (*Backe
 	return b, nil
 }
 
-func (b *Backend) plane(id uint32, renderable []uint64) (*plane, error) {
+func (b *Backend) plane(id uint32, renderable []fourcc.Modifier) (*plane, error) {
 	info, err := b.dev.Plane(id)
 	if err != nil {
 		return nil, err
@@ -194,7 +195,7 @@ func (b *Backend) plane(id uint32, renderable []uint64) (*plane, error) {
 		return nil, err
 	}
 	p := &plane{id: id, possible: info.PossibleCRTCs, props: props}
-	var format uint32
+	var format fourcc.Format
 	switch kind.Value {
 	case enum.Enums["Primary"]:
 		p.kind, format = primaryPlane, scanoutFormat
@@ -225,7 +226,7 @@ func (b *Backend) plane(id uint32, renderable []uint64) (*plane, error) {
 		return nil, err
 	}
 	if p.kind == cursorPlane {
-		if !slices.Contains(scanable, gpu.ModifierLinear) {
+		if !slices.Contains(scanable, fourcc.Linear) {
 			return nil, nil
 		}
 		return p, nil
@@ -241,10 +242,10 @@ func (b *Backend) plane(id uint32, renderable []uint64) (*plane, error) {
 	return p, nil
 }
 
-func (b *Backend) clientFormats(formats []uint32, inFormats []byte) ([]gpu.FormatModifier, error) {
+func (b *Backend) clientFormats(formats []fourcc.Format, inFormats []byte) ([]gpu.FormatModifier, error) {
 	var pairs []gpu.FormatModifier
 	for _, f := range formats {
-		modifiers := []uint64{gpu.ModifierInvalid}
+		modifiers := []fourcc.Modifier{fourcc.Invalid}
 		if inFormats != nil {
 			var err error
 			if modifiers, err = kdrm.Modifiers(inFormats, f); err != nil {

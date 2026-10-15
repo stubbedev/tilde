@@ -7,6 +7,8 @@ import (
 
 	"github.com/ebitengine/purego"
 	"golang.org/x/sys/unix"
+
+	"github.com/stubbedev/tilde/internal/fourcc"
 )
 
 type Usage uint32
@@ -92,21 +94,25 @@ type Buffer struct {
 	bo uintptr
 }
 
-func (d *GBM) Allocate(size image.Point, format uint32, modifiers []uint64, usage Usage) (*Buffer, error) {
+func (d *GBM) Allocate(size image.Point, format fourcc.Format, modifiers []fourcc.Modifier, usage Usage) (*Buffer, error) {
 	if size.X <= 0 || size.Y <= 0 {
 		return nil, fmt.Errorf("gpu: cannot allocate a %dx%d buffer", size.X, size.Y)
 	}
 	w, h := uint32(size.X), uint32(size.Y) //nolint:gosec // checked positive above
 	var bo uintptr
 	if len(modifiers) > 0 {
-		bo = d.fn.createWithMods(d.dev, w, h, format, &modifiers[0], uint32(len(modifiers)), uint32(usage)) //nolint:gosec // a handful of modifiers
+		raw := make([]uint64, len(modifiers))
+		for i, m := range modifiers {
+			raw[i] = uint64(m)
+		}
+		bo = d.fn.createWithMods(d.dev, w, h, uint32(format), &raw[0], uint32(len(raw)), uint32(usage)) //nolint:gosec // a handful of modifiers
 	} else {
-		bo = d.fn.create(d.dev, w, h, format, uint32(usage))
+		bo = d.fn.create(d.dev, w, h, uint32(format), uint32(usage))
 	}
 	if bo == 0 {
-		return nil, fmt.Errorf("gpu: gbm cannot allocate a %dx%d buffer of format %#x with modifiers %#x", size.X, size.Y, format, modifiers)
+		return nil, fmt.Errorf("gpu: gbm cannot allocate a %dx%d buffer of format %v with modifiers %v", size.X, size.Y, format, modifiers)
 	}
-	b := &Buffer{fn: d.fn, bo: bo, Size: size, Format: format, Modifier: d.fn.modifier(bo)}
+	b := &Buffer{fn: d.fn, bo: bo, Size: size, Format: format, Modifier: fourcc.Modifier(d.fn.modifier(bo))}
 	for i := range d.fn.planeCount(bo) {
 		fd := d.fn.fdForPlane(bo, i)
 		if fd < 0 {

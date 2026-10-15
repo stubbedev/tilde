@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stubbedev/tilde/internal/dmabuf"
+	"github.com/stubbedev/tilde/internal/fourcc"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/output"
 	sefl "github.com/stubbedev/tilde/internal/protocol/server/extforeigntoplevellist"
@@ -72,7 +73,7 @@ type dmabufOffer struct {
 }
 
 type dmabufFormat struct {
-	format    uint32
+	format    fourcc.Format
 	modifiers []byte
 }
 
@@ -89,17 +90,17 @@ func captureOffer(r render.Renderer) (*dmabufOffer, error) {
 		return nil, fmt.Errorf("image capture: %w", err)
 	}
 	offer := &dmabufOffer{device: binary.NativeEndian.AppendUint64(nil, dev)}
-	for _, format := range []uint32{gpu.FormatXRGB8888, gpu.FormatARGB8888} {
+	for _, format := range []fourcc.Format{fourcc.XRGB8888, fourcc.ARGB8888} {
 		mods, err := cr.RenderableModifiers(format)
 		if err != nil {
-			return nil, fmt.Errorf("image capture: modifiers of format %#x: %w", format, err)
+			return nil, fmt.Errorf("image capture: modifiers of format %v: %w", format, err)
 		}
 		if len(mods) == 0 {
 			continue
 		}
 		list := make([]byte, 0, 8*len(mods))
 		for _, m := range mods {
-			list = binary.NativeEndian.AppendUint64(list, m)
+			list = binary.NativeEndian.AppendUint64(list, uint64(m))
 		}
 		offer.formats = append(offer.formats, dmabufFormat{format, list})
 	}
@@ -404,7 +405,7 @@ func (s *captureSession) constraints() error {
 	if s.offer.device != nil {
 		errs = append(errs, res.SendDmabufDevice(s.offer.device))
 		for _, f := range s.offer.formats {
-			errs = append(errs, res.SendDmabufFormat(f.format, f.modifiers))
+			errs = append(errs, res.SendDmabufFormat(uint32(f.format), f.modifiers))
 		}
 	}
 	return errors.Join(append(errs, res.SendDone())...)

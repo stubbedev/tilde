@@ -11,6 +11,7 @@ import (
 
 	"github.com/stubbedev/tilde/internal/dmabuf"
 	"github.com/stubbedev/tilde/internal/drm"
+	"github.com/stubbedev/tilde/internal/fourcc"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	cld "github.com/stubbedev/tilde/internal/protocol/client/linuxdmabuf"
@@ -42,7 +43,7 @@ func device(t *testing.T) *drm.Device {
 type importer struct{}
 
 func (importer) DMABUFFormats() ([]gpu.FormatModifier, error) {
-	return []gpu.FormatModifier{{Format: gpu.FormatXRGB8888, Modifier: gpu.ModifierLinear}}, nil
+	return []gpu.FormatModifier{{Format: fourcc.XRGB8888, Modifier: fourcc.Linear}}, nil
 }
 
 func (importer) MainDevice() (uint64, error) { return 0, gpu.ErrUnsupported }
@@ -252,7 +253,7 @@ func (e *env) dmabuf() *cw.WlBuffer {
 	if err := p.Add(fd, 0, 0, 64, 0, 0); err != nil {
 		e.t.Fatal(err)
 	}
-	b, err := p.CreateImmed(released{}, 16, 16, gpu.FormatXRGB8888, 0)
+	b, err := p.CreateImmed(released{}, 16, 16, uint32(fourcc.XRGB8888), 0)
 	if err != nil {
 		e.t.Fatal(err)
 	}

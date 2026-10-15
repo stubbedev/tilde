@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	kdrm "github.com/stubbedev/tilde/internal/drm"
+	"github.com/stubbedev/tilde/internal/fourcc"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/render"
@@ -21,11 +22,11 @@ func (a *copyAllocator) renderer() render.Renderer {
 	return a.primary
 }
 
-func (a *copyAllocator) renderable(uint32) ([]uint64, error) {
-	return []uint64{gpu.ModifierLinear}, nil
+func (a *copyAllocator) renderable(fourcc.Format) ([]fourcc.Modifier, error) {
+	return []fourcc.Modifier{fourcc.Linear}, nil
 }
 
-func (a *copyAllocator) allocate(size image.Point, format uint32, _ []uint64) (*scanout, error) {
+func (a *copyAllocator) allocate(size image.Point, format fourcc.Format, _ []fourcc.Modifier) (*scanout, error) {
 	target, err := a.primary.NewTarget(size)
 	if err != nil {
 		return nil, fmt.Errorf("drm: a %v target on the primary GPU: %w", size, err)

@@ -11,6 +11,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/stubbedev/tilde/internal/fourcc"
 )
 
 const (
@@ -283,7 +285,7 @@ func (d *Device) Planes() ([]uint32, error) {
 
 type Plane struct {
 	ID, CRTC, FB, PossibleCRTCs uint32
-	Formats                     []uint32
+	Formats                     []fourcc.Format
 }
 
 func (d *Device) Plane(id uint32) (Plane, error) {
@@ -295,7 +297,7 @@ func (d *Device) Plane(id uint32) (Plane, error) {
 		if err := d.ioctl("DRM_IOCTL_MODE_GETPLANE", ioctlGetPlane, unsafe.Pointer(&arg), unsafe.Sizeof(arg)); err != nil { //nolint:gosec // the kernel fills this struct during the call
 			return Plane{}, err
 		}
-		formats := make([]uint32, arg.countFormats)
+		formats := make([]fourcc.Format, arg.countFormats)
 		want := arg.countFormats
 		var pin runtime.Pinner
 		arg.formats = addr(&pin, formats)
@@ -448,11 +450,12 @@ func (d *Device) CloseHandle(handle uint32) error {
 }
 
 type FB struct {
-	Width, Height, Format uint32
-	Handles, Pitches      [4]uint32
-	Offsets               [4]uint32
-	Modifier              uint64
-	WithModifier          bool
+	Width, Height    uint32
+	Format           fourcc.Format
+	Handles, Pitches [4]uint32
+	Offsets          [4]uint32
+	Modifier         fourcc.Modifier
+	WithModifier     bool
 }
 
 func (d *Device) AddFB2(fb FB) (uint32, error) {
@@ -461,12 +464,12 @@ func (d *Device) AddFB2(fb FB) (uint32, error) {
 		handles, pitches, offsets        [4]uint32
 		pad                              uint32
 		modifiers                        [4]uint64
-	}{width: fb.Width, height: fb.Height, format: fb.Format, handles: fb.Handles, pitches: fb.Pitches, offsets: fb.Offsets}
+	}{width: fb.Width, height: fb.Height, format: uint32(fb.Format), handles: fb.Handles, pitches: fb.Pitches, offsets: fb.Offsets}
 	if fb.WithModifier {
 		arg.flags = FBModifiers
 		for i, h := range fb.Handles {
 			if h != 0 {
-				arg.modifiers[i] = fb.Modifier
+				arg.modifiers[i] = uint64(fb.Modifier)
 			}
 		}
 	}
@@ -559,7 +562,7 @@ func ParseEvents(buf []byte, flip func(FlipEvent) error) error {
 	return nil
 }
 
-func Modifiers(inFormats []byte, format uint32) ([]uint64, error) {
+func Modifiers(inFormats []byte, format fourcc.Format) ([]fourcc.Modifier, error) {
 	if len(inFormats) < 24 {
 		return nil, fmt.Errorf("drm: an IN_FORMATS blob of %d bytes", len(inFormats))
 	}
@@ -570,7 +573,7 @@ func Modifiers(inFormats []byte, format uint32) ([]uint64, error) {
 	}
 	index := -1
 	for i := range int(countFormats) {
-		if binary.NativeEndian.Uint32(inFormats[int(formatsOff)+4*i:]) == format {
+		if fourcc.Format(binary.NativeEndian.Uint32(inFormats[int(formatsOff)+4*i:])) == format {
 			index = i
 			break
 		}
@@ -578,12 +581,12 @@ func Modifiers(inFormats []byte, format uint32) ([]uint64, error) {
 	if index < 0 {
 		return nil, nil
 	}
-	var out []uint64
+	var out []fourcc.Modifier
 	for i := range int(countMods) {
 		m := inFormats[int(modsOff)+24*i:]
 		mask, offset, modifier := binary.NativeEndian.Uint64(m), int(binary.NativeEndian.Uint32(m[8:])), binary.NativeEndian.Uint64(m[16:])
 		if index >= offset && index < offset+64 && mask&(1<<(index-offset)) != 0 {
-			out = append(out, modifier)
+			out = append(out, fourcc.Modifier(modifier))
 		}
 	}
 	return out, nil

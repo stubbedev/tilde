@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/stubbedev/tilde/internal/fourcc"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/region"
 	"github.com/stubbedev/tilde/internal/render"
@@ -64,7 +65,7 @@ type Renderer struct {
 	rgba      program
 	rgbx      program
 	external  program
-	modifiers map[uint32][]gpu.Modifier
+	modifiers map[fourcc.Format][]gpu.ModifierSupport
 	vbo       uint32
 	verts     [16]float32
 	pass      pass
@@ -87,7 +88,7 @@ func (r *Renderer) leave(op string) error {
 }
 
 func New(d *gpu.Display) (*Renderer, error) {
-	r := &Renderer{d: d, gl: d.GL(), modifiers: map[uint32][]gpu.Modifier{}}
+	r := &Renderer{d: d, gl: d.GL(), modifiers: map[fourcc.Format][]gpu.ModifierSupport{}}
 	r.pass.owner = r
 	if err := r.enter(); err != nil {
 		return nil, err
@@ -230,7 +231,7 @@ func (r *Renderer) DMABUFFormats() ([]gpu.FormatModifier, error) {
 			return nil, err
 		}
 		r.modifiers[f] = mods
-		out = append(out, gpu.FormatModifier{Format: f, Modifier: gpu.ModifierInvalid})
+		out = append(out, gpu.FormatModifier{Format: f, Modifier: fourcc.Invalid})
 		for _, m := range mods {
 			out = append(out, gpu.FormatModifier{Format: f, Modifier: m.Modifier})
 		}
@@ -420,12 +421,12 @@ func (r *Renderer) ImportTarget(b gpu.DMABUF) (render.ReadTarget, error) {
 	return r.ImportFramebuffer(b)
 }
 
-func (r *Renderer) RenderableModifiers(format uint32) ([]uint64, error) {
+func (r *Renderer) RenderableModifiers(format fourcc.Format) ([]fourcc.Modifier, error) {
 	mods, err := r.d.DMABUFModifiers(format)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]uint64, 0, len(mods))
+	out := make([]fourcc.Modifier, 0, len(mods))
 	for _, m := range mods {
 		if !m.ExternalOnly {
 			out = append(out, m.Modifier)

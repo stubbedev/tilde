@@ -8,6 +8,8 @@ import (
 	"image"
 
 	"github.com/ebitengine/purego"
+
+	"github.com/stubbedev/tilde/internal/fourcc"
 )
 
 const (
@@ -67,24 +69,14 @@ type Plane struct {
 
 type DMABUF struct {
 	Size     image.Point
-	Format   uint32
-	Modifier uint64
+	Format   fourcc.Format
+	Modifier fourcc.Modifier
 	Planes   []Plane
 }
 
-const (
-	FormatARGB8888 uint32 = 'A' | 'R'<<8 | '2'<<16 | '4'<<24
-	FormatXRGB8888 uint32 = 'X' | 'R'<<8 | '2'<<16 | '4'<<24
-	FormatABGR8888 uint32 = 'A' | 'B'<<8 | '2'<<16 | '4'<<24
-	FormatXBGR8888 uint32 = 'X' | 'B'<<8 | '2'<<16 | '4'<<24
-
-	ModifierLinear  uint64 = 0
-	ModifierInvalid uint64 = 0x00ffffffffffffff
-)
-
 type FormatModifier struct {
-	Format   uint32
-	Modifier uint64
+	Format   fourcc.Format
+	Modifier fourcc.Modifier
 }
 
 type ScanoutTarget struct {

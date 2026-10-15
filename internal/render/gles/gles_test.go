@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/stubbedev/tilde/internal/fourcc"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/render/gles"
@@ -235,7 +236,7 @@ func TestDMABUFTexturesOnHardware(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dev.Close()
-	bo, err := dev.Allocate(image.Pt(8, 8), gpu.FormatARGB8888, nil, gpu.UseRendering)
+	bo, err := dev.Allocate(image.Pt(8, 8), fourcc.ARGB8888, nil, gpu.UseRendering)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -435,8 +436,7 @@ func TestExternalYUVTexturesOnHardware(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dev.Close()
-	nv12 := uint32('N') | uint32('V')<<8 | uint32('1')<<16 | uint32('2')<<24
-	bo, err := dev.Allocate(image.Pt(16, 16), nv12, nil, gpu.UseLinear)
+	bo, err := dev.Allocate(image.Pt(16, 16), fourcc.NV12, nil, gpu.UseLinear)
 	if err != nil {
 		t.Skipf("%s cannot allocate linear NV12: %v", dev.Backend(), err)
 	}

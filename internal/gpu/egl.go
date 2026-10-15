@@ -9,6 +9,8 @@ import (
 	"sync"
 
 	"github.com/ebitengine/purego"
+
+	"github.com/stubbedev/tilde/internal/fourcc"
 )
 
 const (
@@ -346,12 +348,12 @@ func (d *Display) Close() error {
 	return errors.Join(errs...)
 }
 
-type Modifier struct {
-	Modifier     uint64
+type ModifierSupport struct {
+	Modifier     fourcc.Modifier
 	ExternalOnly bool
 }
 
-func (d *Display) DMABUFFormats() ([]uint32, error) {
+func (d *Display) DMABUFFormats() ([]fourcc.Format, error) {
 	if !d.Has("EGL_EXT_image_dma_buf_import_modifiers") {
 		return nil, fmt.Errorf("%w: EGL_EXT_image_dma_buf_import_modifiers", ErrUnsupported)
 	}
@@ -363,14 +365,14 @@ func (d *Display) DMABUFFormats() ([]uint32, error) {
 	if n > 0 && d.lib.egl.queryDMABUFFormats(d.dpy, n, &formats[0], &n) != eglTrue {
 		return nil, d.lib.fail("eglQueryDmaBufFormatsEXT")
 	}
-	out := make([]uint32, n)
+	out := make([]fourcc.Format, n)
 	for i, f := range formats[:n] {
-		out[i] = uint32(f) //nolint:gosec // EGL returns DRM fourccs in an EGLint
+		out[i] = fourcc.Format(f) //nolint:gosec // EGL returns DRM fourccs in an EGLint
 	}
 	return out, nil
 }
 
-func (d *Display) DMABUFModifiers(format uint32) ([]Modifier, error) {
+func (d *Display) DMABUFModifiers(format fourcc.Format) ([]ModifierSupport, error) {
 	if !d.Has("EGL_EXT_image_dma_buf_import_modifiers") {
 		return nil, fmt.Errorf("%w: EGL_EXT_image_dma_buf_import_modifiers", ErrUnsupported)
 	}
@@ -387,9 +389,9 @@ func (d *Display) DMABUFModifiers(format uint32) ([]Modifier, error) {
 	if d.lib.egl.queryDMABUFMods(d.dpy, f, n, &mods[0], &external[0], &n) != eglTrue {
 		return nil, d.lib.fail("eglQueryDmaBufModifiersEXT")
 	}
-	out := make([]Modifier, n)
+	out := make([]ModifierSupport, n)
 	for i := range out {
-		out[i] = Modifier{Modifier: mods[i], ExternalOnly: external[i] == eglTrue}
+		out[i] = ModifierSupport{Modifier: fourcc.Modifier(mods[i]), ExternalOnly: external[i] == eglTrue}
 	}
 	return out, nil
 }
@@ -406,9 +408,9 @@ func (d *Display) ImportDMABUF(b DMABUF) (*Image, error) {
 	if len(b.Planes) == 0 || len(b.Planes) > len(planeFD) {
 		return nil, fmt.Errorf("gpu: a dmabuf has 1 to %d planes, not %d", len(planeFD), len(b.Planes))
 	}
-	withModifier := b.Modifier != ModifierInvalid
+	withModifier := b.Modifier != fourcc.Invalid
 	if withModifier && !d.Has("EGL_EXT_image_dma_buf_import_modifiers") {
-		return nil, fmt.Errorf("%w: EGL_EXT_image_dma_buf_import_modifiers for modifier %#x", ErrUnsupported, b.Modifier)
+		return nil, fmt.Errorf("%w: EGL_EXT_image_dma_buf_import_modifiers for modifier %v", ErrUnsupported, b.Modifier)
 	}
 	attribs := make([]int32, 0, 7+len(b.Planes)*10+3)
 	attribs = append(attribs, eglWidth, int32(b.Size.X), eglHeight, int32(b.Size.Y), eglLinuxDRMFourCC, int32(b.Format)) //nolint:gosec // sizes and fourccs fit EGLint by the dmabuf protocol

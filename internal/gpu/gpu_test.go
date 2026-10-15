@@ -11,6 +11,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/stubbedev/tilde/internal/fourcc"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/testenv"
 )
@@ -202,7 +203,7 @@ func TestGBMAllocatesExportableBuffers(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dev.Close()
-	b, err := dev.Allocate(image.Pt(64, 32), gpu.FormatXRGB8888, nil, gpu.UseRendering)
+	b, err := dev.Allocate(image.Pt(64, 32), fourcc.XRGB8888, nil, gpu.UseRendering)
 	if err != nil {
 		t.Fatalf("%s: %v", dev.Backend(), err)
 	}
@@ -213,7 +214,7 @@ func TestGBMAllocatesExportableBuffers(t *testing.T) {
 	if err := b.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dev.Allocate(image.Pt(0, 4), gpu.FormatXRGB8888, nil, gpu.UseRendering); err == nil {
+	if _, err := dev.Allocate(image.Pt(0, 4), fourcc.XRGB8888, nil, gpu.UseRendering); err == nil {
 		t.Fatal("an empty buffer was allocated")
 	}
 }
@@ -227,7 +228,7 @@ func TestUnsupportedExtensionsFailPrecisely(t *testing.T) {
 		var err error
 		switch ext {
 		case "EGL_EXT_image_dma_buf_import":
-			_, err = d.ImportDMABUF(gpu.DMABUF{Size: image.Pt(1, 1), Format: gpu.FormatXRGB8888, Planes: []gpu.Plane{{FD: 0, Stride: 4}}})
+			_, err = d.ImportDMABUF(gpu.DMABUF{Size: image.Pt(1, 1), Format: fourcc.XRGB8888, Planes: []gpu.Plane{{FD: 0, Stride: 4}}})
 		case "EGL_ANDROID_native_fence_sync":
 			_, err = d.Fence()
 		}
@@ -286,7 +287,7 @@ func TestGBMDisplayRendersIntoADMABUF(t *testing.T) {
 	if err != nil || len(formats) == 0 {
 		t.Fatalf("dmabuf formats %v: %v", formats, err)
 	}
-	b, err := dev.Allocate(image.Pt(16, 16), gpu.FormatXRGB8888, nil, gpu.UseRendering)
+	b, err := dev.Allocate(image.Pt(16, 16), fourcc.XRGB8888, nil, gpu.UseRendering)
 	if err != nil {
 		t.Fatal(err)
 	}

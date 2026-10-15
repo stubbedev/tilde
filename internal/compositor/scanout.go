@@ -7,6 +7,7 @@ import (
 
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/dmabuf"
+	"github.com/stubbedev/tilde/internal/fourcc"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/output"
 	"github.com/stubbedev/tilde/internal/render"
@@ -20,7 +21,7 @@ type scannedOut struct {
 	then     []func() error
 }
 
-var opaqueFormats = []uint32{gpu.FormatXRGB8888, gpu.FormatXBGR8888}
+var opaqueFormats = []fourcc.Format{fourcc.XRGB8888, fourcc.XBGR8888}
 
 type filling struct {
 	surface *surface.Surface

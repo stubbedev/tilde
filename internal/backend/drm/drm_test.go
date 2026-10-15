@@ -14,6 +14,7 @@ import (
 
 	"github.com/stubbedev/tilde/internal/backend"
 	kdrm "github.com/stubbedev/tilde/internal/drm"
+	"github.com/stubbedev/tilde/internal/fourcc"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/render"
@@ -137,7 +138,7 @@ func (f *fakeDevice) Plane(id uint32) (kdrm.Plane, error) {
 	if id == 43 {
 		format = cursorFormat
 	}
-	return kdrm.Plane{ID: id, PossibleCRTCs: map[uint32]uint32{40: 0b01, 41: 0b10, 42: 0b11, 43: 0b01}[id], Formats: []uint32{format}}, nil
+	return kdrm.Plane{ID: id, PossibleCRTCs: map[uint32]uint32{40: 0b01, 41: 0b10, 42: 0b11, 43: 0b01}[id], Formats: []fourcc.Format{format}}, nil
 }
 
 func (f *fakeDevice) Properties(object, kind uint32) (map[string]kdrm.Property, error) {
@@ -184,7 +185,7 @@ func (f *fakeDevice) Blob(id uint32) ([]byte, error) {
 	for _, v := range []uint32{0, 1, 24, 2, 32} {
 		b = binary.NativeEndian.AppendUint32(b, v)
 	}
-	b = binary.NativeEndian.AppendUint32(b, scanoutFormat)
+	b = binary.NativeEndian.AppendUint32(b, uint32(scanoutFormat))
 	b = binary.NativeEndian.AppendUint32(b, 0)
 	for _, m := range []uint64{0, 7} {
 		b = binary.NativeEndian.AppendUint64(b, 1)
@@ -293,10 +294,12 @@ type fakeAlloc struct {
 
 func (a *fakeAlloc) renderer() render.Renderer { return a.soft }
 
-func (a *fakeAlloc) renderable(uint32) ([]uint64, error) { return []uint64{0, 7, 9}, nil }
+func (a *fakeAlloc) renderable(fourcc.Format) ([]fourcc.Modifier, error) {
+	return []fourcc.Modifier{0, 7, 9}, nil
+}
 
-func (a *fakeAlloc) allocate(size image.Point, _ uint32, modifiers []uint64) (*scanout, error) {
-	if !slices.Equal(modifiers, []uint64{0, 7}) {
+func (a *fakeAlloc) allocate(size image.Point, _ fourcc.Format, modifiers []fourcc.Modifier) (*scanout, error) {
+	if !slices.Equal(modifiers, []fourcc.Modifier{0, 7}) {
 		return nil, fmt.Errorf("allocated with modifiers %v", modifiers)
 	}
 	a.next++
@@ -434,7 +437,7 @@ func TestOutputsPickACRTCAndPrimaryPlane(t *testing.T) {
 		t.Fatalf("outputs %v", r.rec.log)
 	}
 	o := r.b.Outputs()[0]
-	if o.Name() != "DP-1" || o.crtc.id != 10 || o.primary.id != 40 || len(o.buffers) != buffersPerOut || !slices.Equal(o.primary.modifiers, []uint64{0, 7}) {
+	if o.Name() != "DP-1" || o.crtc.id != 10 || o.primary.id != 40 || len(o.buffers) != buffersPerOut || !slices.Equal(o.primary.modifiers, []fourcc.Modifier{0, 7}) {
 		t.Fatalf("%s on CRTC %d plane %d, %d buffers, modifiers %v", o.Name(), o.crtc.id, o.primary.id, len(o.buffers), o.primary.modifiers)
 	}
 	if s := o.State(); !s.Enabled() || s.Mode.Size != image.Pt(1920, 1080) || s.Mode.RefreshMHz != 60000 || len(o.Modes()) != 2 {
@@ -852,15 +855,15 @@ func TestFramebuffersCarryModifiersOnlyWhereTheDeviceTakesThem(t *testing.T) {
 	size := image.Pt(64, 32)
 	cases := []struct {
 		name          string
-		modifier      uint64
+		modifier      fourcc.Modifier
 		withModifiers bool
 		want          kdrm.FB
 		fails         bool
 	}{
 		{"explicit modifier on a modifier device", tiled, true, kdrm.FB{Width: 64, Height: 32, Format: scanoutFormat, Modifier: tiled, WithModifier: true}, false},
-		{"implicit layout on a modifier device", gpu.ModifierInvalid, true, kdrm.FB{Width: 64, Height: 32, Format: scanoutFormat}, false},
-		{"linear on a device without modifiers", gpu.ModifierLinear, false, kdrm.FB{Width: 64, Height: 32, Format: scanoutFormat}, false},
-		{"implicit layout on a device without modifiers", gpu.ModifierInvalid, false, kdrm.FB{Width: 64, Height: 32, Format: scanoutFormat}, false},
+		{"implicit layout on a modifier device", fourcc.Invalid, true, kdrm.FB{Width: 64, Height: 32, Format: scanoutFormat}, false},
+		{"linear on a device without modifiers", fourcc.Linear, false, kdrm.FB{Width: 64, Height: 32, Format: scanoutFormat}, false},
+		{"implicit layout on a device without modifiers", fourcc.Invalid, false, kdrm.FB{Width: 64, Height: 32, Format: scanoutFormat}, false},
 		{"tiled on a device without modifiers", tiled, false, kdrm.FB{}, true},
 	}
 	for _, tc := range cases {
@@ -935,7 +938,7 @@ func TestClientBuffersScanOutUntilTheNextFlip(t *testing.T) {
 	r := start(t)
 	o := r.lit()
 	released := 0
-	client := gpu.DMABUF{Size: image.Pt(1920, 1080), Format: scanoutFormat, Modifier: gpu.ModifierLinear, Planes: []gpu.Plane{{FD: 7, Stride: 1920 * 4}}}
+	client := gpu.DMABUF{Size: image.Pt(1920, 1080), Format: scanoutFormat, Modifier: fourcc.Linear, Planes: []gpu.Plane{{FD: 7, Stride: 1920 * 4}}}
 	ok, err := o.Scanout(client, func() error { released++; return nil }, false)
 	if err != nil || !ok {
 		t.Fatalf("Scanout = %t, %v", ok, err)
@@ -984,7 +987,7 @@ func TestClientBuffersAreReleasedWhenTheOutputStopsShowingThem(t *testing.T) {
 			r := start(t)
 			o := r.lit()
 			released := 0
-			client := gpu.DMABUF{Size: image.Pt(1920, 1080), Format: scanoutFormat, Modifier: gpu.ModifierLinear, Planes: []gpu.Plane{{FD: 7, Stride: 1920 * 4}}}
+			client := gpu.DMABUF{Size: image.Pt(1920, 1080), Format: scanoutFormat, Modifier: fourcc.Linear, Planes: []gpu.Plane{{FD: 7, Stride: 1920 * 4}}}
 			if ok, err := o.Scanout(client, func() error { released++; return nil }, false); err != nil || !ok {
 				t.Fatalf("Scanout = %t, %v", ok, err)
 			}
@@ -1105,7 +1108,7 @@ func TestTearingScanoutsFlipAsync(t *testing.T) {
 	})
 	o := r.lit()
 	client := func(fd int) gpu.DMABUF {
-		return gpu.DMABUF{Size: image.Pt(1920, 1080), Format: scanoutFormat, Modifier: gpu.ModifierLinear, Planes: []gpu.Plane{{FD: fd, Stride: 1920 * 4}}}
+		return gpu.DMABUF{Size: image.Pt(1920, 1080), Format: scanoutFormat, Modifier: fourcc.Linear, Planes: []gpu.Plane{{FD: fd, Stride: 1920 * 4}}}
 	}
 	scanout := func(fd int, tear bool) commit {
 		t.Helper()

@@ -10,6 +10,7 @@ import (
 
 	kdrm "github.com/stubbedev/tilde/internal/drm"
 	"github.com/stubbedev/tilde/internal/edid"
+	"github.com/stubbedev/tilde/internal/fourcc"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/render"
@@ -60,11 +61,11 @@ func (a *gbmAllocator) renderer() render.Renderer {
 	return a.gles
 }
 
-func (a *gbmAllocator) renderable(format uint32) ([]uint64, error) {
+func (a *gbmAllocator) renderable(format fourcc.Format) ([]fourcc.Modifier, error) {
 	return a.gles.RenderableModifiers(format)
 }
 
-func (a *gbmAllocator) allocate(size image.Point, format uint32, modifiers []uint64) (*scanout, error) {
+func (a *gbmAllocator) allocate(size image.Point, format fourcc.Format, modifiers []fourcc.Modifier) (*scanout, error) {
 	usage := gpu.UseRendering
 	if len(modifiers) == 0 {
 		usage |= gpu.UseScanout
@@ -118,19 +119,19 @@ func importFB(dev device, d gpu.DMABUF, withModifiers bool) (uint32, func() erro
 	return id, func() error { return errors.Join(dev.RemoveFB(id), closeHandles()) }, nil
 }
 
-func framebuffer(size image.Point, format uint32, modifier uint64, withModifiers bool) (kdrm.FB, error) {
+func framebuffer(size image.Point, format fourcc.Format, modifier fourcc.Modifier, withModifiers bool) (kdrm.FB, error) {
 	fb := kdrm.FB{Width: uint32(size.X), Height: uint32(size.Y), Format: format} //nolint:gosec // scanout sizes fit
 	switch {
 	case !addable(modifier, withModifiers):
 		return kdrm.FB{}, fmt.Errorf("the buffer has modifier %#x but the device takes no ADDFB2 modifiers, so only an implicit or linear layout can be scanned out", modifier)
-	case withModifiers && modifier != gpu.ModifierInvalid:
+	case withModifiers && modifier != fourcc.Invalid:
 		fb.Modifier, fb.WithModifier = modifier, true
 	}
 	return fb, nil
 }
 
-func addable(modifier uint64, withModifiers bool) bool {
-	return withModifiers || modifier == gpu.ModifierInvalid || modifier == gpu.ModifierLinear
+func addable(modifier fourcc.Modifier, withModifiers bool) bool {
+	return withModifiers || modifier == fourcc.Invalid || modifier == fourcc.Linear
 }
 
 func (a *gbmAllocator) fence() (int, error) {

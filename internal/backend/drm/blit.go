@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 
+	"github.com/stubbedev/tilde/internal/fourcc"
 	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/render"
 )
@@ -18,7 +19,7 @@ func (a *blitAllocator) renderer() render.Renderer {
 	return a.primary.gles
 }
 
-func (a *blitAllocator) renderable(format uint32) ([]uint64, error) {
+func (a *blitAllocator) renderable(format fourcc.Format) ([]fourcc.Modifier, error) {
 	return a.local.renderable(format)
 }
 
@@ -28,8 +29,8 @@ type shared struct {
 	tex    render.Texture
 }
 
-func (a *blitAllocator) share(size image.Point, format uint32) (*shared, error) {
-	b, err := a.primary.gbm.Allocate(size, format, []uint64{gpu.ModifierLinear}, gpu.UseRendering)
+func (a *blitAllocator) share(size image.Point, format fourcc.Format) (*shared, error) {
+	b, err := a.primary.gbm.Allocate(size, format, []fourcc.Modifier{fourcc.Linear}, gpu.UseRendering)
 	if err != nil {
 		return nil, fmt.Errorf("a linear buffer on the primary GPU: %w", err)
 	}
@@ -56,7 +57,7 @@ func (a *blitAllocator) probe() error {
 	return s.free()
 }
 
-func (a *blitAllocator) allocate(size image.Point, format uint32, modifiers []uint64) (*scanout, error) {
+func (a *blitAllocator) allocate(size image.Point, format fourcc.Format, modifiers []fourcc.Modifier) (*scanout, error) {
 	out, err := a.local.allocate(size, format, modifiers)
 	if err != nil {
 		return nil, err
