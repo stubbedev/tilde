@@ -101,7 +101,7 @@ func xDial(t *testing.T, h *Harness) *xclient {
 	}
 	t.Cleanup(x.Close)
 	c := &xclient{t: t, x: x, root: xproto.Setup(x).DefaultScreen(x).Root, atoms: map[string]xproto.Atom{}}
-	for _, name := range []string{"WM_CLASS", "_NET_WM_NAME", "UTF8_STRING", "_NET_WM_WINDOW_TYPE", "_NET_WM_WINDOW_TYPE_DIALOG", "_NET_WM_STATE", "_NET_WM_STATE_FULLSCREEN", "_NET_WM_STATE_MODAL", "WM_TRANSIENT_FOR"} {
+	for _, name := range []string{"WM_CLASS", "WM_NAME", "_NET_WM_NAME", "UTF8_STRING", "_NET_WM_WINDOW_TYPE", "_NET_WM_WINDOW_TYPE_DIALOG", "_NET_WM_STATE", "_NET_WM_STATE_FULLSCREEN", "_NET_WM_STATE_MODAL", "WM_TRANSIENT_FOR"} {
 		r, err := xproto.InternAtom(x, false, uint16(len(name)), name).Reply()
 		if err != nil {
 			t.Fatal(err)
@@ -225,6 +225,37 @@ func TestXWindowsAreManaged(t *testing.T) {
 	h.Eventually("the destroyed X window gone", func(_ *headless.Backend, c *compositor.Compositor) bool {
 		return len(windowsOf(c)) == 1
 	})
+}
+
+func TestXPropertyChangesReachTheWindow(t *testing.T) {
+	h := StartXwayland(t, func(err error) { t.Errorf("xwayland reported: %v", err) }, small)
+	xc := xDial(t, h)
+	win := xc.window(image.Rect(10, 10, 90, 70), 0xff0000, false, map[string][]byte{
+		"WM_CLASS":     []byte("xtest\x00XTest\x00"),
+		"WM_NAME":      []byte("legacy"),
+		"_NET_WM_NAME": []byte("modern"),
+	})
+	titled := func(appID, title string) func(*headless.Backend, *compositor.Compositor) bool {
+		return func(_ *headless.Backend, c *compositor.Compositor) bool {
+			ws := windowsOf(c)
+			return len(ws) == 1 && ws[0].AppID == appID && ws[0].Title == title
+		}
+	}
+	h.Eventually("the window titled by _NET_WM_NAME", titled("XTest", "modern"))
+	set := func(name string, typ xproto.Atom, value string) {
+		t.Helper()
+		if err := xproto.ChangePropertyChecked(xc.x, xproto.PropModeReplace, win, xc.atoms[name], typ, 8, uint32(len(value)), []byte(value)).Check(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	set("_NET_WM_NAME", xc.atoms["UTF8_STRING"], "renamed")
+	h.Eventually("the new _NET_WM_NAME", titled("XTest", "renamed"))
+	if err := xproto.DeletePropertyChecked(xc.x, win, xc.atoms["_NET_WM_NAME"]).Check(); err != nil {
+		t.Fatal(err)
+	}
+	h.Eventually("the title falling back to WM_NAME", titled("XTest", "legacy"))
+	set("WM_CLASS", xproto.AtomString, "other\x00Other\x00")
+	h.Eventually("the new WM_CLASS", titled("Other", "legacy"))
 }
 
 func (c *xclient) clientMessage(timeout time.Duration) xproto.ClientMessageEvent {

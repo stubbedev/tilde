@@ -77,6 +77,7 @@ type Window struct {
 	mapped   bool
 	serial   uint64
 	surface  *surface.Surface
+	raw      rawProps
 	props    props
 	shown    bool
 	applied  State
@@ -155,7 +156,7 @@ func (w *Window) transientFor() *Window {
 	return p
 }
 
-func (w *Window) has(list []xproto.Atom, names ...string) bool {
+func (w *Window) has(list []xproto.Atom, names ...atom) bool {
 	for _, n := range names {
 		if slices.Contains(list, w.wm.atoms[n]) {
 			return true
@@ -165,16 +166,16 @@ func (w *Window) has(list []xproto.Atom, names ...string) bool {
 }
 
 func (w *Window) PrefersFloating() bool {
-	return w.props.size.Fixed() || w.has(w.props.states, "_NET_WM_STATE_MODAL") ||
-		w.has(w.props.types, "_NET_WM_WINDOW_TYPE_DIALOG", "_NET_WM_WINDOW_TYPE_UTILITY", "_NET_WM_WINDOW_TYPE_SPLASH", "_NET_WM_WINDOW_TYPE_TOOLBAR")
+	return w.props.size.Fixed() || w.has(w.props.states, atomNetWMStateModal) ||
+		w.has(w.props.types, atomNetWMWindowTypeDialog, atomNetWMWindowTypeUtility, atomNetWMWindowTypeSplash, atomNetWMWindowTypeToolbar)
 }
 
 func (w *Window) Modal() bool {
-	return w.has(w.props.states, "_NET_WM_STATE_MODAL")
+	return w.has(w.props.states, atomNetWMStateModal)
 }
 
 func (w *Window) Fullscreen() bool {
-	return w.has(w.props.states, "_NET_WM_STATE_FULLSCREEN")
+	return w.has(w.props.states, atomNetWMStateFullscreen)
 }
 
 func (w *Window) Applied() State {
@@ -194,7 +195,7 @@ func (w *Window) Apply(s State) error {
 		w.wm.notifyGeometry(w)
 	}
 	if s.Fullscreen != prev.Fullscreen {
-		w.setState("_NET_WM_STATE_FULLSCREEN", s.Fullscreen)
+		w.setState(atomNetWMStateFullscreen, s.Fullscreen)
 	}
 	if s.Activated != prev.Activated {
 		w.wm.activate(w, s.Activated)
@@ -202,34 +203,34 @@ func (w *Window) Apply(s State) error {
 	return nil
 }
 
-func (w *Window) setState(name string, on bool) {
+func (w *Window) setState(name atom, on bool) {
 	atom := w.wm.atoms[name]
 	w.props.states = slices.DeleteFunc(w.props.states, func(a xproto.Atom) bool { return a == atom })
 	if on {
 		w.props.states = append(w.props.states, atom)
 	}
-	w.wm.changeAtoms(w.id, w.wm.atoms["_NET_WM_STATE"], xproto.AtomAtom, w.props.states)
+	w.wm.changeAtoms(w.id, w.wm.atoms[atomNetWMState], xproto.AtomAtom, w.props.states)
 }
 
 func (w *Window) Close() error {
-	if w.has(w.props.protocols, "WM_DELETE_WINDOW") {
-		w.wm.protocol(w.id, "WM_DELETE_WINDOW", xproto.TimeCurrentTime, 0)
+	if w.has(w.props.protocols, atomWMDeleteWindow) {
+		w.wm.protocol(w.id, atomWMDeleteWindow, xproto.TimeCurrentTime, 0)
 		return nil
 	}
 	xproto.KillClient(w.wm.x, uint32(w.id))
 	return nil
 }
 
-func (m *wm) protocol(win xproto.Window, name string, timestamp, detail uint32) {
+func (m *wm) protocol(win xproto.Window, name atom, timestamp, detail uint32) {
 	ev := xproto.ClientMessageEvent{
-		Format: 32, Window: win, Type: m.atoms["WM_PROTOCOLS"],
+		Format: 32, Window: win, Type: m.atoms[atomWMProtocols],
 		Data: xproto.ClientMessageDataUnionData32New([]uint32{uint32(m.atoms[name]), timestamp, detail, 0, 0}),
 	}
 	xproto.SendEvent(m.x, false, win, xproto.EventMaskNoEvent, string(ev.Bytes()))
 }
 
 func (w *Window) Ping(timeout time.Duration) error {
-	if w.ping != 0 || !w.has(w.props.protocols, "_NET_WM_PING") {
+	if w.ping != 0 || !w.has(w.props.protocols, atomNetWMPing) {
 		return nil
 	}
 	if w.timer == nil {
@@ -241,7 +242,7 @@ func (w *Window) Ping(timeout time.Duration) error {
 	}
 	w.wm.stamps++
 	w.ping = w.wm.stamps
-	w.wm.protocol(w.id, "_NET_WM_PING", w.ping, uint32(w.id))
+	w.wm.protocol(w.id, atomNetWMPing, w.ping, uint32(w.id))
 	return w.timer.Arm(timeout)
 }
 
@@ -274,7 +275,7 @@ func (m *wm) activate(w *Window, on bool) {
 		if m.focused == w.id {
 			m.focused = 0
 			xproto.SetInputFocus(m.x, xproto.InputFocusPointerRoot, xproto.InputFocusPointerRoot, xproto.TimeCurrentTime)
-			m.changeWindows(m.root, "_NET_ACTIVE_WINDOW", []xproto.Window{0})
+			m.changeWindows(m.root, atomNetActiveWindow, []xproto.Window{0})
 		}
 		return
 	}
@@ -282,11 +283,11 @@ func (m *wm) activate(w *Window, on bool) {
 	if w.props.hints.Input {
 		xproto.SetInputFocus(m.x, xproto.InputFocusPointerRoot, w.id, xproto.TimeCurrentTime)
 	}
-	if w.has(w.props.protocols, "WM_TAKE_FOCUS") {
-		m.protocol(w.id, "WM_TAKE_FOCUS", xproto.TimeCurrentTime, 0)
+	if w.has(w.props.protocols, atomWMTakeFocus) {
+		m.protocol(w.id, atomWMTakeFocus, xproto.TimeCurrentTime, 0)
 	}
 	xproto.ConfigureWindow(m.x, w.id, xproto.ConfigWindowStackMode, []uint32{xproto.StackModeAbove})
-	m.changeWindows(m.root, "_NET_ACTIVE_WINDOW", []xproto.Window{w.id})
+	m.changeWindows(m.root, atomNetActiveWindow, []xproto.Window{w.id})
 }
 
 func (m *wm) changeAtoms(win xproto.Window, prop, typ xproto.Atom, list []xproto.Atom) {
@@ -297,7 +298,7 @@ func (m *wm) changeAtoms(win xproto.Window, prop, typ xproto.Atom, list []xproto
 	xproto.ChangeProperty(m.x, xproto.PropModeReplace, win, prop, typ, 32, uint32(len(list)), data) //nolint:gosec // property lists are short
 }
 
-func (m *wm) changeWindows(win xproto.Window, prop string, list []xproto.Window) {
+func (m *wm) changeWindows(win xproto.Window, prop atom, list []xproto.Window) {
 	atoms := make([]xproto.Atom, len(list))
 	for i, w := range list {
 		atoms[i] = xproto.Atom(w)
@@ -306,7 +307,7 @@ func (m *wm) changeWindows(win xproto.Window, prop string, list []xproto.Window)
 }
 
 func (m *wm) frameless(id xproto.Window) {
-	m.changeAtoms(id, m.atoms["_NET_FRAME_EXTENTS"], xproto.AtomCardinal, []xproto.Atom{0, 0, 0, 0})
+	m.changeAtoms(id, m.atoms[atomNetFrameExtents], xproto.AtomCardinal, []xproto.Atom{0, 0, 0, 0})
 }
 
 func (m *wm) window(id xproto.Window) *Window {
@@ -338,20 +339,30 @@ func (m *wm) destroyed(id xproto.Window) error {
 	return errors.Join(err, m.hide(w))
 }
 
-func (m *wm) mapRequested(id xproto.Window, p props) error {
+func (m *wm) setProps(w *Window, raw rawProps) {
+	w.raw = raw
+	p, err := parseProps(raw)
+	if err != nil {
+		m.report(fmt.Errorf("xwayland: window %#x: %w", w.id, err))
+	}
+	w.props = p
+}
+
+func (m *wm) mapRequested(id xproto.Window, raw rawProps) error {
 	w := m.window(id)
-	w.props, w.managed = p, true
-	m.changeAtoms(id, m.atoms["WM_STATE"], m.atoms["WM_STATE"], []xproto.Atom{1, 0})
+	m.setProps(w, raw)
+	w.managed = true
+	m.changeAtoms(id, m.atoms[atomWMState], m.atoms[atomWMState], []xproto.Atom{1, 0})
 	m.frameless(id)
 	xproto.MapWindow(m.x, id)
 	return nil
 }
 
-func (m *wm) mapped(id xproto.Window, p props, override bool) error {
+func (m *wm) mapped(id xproto.Window, raw rawProps, override bool) error {
 	w := m.window(id)
 	w.mapped, w.override = true, override
 	if override {
-		w.props = p
+		m.setProps(w, raw)
 	}
 	return m.show(w)
 }
@@ -363,7 +374,7 @@ func (m *wm) unmapped(id xproto.Window) error {
 	}
 	w.mapped = false
 	if w.managed {
-		m.changeAtoms(id, m.atoms["WM_STATE"], m.atoms["WM_STATE"], []xproto.Atom{0, 0})
+		m.changeAtoms(id, m.atoms[atomWMState], m.atoms[atomWMState], []xproto.Atom{0, 0})
 	}
 	return m.hide(w)
 }
@@ -404,12 +415,20 @@ func (m *wm) notifyGeometry(w *Window) {
 	xproto.SendEvent(m.x, false, w.id, xproto.EventMaskStructureNotify, string(ev.Bytes()))
 }
 
-func (m *wm) propertyChanged(id xproto.Window, p props) error {
+func (m *wm) propertyChanged(id xproto.Window, a atom, value []byte) error {
 	w, ok := m.windows[id]
 	if !ok {
 		return nil
 	}
-	w.props = p
+	if w.raw == nil {
+		w.raw = rawProps{}
+	}
+	if value == nil {
+		delete(w.raw, a)
+	} else {
+		w.raw[a] = value
+	}
+	m.setProps(w, w.raw)
 	if !w.shown {
 		return nil
 	}
@@ -450,7 +469,7 @@ func (m *wm) stateRequested(id xproto.Window, action uint32, a, b xproto.Atom) e
 	if !ok {
 		return nil
 	}
-	full := m.atoms["_NET_WM_STATE_FULLSCREEN"]
+	full := m.atoms[atomNetWMStateFullscreen]
 	if a != full && b != full {
 		return nil
 	}
@@ -467,7 +486,7 @@ func (m *wm) stateRequested(id xproto.Window, action uint32, a, b xproto.Atom) e
 		return nil
 	}
 	if !w.shown {
-		w.setState("_NET_WM_STATE_FULLSCREEN", on)
+		w.setState(atomNetWMStateFullscreen, on)
 		return nil
 	}
 	return m.listener.XWindowRequest(w, SetFullscreen{On: on})
@@ -488,7 +507,7 @@ func (m *wm) show(w *Window) error {
 	w.shown = true
 	if w.managed {
 		m.clients = append(m.clients, w.id)
-		m.changeWindows(m.root, "_NET_CLIENT_LIST", m.clients)
+		m.changeWindows(m.root, atomNetClientList, m.clients)
 	}
 	return m.listener.XWindowMapped(w)
 }
@@ -503,7 +522,7 @@ func (m *wm) hide(w *Window) error {
 	}
 	if i := slices.Index(m.clients, w.id); i >= 0 {
 		m.clients = slices.Delete(m.clients, i, i+1)
-		m.changeWindows(m.root, "_NET_CLIENT_LIST", m.clients)
+		m.changeWindows(m.root, atomNetClientList, m.clients)
 	}
 	return m.listener.XWindowUnmapped(w)
 }

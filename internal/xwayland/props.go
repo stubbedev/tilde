@@ -16,7 +16,7 @@ type Class struct {
 func parseClass(data []byte) (Class, error) {
 	parts := bytes.SplitN(bytes.TrimRight(data, "\x00"), []byte{0}, 2)
 	if len(parts) != 2 {
-		return Class{}, fmt.Errorf("WM_CLASS %q is not two NUL-terminated strings", data)
+		return Class{}, fmt.Errorf("%v %q is not two NUL-terminated strings", atomWMClass, data)
 	}
 	return Class{Instance: latin1(parts[0]), Class: latin1(parts[1])}, nil
 }
@@ -37,9 +37,9 @@ func parseUTF8(data []byte) (string, error) {
 	return string(data), nil
 }
 
-func cardinals(data []byte, what string, min int) ([]uint32, error) {
+func cardinals(data []byte, what atom, min int) ([]uint32, error) {
 	if len(data)%4 != 0 || len(data)/4 < min {
-		return nil, fmt.Errorf("%s has %d bytes, want at least %d 32-bit values", what, len(data), min)
+		return nil, fmt.Errorf("%v has %d bytes, want at least %d 32-bit values", what, len(data), min)
 	}
 	out := make([]uint32, len(data)/4)
 	for i := range out {
@@ -58,7 +58,7 @@ type Hints struct {
 }
 
 func parseHints(data []byte) (Hints, error) {
-	v, err := cardinals(data, "WM_HINTS", 2)
+	v, err := cardinals(data, atomWMHints, 2)
 	if err != nil {
 		return Hints{}, err
 	}
@@ -83,7 +83,7 @@ func (h SizeHints) Fixed() bool {
 }
 
 func parseSizeHints(data []byte) (SizeHints, error) {
-	v, err := cardinals(data, "WM_NORMAL_HINTS", 9)
+	v, err := cardinals(data, atomWMNormalHints, 9)
 	if err != nil {
 		return SizeHints{}, err
 	}

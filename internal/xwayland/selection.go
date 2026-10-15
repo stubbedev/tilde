@@ -139,7 +139,7 @@ func (m *wm) selectionOwned(atom xproto.Atom, owner xproto.Window, at xproto.Tim
 	if m.focused == 0 {
 		return nil
 	}
-	xproto.ConvertSelection(m.x, m.sel, sel.atom, m.atoms["TARGETS"], sel.atom, at)
+	xproto.ConvertSelection(m.x, m.sel, sel.atom, m.atoms[atomTargets], sel.atom, at)
 	return nil
 }
 
@@ -191,7 +191,7 @@ func (m *wm) convert() {
 		return
 	}
 	in := m.incoming[0]
-	xproto.ConvertSelection(m.x, m.sel, in.src.sel.atom, in.atom, m.atoms["_WL_SELECTION"], xproto.TimeCurrentTime)
+	xproto.ConvertSelection(m.x, m.sel, in.src.sel.atom, in.atom, m.atoms[atomWLSelection], xproto.TimeCurrentTime)
 	m.watchTransfer(true)
 }
 
@@ -220,7 +220,7 @@ func (m *wm) stalled() error {
 func (m *wm) finishIncoming(err error) {
 	in := m.incoming[0]
 	m.incoming = m.incoming[1:]
-	xproto.DeleteProperty(m.x, m.sel, m.atoms["_WL_SELECTION"])
+	xproto.DeleteProperty(m.x, m.sel, m.atoms[atomWLSelection])
 	if err = errors.Join(err, in.out.Close()); err != nil {
 		m.report(fmt.Errorf("xwayland: paste from the X selection: %w", err))
 	}
@@ -236,16 +236,16 @@ func (m *wm) converted(target xproto.Atom, typ xproto.Atom, value []byte, ok boo
 	case !ok:
 		m.finishIncoming(errors.New("the X owner refused the conversion"))
 		return nil
-	case typ == m.atoms["INCR"]:
+	case typ == m.atoms[atomIncr]:
 		in.incr = true
-		xproto.DeleteProperty(m.x, m.sel, m.atoms["_WL_SELECTION"])
+		xproto.DeleteProperty(m.x, m.sel, m.atoms[atomWLSelection])
 		return nil
 	}
 	return m.write(in, value, true)
 }
 
 func (m *wm) chunk(typ xproto.Atom, value []byte) error {
-	if len(m.incoming) == 0 || !m.incoming[0].incr || typ == m.atoms["INCR"] || m.incoming[0].busy {
+	if len(m.incoming) == 0 || !m.incoming[0].incr || typ == m.atoms[atomIncr] || m.incoming[0].busy {
 		return nil
 	}
 	in := m.incoming[0]
@@ -274,7 +274,7 @@ func (m *wm) write(in *incoming, value []byte, last bool) error {
 				m.finishIncoming(err)
 				return nil
 			}
-			xproto.DeleteProperty(m.x, m.sel, m.atoms["_WL_SELECTION"])
+			xproto.DeleteProperty(m.x, m.sel, m.atoms[atomWLSelection])
 			return nil
 		})
 	}()
@@ -301,7 +301,8 @@ func (m *wm) selectionChanged(k data.Kind, src data.Source) error {
 		}
 	}
 	go func() {
-		atoms, err := intern(m.x, slices.Sorted(maps.Keys(names)))
+		sorted := slices.Sorted(maps.Keys(names))
+		atoms, err := intern(m.x, sorted)
 		m.post(func() error {
 			if err != nil {
 				m.report(fmt.Errorf("xwayland: offer the Wayland selection to X: %w", err))
@@ -311,8 +312,8 @@ func (m *wm) selectionChanged(k data.Kind, src data.Source) error {
 				return nil
 			}
 			sel.targets = make(map[xproto.Atom]string, len(atoms))
-			for name, a := range atoms {
-				sel.targets[a] = names[name]
+			for i, a := range atoms {
+				sel.targets[a] = names[sorted[i]]
 			}
 			sel.owned = true
 			xproto.SetSelectionOwner(m.x, m.sel, sel.atom, xproto.TimeCurrentTime)
@@ -334,8 +335,8 @@ func (m *wm) requested(e xproto.SelectionRequestEvent) error {
 		m.notifySelection(e, 0)
 		return nil
 	}
-	if e.Target == m.atoms["TARGETS"] {
-		list := append([]xproto.Atom{m.atoms["TARGETS"]}, slices.Sorted(maps.Keys(sel.targets))...)
+	if e.Target == m.atoms[atomTargets] {
+		list := append([]xproto.Atom{m.atoms[atomTargets]}, slices.Sorted(maps.Keys(sel.targets))...)
 		m.changeAtoms(e.Requestor, property, xproto.AtomAtom, list)
 		m.notifySelection(e, property)
 		return nil
@@ -404,7 +405,7 @@ func (m *wm) sent(e xproto.SelectionRequestEvent, property xproto.Atom, value []
 	}
 	xproto.ChangeWindowAttributes(m.x, e.Requestor, xproto.CwEventMask, []uint32{xproto.EventMaskPropertyChange})
 	size := binary.LittleEndian.AppendUint32(nil, uint32(len(value))) //nolint:gosec // bounded by maxSelection
-	xproto.ChangeProperty(m.x, xproto.PropModeReplace, e.Requestor, property, m.atoms["INCR"], 32, 1, size)
+	xproto.ChangeProperty(m.x, xproto.PropModeReplace, e.Requestor, property, m.atoms[atomIncr], 32, 1, size)
 	m.outgoing[outKey{e.Requestor, property}] = &outgoing{target: e.Target, data: value, since: time.Now()}
 	m.notifySelection(e, property)
 	return nil

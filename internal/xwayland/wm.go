@@ -21,42 +21,111 @@ func init() {
 	xgb.Logger = log.New(io.Discard, "", 0)
 }
 
-type atoms map[string]xproto.Atom
+type atom uint8
 
-var atomNames = []string{
-	"WM_S0", "_NET_WM_CM_S0", "WM_PROTOCOLS", "WM_DELETE_WINDOW", "WM_TAKE_FOCUS", "WM_STATE", "WM_CLASS", "WM_NAME",
-	"WM_HINTS", "WM_NORMAL_HINTS", "WM_TRANSIENT_FOR", "WL_SURFACE_SERIAL", "UTF8_STRING",
-	"_NET_SUPPORTED", "_NET_SUPPORTING_WM_CHECK", "_NET_WM_NAME", "_NET_WM_PID", "_NET_ACTIVE_WINDOW", "_NET_CLIENT_LIST",
-	"_NET_WM_STATE", "_NET_WM_STATE_FULLSCREEN", "_NET_WM_STATE_MODAL",
-	"_NET_WM_WINDOW_TYPE", "_NET_WM_WINDOW_TYPE_DIALOG", "_NET_WM_WINDOW_TYPE_UTILITY",
-	"_NET_WM_WINDOW_TYPE_SPLASH", "_NET_WM_WINDOW_TYPE_TOOLBAR",
-	"CLIPBOARD", "PRIMARY", "TARGETS", "INCR", "_WL_SELECTION",
-	"_NET_FRAME_EXTENTS", "_NET_REQUEST_FRAME_EXTENTS", "_NET_WM_PING",
+const (
+	atomWMS0 atom = iota
+	atomNetWMCMS0
+	atomWMProtocols
+	atomWMDeleteWindow
+	atomWMTakeFocus
+	atomWMState
+	atomWMClass
+	atomWMName
+	atomWMHints
+	atomWMNormalHints
+	atomWMTransientFor
+	atomWLSurfaceSerial
+	atomUTF8String
+	atomNetSupported
+	atomNetSupportingWMCheck
+	atomNetWMName
+	atomNetWMPID
+	atomNetActiveWindow
+	atomNetClientList
+	atomNetWMState
+	atomNetWMStateFullscreen
+	atomNetWMStateModal
+	atomNetWMWindowType
+	atomNetWMWindowTypeDialog
+	atomNetWMWindowTypeUtility
+	atomNetWMWindowTypeSplash
+	atomNetWMWindowTypeToolbar
+	atomClipboard
+	atomPrimary
+	atomTargets
+	atomIncr
+	atomWLSelection
+	atomNetFrameExtents
+	atomNetRequestFrameExtents
+	atomNetWMPing
+	atomCount
+)
+
+var atomNames = [atomCount]string{
+	atomWMS0:                   "WM_S0",
+	atomNetWMCMS0:              "_NET_WM_CM_S0",
+	atomWMProtocols:            "WM_PROTOCOLS",
+	atomWMDeleteWindow:         "WM_DELETE_WINDOW",
+	atomWMTakeFocus:            "WM_TAKE_FOCUS",
+	atomWMState:                "WM_STATE",
+	atomWMClass:                "WM_CLASS",
+	atomWMName:                 "WM_NAME",
+	atomWMHints:                "WM_HINTS",
+	atomWMNormalHints:          "WM_NORMAL_HINTS",
+	atomWMTransientFor:         "WM_TRANSIENT_FOR",
+	atomWLSurfaceSerial:        "WL_SURFACE_SERIAL",
+	atomUTF8String:             "UTF8_STRING",
+	atomNetSupported:           "_NET_SUPPORTED",
+	atomNetSupportingWMCheck:   "_NET_SUPPORTING_WM_CHECK",
+	atomNetWMName:              "_NET_WM_NAME",
+	atomNetWMPID:               "_NET_WM_PID",
+	atomNetActiveWindow:        "_NET_ACTIVE_WINDOW",
+	atomNetClientList:          "_NET_CLIENT_LIST",
+	atomNetWMState:             "_NET_WM_STATE",
+	atomNetWMStateFullscreen:   "_NET_WM_STATE_FULLSCREEN",
+	atomNetWMStateModal:        "_NET_WM_STATE_MODAL",
+	atomNetWMWindowType:        "_NET_WM_WINDOW_TYPE",
+	atomNetWMWindowTypeDialog:  "_NET_WM_WINDOW_TYPE_DIALOG",
+	atomNetWMWindowTypeUtility: "_NET_WM_WINDOW_TYPE_UTILITY",
+	atomNetWMWindowTypeSplash:  "_NET_WM_WINDOW_TYPE_SPLASH",
+	atomNetWMWindowTypeToolbar: "_NET_WM_WINDOW_TYPE_TOOLBAR",
+	atomClipboard:              "CLIPBOARD",
+	atomPrimary:                "PRIMARY",
+	atomTargets:                "TARGETS",
+	atomIncr:                   "INCR",
+	atomWLSelection:            "_WL_SELECTION",
+	atomNetFrameExtents:        "_NET_FRAME_EXTENTS",
+	atomNetRequestFrameExtents: "_NET_REQUEST_FRAME_EXTENTS",
+	atomNetWMPing:              "_NET_WM_PING",
 }
 
-var supported = []string{
-	"_NET_SUPPORTED", "_NET_SUPPORTING_WM_CHECK", "_NET_WM_NAME", "_NET_WM_PID", "_NET_ACTIVE_WINDOW", "_NET_CLIENT_LIST",
-	"_NET_WM_STATE", "_NET_WM_STATE_FULLSCREEN", "_NET_WM_STATE_MODAL", "_NET_WM_WINDOW_TYPE",
-	"_NET_FRAME_EXTENTS", "_NET_REQUEST_FRAME_EXTENTS", "_NET_WM_PING",
+func (a atom) String() string {
+	return atomNames[a]
 }
 
-var watched = []string{
-	"WM_CLASS", "WM_NAME", "_NET_WM_NAME", "WM_HINTS", "WM_NORMAL_HINTS", "WM_TRANSIENT_FOR", "_NET_WM_WINDOW_TYPE",
-	"_NET_WM_STATE", "WM_PROTOCOLS", "_NET_WM_PID",
+type atoms [atomCount]xproto.Atom
+
+var supported = []atom{
+	atomNetSupported, atomNetSupportingWMCheck, atomNetWMName, atomNetWMPID, atomNetActiveWindow, atomNetClientList, atomNetWMState, atomNetWMStateFullscreen, atomNetWMStateModal, atomNetWMWindowType, atomNetFrameExtents, atomNetRequestFrameExtents, atomNetWMPing,
 }
 
-func intern(x *xgb.Conn, names []string) (atoms, error) {
+var watched = []atom{
+	atomWMClass, atomWMName, atomNetWMName, atomWMHints, atomWMNormalHints, atomWMTransientFor, atomNetWMWindowType, atomNetWMState, atomWMProtocols, atomNetWMPID,
+}
+
+func intern(x *xgb.Conn, names []string) ([]xproto.Atom, error) {
 	cookies := make([]xproto.InternAtomCookie, len(names))
 	for i, name := range names {
-		cookies[i] = xproto.InternAtom(x, false, uint16(len(name)), name) //nolint:gosec // atom names are short constants
+		cookies[i] = xproto.InternAtom(x, false, uint16(len(name)), name) //nolint:gosec // atom names are short
 	}
-	out := make(atoms, len(names))
+	out := make([]xproto.Atom, len(names))
 	for i, c := range cookies {
 		reply, err := c.Reply()
 		if err != nil {
 			return nil, fmt.Errorf("intern %s: %w", names[i], err)
 		}
-		out[names[i]] = reply.Atom
+		out[i] = reply.Atom
 	}
 	return out, nil
 }
@@ -98,9 +167,11 @@ func (c *xconn) own() error {
 	screen := xproto.Setup(x).DefaultScreen(x)
 	c.root = screen.Root
 	var err error
-	if c.atoms, err = intern(x, atomNames); err != nil {
+	interned, err := intern(x, atomNames[:])
+	if err != nil {
 		return err
 	}
+	c.atoms = atoms(interned)
 	if c.check, err = xproto.NewWindowId(x); err != nil {
 		return fmt.Errorf("allocate the window manager's window: %w", err)
 	}
@@ -119,15 +190,15 @@ func (c *xconn) own() error {
 		xproto.ChangeWindowAttributesChecked(x, c.root, xproto.CwEventMask, []uint32{events}),
 		composite.RedirectSubwindowsChecked(x, c.root, composite.RedirectManual),
 		xproto.CreateWindowChecked(x, 0, c.check, c.root, -100, -100, 1, 1, 0, xproto.WindowClassInputOutput, screen.RootVisual, 0, nil),
-		xproto.ChangePropertyChecked(x, xproto.PropModeReplace, c.root, c.atoms["_NET_SUPPORTING_WM_CHECK"], xproto.AtomWindow, 32, 1, id),
-		xproto.ChangePropertyChecked(x, xproto.PropModeReplace, c.check, c.atoms["_NET_SUPPORTING_WM_CHECK"], xproto.AtomWindow, 32, 1, id),
-		xproto.ChangePropertyChecked(x, xproto.PropModeReplace, c.check, c.atoms["_NET_WM_NAME"], c.atoms["UTF8_STRING"], 8, uint32(len(name)), []byte(name)),
-		xproto.ChangePropertyChecked(x, xproto.PropModeReplace, c.root, c.atoms["_NET_SUPPORTED"], xproto.AtomAtom, 32, uint32(len(supported)), support), //nolint:gosec // a short constant list
-		xproto.SetSelectionOwnerChecked(x, c.check, c.atoms["WM_S0"], xproto.TimeCurrentTime),
-		xproto.SetSelectionOwnerChecked(x, c.check, c.atoms["_NET_WM_CM_S0"], xproto.TimeCurrentTime),
+		xproto.ChangePropertyChecked(x, xproto.PropModeReplace, c.root, c.atoms[atomNetSupportingWMCheck], xproto.AtomWindow, 32, 1, id),
+		xproto.ChangePropertyChecked(x, xproto.PropModeReplace, c.check, c.atoms[atomNetSupportingWMCheck], xproto.AtomWindow, 32, 1, id),
+		xproto.ChangePropertyChecked(x, xproto.PropModeReplace, c.check, c.atoms[atomNetWMName], c.atoms[atomUTF8String], 8, uint32(len(name)), []byte(name)),
+		xproto.ChangePropertyChecked(x, xproto.PropModeReplace, c.root, c.atoms[atomNetSupported], xproto.AtomAtom, 32, uint32(len(supported)), support), //nolint:gosec // a short constant list
+		xproto.SetSelectionOwnerChecked(x, c.check, c.atoms[atomWMS0], xproto.TimeCurrentTime),
+		xproto.SetSelectionOwnerChecked(x, c.check, c.atoms[atomNetWMCMS0], xproto.TimeCurrentTime),
 		xproto.CreateWindowChecked(x, 0, c.sel, c.root, -100, -100, 1, 1, 0, xproto.WindowClassInputOnly, screen.RootVisual, xproto.CwEventMask, []uint32{xproto.EventMaskPropertyChange}),
-		xfixes.SelectSelectionInputChecked(x, c.sel, c.atoms["CLIPBOARD"], owner),
-		xfixes.SelectSelectionInputChecked(x, c.sel, c.atoms["PRIMARY"], owner),
+		xfixes.SelectSelectionInputChecked(x, c.sel, c.atoms[atomClipboard], owner),
+		xfixes.SelectSelectionInputChecked(x, c.sel, c.atoms[atomPrimary], owner),
 	}
 	errs := make([]error, 0, len(checks))
 	for _, ck := range checks {
@@ -198,7 +269,7 @@ func (c *xconn) handle(ev xgb.Event) {
 
 func (c *xconn) property(e xproto.PropertyNotifyEvent) {
 	switch {
-	case e.Window == c.sel && e.State == xproto.PropertyNewValue && e.Atom == c.atoms["_WL_SELECTION"]:
+	case e.Window == c.sel && e.State == xproto.PropertyNewValue && e.Atom == c.atoms[atomWLSelection]:
 		if r, ok := c.read(e.Window, e.Atom, false); ok {
 			c.post(func(m *wm) error { return m.chunk(r.Type, r.Value) })
 		}
@@ -206,12 +277,17 @@ func (c *xconn) property(e xproto.PropertyNotifyEvent) {
 	case e.State == xproto.PropertyDelete:
 		c.post(func(m *wm) error { return m.propertyDeleted(e.Window, e.Atom) })
 	}
-	if !c.watches(e.Atom) {
+	a, ok := c.watched(e.Atom)
+	if !ok {
 		return
 	}
-	if p, ok := c.props(e.Window); ok {
-		c.post(func(m *wm) error { return m.propertyChanged(e.Window, p) })
+	var value []byte
+	if e.State != xproto.PropertyDelete {
+		if value, ok = c.value(e.Window, a); !ok {
+			return
+		}
 	}
+	c.post(func(m *wm) error { return m.propertyChanged(e.Window, a, value) })
 }
 
 func (c *xconn) read(win xproto.Window, property xproto.Atom, del bool) (*xproto.GetPropertyReply, bool) {
@@ -227,7 +303,7 @@ func (c *xconn) converted(e xproto.SelectionNotifyEvent) {
 	if e.Requestor != c.sel {
 		return
 	}
-	if e.Target == c.atoms["TARGETS"] {
+	if e.Target == c.atoms[atomTargets] {
 		offered := map[string]xproto.Atom{}
 		if e.Property != 0 {
 			if r, ok := c.read(c.sel, e.Property, true); ok {
@@ -251,7 +327,7 @@ func (c *xconn) converted(e xproto.SelectionNotifyEvent) {
 }
 
 func (c *xconn) mimes(value []byte) map[string]xproto.Atom {
-	list, err := atomList(value, "TARGETS")
+	list, err := atomList(value, atomTargets)
 	if err != nil {
 		c.report(fmt.Errorf("xwayland: the X selection's targets: %w", err))
 		return nil
@@ -274,30 +350,30 @@ func (c *xconn) mimes(value []byte) map[string]xproto.Atom {
 	return out
 }
 
-func (c *xconn) watches(a xproto.Atom) bool {
-	for _, name := range watched {
-		if c.atoms[name] == a {
-			return true
+func (c *xconn) watched(x xproto.Atom) (atom, bool) {
+	for _, a := range watched {
+		if c.atoms[a] == x {
+			return a, true
 		}
 	}
-	return false
+	return 0, false
 }
 
 func (c *xconn) message(e xproto.ClientMessageEvent) {
 	d := e.Data.Data32
 	switch e.Type {
-	case c.atoms["WL_SURFACE_SERIAL"]:
+	case c.atoms[atomWLSurfaceSerial]:
 		serial := wire.Join(d[1], d[0])
 		c.post(func(m *wm) error { return m.serialSet(e.Window, serial) })
-	case c.atoms["_NET_WM_STATE"]:
+	case c.atoms[atomNetWMState]:
 		c.post(func(m *wm) error { return m.stateRequested(e.Window, d[0], xproto.Atom(d[1]), xproto.Atom(d[2])) })
-	case c.atoms["_NET_ACTIVE_WINDOW"]:
+	case c.atoms[atomNetActiveWindow]:
 		c.post(func(m *wm) error { return m.activeRequested(e.Window) })
-	case c.atoms["WM_PROTOCOLS"]:
-		if xproto.Atom(d[0]) == c.atoms["_NET_WM_PING"] {
+	case c.atoms[atomWMProtocols]:
+		if xproto.Atom(d[0]) == c.atoms[atomNetWMPing] {
 			c.post(func(m *wm) error { return m.pong(xproto.Window(d[2]), d[1]) })
 		}
-	case c.atoms["_NET_REQUEST_FRAME_EXTENTS"]:
+	case c.atoms[atomNetRequestFrameExtents]:
 		c.post(func(m *wm) error {
 			m.frameless(e.Window)
 			return nil
@@ -305,34 +381,48 @@ func (c *xconn) message(e xproto.ClientMessageEvent) {
 	}
 }
 
-func (c *xconn) props(win xproto.Window) (props, bool) {
-	names := watched
-	cookies := make([]xproto.GetPropertyCookie, len(names))
-	for i, name := range names {
-		cookies[i] = xproto.GetProperty(c.x, false, win, c.atoms[name], xproto.GetPropertyTypeAny, 0, 2048)
+type rawProps map[atom][]byte
+
+const maxProperty = 2048
+
+func (c *xconn) props(win xproto.Window) (rawProps, bool) {
+	cookies := make([]xproto.GetPropertyCookie, len(watched))
+	for i, a := range watched {
+		cookies[i] = xproto.GetProperty(c.x, false, win, c.atoms[a], xproto.GetPropertyTypeAny, 0, maxProperty)
 	}
-	values := make(map[string][]byte, len(names))
+	values := make(rawProps, len(watched))
 	for i, ck := range cookies {
-		reply, err := ck.Reply()
-		if err != nil {
-			if _, gone := errors.AsType[xproto.WindowError](err); gone {
-				return props{}, false
-			}
-			c.report(fmt.Errorf("xwayland: read %s of window %#x: %w", names[i], win, err))
-			continue
+		v, ok := c.reply(win, watched[i], ck)
+		if !ok {
+			return nil, false
 		}
-		if reply.ValueLen > 0 {
-			values[names[i]] = reply.Value
+		if v != nil {
+			values[watched[i]] = v
 		}
 	}
-	p, err := parseProps(values)
-	if err != nil {
-		c.report(fmt.Errorf("xwayland: window %#x: %w", win, err))
-	}
-	return p, true
+	return values, true
 }
 
-func atomList(data []byte, what string) ([]xproto.Atom, error) {
+func (c *xconn) value(win xproto.Window, a atom) ([]byte, bool) {
+	return c.reply(win, a, xproto.GetProperty(c.x, false, win, c.atoms[a], xproto.GetPropertyTypeAny, 0, maxProperty))
+}
+
+func (c *xconn) reply(win xproto.Window, a atom, ck xproto.GetPropertyCookie) ([]byte, bool) {
+	reply, err := ck.Reply()
+	if err != nil {
+		if _, gone := errors.AsType[xproto.WindowError](err); gone {
+			return nil, false
+		}
+		c.report(fmt.Errorf("xwayland: read %v of window %#x: %w", a, win, err))
+		return nil, true
+	}
+	if reply.ValueLen == 0 {
+		return nil, true
+	}
+	return reply.Value, true
+}
+
+func atomList(data []byte, what atom) ([]xproto.Atom, error) {
 	v, err := cardinals(data, what, 0)
 	if err != nil {
 		return nil, err
@@ -344,51 +434,51 @@ func atomList(data []byte, what string) ([]xproto.Atom, error) {
 	return out, nil
 }
 
-func parseProps(values map[string][]byte) (props, error) {
+func parseProps(values rawProps) (props, error) {
 	var p props
 	var errs []error
 	p.hints = Hints{Input: true}
-	if v, ok := values["WM_CLASS"]; ok {
+	if v, ok := values[atomWMClass]; ok {
 		var err error
 		p.class, err = parseClass(v)
 		errs = append(errs, err)
 	}
 	switch {
-	case values["_NET_WM_NAME"] != nil:
+	case values[atomNetWMName] != nil:
 		var err error
-		p.title, err = parseUTF8(values["_NET_WM_NAME"])
+		p.title, err = parseUTF8(values[atomNetWMName])
 		errs = append(errs, err)
-	case values["WM_NAME"] != nil:
-		p.title = latin1(values["WM_NAME"])
+	case values[atomWMName] != nil:
+		p.title = latin1(values[atomWMName])
 	}
-	if v, ok := values["WM_HINTS"]; ok {
+	if v, ok := values[atomWMHints]; ok {
 		var err error
 		p.hints, err = parseHints(v)
 		errs = append(errs, err)
 	}
-	if v, ok := values["WM_NORMAL_HINTS"]; ok {
+	if v, ok := values[atomWMNormalHints]; ok {
 		var err error
 		p.size, err = parseSizeHints(v)
 		errs = append(errs, err)
 	}
-	if v, ok := values["WM_TRANSIENT_FOR"]; ok {
-		w, err := cardinals(v, "WM_TRANSIENT_FOR", 1)
+	if v, ok := values[atomWMTransientFor]; ok {
+		w, err := cardinals(v, atomWMTransientFor, 1)
 		if err == nil {
 			p.transient = xproto.Window(w[0])
 		}
 		errs = append(errs, err)
 	}
-	if v, ok := values["_NET_WM_PID"]; ok {
-		pid, err := cardinals(v, "_NET_WM_PID", 1)
+	if v, ok := values[atomNetWMPID]; ok {
+		pid, err := cardinals(v, atomNetWMPID, 1)
 		if err == nil {
 			p.pid = pid[0]
 		}
 		errs = append(errs, err)
 	}
 	for _, l := range []struct {
-		name string
+		name atom
 		dst  *[]xproto.Atom
-	}{{"_NET_WM_WINDOW_TYPE", &p.types}, {"_NET_WM_STATE", &p.states}, {"WM_PROTOCOLS", &p.protocols}} {
+	}{{atomNetWMWindowType, &p.types}, {atomNetWMState, &p.states}, {atomWMProtocols, &p.protocols}} {
 		if v, ok := values[l.name]; ok {
 			var err error
 			*l.dst, err = atomList(v, l.name)

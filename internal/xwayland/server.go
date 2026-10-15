@@ -356,7 +356,7 @@ func (s *Server) manage(p *process, conn net.Conn) {
 			return err
 		}
 		for _, k := range []data.Kind{data.Clipboard, data.Primary} {
-			m.selections[k] = &selection{kind: k, atom: c.atoms[[]string{"CLIPBOARD", "PRIMARY"}[k]]}
+			m.selections[k] = &selection{kind: k, atom: c.atoms[[]atom{atomClipboard, atomPrimary}[k]]}
 		}
 		p.wm = m
 		var errs []error
