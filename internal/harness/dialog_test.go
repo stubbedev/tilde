@@ -8,7 +8,6 @@ import (
 	"github.com/stubbedev/tilde/internal/compositor"
 	cxdd "github.com/stubbedev/tilde/internal/protocol/client/xdgdialog"
 	"github.com/stubbedev/tilde/internal/testclient"
-	"github.com/stubbedev/tilde/internal/wire"
 )
 
 type modalScene struct {
@@ -127,8 +126,5 @@ func TestASecondDialogObjectIsAnError(t *testing.T) {
 	if err := errors.Join(err1, err2); err != nil {
 		t.Fatal(err)
 	}
-	var pe *wire.ProtocolError
-	if err := c.Display.Roundtrip(); !errors.As(err, &pe) || pe.Code != uint32(cxdd.XdgWmDialogV1ErrorAlreadyUsed) {
-		t.Fatalf("a second xdg_dialog_v1: %v", err)
-	}
+	c.ExpectProtocolError(uint32(cxdd.XdgWmDialogV1ErrorAlreadyUsed))
 }

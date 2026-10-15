@@ -12,7 +12,6 @@ import (
 	"github.com/stubbedev/tilde/internal/compositor"
 	cgc "github.com/stubbedev/tilde/internal/protocol/client/wlrgammacontrol"
 	"github.com/stubbedev/tilde/internal/testclient"
-	"github.com/stubbedev/tilde/internal/wire"
 )
 
 type gammaEvents struct {
@@ -164,10 +163,7 @@ func TestGammaTablesOfTheWrongSizeAreProtocolErrors(t *testing.T) {
 			if err := errors.Join(g.SetGamma(fd), unix.Close(fd)); err != nil {
 				t.Fatal(err)
 			}
-			var pe *wire.ProtocolError
-			if err := c.Display.Roundtrip(); !errors.As(err, &pe) || pe.Code != uint32(cgc.ZwlrGammaControlV1ErrorInvalidGamma) {
-				t.Fatalf("a %s gamma table: %v", name, err)
-			}
+			c.ExpectProtocolError(uint32(cgc.ZwlrGammaControlV1ErrorInvalidGamma))
 		})
 	}
 }

@@ -201,11 +201,10 @@ func TestPointerConstraintsAreOnePerSurface(t *testing.T) {
 	if _, err := m.LockPointer(l, r.w.Surface, r.in.Pointer, nil, cpc.ZwpPointerConstraintsV1LifetimePersistent); err != nil {
 		t.Fatal(err)
 	}
-	_, err := m.ConfinePointer(l, r.w.Surface, r.in.Pointer, nil, cpc.ZwpPointerConstraintsV1LifetimePersistent)
-	var pe *wire.ProtocolError
-	if err = errors.Join(err, r.c.Display.Roundtrip()); !errors.As(err, &pe) || pe.Code != uint32(cpc.ZwpPointerConstraintsV1ErrorAlreadyConstrained) {
-		t.Fatalf("a second constraint on one surface: %v", err)
+	if _, err := m.ConfinePointer(l, r.w.Surface, r.in.Pointer, nil, cpc.ZwpPointerConstraintsV1LifetimePersistent); err != nil {
+		t.Fatal(err)
 	}
+	r.c.ExpectProtocolError(uint32(cpc.ZwpPointerConstraintsV1ErrorAlreadyConstrained))
 }
 
 func TestALockedPointerHoldsAgainstVirtualAbsoluteMotion(t *testing.T) {

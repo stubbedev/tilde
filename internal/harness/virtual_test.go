@@ -75,10 +75,10 @@ func TestVirtualKeyboardsTypeWithTheirOwnKeymap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var pe *wire.ProtocolError
-	if err := errors.Join(nokeys.Key(3, 30, 1), typist.Display.Roundtrip()); !errors.As(err, &pe) || pe.Code != uint32(cvk.ZwpVirtualKeyboardV1ErrorNoKeymap) {
-		t.Fatalf("a key before a keymap: %v", err)
+	if err := nokeys.Key(3, 30, 1); err != nil {
+		t.Fatal(err)
 	}
+	typist.ExpectProtocolError(uint32(cvk.ZwpVirtualKeyboardV1ErrorNoKeymap))
 }
 
 func TestVirtualPointersMoveClickAndScroll(t *testing.T) {

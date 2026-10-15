@@ -1,13 +1,11 @@
 package harness
 
 import (
-	"errors"
 	"slices"
 	"testing"
 
 	chgs "github.com/stubbedev/tilde/internal/protocol/client/hyprlandglobalshortcuts"
 	"github.com/stubbedev/tilde/internal/testclient"
-	"github.com/stubbedev/tilde/internal/wire"
 )
 
 type shortcutLog struct{ events []string }
@@ -47,9 +45,8 @@ func TestGlobalShortcutsFollowTheirBind(t *testing.T) {
 		t.Fatalf("events %q, want %q", l.events, want)
 	}
 
-	_, err = mgr.RegisterShortcut(&shortcutLog{}, "ptt", "voice", "again", "")
-	var pe *wire.ProtocolError
-	if err = errors.Join(err, c.Display.Roundtrip()); !errors.As(err, &pe) || pe.Code != uint32(chgs.HyprlandGlobalShortcutsManagerV1ErrorAlreadyTaken) {
-		t.Fatalf("registering voice:ptt twice: %v", err)
+	if _, err := mgr.RegisterShortcut(&shortcutLog{}, "ptt", "voice", "again", ""); err != nil {
+		t.Fatal(err)
 	}
+	c.ExpectProtocolError(uint32(chgs.HyprlandGlobalShortcutsManagerV1ErrorAlreadyTaken))
 }

@@ -9,7 +9,6 @@ import (
 	cxf1 "github.com/stubbedev/tilde/internal/protocol/client/xdgforeignv1"
 	cxf2 "github.com/stubbedev/tilde/internal/protocol/client/xdgforeignv2"
 	"github.com/stubbedev/tilde/internal/testclient"
-	"github.com/stubbedev/tilde/internal/wire"
 )
 
 type exportedHandle struct{ handle string }
@@ -157,8 +156,5 @@ func TestExportingASurfaceWithoutAToplevelIsAnError(t *testing.T) {
 	if _, err := foreign.exporter.ExportToplevel(&exportedHandle{}, surface); err != nil {
 		t.Fatal(err)
 	}
-	var pe *wire.ProtocolError
-	if err := c.Display.Roundtrip(); !errors.As(err, &pe) || pe.Code != uint32(cxf2.ZxdgExporterV2ErrorInvalidSurface) {
-		t.Fatalf("exporting a bare surface: %v", err)
-	}
+	c.ExpectProtocolError(uint32(cxf2.ZxdgExporterV2ErrorInvalidSurface))
 }

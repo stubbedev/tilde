@@ -12,7 +12,6 @@ import (
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	cwlr "github.com/stubbedev/tilde/internal/protocol/client/wlrlayershell"
 	"github.com/stubbedev/tilde/internal/testclient"
-	"github.com/stubbedev/tilde/internal/wire"
 )
 
 type party struct {
@@ -300,10 +299,7 @@ func TestDataDeviceProtocolErrors(t *testing.T) {
 			if err := tc.do(p); err != nil {
 				t.Fatal(err)
 			}
-			var pe *wire.ProtocolError
-			if err := p.c.Display.Roundtrip(); !errors.As(err, &pe) || pe.Code != tc.code {
-				t.Fatalf("Roundtrip = %v, want protocol error %d", err, tc.code)
-			}
+			p.c.ExpectProtocolError(tc.code)
 		})
 	}
 }

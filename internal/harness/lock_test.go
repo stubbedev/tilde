@@ -13,7 +13,6 @@ import (
 	cel "github.com/stubbedev/tilde/internal/protocol/client/extsessionlock"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	"github.com/stubbedev/tilde/internal/testclient"
-	"github.com/stubbedev/tilde/internal/wire"
 	"github.com/stubbedev/tilde/internal/wm"
 )
 
@@ -184,10 +183,7 @@ func TestSessionLockProtocolErrors(t *testing.T) {
 			if err := c.do(l); err != nil {
 				t.Fatal(err)
 			}
-			var pe *wire.ProtocolError
-			if err := l.c.Display.Roundtrip(); !errors.As(err, &pe) || pe.Code != c.code {
-				t.Fatalf("%s: %v, want code %d", c.what, err, c.code)
-			}
+			l.c.ExpectProtocolError(c.code)
 		})
 	}
 }

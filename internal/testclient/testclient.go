@@ -155,6 +155,15 @@ func (c *Client) must(err error) {
 	}
 }
 
+func (c *Client) ExpectProtocolError(code uint32) *wire.ProtocolError {
+	c.t.Helper()
+	var pe *wire.ProtocolError
+	if err := c.Display.Roundtrip(); !errors.As(err, &pe) || pe.Code != code {
+		c.t.Fatalf("Roundtrip = %v, want protocol error code %d", err, code)
+	}
+	return pe
+}
+
 func (c *Client) Sync() {
 	c.t.Helper()
 	c.must(errors.Join(c.Display.Roundtrip(), c.Display.Flush()))

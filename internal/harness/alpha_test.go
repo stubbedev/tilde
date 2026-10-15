@@ -9,7 +9,6 @@ import (
 	"github.com/stubbedev/tilde/internal/compositor"
 	cam "github.com/stubbedev/tilde/internal/protocol/client/alphamodifier"
 	"github.com/stubbedev/tilde/internal/testclient"
-	"github.com/stubbedev/tilde/internal/wire"
 )
 
 var (
@@ -51,15 +50,11 @@ func TestAnAlphaModifierFadesASurface(t *testing.T) {
 	}
 	h.Eventually("the window opaque once the modifier is gone", showing(30, 30, redPixel))
 
-	again, err := m.GetSurface(w.Surface)
-	if err != nil {
+	if _, err := m.GetSurface(w.Surface); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := m.GetSurface(w.Surface); err != nil {
 		t.Fatal(err)
 	}
-	var pe *wire.ProtocolError
-	if err := c.Display.Roundtrip(); !errors.As(err, &pe) || pe.Code != uint32(cam.WpAlphaModifierV1ErrorAlreadyConstructed) {
-		t.Fatalf("a second modifier for %v: %v", again, err)
-	}
+	c.ExpectProtocolError(uint32(cam.WpAlphaModifierV1ErrorAlreadyConstructed))
 }

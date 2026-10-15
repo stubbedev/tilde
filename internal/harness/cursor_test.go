@@ -13,7 +13,6 @@ import (
 	ccs "github.com/stubbedev/tilde/internal/protocol/client/cursorshape"
 	"github.com/stubbedev/tilde/internal/testclient"
 	"github.com/stubbedev/tilde/internal/testenv"
-	"github.com/stubbedev/tilde/internal/wire"
 	"github.com/stubbedev/tilde/internal/xcursor"
 )
 
@@ -91,10 +90,7 @@ func TestCursorShapeFromTheThemeAtFractionalScale(t *testing.T) {
 	if err := device.SetShape(in.Serial, 99); err != nil {
 		t.Fatal(err)
 	}
-	var pe *wire.ProtocolError
-	if err := c.Display.Roundtrip(); !errors.As(err, &pe) || pe.Code != uint32(ccs.WpCursorShapeDeviceV1ErrorInvalidShape) {
-		t.Fatalf("an invalid shape = %v, want invalid_shape", err)
-	}
+	c.ExpectProtocolError(uint32(ccs.WpCursorShapeDeviceV1ErrorInvalidShape))
 }
 
 var plane = image.Pt(64, 64)

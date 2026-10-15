@@ -448,10 +448,7 @@ func TestOutputManagementProtocolErrors(t *testing.T) {
 			if err := tc.do(m, cfg); err != nil {
 				t.Fatal(err)
 			}
-			var pe *wire.ProtocolError
-			if err := c.Display.Roundtrip(); !errors.As(err, &pe) || pe.Code != tc.code {
-				t.Fatalf("%s: %v, want code %d", tc.what, err, tc.code)
-			}
+			c.ExpectProtocolError(tc.code)
 		})
 	}
 }

@@ -13,7 +13,6 @@ import (
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	cxa "github.com/stubbedev/tilde/internal/protocol/client/xdgactivation"
 	"github.com/stubbedev/tilde/internal/testclient"
-	"github.com/stubbedev/tilde/internal/wire"
 )
 
 type presentationEvents struct{ clock uint32 }
@@ -237,8 +236,5 @@ func TestActivationTokenCommittedTwice(t *testing.T) {
 	if err := errors.Join(tok.Commit(), tok.Commit()); err != nil {
 		t.Fatal(err)
 	}
-	var pe *wire.ProtocolError
-	if err := c.Display.Roundtrip(); !errors.As(err, &pe) || pe.Code != uint32(cxa.XdgActivationTokenV1ErrorAlreadyUsed) {
-		t.Fatalf("Roundtrip = %v, want already_used", err)
-	}
+	c.ExpectProtocolError(uint32(cxa.XdgActivationTokenV1ErrorAlreadyUsed))
 }

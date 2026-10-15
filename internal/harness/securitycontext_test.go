@@ -142,8 +142,5 @@ func TestASecurityContextNeedsAListeningSocket(t *testing.T) {
 	if _, err := m.CreateListener(pipe[0], pipe[1]); err != nil {
 		t.Fatal(err)
 	}
-	var pe *wire.ProtocolError
-	if err := c.Display.Roundtrip(); !errors.As(err, &pe) || pe.Code != uint32(cwsc.WpSecurityContextManagerV1ErrorInvalidListenFD) {
-		t.Fatalf("a pipe as the listening socket: %v", err)
-	}
+	c.ExpectProtocolError(uint32(cwsc.WpSecurityContextManagerV1ErrorInvalidListenFD))
 }

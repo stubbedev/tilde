@@ -12,7 +12,6 @@ import (
 	cpt "github.com/stubbedev/tilde/internal/protocol/client/presentationtime"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	"github.com/stubbedev/tilde/internal/testclient"
-	"github.com/stubbedev/tilde/internal/wire"
 )
 
 type paced struct {
@@ -191,10 +190,7 @@ func TestPacingProtocolErrors(t *testing.T) {
 			if err := tc.run(pc, pc.c.Surface()); err != nil {
 				t.Fatal(err)
 			}
-			var pe *wire.ProtocolError
-			if err := pc.c.Display.Roundtrip(); !errors.As(err, &pe) || pe.Code != tc.code {
-				t.Fatalf("Roundtrip = %v, want protocol error code %d", err, tc.code)
-			}
+			pc.c.ExpectProtocolError(tc.code)
 		})
 	}
 }
