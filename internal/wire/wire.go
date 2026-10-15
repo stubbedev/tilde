@@ -4,6 +4,7 @@ package wire
 import (
 	"errors"
 	"fmt"
+	"image"
 	"math"
 	"time"
 )
@@ -76,6 +77,35 @@ func (e *MessageError) Error() string {
 
 func (e *MessageError) Unwrap() error {
 	return e.Err
+}
+
+var ErrOutOfRange = errors.New("wire: the value does not fit the protocol")
+
+func Int32(v int) (int32, error) {
+	if v < math.MinInt32 || v > math.MaxInt32 {
+		return 0, fmt.Errorf("%d: %w", v, ErrOutOfRange)
+	}
+	return int32(v), nil
+}
+
+func Uint32(v int) (uint32, error) {
+	if v < 0 || v > math.MaxUint32 {
+		return 0, fmt.Errorf("%d: %w", v, ErrOutOfRange)
+	}
+	return uint32(v), nil
+}
+
+func Point(p image.Point) (x, y int32, err error) {
+	x, errX := Int32(p.X)
+	y, errY := Int32(p.Y)
+	return x, y, errors.Join(errX, errY)
+}
+
+func Size(p image.Point) (w, h int32, err error) {
+	if p.X < 0 || p.Y < 0 {
+		return 0, 0, fmt.Errorf("size %v: %w", p, ErrOutOfRange)
+	}
+	return Point(p)
 }
 
 func Millis(t time.Duration) uint32 {

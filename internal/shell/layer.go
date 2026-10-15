@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"math"
 	"math/bits"
 	"slices"
 
@@ -147,11 +146,13 @@ func (l *LayerSurface) Configure(size image.Point) error {
 	if l.closed || l.destroyed || !l.initialSent || (l.sent && size == l.sentSize) {
 		return nil
 	}
-	if size.X < 0 || size.Y < 0 || size.X > math.MaxUint32 || size.Y > math.MaxUint32 {
-		return fmt.Errorf("shell: layer surface size %v does not fit the protocol", size)
+	w, errW := wire.Uint32(size.X)
+	h, errH := wire.Uint32(size.Y)
+	if err := errors.Join(errW, errH); err != nil {
+		return fmt.Errorf("shell: configure a layer surface to %v: %w", size, err)
 	}
 	serial := l.shell.display.NextSerial()
-	if err := l.client.Sent(l.resource.SendConfigure(serial, uint32(size.X), uint32(size.Y))); err != nil {
+	if err := l.client.Sent(l.resource.SendConfigure(serial, w, h)); err != nil {
 		return err
 	}
 	l.configures.push(serial, size)

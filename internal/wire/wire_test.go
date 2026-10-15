@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"image"
 	"io"
 	"math"
 	"slices"
@@ -784,5 +785,29 @@ func TestJoinUndoesHalves(t *testing.T) {
 	}
 	if hi, lo := Halves(0x0123456789abcdef); hi != 0x01234567 || lo != 0x89abcdef {
 		t.Errorf("Halves split into %#x and %#x", hi, lo)
+	}
+}
+
+func TestIntsFitTheProtocolOrFail(t *testing.T) {
+	if v, err := Int32(math.MinInt32); err != nil || v != math.MinInt32 {
+		t.Errorf("Int32(MinInt32) = %d, %v", v, err)
+	}
+	if _, err := Int32(math.MaxInt32 + 1); !errors.Is(err, ErrOutOfRange) {
+		t.Errorf("Int32 past MaxInt32: %v", err)
+	}
+	if v, err := Uint32(math.MaxUint32); err != nil || v != math.MaxUint32 {
+		t.Errorf("Uint32(MaxUint32) = %d, %v", v, err)
+	}
+	if _, err := Uint32(-1); !errors.Is(err, ErrOutOfRange) {
+		t.Errorf("Uint32(-1): %v", err)
+	}
+	if x, y, err := Point(image.Pt(-3, 4)); err != nil || x != -3 || y != 4 {
+		t.Errorf("Point(-3, 4) = %d, %d, %v", x, y, err)
+	}
+	if _, _, err := Size(image.Pt(-1, 4)); !errors.Is(err, ErrOutOfRange) {
+		t.Errorf("a negative size: %v", err)
+	}
+	if _, _, err := Size(image.Pt(1, math.MaxInt32+1)); !errors.Is(err, ErrOutOfRange) {
+		t.Errorf("a size past MaxInt32: %v", err)
 	}
 }

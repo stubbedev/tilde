@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"math"
 	"slices"
 
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	sxd "github.com/stubbedev/tilde/internal/protocol/server/xdgdecoration"
 	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
 	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/tilde/internal/wire"
 )
 
 type ToplevelState = sxdg.XdgToplevelState
@@ -90,11 +90,11 @@ func (t *Toplevel) Configure(s State) (uint32, error) {
 	if t.destroyed {
 		return 0, errors.New("shell: configure of a destroyed xdg_toplevel")
 	}
-	width, height, err := wireSize(s.Size)
+	width, height, err := wire.Size(s.Size)
 	if err != nil {
 		return 0, err
 	}
-	boundsW, boundsH, err := wireSize(s.Bounds)
+	boundsW, boundsH, err := wire.Size(s.Bounds)
 	if err != nil {
 		return 0, err
 	}
@@ -123,20 +123,6 @@ func (t *Toplevel) Configure(s State) (uint32, error) {
 	}
 	t.configures.push(serial, s)
 	return serial, nil
-}
-
-func wirePoint(p image.Point) (int32, int32, error) {
-	if p.X < math.MinInt32 || p.Y < math.MinInt32 || p.X > math.MaxInt32 || p.Y > math.MaxInt32 {
-		return 0, 0, fmt.Errorf("shell: point %v does not fit the protocol", p)
-	}
-	return int32(p.X), int32(p.Y), nil
-}
-
-func wireSize(p image.Point) (int32, int32, error) {
-	if p.X < 0 || p.Y < 0 || p.X > math.MaxInt32 || p.Y > math.MaxInt32 {
-		return 0, 0, fmt.Errorf("shell: size %v does not fit the protocol", p)
-	}
-	return int32(p.X), int32(p.Y), nil
 }
 
 func (t *Toplevel) SendClose() error {

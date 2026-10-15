@@ -235,18 +235,11 @@ func (o *Output) Changed() error {
 	return errors.Join(errs...)
 }
 
-func i32(v int) (int32, error) {
-	if v < math.MinInt32 || v > math.MaxInt32 {
-		return 0, fmt.Errorf("output: %d does not fit the protocol", v)
-	}
-	return int32(v), nil
-}
-
 func i32s(vs ...int) ([]int32, error) {
 	out := make([]int32, len(vs))
 	for i, v := range vs {
 		var err error
-		if out[i], err = i32(v); err != nil {
+		if out[i], err = wire.Int32(v); err != nil {
 			return nil, err
 		}
 	}

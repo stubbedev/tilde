@@ -10,6 +10,7 @@ import (
 	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/tilde/internal/wire"
 )
 
 type PopupRoot interface {
@@ -157,11 +158,11 @@ func (p *Popup) place() error {
 	}
 	bounds := p.xs.base.shell.listener.PopupConstraint(root).Sub(p.parentOffset())
 	box := p.rules.Place(bounds)
-	x, y, err := wirePoint(box.Min)
+	x, y, err := wire.Point(box.Min)
 	if err != nil {
 		return err
 	}
-	w, h, err := wireSize(box.Size())
+	w, h, err := wire.Size(box.Size())
 	if err != nil {
 		return err
 	}
