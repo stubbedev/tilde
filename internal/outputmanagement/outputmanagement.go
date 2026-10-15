@@ -45,8 +45,11 @@ type Controller interface {
 	Configure(heads []HeadConfig, apply bool) error
 }
 
+var ErrRefused = errors.New("outputmanagement: refused")
+
 type Manager struct {
 	ctl         Controller
+	report      func(error)
 	serial      uint32
 	heads       []Head
 	bindings    []*binding
@@ -54,8 +57,8 @@ type Manager struct {
 	pending     bool
 }
 
-func New(d *server.Display, ctl Controller) (*Manager, error) {
-	m := &Manager{ctl: ctl, serial: 1, heads: ctl.Heads()}
+func New(d *server.Display, ctl Controller, report func(error)) (*Manager, error) {
+	m := &Manager{ctl: ctl, report: report, serial: 1, heads: ctl.Heads()}
 	if _, err := d.AddGlobal(swom.ZwlrOutputManagerV1Interface, version, m.bind); err != nil {
 		return nil, err
 	}
@@ -379,6 +382,9 @@ func (cfg *configuration) finish(obj *swom.ZwlrOutputConfigurationV1, apply bool
 	send := cfg.res.SendSucceeded
 	if err != nil {
 		send = cfg.res.SendFailed
+		if !errors.Is(err, ErrRefused) {
+			m.report(err)
+		}
 	}
 	sent := cfg.b.c.Sent(send())
 	if !m.pending {
@@ -392,7 +398,7 @@ func (cfg *configuration) configure(apply bool) error {
 	heads := make([]HeadConfig, 0, len(cfg.heads))
 	for _, ch := range cfg.heads {
 		if len(ch.unsupported) > 0 {
-			return fmt.Errorf("outputmanagement: %s asks for %v, which tilde does not support", ch.head.out.Name(), ch.unsupported)
+			return fmt.Errorf("%w: %s asks for %v, which tilde does not support", ErrRefused, ch.head.out.Name(), ch.unsupported)
 		}
 		heads = append(heads, HeadConfig{Output: ch.head.out, Enabled: ch.enabled, Mode: ch.mode, Position: ch.position, Scale: ch.scale})
 	}

@@ -24,11 +24,12 @@ type Controller interface {
 
 type Manager struct {
 	ctl    Controller
+	report func(error)
 	powers []*power
 }
 
-func New(d *server.Display, ctl Controller) (*Manager, error) {
-	m := &Manager{ctl: ctl}
+func New(d *server.Display, ctl Controller, report func(error)) (*Manager, error) {
+	m := &Manager{ctl: ctl, report: report}
 	if _, err := d.AddGlobal(swop.ZwlrOutputPowerManagerV1Interface, version, m.bind); err != nil {
 		return nil, err
 	}
@@ -88,6 +89,7 @@ func (p *power) SetMode(obj *swop.ZwlrOutputPowerV1, mode swop.ZwlrOutputPowerV1
 		return nil
 	}
 	if err := p.m.ctl.SetPower(p.out, mode == swop.ZwlrOutputPowerV1ModeOn); err != nil {
+		p.m.report(fmt.Errorf("outputpower: %w", err))
 		p.out = nil
 		return p.c.Sent(p.res.SendFailed())
 	}

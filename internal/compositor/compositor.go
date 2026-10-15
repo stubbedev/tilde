@@ -263,13 +263,13 @@ func (c *Compositor) setup(l *loop.Loop, display *server.Display, b backend.Back
 	if err := singlepixel.New(display); err != nil {
 		return err
 	}
-	if c.power, err = outputpower.New(display, c); err != nil {
+	if c.power, err = outputpower.New(display, c, c.report); err != nil {
 		return err
 	}
-	if c.gamma, err = gammacontrol.New(display, c); err != nil {
+	if c.gamma, err = gammacontrol.New(display, c, c.report); err != nil {
 		return err
 	}
-	if c.outputConfig, err = outputmanagement.New(display, c); err != nil {
+	if c.outputConfig, err = outputmanagement.New(display, c, c.report); err != nil {
 		return err
 	}
 	if c.alpha, err = alphamodifier.New(display); err != nil {

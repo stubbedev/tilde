@@ -28,11 +28,12 @@ type Outputs interface {
 
 type Manager struct {
 	outputs  Outputs
+	report   func(error)
 	controls map[*output.Output]*control
 }
 
-func New(d *server.Display, outputs Outputs) (*Manager, error) {
-	m := &Manager{outputs: outputs, controls: map[*output.Output]*control{}}
+func New(d *server.Display, outputs Outputs, report func(error)) (*Manager, error) {
+	m := &Manager{outputs: outputs, report: report, controls: map[*output.Output]*control{}}
 	if _, err := d.AddGlobal(Interface, version, m.bind); err != nil {
 		return nil, err
 	}
@@ -162,6 +163,7 @@ func (k *control) setGamma(obj *swgc.ZwlrGammaControlV1, fd int) error {
 		err = k.gamma.SetGamma(table)
 	}
 	if err != nil {
+		k.m.report(fmt.Errorf("gammacontrol: %w", err))
 		return errors.Join(k.release(), k.c.Sent(k.res.SendFailed()))
 	}
 	k.set = true

@@ -306,11 +306,11 @@ func (c *Compositor) Configure(heads []outputmanagement.HeadConfig, apply bool) 
 		}
 		lit = true
 		if _, err := rule.mode().choose(b.Modes(), b.State().Mode); err != nil {
-			return fmt.Errorf("compositor: output %s: %w", b.Name(), err)
+			return fmt.Errorf("%w: output %s: %w", outputmanagement.ErrRefused, b.Name(), err)
 		}
 	}
 	if !lit {
-		return errors.New("compositor: a configuration that turns off every output would leave nothing on screen")
+		return fmt.Errorf("%w: a configuration that turns off every output would leave nothing on screen", outputmanagement.ErrRefused)
 	}
 	if !apply {
 		return nil
