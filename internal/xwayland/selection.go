@@ -20,10 +20,9 @@ import (
 )
 
 const (
-	incrChunk       = 64 << 10
-	maxSelection    = 64 << 20
-	transferTimeout = 30 * time.Second
-	maxIncoming     = 32
+	incrChunk    = 64 << 10
+	maxSelection = 64 << 20
+	maxIncoming  = 32
 )
 
 func mimeOf(atom string) (string, bool) {
@@ -178,10 +177,34 @@ func (m *wm) receive(src *xSource, mime string, fd int) error {
 
 func (m *wm) convert() {
 	if len(m.incoming) == 0 {
+		m.watchTransfer(false)
 		return
 	}
 	in := m.incoming[0]
 	xproto.ConvertSelection(m.x, m.sel, in.src.sel.atom, in.atom, m.atoms["_WL_SELECTION"], xproto.TimeCurrentTime)
+	m.watchTransfer(true)
+}
+
+func (m *wm) watchTransfer(on bool) {
+	if m.stall == nil {
+		return
+	}
+	var err error
+	if on {
+		err = m.stall.Arm(m.transfer)
+	} else {
+		err = m.stall.Disarm()
+	}
+	if err != nil {
+		m.report(fmt.Errorf("xwayland: watch an X selection transfer: %w", err))
+	}
+}
+
+func (m *wm) stalled() error {
+	if len(m.incoming) > 0 {
+		m.finishIncoming(fmt.Errorf("the X owner sent nothing for %v", m.transfer))
+	}
+	return nil
 }
 
 func (m *wm) finishIncoming(err error) {
@@ -227,7 +250,7 @@ func (m *wm) write(in *incoming, value []byte, last bool) error {
 	in.busy = true
 	out := in.out
 	go func() {
-		err := out.SetWriteDeadline(time.Now().Add(transferTimeout))
+		err := out.SetWriteDeadline(time.Now().Add(m.transfer))
 		if err == nil {
 			_, err = out.Write(value)
 		}
@@ -236,6 +259,7 @@ func (m *wm) write(in *incoming, value []byte, last bool) error {
 				return nil
 			}
 			in.busy = false
+			m.watchTransfer(true)
 			if err != nil || last {
 				m.finishIncoming(err)
 				return nil
@@ -330,15 +354,15 @@ func (m *wm) requested(e xproto.SelectionRequestEvent) error {
 		return nil
 	}
 	go func() {
-		value, err := readSelection(in)
+		value, err := readSelection(in, m.transfer)
 		m.post(func() error { return m.sent(e, property, value, err) })
 	}()
 	return nil
 }
 
-func readSelection(in *os.File) ([]byte, error) {
+func readSelection(in *os.File, timeout time.Duration) ([]byte, error) {
 	defer in.Close()
-	if err := in.SetReadDeadline(time.Now().Add(transferTimeout)); err != nil {
+	if err := in.SetReadDeadline(time.Now().Add(timeout)); err != nil {
 		return nil, err
 	}
 	value, err := io.ReadAll(io.LimitReader(in, maxSelection+1))

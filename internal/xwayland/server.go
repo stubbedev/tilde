@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/jezek/xgb/xproto"
 	"golang.org/x/sys/unix"
@@ -37,12 +38,13 @@ func Path(getenv func(string) string) string {
 }
 
 type Options struct {
-	Binary   string
-	Dir      string
-	Env      []string
-	Log      io.Writer
-	Report   func(error)
-	Listener Listener
+	Binary          string
+	Dir             string
+	Env             []string
+	Log             io.Writer
+	Report          func(error)
+	Listener        Listener
+	TransferTimeout time.Duration
 }
 
 type Server struct {
@@ -68,8 +70,8 @@ type process struct {
 }
 
 func Listen(l *loop.Loop, d *server.Display, opts Options) (*Server, error) {
-	if opts.Listener == nil || opts.Report == nil {
-		return nil, errors.New("xwayland: Options.Listener and Options.Report are required")
+	if opts.Listener == nil || opts.Report == nil || opts.TransferTimeout <= 0 {
+		return nil, errors.New("xwayland: Options.Listener, Options.Report and Options.TransferTimeout are required")
 	}
 	binary, err := exec.LookPath(opts.Binary)
 	if err != nil {
@@ -351,7 +353,11 @@ func (s *Server) manage(p *process, conn net.Conn) {
 		m := &wm{
 			x: c.x, root: c.root, sel: c.sel, atoms: c.atoms, windows: map[xproto.Window]*Window{}, shell: s.shell,
 			listener: s.opts.Listener, loop: s.loop, client: p.client, outgoing: map[outKey]*outgoing{},
-			post: func(f func() error) { _ = s.loop.Post(f) }, report: s.report,
+			post: func(f func() error) { _ = s.loop.Post(f) }, report: s.report, transfer: s.opts.TransferTimeout,
+		}
+		var err error
+		if m.stall, err = s.loop.AddTimer(m.stalled); err != nil {
+			return err
 		}
 		for _, k := range []data.Kind{data.Clipboard, data.Primary} {
 			m.selections[k] = &selection{kind: k, atom: c.atoms[[]string{"CLIPBOARD", "PRIMARY"}[k]]}

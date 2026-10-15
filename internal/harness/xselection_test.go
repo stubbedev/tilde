@@ -223,6 +223,7 @@ type xowner struct {
 	win    xproto.Window
 	text   []byte
 	refuse bool
+	silent bool
 	done   chan error
 }
 
@@ -242,6 +243,10 @@ func (o *xowner) serve() {
 				list := slices.Concat(binary.LittleEndian.AppendUint32(nil, uint32(o.atoms["TARGETS"])), binary.LittleEndian.AppendUint32(nil, uint32(o.atoms["UTF8_STRING"])))
 				xproto.ChangeProperty(o.x, xproto.PropModeReplace, e.Requestor, e.Property, xproto.AtomAtom, 32, 2, list)
 			case o.atoms["UTF8_STRING"]:
+				if o.silent {
+					o.silent = false
+					continue
+				}
 				if o.refuse {
 					reply.Property = 0
 					break
@@ -396,4 +401,47 @@ func TestAnXSelectionDiesWithXwayland(t *testing.T) {
 	h.Eventually("the dead X selection cleared", func(_ *headless.Backend, c *compositor.Compositor) bool {
 		return c.CurrentSelection(data.Clipboard) == nil
 	})
+}
+
+func TestASilentXOwnerDoesNotHoldUpLaterPastes(t *testing.T) {
+	var mu sync.Mutex
+	var reported []error
+	h := StartXwayland(t, func(err error) {
+		mu.Lock()
+		defer mu.Unlock()
+		reported = append(reported, err)
+	}, small)
+	xc := xDial(t, h)
+	xc.intern("CLIPBOARD", "TARGETS", "UTF8_STRING", "INCR")
+	o := &xowner{xclient: xc, text: []byte("second try"), silent: true, done: make(chan error, 1)}
+	o.win = xc.window(image.Rect(0, 0, 40, 40), 0xffffff, false, nil)
+	h.Eventually("the X window focused", func(_ *headless.Backend, c *compositor.Compositor) bool {
+		ws := windowsOf(c)
+		return len(ws) > 0 && ws[len(ws)-1].Focused
+	})
+	if err := xproto.SetSelectionOwnerChecked(xc.x, o.win, xc.atoms["CLIPBOARD"], xproto.TimeCurrentTime).Check(); err != nil {
+		t.Fatal(err)
+	}
+	go o.serve()
+	h.Eventually("the X selection taken for Wayland", func(_ *headless.Backend, c *compositor.Compositor) bool {
+		src := c.CurrentSelection(data.Clipboard)
+		return src != nil && slices.Equal(src.Mimes(), []string{"text/plain;charset=utf-8"})
+	})
+	p := join(t, h, "paster")
+	p.seen(t, "the X selection offered", func() bool { return p.cb.Selection != nil })
+	start := time.Now()
+	if got := receive(t, p, "text/plain;charset=utf-8"); got != "" {
+		t.Fatalf("a paste nobody answered delivered %q", got)
+	}
+	if waited := time.Since(start); waited < XTransferTimeout/2 {
+		t.Fatalf("the unanswered paste ended after %v, before the transfer timeout", waited)
+	}
+	if got := receive(t, p, "text/plain;charset=utf-8"); got != "second try" {
+		t.Fatalf("the paste after a stalled one gave %q", got)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(reported) != 1 || !strings.Contains(reported[0].Error(), "sent nothing") {
+		t.Fatalf("reports %v, want the stalled transfer", reported)
+	}
 }

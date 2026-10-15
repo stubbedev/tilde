@@ -289,7 +289,7 @@ func TestAnXwaylandThatCannotStartIsTriedAgainNextTime(t *testing.T) {
 	}
 	defer d.Close()
 	var reports []error
-	s, err := Listen(l, d, Options{Binary: binary, Dir: dir, Log: io.Discard, Report: func(err error) { reports = append(reports, err) }, Listener: quietListener{}})
+	s, err := Listen(l, d, Options{Binary: binary, Dir: dir, Log: io.Discard, Report: func(err error) { reports = append(reports, err) }, Listener: quietListener{}, TransferTimeout: time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
