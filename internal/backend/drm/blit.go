@@ -16,7 +16,7 @@ type blitAllocator struct {
 }
 
 func (a *blitAllocator) renderer() render.Renderer {
-	return a.primary.gles
+	return a.primary.stack.Renderer
 }
 
 func (a *blitAllocator) renderable(format fourcc.Format) ([]fourcc.Modifier, error) {
@@ -30,15 +30,15 @@ type shared struct {
 }
 
 func (a *blitAllocator) share(size image.Point, format fourcc.Format) (*shared, error) {
-	b, err := a.primary.gbm.Allocate(size, format, []fourcc.Modifier{fourcc.Linear}, gpu.UseRendering)
+	b, err := a.primary.stack.GBM.Allocate(size, format, []fourcc.Modifier{fourcc.Linear}, gpu.UseRendering)
 	if err != nil {
 		return nil, fmt.Errorf("a linear buffer on the primary GPU: %w", err)
 	}
-	target, err := a.primary.gles.ImportFramebuffer(b.DMABUF)
+	target, err := a.primary.stack.Renderer.ImportFramebuffer(b.DMABUF)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("render into it on the primary GPU: %w", err), b.Close())
 	}
-	tex, err := a.local.gles.ImportTexture(b.DMABUF)
+	tex, err := a.local.stack.Renderer.ImportTexture(b.DMABUF)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("read it on %s: %w", a.local.dev.Path(), err), target.Destroy(), b.Close())
 	}
@@ -75,19 +75,19 @@ func (a *blitAllocator) allocate(size image.Point, format fourcc.Format, modifie
 }
 
 func (a *blitAllocator) blit(tex render.Texture, dst render.Target, size image.Point) error {
-	if a.primary.gles.NativeFences() && a.local.gles.NativeFences() {
-		fd, err := a.primary.gles.SyncFile()
+	if a.primary.stack.Renderer.NativeFences() && a.local.stack.Renderer.NativeFences() {
+		fd, err := a.primary.stack.Renderer.SyncFile()
 		if err != nil {
 			return err
 		}
-		if err := a.local.gles.WaitFence(fd); err != nil {
+		if err := a.local.stack.Renderer.WaitFence(fd); err != nil {
 			return err
 		}
-	} else if err := a.primary.gles.Finish(); err != nil {
+	} else if err := a.primary.stack.Renderer.Finish(); err != nil {
 		return err
 	}
 	all := image.Rectangle{Max: size}
-	p, err := a.local.gles.Begin(dst, render.Region{all})
+	p, err := a.local.stack.Renderer.Begin(dst, render.Region{all})
 	if err != nil {
 		return err
 	}

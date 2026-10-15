@@ -133,11 +133,7 @@ func renderNode(dev uint64) (string, error) {
 type dmabufChain struct {
 	linux     *ld.ZwpLinuxDmabufV1
 	fd        int
-	eglLib    *gpu.Library
-	gbmLib    *gpu.GBMLibrary
-	gbm       *gpu.GBM
-	display   *gpu.Display
-	gles      *gles.Renderer
+	stack     *gles.Stack
 	modifiers []fourcc.Modifier
 }
 
@@ -178,22 +174,10 @@ func newDMABUFChain(host *wlclient.Display, globals registry, reg *cw.WlRegistry
 	if c.fd, err = unix.Open(node, unix.O_RDWR|unix.O_CLOEXEC, 0); err != nil {
 		return nil, fmt.Errorf("nested: open %s: %w", node, err)
 	}
-	if c.eglLib, err = gpu.Load(paths); err != nil {
-		return nil, err
+	if c.stack, err = gles.OnGBM(c.fd, paths); err != nil {
+		return nil, fmt.Errorf("nested: GLES on %s: %w", node, err)
 	}
-	if c.gbmLib, err = gpu.LoadGBM(paths); err != nil {
-		return nil, err
-	}
-	if c.gbm, err = c.gbmLib.Open(c.fd); err != nil {
-		return nil, err
-	}
-	if c.display, err = c.eglLib.OnGBM(c.gbm); err != nil {
-		return nil, fmt.Errorf("nested: EGL on %s: %w", node, err)
-	}
-	if c.gles, err = gles.New(c.display); err != nil {
-		return nil, err
-	}
-	renderable, err := c.display.DMABUFModifiers(dmabufFormat)
+	renderable, err := c.stack.Display.DMABUFModifiers(dmabufFormat)
 	if err != nil {
 		return nil, err
 	}
@@ -210,11 +194,11 @@ func newDMABUFChain(host *wlclient.Display, globals registry, reg *cw.WlRegistry
 }
 
 func (c *dmabufChain) renderer() render.Renderer {
-	return c.gles
+	return c.stack.Renderer
 }
 
 func (c *dmabufChain) finish() error {
-	return c.gles.Finish()
+	return c.stack.Renderer.Finish()
 }
 
 func (c *dmabufChain) allocate(o *Output, size image.Point) ([]*buffer, func() error, error) {
@@ -234,12 +218,12 @@ func (c *dmabufChain) allocate(o *Output, size image.Point) ([]*buffer, func() e
 	}
 	buffers := make([]*buffer, dmabufBuffers)
 	for i := range buffers {
-		bo, err := c.gbm.Allocate(size, dmabufFormat, c.modifiers, gpu.UseRendering)
+		bo, err := c.stack.GBM.Allocate(size, dmabufFormat, c.modifiers, gpu.UseRendering)
 		if err != nil {
 			return nil, nil, errors.Join(err, free())
 		}
 		bos = append(bos, bo)
-		target, err := c.gles.ImportFramebuffer(bo.DMABUF)
+		target, err := c.stack.Renderer.ImportFramebuffer(bo.DMABUF)
 		if err != nil {
 			return nil, nil, errors.Join(err, free())
 		}
@@ -273,20 +257,8 @@ func (c *dmabufChain) hostBuffer(o *Output, buf *buffer, d gpu.DMABUF) (*cw.WlBu
 
 func (c *dmabufChain) close() error {
 	var errs []error
-	if c.gles != nil {
-		errs = append(errs, c.gles.Close())
-	}
-	if c.display != nil {
-		errs = append(errs, c.display.Close())
-	}
-	if c.gbm != nil {
-		c.gbm.Close()
-	}
-	if c.gbmLib != nil {
-		errs = append(errs, c.gbmLib.Close())
-	}
-	if c.eglLib != nil {
-		errs = append(errs, c.eglLib.Close())
+	if c.stack != nil {
+		errs = append(errs, c.stack.Close())
 	}
 	if c.fd >= 0 {
 		errs = append(errs, unix.Close(c.fd))

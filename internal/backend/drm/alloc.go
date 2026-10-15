@@ -20,49 +20,27 @@ import (
 type gbmAllocator struct {
 	dev       *kdrm.Device
 	modifiers bool
-	eglLib    *gpu.Library
-	gbmLib    *gpu.GBMLibrary
-	gbm       *gpu.GBM
-	display   *gpu.Display
-	gles      *gles.Renderer
+	stack     *gles.Stack
 }
 
 func newGBMAllocator(dev *kdrm.Device, paths gpu.Paths) (*gbmAllocator, error) {
-	a := &gbmAllocator{dev: dev}
-	if err := a.open(paths); err != nil {
-		return nil, errors.Join(err, a.close())
-	}
-	return a, nil
-}
-
-func (a *gbmAllocator) open(paths gpu.Paths) error {
-	modifiers, err := a.dev.Cap(kdrm.CapAddFB2Modifiers)
+	modifiers, err := dev.Cap(kdrm.CapAddFB2Modifiers)
 	if err != nil {
-		return fmt.Errorf("drm: ADDFB2 modifier support of %s: %w", a.dev.Path(), err)
+		return nil, fmt.Errorf("drm: ADDFB2 modifier support of %s: %w", dev.Path(), err)
 	}
-	a.modifiers = modifiers == 1
-	if a.gbmLib, err = gpu.LoadGBM(paths); err != nil {
-		return err
+	stack, err := gles.OnGBM(dev.FD(), paths)
+	if err != nil {
+		return nil, fmt.Errorf("drm: GLES on %s: %w", dev.Path(), err)
 	}
-	if a.gbm, err = a.gbmLib.Open(a.dev.FD()); err != nil {
-		return err
-	}
-	if a.eglLib, err = gpu.Load(paths); err != nil {
-		return err
-	}
-	if a.display, err = a.eglLib.OnGBM(a.gbm); err != nil {
-		return fmt.Errorf("drm: EGL on %s: %w", a.dev.Path(), err)
-	}
-	a.gles, err = gles.New(a.display)
-	return err
+	return &gbmAllocator{dev: dev, modifiers: modifiers == 1, stack: stack}, nil
 }
 
 func (a *gbmAllocator) renderer() render.Renderer {
-	return a.gles
+	return a.stack.Renderer
 }
 
 func (a *gbmAllocator) renderable(format fourcc.Format) ([]fourcc.Modifier, error) {
-	return a.gles.RenderableModifiers(format)
+	return a.stack.Renderer.RenderableModifiers(format)
 }
 
 func (a *gbmAllocator) allocate(size image.Point, format fourcc.Format, modifiers []fourcc.Modifier) (*scanout, error) {
@@ -70,11 +48,11 @@ func (a *gbmAllocator) allocate(size image.Point, format fourcc.Format, modifier
 	if len(modifiers) == 0 {
 		usage |= gpu.UseScanout
 	}
-	bo, err := a.gbm.Allocate(size, format, modifiers, usage)
+	bo, err := a.stack.GBM.Allocate(size, format, modifiers, usage)
 	if err != nil {
 		return nil, err
 	}
-	target, err := a.gles.ImportFramebuffer(bo.DMABUF)
+	target, err := a.stack.Renderer.ImportFramebuffer(bo.DMABUF)
 	if err != nil {
 		return nil, errors.Join(err, bo.Close())
 	}
@@ -133,30 +111,14 @@ func addable(modifier fourcc.Modifier, withModifiers bool) bool {
 }
 
 func (a *gbmAllocator) fence() (int, error) {
-	if !a.gles.NativeFences() {
-		return -1, a.gles.Finish()
+	if !a.stack.Renderer.NativeFences() {
+		return -1, a.stack.Renderer.Finish()
 	}
-	return a.gles.SyncFile()
+	return a.stack.Renderer.SyncFile()
 }
 
 func (a *gbmAllocator) close() error {
-	var errs []error
-	if a.gles != nil {
-		errs = append(errs, a.gles.Close())
-	}
-	if a.display != nil {
-		errs = append(errs, a.display.Close())
-	}
-	if a.gbm != nil {
-		a.gbm.Close()
-	}
-	if a.gbmLib != nil {
-		errs = append(errs, a.gbmLib.Close())
-	}
-	if a.eglLib != nil {
-		errs = append(errs, a.eglLib.Close())
-	}
-	return errors.Join(errs...)
+	return a.stack.Close()
 }
 
 func atomic(dev *kdrm.Device) error {
