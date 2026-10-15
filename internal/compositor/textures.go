@@ -142,7 +142,7 @@ func (c *Compositor) BufferDestroyed(b *dmabuf.Buffer) error {
 	return errors.Join(errs...)
 }
 
-func (c *Compositor) Texture(s *surface.Surface) render.Texture {
+func (c *Compositor) textureOf(s *surface.Surface) render.Texture {
 	if t, ok := c.textures[s]; ok {
 		return t.tex
 	}

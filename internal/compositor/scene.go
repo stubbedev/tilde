@@ -195,7 +195,7 @@ func (c *Compositor) drawTree(pass *frame, o *output.Output, s *surface.Surface,
 			}
 			continue
 		}
-		tex := c.Texture(s)
+		tex := c.textureOf(s)
 		if tex == nil {
 			continue
 		}

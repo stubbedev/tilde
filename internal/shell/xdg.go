@@ -69,7 +69,6 @@ const (
 type Listener interface {
 	ToplevelInitialCommit(t *Toplevel) error
 	ToplevelMapped(t *Toplevel) error
-	ToplevelCommitted(t *Toplevel) error
 	ToplevelUnmapped(t *Toplevel) error
 	ToplevelChanged(t *Toplevel, c Change) error
 	ToplevelRequest(t *Toplevel, r Request) error
@@ -279,7 +278,6 @@ type roleObject interface {
 	initialCommit() error
 	mapped() error
 	unmapped() error
-	committed() error
 	inert() bool
 }
 
@@ -422,8 +420,6 @@ func (xs *XdgSurface) Committed(s *surface.Surface) error {
 	case s.Buffer() != nil && !xs.mapped:
 		xs.mapped = true
 		return r.mapped()
-	case xs.mapped:
-		return r.committed()
 	}
 	return nil
 }

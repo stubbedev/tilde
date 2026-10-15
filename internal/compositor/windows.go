@@ -26,10 +26,6 @@ type window struct {
 	scale   output.Scale
 }
 
-func (c *Compositor) placement(w *window) image.Rectangle {
-	return w.rect
-}
-
 func (c *Compositor) windowOrigin(w *window) origin {
 	at := w.rect.Min.Sub(w.top.Geometry().Min)
 	if _, ok := w.top.(xToplevel); ok {
@@ -297,8 +293,6 @@ func (c *Compositor) unmapToplevel(t toplevel) error {
 	}
 	return c.update(c.wm.UnmapWindow(w.id))
 }
-
-func (c *Compositor) ToplevelCommitted(*shell.Toplevel) error { return nil }
 
 func (c *Compositor) ToplevelChanged(_ *shell.Toplevel, change shell.Change) error {
 	if change == shell.ChangedModal {

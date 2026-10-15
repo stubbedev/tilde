@@ -207,10 +207,6 @@ func (p *Popup) unmapped() error {
 	return p.xs.base.shell.listener.PopupUnmapped(p)
 }
 
-func (p *Popup) committed() error {
-	return nil
-}
-
 func (p *Popup) inert() bool {
 	return p.dismissed
 }

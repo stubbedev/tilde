@@ -189,10 +189,6 @@ func (t *Toplevel) unmapped() error {
 	return t.xs.base.shell.listener.ToplevelUnmapped(t)
 }
 
-func (t *Toplevel) committed() error {
-	return t.xs.base.shell.listener.ToplevelCommitted(t)
-}
-
 func (t *Toplevel) inert() bool {
 	return false
 }

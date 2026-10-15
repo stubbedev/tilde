@@ -56,9 +56,8 @@ func (r *recorder) ToplevelInitialCommit(t *Toplevel) error {
 	return nil
 }
 
-func (r *recorder) ToplevelMapped(*Toplevel) error    { return r.note("mapped") }
-func (r *recorder) ToplevelCommitted(*Toplevel) error { return r.note("committed") }
-func (r *recorder) ToplevelUnmapped(*Toplevel) error  { return r.note("unmapped") }
+func (r *recorder) ToplevelMapped(*Toplevel) error   { return r.note("mapped") }
+func (r *recorder) ToplevelUnmapped(*Toplevel) error { return r.note("unmapped") }
 
 func (r *recorder) ToplevelChanged(t *Toplevel, c Change) error {
 	return r.note("changed %d %q %q", c, t.Title(), t.AppID())
@@ -365,7 +364,7 @@ func TestDefaultConfigureAndMap(t *testing.T) {
 	c.roundtrip()
 	must(t, w.surf.Commit())
 	c.roundtrip()
-	want := []string{`changed 1 "hello" ""`, `changed 2 "hello" "app"`, "initial", "mapped", "committed"}
+	want := []string{`changed 1 "hello" ""`, `changed 2 "hello" "app"`, "initial", "mapped"}
 	if got := e.log(); !slices.Equal(got, want) {
 		t.Fatalf("events %v, want %v", got, want)
 	}
