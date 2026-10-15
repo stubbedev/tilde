@@ -7,7 +7,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/backend/headless"
 	"github.com/stubbedev/tilde/internal/compositor"
 	"github.com/stubbedev/tilde/internal/fourcc"
@@ -525,5 +527,70 @@ func TestACaptureOfAClosedToplevelStops(t *testing.T) {
 	c.DispatchUntil("the frame to fail", func() bool { return f.failed || f.ready })
 	if f.ready || f.reason != ceic.ExtImageCopyCaptureFrameV1FailureReasonStopped {
 		t.Fatalf("a frame of a closed toplevel: %+v", *f)
+	}
+}
+
+func TestShmCapturesLeaveTheLoopFreeOnHardware(t *testing.T) {
+	large := backend.Mode{Size: image.Pt(2560, 1440), RefreshMHz: 60000, Preferred: true}
+	h := StartGLES(t, func(*compositor.Config) {}, large)
+	hardware := false
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+		r, ok := b.Renderer().(interface {
+			render.AsyncReader
+			MainDevice() (uint64, error)
+		})
+		if ok {
+			_, err := r.MainDevice()
+			hardware = err == nil && r.AsyncReads()
+		}
+		return nil
+	})
+	if !hardware {
+		t.Skip("no GPU with a render node reads captures back asynchronously here")
+	}
+	c := testclient.Connect(t, h.Socket())
+	w := c.Window("captured", quadrants)
+	c.DispatchUntil("the window to map", w.Mapped)
+	quiesce(t, h, c, w)
+	r := newCaptureRig(t, h, c)
+	session, view := r.outputSession(0)
+	r.first(session, view.size)
+	shown := c.Buffer(w.Logical, 1, quadrants)
+	target, _ := c.Target(view.size)
+	const frames = 120
+	frame := func(i int, done func() bool) time.Duration {
+		t.Helper()
+		before := h.Busy()
+		if err := errors.Join(w.Surface.Attach(shown, 0, 0), w.Surface.Damage(int32(i%64), 0, 4, 4), w.Surface.Commit(), c.Display.Flush()); err != nil {
+			t.Fatal(err)
+		}
+		c.DispatchUntil("the frame", done)
+		return h.Busy() - before
+	}
+	baseline := make([]time.Duration, frames)
+	for i := range baseline {
+		drawn := false
+		if _, err := w.Surface.Frame(frameDone{&drawn}); err != nil {
+			t.Fatal(err)
+		}
+		baseline[i] = frame(i, func() bool { return drawn })
+	}
+	captured := make([]time.Duration, frames)
+	for i := range captured {
+		f, fr := captureInto(t, c, session, target, view.size)
+		captured[i] = frame(i, func() bool { return f.ready || f.failed })
+		if f.failed {
+			t.Fatalf("frame %d failed: %+v", i, *f)
+		}
+		if err := fr.Destroy(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	slices.Sort(baseline)
+	slices.Sort(captured)
+	plain, with := baseline[frames/2], captured[frames/2]
+	t.Logf("the loop was busy a median %v per frame without a capture and %v with a %v shm capture", plain, with, view.size)
+	if with > time.Millisecond {
+		t.Errorf("a frame with a capture kept the loop busy a median %v, want under 1ms", with)
 	}
 }

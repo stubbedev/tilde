@@ -108,15 +108,17 @@ func (r *asyncRead) waited(err error) error {
 	if err != nil {
 		return r.end(err)
 	}
-	size := r.k.size
+	size, dst := r.k.size, r.dst
+	r.dst = nil
 	r.c.offLoop(func() error {
-		return r.dst.Write(func(data []byte, stride int) error {
+		err := dst.Write(func(data []byte, stride int) error {
 			row := size.X * 4
 			for y := range size.Y {
 				copy(data[y*stride:y*stride+row], pix[y*row:])
 			}
 			return nil
 		})
+		return errors.Join(err, dst.Close())
 	}, r.end)
 	return nil
 }

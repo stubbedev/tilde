@@ -8,6 +8,7 @@ import (
 	"image"
 	"os"
 	"runtime/debug"
+	"sync/atomic"
 
 	"golang.org/x/sys/unix"
 
@@ -129,7 +130,7 @@ func (p *pool) CreateBuffer(obj *sw.WlShmPool, res *sw.WlBuffer, offset, width, 
 	}
 	b := &Buffer{pool: p, resource: res, offset: int(offset), size: size, stride: int(stride), format: f}
 	p.refs++
-	server.OnDestroy(res, p.unref)
+	server.OnDestroy(res, func() error { return errors.Join(b.dropWriter(), p.unref()) })
 	return b, nil
 }
 
@@ -183,6 +184,7 @@ type Buffer struct {
 	size     image.Point
 	stride   int
 	format   render.Format
+	writer   *Mapping
 }
 
 func (b *Buffer) Size() image.Point {
@@ -221,15 +223,30 @@ type Mapping struct {
 	b     *Buffer
 	pages []byte
 	at    int
+	refs  atomic.Int32
 }
 
 func (b *Buffer) MapForWriting() (*Mapping, error) {
-	at := b.offset &^ (os.Getpagesize() - 1)
-	pages, err := unix.Mmap(b.pool.fd, int64(at), b.offset+b.stride*b.size.Y-at, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
-	if err != nil {
-		return nil, fmt.Errorf("shm: map a %v buffer at offset %d for writing: %w", b.size, b.offset, err)
+	if b.writer == nil {
+		at := b.offset &^ (os.Getpagesize() - 1)
+		pages, err := unix.Mmap(b.pool.fd, int64(at), b.offset+b.stride*b.size.Y-at, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+		if err != nil {
+			return nil, fmt.Errorf("shm: map a %v buffer at offset %d for writing: %w", b.size, b.offset, err)
+		}
+		b.writer = &Mapping{b: b, pages: pages, at: at}
+		b.writer.refs.Store(1)
 	}
-	return &Mapping{b: b, pages: pages, at: at}, nil
+	b.writer.refs.Add(1)
+	return b.writer, nil
+}
+
+func (b *Buffer) dropWriter() error {
+	if b.writer == nil {
+		return nil
+	}
+	m := b.writer
+	b.writer = nil
+	return m.Close()
 }
 
 func (m *Mapping) Write(f func(data []byte, stride int) error) error {
@@ -237,6 +254,9 @@ func (m *Mapping) Write(f func(data []byte, stride int) error) error {
 }
 
 func (m *Mapping) Close() error {
+	if m.refs.Add(-1) > 0 {
+		return nil
+	}
 	if err := unix.Munmap(m.pages); err != nil {
 		return fmt.Errorf("shm: unmap a %v buffer mapped for writing: %w", m.b.size, err)
 	}
