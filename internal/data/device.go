@@ -3,7 +3,6 @@ package data
 import (
 	"errors"
 	"fmt"
-	"slices"
 
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	"github.com/stubbedev/tilde/internal/server"
@@ -30,7 +29,7 @@ func (dataManager) Release(*sw.WlDataDeviceManager) error {
 }
 
 func (r dataManager) CreateDataSource(_ *sw.WlDataDeviceManager, res *sw.WlDataSource) (sw.WlDataSourceHandler, error) {
-	s := &dataSource{m: r.m, client: r.c, resource: res}
+	s := &dataSource{m: r.m, client: r.c, send: res.SendSend, cancel: res.SendCancelled, resource: res}
 	server.OnDestroy(res, s.destroy)
 	return s, nil
 }
@@ -45,36 +44,10 @@ func (r dataManager) GetDataDevice(_ *sw.WlDataDeviceManager, res *sw.WlDataDevi
 }
 
 type dataSource struct {
-	m          *Manager
-	client     *server.Client
+	source
 	resource   *sw.WlDataSource
-	mimes      []string
 	actions    Action
 	actionsSet bool
-	used       bool
-	destroyed  bool
-}
-
-func (s *dataSource) Client() *server.Client {
-	return s.client
-}
-
-func (s *dataSource) Mimes() []string {
-	return s.mimes
-}
-
-func (s *dataSource) Send(mime string, fd int) error {
-	if s.destroyed {
-		return nil
-	}
-	return s.client.Sent(s.resource.SendSend(mime, fd))
-}
-
-func (s *dataSource) Cancel() error {
-	if s.destroyed {
-		return nil
-	}
-	return s.client.Sent(s.resource.SendCancelled())
 }
 
 func (s *dataSource) version() uint32 {
@@ -82,9 +55,7 @@ func (s *dataSource) version() uint32 {
 }
 
 func (s *dataSource) Offer(_ *sw.WlDataSource, mime string) error {
-	if !slices.Contains(s.mimes, mime) {
-		s.mimes = append(s.mimes, mime)
-	}
+	s.addMime(mime)
 	return nil
 }
 
@@ -92,7 +63,7 @@ func (s *dataSource) SetActions(obj *sw.WlDataSource, actions Action) error {
 	switch {
 	case actions&^allActions != 0:
 		return obj.ProtocolError(sw.WlDataSourceErrorInvalidActionMask, fmt.Sprintf("actions %d", actions))
-	case s.actionsSet || s.used:
+	case s.actionsSet || !s.fresh():
 		return obj.ProtocolError(sw.WlDataSourceErrorInvalidSource, "set_actions must come once, before the source is used")
 	}
 	s.actions, s.actionsSet = actions, true
@@ -104,7 +75,7 @@ func (s *dataSource) Destroy(*sw.WlDataSource) error {
 }
 
 func (s *dataSource) destroy() error {
-	s.destroyed = true
+	s.end()
 	errs := []error{s.m.sourceGone(s)}
 	if d := s.m.drag; d != nil && d.source == s {
 		errs = append(errs, d.Cancel())
@@ -137,8 +108,12 @@ func (d dataDevice) SetSelection(obj *sw.WlDataDevice, res *sw.WlDataSource, _ u
 	if err != nil {
 		return err
 	}
-	if s != nil && s.actionsSet {
+	switch {
+	case s == nil:
+	case s.actionsSet:
 		return res.ProtocolError(sw.WlDataSourceErrorInvalidSource, "a drag-and-drop source cannot be the selection")
+	default:
+		s.use()
 	}
 	if d.c != d.m.focus {
 		if s != nil {
@@ -149,7 +124,6 @@ func (d dataDevice) SetSelection(obj *sw.WlDataDevice, res *sw.WlDataSource, _ u
 	if s == nil {
 		return d.m.SetSelection(Clipboard, nil)
 	}
-	s.used = true
 	return d.m.SetSelection(Clipboard, s)
 }
 
@@ -158,7 +132,7 @@ func (d dataDevice) StartDrag(obj *sw.WlDataDevice, res *sw.WlDataSource, origin
 	if err != nil {
 		return err
 	}
-	if s != nil && s.used {
+	if s != nil && !s.fresh() {
 		return obj.ProtocolError(sw.WlDataDeviceErrorUsedSource, "the source was already used")
 	}
 	from, err := surface.From(origin)
@@ -172,7 +146,7 @@ func (d dataDevice) StartDrag(obj *sw.WlDataDevice, res *sw.WlDataSource, origin
 		}
 	}
 	if s != nil {
-		s.used = true
+		s.use()
 	}
 	if from.Client() != d.c || !d.m.listener.CanDrag(from, serial) {
 		if s != nil {

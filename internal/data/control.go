@@ -17,50 +17,18 @@ const (
 	extControlVersion = 1
 )
 
-type controlSource struct {
-	m         *Manager
-	client    *server.Client
-	mimes     []string
-	send      func(mime string, fd int) error
-	cancel    func() error
-	used      bool
-	destroyed bool
-}
-
-func (s *controlSource) Client() *server.Client {
-	return s.client
-}
-
-func (s *controlSource) Mimes() []string {
-	return s.mimes
-}
-
-func (s *controlSource) Send(mime string, fd int) error {
-	if s.destroyed {
-		return nil
-	}
-	return s.client.Sent(s.send(mime, fd))
-}
-
-func (s *controlSource) Cancel() error {
-	if s.destroyed {
-		return nil
-	}
-	return s.client.Sent(s.cancel())
-}
+type controlSource struct{ source }
 
 func (s *controlSource) offer(mime string) bool {
-	if s.used {
+	if !s.fresh() {
 		return false
 	}
-	if !slices.Contains(s.mimes, mime) {
-		s.mimes = append(s.mimes, mime)
-	}
+	s.addMime(mime)
 	return true
 }
 
 func (s *controlSource) destroy() error {
-	s.destroyed = true
+	s.end()
 	return s.m.sourceGone(s)
 }
 
@@ -131,7 +99,7 @@ func (m *Manager) setControlSelection(k Kind, s *controlSource) error {
 	if s == nil {
 		return m.SetSelection(k, nil)
 	}
-	s.used = true
+	s.use()
 	return m.SetSelection(k, s)
 }
 
@@ -150,7 +118,7 @@ func (wlrControl) Destroy(*swdc.ZwlrDataControlManagerV1) error {
 }
 
 func (r wlrControl) CreateDataSource(_ *swdc.ZwlrDataControlManagerV1, res *swdc.ZwlrDataControlSourceV1) (swdc.ZwlrDataControlSourceV1Handler, error) {
-	s := &controlSource{m: r.m, client: r.c, send: res.SendSend, cancel: res.SendCancelled}
+	s := &controlSource{source{m: r.m, client: r.c, send: res.SendSend, cancel: res.SendCancelled}}
 	server.OnDestroy(res, s.destroy)
 	return wlrSource{s}, nil
 }
@@ -211,7 +179,7 @@ func (w wlrDevice) set(obj *swdc.ZwlrDataControlDeviceV1, k Kind, res *swdc.Zwlr
 	if err != nil {
 		return err
 	}
-	if s != nil && s.used {
+	if s != nil && !s.fresh() {
 		return obj.ProtocolError(swdc.ZwlrDataControlDeviceV1ErrorUsedSource, "the source was already used")
 	}
 	return w.m.setControlSelection(k, s)
@@ -250,7 +218,7 @@ func (extControl) Destroy(*sedc.ExtDataControlManagerV1) error {
 }
 
 func (r extControl) CreateDataSource(_ *sedc.ExtDataControlManagerV1, res *sedc.ExtDataControlSourceV1) (sedc.ExtDataControlSourceV1Handler, error) {
-	s := &controlSource{m: r.m, client: r.c, send: res.SendSend, cancel: res.SendCancelled}
+	s := &controlSource{source{m: r.m, client: r.c, send: res.SendSend, cancel: res.SendCancelled}}
 	server.OnDestroy(res, s.destroy)
 	return extSource{s}, nil
 }
@@ -311,7 +279,7 @@ func (e extDevice) set(obj *sedc.ExtDataControlDeviceV1, k Kind, res *sedc.ExtDa
 	if err != nil {
 		return err
 	}
-	if s != nil && s.used {
+	if s != nil && !s.fresh() {
 		return obj.ProtocolError(sedc.ExtDataControlDeviceV1ErrorUsedSource, "the source was already used")
 	}
 	return e.m.setControlSelection(k, s)

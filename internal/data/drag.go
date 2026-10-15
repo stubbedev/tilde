@@ -286,7 +286,7 @@ func (d *Drag) Cancel() error {
 	if d.offer != nil {
 		d.offer.dead = true
 	}
-	if d.source != nil && !d.source.destroyed {
+	if d.source != nil && d.source.phase != sourceGone {
 		errs = append(errs, d.source.Cancel())
 	}
 	errs = append(errs, d.end())
@@ -299,7 +299,7 @@ func (d *Drag) finish() error {
 		return nil
 	}
 	var errs []error
-	if d.source != nil && !d.source.destroyed && d.source.version() >= 3 {
+	if d.source != nil && d.source.phase != sourceGone && d.source.version() >= 3 {
 		errs = append(errs, d.source.client.Sent(d.source.resource.SendDndFinished()))
 	}
 	d.release()

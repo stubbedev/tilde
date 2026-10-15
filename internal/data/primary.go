@@ -2,7 +2,6 @@ package data
 
 import (
 	"fmt"
-	"slices"
 
 	sps "github.com/stubbedev/tilde/internal/protocol/server/primaryselection"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
@@ -25,7 +24,7 @@ func (primaryManager) Destroy(*sps.ZwpPrimarySelectionDeviceManagerV1) error {
 }
 
 func (r primaryManager) CreateSource(_ *sps.ZwpPrimarySelectionDeviceManagerV1, res *sps.ZwpPrimarySelectionSourceV1) (sps.ZwpPrimarySelectionSourceV1Handler, error) {
-	s := &primarySource{m: r.m, client: r.c, resource: res}
+	s := &primarySource{source{m: r.m, client: r.c, send: res.SendSend, cancel: res.SendCancelled}}
 	server.OnDestroy(res, s.destroy)
 	return s, nil
 }
@@ -39,40 +38,10 @@ func (r primaryManager) GetDevice(_ *sps.ZwpPrimarySelectionDeviceManagerV1, res
 	return primaryDevice(r), r.c.Sent(r.m.offerPrimary(res, r.m.selection[Primary]))
 }
 
-type primarySource struct {
-	m         *Manager
-	client    *server.Client
-	resource  *sps.ZwpPrimarySelectionSourceV1
-	mimes     []string
-	destroyed bool
-}
-
-func (s *primarySource) Client() *server.Client {
-	return s.client
-}
-
-func (s *primarySource) Mimes() []string {
-	return s.mimes
-}
-
-func (s *primarySource) Send(mime string, fd int) error {
-	if s.destroyed {
-		return nil
-	}
-	return s.client.Sent(s.resource.SendSend(mime, fd))
-}
-
-func (s *primarySource) Cancel() error {
-	if s.destroyed {
-		return nil
-	}
-	return s.client.Sent(s.resource.SendCancelled())
-}
+type primarySource struct{ source }
 
 func (s *primarySource) Offer(_ *sps.ZwpPrimarySelectionSourceV1, mime string) error {
-	if !slices.Contains(s.mimes, mime) {
-		s.mimes = append(s.mimes, mime)
-	}
+	s.addMime(mime)
 	return nil
 }
 
@@ -81,7 +50,7 @@ func (s *primarySource) Destroy(*sps.ZwpPrimarySelectionSourceV1) error {
 }
 
 func (s *primarySource) destroy() error {
-	s.destroyed = true
+	s.end()
 	return s.m.sourceGone(s)
 }
 
