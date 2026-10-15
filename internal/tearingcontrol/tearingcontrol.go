@@ -55,10 +55,9 @@ func (r requests) GetTearingControl(obj *stc.WpTearingControlManagerV1, res *stc
 	}
 	if !ok {
 		h = &hint{m: r.m, s: s}
-		h.hooks = &surface.Hooks{Commit: h.commit}
+		h.hooks = &surface.Hooks{Commit: h.commit, Destroyed: h.forget}
 		s.AddHooks(h.hooks)
 		r.m.hints[s] = h
-		r.c.OnDestroy(wl, h.forget)
 	}
 	h.live = true
 	r.c.OnDestroy(res, func() error {

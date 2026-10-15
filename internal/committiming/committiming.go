@@ -78,10 +78,9 @@ func (r requests) GetTimer(obj *sct.WpCommitTimingManagerV1, res *sct.WpCommitTi
 		if t.clock, err = r.m.loop.AddTimer(t.fire); err != nil {
 			return nil, fmt.Errorf("committiming: a timer for wl_surface@%d: %w", wl.Base().ID(), err)
 		}
-		t.hooks = &surface.Hooks{Commit: t.commit}
+		t.hooks = &surface.Hooks{Commit: t.commit, Destroyed: t.surfaceGone}
 		s.AddHooks(t.hooks)
 		r.m.timers = append(r.m.timers, t)
-		r.c.OnDestroy(wl, t.surfaceGone)
 	}
 	t.live = true
 	r.c.OnDestroy(res, func() error {

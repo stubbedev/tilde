@@ -47,6 +47,7 @@ type notification struct {
 type Inhibitor struct {
 	m       *Manager
 	surface *surface.Surface
+	hooks   *surface.Hooks
 }
 
 func New(d *server.Display, l *loop.Loop, now func() time.Duration, inhibitorsChanged func() error) (*Manager, error) {
@@ -197,10 +198,10 @@ func (r inhibitManager) CreateInhibitor(_ *sii.ZwpIdleInhibitManagerV1, res *sii
 		return nil, err
 	}
 	i := &Inhibitor{m: r.m, surface: s}
+	i.hooks = &surface.Hooks{Destroyed: i.drop}
+	s.AddHooks(i.hooks)
 	r.m.inhibitors = append(r.m.inhibitors, i)
-	drop := func() error { return i.drop() }
-	r.c.OnDestroy(res, drop)
-	r.c.OnDestroy(wl, drop)
+	r.c.OnDestroy(res, i.drop)
 	return i, r.m.changed()
 }
 
@@ -209,6 +210,7 @@ func (i *Inhibitor) drop() error {
 	if !slices.Contains(m.inhibitors, i) {
 		return nil
 	}
+	i.surface.RemoveHooks(i.hooks)
 	m.inhibitors = slices.DeleteFunc(m.inhibitors, func(x *Inhibitor) bool { return x == i })
 	return m.changed()
 }

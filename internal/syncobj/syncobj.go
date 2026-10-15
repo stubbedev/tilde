@@ -154,10 +154,9 @@ func (r requests) GetSurface(obj *sls.WpLinuxDrmSyncobjManagerV1, res *sls.WpLin
 	ss, ok := r.m.surfaces[s]
 	if !ok {
 		ss = &syncSurface{m: r.m, s: s}
-		ss.hooks = &surface.Hooks{Commit: ss.commit}
+		ss.hooks = &surface.Hooks{Commit: ss.commit, Destroyed: ss.surfaceGone}
 		s.AddHooks(ss.hooks)
 		r.m.surfaces[s] = ss
-		r.c.OnDestroy(wl, ss.surfaceGone)
 	}
 	ss.res = res
 	r.c.OnDestroy(res, ss.objectGone)

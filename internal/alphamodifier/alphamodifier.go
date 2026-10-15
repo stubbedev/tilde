@@ -72,10 +72,9 @@ func (r requests) GetSurface(obj *swam.WpAlphaModifierV1, res *swam.WpAlphaModif
 	}
 	if !ok {
 		a = &modified{m: r.m, s: s, current: 1}
-		a.hooks = &surface.Hooks{Commit: a.commit}
+		a.hooks = &surface.Hooks{Commit: a.commit, Destroyed: a.surfaceGone}
 		s.AddHooks(a.hooks)
 		r.m.surfaces[s] = a
-		r.c.OnDestroy(wl, a.surfaceGone)
 	}
 	a.live = true
 	r.c.OnDestroy(res, func() error {

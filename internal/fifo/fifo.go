@@ -68,10 +68,9 @@ func (r requests) GetFifo(obj *sff.WpFifoManagerV1, res *sff.WpFifoV1, wl *sw.Wl
 		f = r.m.fifos[i]
 	} else {
 		f = &fifo{m: r.m, s: s}
-		f.hooks = &surface.Hooks{Commit: f.commit}
+		f.hooks = &surface.Hooks{Commit: f.commit, Destroyed: f.surfaceGone}
 		s.AddHooks(f.hooks)
 		r.m.fifos = append(r.m.fifos, f)
-		r.c.OnDestroy(wl, f.surfaceGone)
 	}
 	f.live = true
 	r.c.OnDestroy(res, func() error {

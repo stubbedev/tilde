@@ -218,8 +218,9 @@ type Surface struct {
 }
 
 type Hooks struct {
-	Commit  func(u *Update) error
-	Applied func() error
+	Commit    func(u *Update) error
+	Applied   func() error
+	Destroyed func() error
 }
 
 type Update struct {
@@ -642,7 +643,13 @@ func (s *Surface) destroy() error {
 		}
 	}
 	s.order, s.pendingOrder = nil, nil
-	return errors.Join(append(errs, s.manager.listener.Destroyed(s))...)
+	errs = append(errs, s.manager.listener.Destroyed(s))
+	for _, h := range slices.Clone(s.hooks) {
+		if h.Destroyed != nil {
+			errs = append(errs, h.Destroyed())
+		}
+	}
+	return errors.Join(errs...)
 }
 
 type surfaceRequests struct{ s *Surface }

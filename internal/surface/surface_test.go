@@ -589,6 +589,29 @@ func TestAClientErrorInAHeldUpdateDropsOnlyThatClient(t *testing.T) {
 	e.protocolError(uint32(sw.WlSurfaceErrorInvalidSize))
 }
 
+func TestDestroyedHooksRunOnlyWhileAdded(t *testing.T) {
+	e := setup(t, 6)
+	s := e.surface()
+	must(t, s.Commit())
+	e.roundtrip()
+	var ran []string
+	e.on(func() {
+		surf := find(t, e.rec.commits, s).s
+		kept := &Hooks{Destroyed: func() error { ran = append(ran, "kept"); return nil }}
+		removed := &Hooks{Destroyed: func() error { ran = append(ran, "removed"); return nil }}
+		surf.AddHooks(kept)
+		surf.AddHooks(removed)
+		surf.RemoveHooks(removed)
+	})
+	must(t, s.Destroy())
+	e.roundtrip()
+	var got []string
+	e.on(func() { got = slices.Clone(ran) })
+	if !slices.Equal(got, []string{"kept"}) {
+		t.Fatalf("destroy hooks ran %v, want only the one still added", got)
+	}
+}
+
 func TestRolesAreExclusive(t *testing.T) {
 	e := setup(t, 6)
 	s := e.surface()
