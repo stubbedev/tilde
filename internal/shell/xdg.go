@@ -369,6 +369,9 @@ func (xs *XdgSurface) AckConfigure(obj *sxdg.XdgSurface, serial uint32) error {
 	if xs.role == nil {
 		return obj.ProtocolError(sxdg.XdgSurfaceErrorNotConstructed, "the xdg_surface has no role object")
 	}
+	if xs.role.inert() {
+		return nil
+	}
 	if !xs.role.ack(serial) {
 		return obj.ProtocolError(sxdg.XdgSurfaceErrorInvalidSerial, fmt.Sprintf("serial %d was never sent or is already acked", serial))
 	}

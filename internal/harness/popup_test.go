@@ -116,3 +116,30 @@ func TestPopupsAreClickableWithoutAGrab(t *testing.T) {
 	})
 	r.expect("button 272 1", "frame")
 }
+
+func TestAnAckForADismissedPopupIsNotAnError(t *testing.T) {
+	h := Start(t, small, small)
+	c := testclient.Connect(t, h.Socket())
+	seat, in := c.Seat()
+	w := c.Window("win", quadrants)
+	in.Name(w.Surface, "win")
+	c.DispatchUntil("the window to map", w.Mapped)
+	r := &inputRig{t: t, h: h, c: c, in: in, w: w}
+	r.expect("kb_enter win", "enter win 80,50", "frame")
+	r.moveOn(0, 70, 40)
+	r.expect("motion 70,40", "frame")
+	r.click()
+	r.expect("button 272 1", "frame", "button 272 0", "frame")
+	menu := c.Popup(w, menuAt(image.Pt(70, 40), image.Pt(40, 30)), &testclient.Grab{Seat: seat, Serial: in.Press}, testclient.Fill(0x80, 0x80, 0x80))
+	c.DispatchUntil("the menu to map", menu.Mapped)
+	pos := c.Positioner(menuAt(image.Pt(10, 10), image.Pt(40, 30)))
+	if err := errors.Join(menu.Popup.Reposition(pos, 1), pos.Destroy(), c.Display.Flush()); err != nil {
+		t.Fatal(err)
+	}
+	h.Do(func(*headless.Backend, *compositor.Compositor) error { return nil })
+	h.click(1, 10, 10, btnLeft)
+	c.DispatchUntil("the menu dismissed", func() bool { return menu.Dismissed })
+	if err := c.Display.Roundtrip(); err != nil {
+		t.Fatalf("acking a configure sent before the dismissal: %v", err)
+	}
+}
