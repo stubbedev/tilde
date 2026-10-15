@@ -130,10 +130,11 @@ func (h *omHead) mode(m backend.Mode) *omMode {
 }
 
 type omManager struct {
-	res    *cwom.ZwlrOutputManagerV1
-	heads  []*omHead
-	serial uint32
-	dones  int
+	res      *cwom.ZwlrOutputManagerV1
+	heads    []*omHead
+	serial   uint32
+	dones    int
+	finished int
 }
 
 func (m *omManager) Head(_ *cwom.ZwlrOutputManagerV1, res *cwom.ZwlrOutputHeadV1) (cwom.ZwlrOutputHeadV1Handler, error) {
@@ -148,7 +149,10 @@ func (m *omManager) Done(_ *cwom.ZwlrOutputManagerV1, serial uint32) error {
 	return nil
 }
 
-func (*omManager) Finished(*cwom.ZwlrOutputManagerV1) error { return nil }
+func (m *omManager) Finished(*cwom.ZwlrOutputManagerV1) error {
+	m.finished++
+	return nil
+}
 
 func (m *omManager) head(name string) *omHead {
 	i := slices.IndexFunc(m.heads, func(h *omHead) bool { return h.name == name && !h.finished })

@@ -23,6 +23,7 @@ type extToplevel struct {
 type extWatcher struct {
 	toplevels map[*cel.ExtForeignToplevelHandleV1]*extToplevel
 	order     []*cel.ExtForeignToplevelHandleV1
+	finished  int
 }
 
 func (e *extWatcher) Toplevel(_ *cel.ExtForeignToplevelListV1, h *cel.ExtForeignToplevelHandleV1) (cel.ExtForeignToplevelHandleV1Handler, error) {
@@ -31,7 +32,10 @@ func (e *extWatcher) Toplevel(_ *cel.ExtForeignToplevelListV1, h *cel.ExtForeign
 	return e, nil
 }
 
-func (e *extWatcher) Finished(*cel.ExtForeignToplevelListV1) error { return nil }
+func (e *extWatcher) Finished(*cel.ExtForeignToplevelListV1) error {
+	e.finished++
+	return nil
+}
 
 func (e *extWatcher) Closed(h *cel.ExtForeignToplevelHandleV1) error {
 	e.toplevels[h].closed = true
@@ -68,6 +72,7 @@ type wlrToplevel struct {
 type wlrWatcher struct {
 	toplevels map[*cwft.ZwlrForeignToplevelHandleV1]*wlrToplevel
 	order     []*cwft.ZwlrForeignToplevelHandleV1
+	finished  int
 }
 
 func (w *wlrWatcher) Toplevel(_ *cwft.ZwlrForeignToplevelManagerV1, h *cwft.ZwlrForeignToplevelHandleV1) (cwft.ZwlrForeignToplevelHandleV1Handler, error) {
@@ -76,7 +81,10 @@ func (w *wlrWatcher) Toplevel(_ *cwft.ZwlrForeignToplevelManagerV1, h *cwft.Zwlr
 	return w, nil
 }
 
-func (w *wlrWatcher) Finished(*cwft.ZwlrForeignToplevelManagerV1) error { return nil }
+func (w *wlrWatcher) Finished(*cwft.ZwlrForeignToplevelManagerV1) error {
+	w.finished++
+	return nil
+}
 
 func (w *wlrWatcher) Title(h *cwft.ZwlrForeignToplevelHandleV1, title string) error {
 	w.toplevels[h].title = title

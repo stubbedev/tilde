@@ -52,7 +52,6 @@ type wlrManager struct {
 	client   *server.Client
 	resource *swft.ZwlrForeignToplevelManagerV1
 	handles  map[*window]*wlrHandle
-	stopped  bool
 }
 
 type wlrHandle struct {
@@ -145,10 +144,6 @@ func (c *Compositor) bindWlrToplevels(cl *server.Client, id wire.ObjectID, versi
 type wlrManagerRequests struct{ m *wlrManager }
 
 func (r wlrManagerRequests) Stop(*swft.ZwlrForeignToplevelManagerV1) error {
-	if r.m.stopped {
-		return nil
-	}
-	r.m.stopped = true
 	return r.m.client.Sent(r.m.resource.SendFinished())
 }
 
@@ -164,9 +159,6 @@ func wlrStates(s foreignState) []byte {
 }
 
 func (c *Compositor) syncWlrManager(m *wlrManager) error {
-	if m.stopped {
-		return nil
-	}
 	var errs []error
 	for _, w := range c.gone(m.handles) {
 		errs = append(errs, m.client.Sent(m.handles[w].resource.SendClosed()))

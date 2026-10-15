@@ -14,13 +14,14 @@ import (
 )
 
 type wsView struct {
-	groups  []*cew.ExtWorkspaceGroupHandleV1
-	outputs map[*cew.ExtWorkspaceGroupHandleV1]int
-	members map[*cew.ExtWorkspaceHandleV1]*cew.ExtWorkspaceGroupHandleV1
-	names   map[*cew.ExtWorkspaceHandleV1]string
-	states  map[*cew.ExtWorkspaceHandleV1]cew.ExtWorkspaceHandleV1State
-	removed map[*cew.ExtWorkspaceHandleV1]bool
-	dones   int
+	groups   []*cew.ExtWorkspaceGroupHandleV1
+	outputs  map[*cew.ExtWorkspaceGroupHandleV1]int
+	members  map[*cew.ExtWorkspaceHandleV1]*cew.ExtWorkspaceGroupHandleV1
+	names    map[*cew.ExtWorkspaceHandleV1]string
+	states   map[*cew.ExtWorkspaceHandleV1]cew.ExtWorkspaceHandleV1State
+	removed  map[*cew.ExtWorkspaceHandleV1]bool
+	dones    int
+	finished int
 }
 
 type wsGroups struct{ v *wsView }
@@ -39,7 +40,10 @@ func (v *wsView) Done(*cew.ExtWorkspaceManagerV1) error {
 	return nil
 }
 
-func (v *wsView) Finished(*cew.ExtWorkspaceManagerV1) error { return nil }
+func (v *wsView) Finished(*cew.ExtWorkspaceManagerV1) error {
+	v.finished++
+	return nil
+}
 
 func (wsGroups) Capabilities(*cew.ExtWorkspaceGroupHandleV1, cew.ExtWorkspaceGroupHandleV1GroupCapabilities) error {
 	return nil

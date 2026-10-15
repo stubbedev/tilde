@@ -66,11 +66,10 @@ func New(d *server.Display, ctl Controller, report func(error)) (*Manager, error
 }
 
 type binding struct {
-	m       *Manager
-	c       *server.Client
-	res     *swom.ZwlrOutputManagerV1
-	heads   []*headBinding
-	stopped bool
+	m     *Manager
+	c     *server.Client
+	res   *swom.ZwlrOutputManagerV1
+	heads []*headBinding
 }
 
 type headBinding struct {
@@ -110,10 +109,6 @@ func (b *binding) CreateConfiguration(_ *swom.ZwlrOutputManagerV1, res *swom.Zwl
 }
 
 func (b *binding) Stop(obj *swom.ZwlrOutputManagerV1) error {
-	if b.stopped {
-		return nil
-	}
-	b.stopped = true
 	return b.c.Sent(obj.SendFinished())
 }
 
@@ -269,9 +264,7 @@ func (m *Manager) Changed() error {
 	m.serial++
 	var errs []error
 	for _, b := range m.bindings {
-		if !b.stopped {
-			errs = append(errs, b.c.Sent(b.sync(now)))
-		}
+		errs = append(errs, b.c.Sent(b.sync(now)))
 	}
 	return errors.Join(errs...)
 }

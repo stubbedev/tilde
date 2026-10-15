@@ -22,7 +22,6 @@ type wsManager struct {
 	groups   map[string]*wsGroup
 	spaces   map[wm.WorkspaceID]*wsSpace
 	pending  []func(wm.State) (wm.State, error)
-	stopped  bool
 }
 
 type wsGroup struct {
@@ -75,10 +74,6 @@ func (r wsManagerRequests) Commit(*sew.ExtWorkspaceManagerV1) error {
 }
 
 func (r wsManagerRequests) Stop(*sew.ExtWorkspaceManagerV1) error {
-	if r.m.stopped {
-		return nil
-	}
-	r.m.stopped = true
 	return r.m.client.Sent(r.m.resource.SendFinished())
 }
 
@@ -144,9 +139,6 @@ func (c *Compositor) workspaceState(w wm.Workspace, active map[string]wm.Workspa
 }
 
 func (c *Compositor) syncWorkspaceManager(m *wsManager) error {
-	if m.stopped {
-		return nil
-	}
 	cl, changed := m.client, false
 	var errs []error
 	sent := func(err error) {
