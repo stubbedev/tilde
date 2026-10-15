@@ -17,14 +17,21 @@ const (
 	lockRole    = "ext_session_lock_surface_v1"
 )
 
+type lockPhase uint8
+
+const (
+	lockPending lockPhase = iota
+	lockConfirmed
+	lockReleased
+	lockRefused
+)
+
 type SessionLock struct {
-	shell     *Shell
-	client    *server.Client
-	resource  *sel.ExtSessionLockV1
-	surfaces  []*LockSurface
-	confirmed bool
-	finished  bool
-	unlocked  bool
+	shell    *Shell
+	client   *server.Client
+	resource *sel.ExtSessionLockV1
+	surfaces []*LockSurface
+	phase    lockPhase
 }
 
 type LockSurface struct {
@@ -67,15 +74,15 @@ func (sh *Shell) LockSurfaces() []*LockSurface {
 
 func (sh *Shell) ConfirmLock() error {
 	l := sh.lock
-	if l == nil || l.confirmed {
+	if l == nil || l.phase != lockPending {
 		return nil
 	}
-	l.confirmed = true
+	l.phase = lockConfirmed
 	return l.client.Sent(l.resource.SendLocked())
 }
 
 func (sh *Shell) LockConfirmed() bool {
-	return sh.lock == nil || sh.lock.confirmed
+	return sh.lock == nil || sh.lock.phase == lockConfirmed
 }
 
 func (sh *Shell) ReconfigureLock() error {
@@ -103,7 +110,7 @@ func (m lockManager) Lock(_ *sel.ExtSessionLockManagerV1, res *sel.ExtSessionLoc
 	sh := m.sh
 	l := &SessionLock{shell: sh, client: m.c, resource: res}
 	if sh.lock != nil {
-		l.finished = true
+		l.phase = lockRefused
 		return l, m.c.Sent(res.SendFinished())
 	}
 	sh.lock, sh.locked = l, true
@@ -121,7 +128,7 @@ func (l *SessionLock) abandon() error {
 }
 
 func (l *SessionLock) Destroy(obj *sel.ExtSessionLockV1) error {
-	if l.confirmed && !l.unlocked && !l.finished {
+	if l.phase == lockConfirmed {
 		return obj.ProtocolError(sel.ExtSessionLockV1ErrorInvalidDestroy, "destroy after locked without unlock_and_destroy")
 	}
 	return nil
@@ -129,13 +136,13 @@ func (l *SessionLock) Destroy(obj *sel.ExtSessionLockV1) error {
 
 func (l *SessionLock) UnlockAndDestroy(obj *sel.ExtSessionLockV1) error {
 	sh := l.shell
-	switch {
-	case l.finished:
+	switch l.phase {
+	case lockRefused:
 		return nil
-	case !l.confirmed:
+	case lockPending:
 		return obj.ProtocolError(sel.ExtSessionLockV1ErrorInvalidUnlock, "unlock before the locked event")
 	}
-	l.unlocked = true
+	l.phase = lockReleased
 	if sh.lock != l {
 		return nil
 	}

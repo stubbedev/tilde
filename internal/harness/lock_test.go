@@ -109,6 +109,13 @@ func TestAnAbandonedLockStaysUntilANewLockerTakesOver(t *testing.T) {
 	first.seen("locked")
 	second := lockSession(t, h)
 	second.seen("finished")
+	if err := errors.Join(second.lock.UnlockAndDestroy(), second.c.Display.Roundtrip()); err != nil {
+		t.Fatalf("a refused lock unlocking: %v", err)
+	}
+	locked := [3]byte{compositor.LockedColour.R, compositor.LockedColour.G, compositor.LockedColour.B}
+	if got := pixel(h.Rendered(0), 5, 5); got != locked {
+		t.Fatalf("after a refused lock's unlock_and_destroy the screen shows %v, not the lock colour", got)
+	}
 	if err := first.c.Display.Close(); err != nil {
 		t.Fatal(err)
 	}
