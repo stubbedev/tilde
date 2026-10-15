@@ -52,19 +52,20 @@ type devices struct {
 }
 
 type Manager struct {
-	display       *server.Display
-	listener      Listener
-	clients       []*devices
-	focus         *server.Client
-	selection     [kinds]Source
-	offers        [kinds][]*selectionOffer
-	controls      []*controlDevice
-	controlOffers [kinds][]*selectionOffer
-	drag          *Drag
+	display        *server.Display
+	listener       Listener
+	clients        []*devices
+	focus          *server.Client
+	selection      [kinds]Source
+	offers         [kinds][]*selectionOffer
+	controls       []*controlDevice
+	controlOffers  [kinds][]*selectionOffer
+	controlSources map[wire.Resource]*controlSource
+	drag           *Drag
 }
 
 func New(d *server.Display, listener Listener) (*Manager, error) {
-	m := &Manager{display: d, listener: listener}
+	m := &Manager{display: d, listener: listener, controlSources: map[wire.Resource]*controlSource{}}
 	if _, err := d.AddGlobal(sw.WlDataDeviceManagerInterface, dataDeviceManagerVersion, m.bindData); err != nil {
 		return nil, err
 	}

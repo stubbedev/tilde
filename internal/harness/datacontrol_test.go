@@ -182,3 +182,77 @@ func TestWlrDataControlSeesThePrimarySelection(t *testing.T) {
 		t.Fatalf("read %q", got)
 	}
 }
+
+type wlrContent struct{}
+
+func (wlrContent) Send(_ *cwdc.ZwlrDataControlSourceV1, _ string, fd int) error {
+	return unix.Close(fd)
+}
+
+func (wlrContent) Cancelled(*cwdc.ZwlrDataControlSourceV1) error { return nil }
+
+func TestDataControlSourcesAreUsedOnce(t *testing.T) {
+	type rig struct {
+		c    *testclient.Client
+		code uint32
+	}
+	ext := func(t *testing.T, h *Harness, reuse bool) rig {
+		m := clipboardManager(t, h)
+		src, err := m.mgr.CreateDataSource(&extContent{text: "x"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reuse {
+			if err := errors.Join(src.Offer("text/plain"), m.dev.SetSelection(src), m.dev.SetSelection(src)); err != nil {
+				t.Fatal(err)
+			}
+			return rig{m.c, uint32(cedc.ExtDataControlDeviceV1ErrorUsedSource)}
+		}
+		if err := errors.Join(m.dev.SetSelection(src), src.Offer("text/plain")); err != nil {
+			t.Fatal(err)
+		}
+		return rig{m.c, uint32(cedc.ExtDataControlSourceV1ErrorInvalidOffer)}
+	}
+	wlr := func(t *testing.T, h *Harness, reuse bool) rig {
+		c := testclient.Connect(t, h.Socket())
+		seat, _ := c.Seat()
+		mgr, err := cwdc.NewZwlrDataControlManagerV1(c.Display, 2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.Bind("zwlr_data_control_manager_v1", mgr)
+		dev, err := mgr.GetDataDevice(&wlrManager{}, seat)
+		if err != nil {
+			t.Fatal(err)
+		}
+		src, err := mgr.CreateDataSource(wlrContent{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reuse {
+			if err := errors.Join(src.Offer("text/plain"), dev.SetPrimarySelection(src), dev.SetSelection(src)); err != nil {
+				t.Fatal(err)
+			}
+			return rig{c, uint32(cwdc.ZwlrDataControlDeviceV1ErrorUsedSource)}
+		}
+		if err := errors.Join(dev.SetSelection(src), src.Offer("text/plain")); err != nil {
+			t.Fatal(err)
+		}
+		return rig{c, uint32(cwdc.ZwlrDataControlSourceV1ErrorInvalidOffer)}
+	}
+	for _, tc := range []struct {
+		name  string
+		setup func(t *testing.T, h *Harness, reuse bool) rig
+		reuse bool
+	}{
+		{"ext source set twice", ext, true},
+		{"ext offer after use", ext, false},
+		{"wlr source set twice", wlr, true},
+		{"wlr offer after use", wlr, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := tc.setup(t, Start(t, small), tc.reuse)
+			r.c.ExpectProtocolError(r.code)
+		})
+	}
+}

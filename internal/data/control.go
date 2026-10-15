@@ -2,7 +2,6 @@ package data
 
 import (
 	"errors"
-	"fmt"
 	"slices"
 
 	sedc "github.com/stubbedev/tilde/internal/protocol/server/extdatacontrol"
@@ -103,6 +102,96 @@ func (m *Manager) setControlSelection(k Kind, s *controlSource) error {
 	return m.SetSelection(k, s)
 }
 
+func (m *Manager) newControlSource(c *server.Client, res wire.Resource, send func(string, int) error, cancel func() error) *controlSource {
+	s := &controlSource{source{m: m, client: c, send: send, cancel: cancel}}
+	m.controlSources[res] = s
+	server.OnDestroy(res, func() error {
+		delete(m.controlSources, res)
+		return s.destroy()
+	})
+	return s
+}
+
+func (m *Manager) openControl(res wire.Resource, d *controlDevice) error {
+	server.OnDestroy(res, func() error {
+		m.removeControl(d)
+		return nil
+	})
+	return m.addControl(d)
+}
+
+func controlError(obj wire.Resource, code uint32, message string) error {
+	return &wire.ProtocolError{Object: obj.Base().ID(), Code: code, Message: message}
+}
+
+func controlOffers[D interface {
+	SendDataOffer(h H) (O, error)
+	SendSelection(o O) error
+	SendPrimarySelection(o O) error
+}, O interface {
+	comparable
+	SendOffer(mime string) error
+}, H any](m *Manager, res D, handler func(*selectionOffer) H) func(Kind, Source) error {
+	return func(k Kind, src Source) error {
+		send := res.SendSelection
+		if k == Primary {
+			send = res.SendPrimarySelection
+		}
+		return offerTo(src, func() (O, error) { return res.SendDataOffer(handler(m.controlOffer(k, src))) }, send)
+	}
+}
+
+type controlSourceHandler[R wire.Resource] struct {
+	s            *controlSource
+	invalidOffer uint32
+}
+
+func (h controlSourceHandler[R]) Offer(obj R, mime string) error {
+	if !h.s.offer(mime) {
+		return controlError(obj, h.invalidOffer, "offer after the source was used")
+	}
+	return nil
+}
+
+func (controlSourceHandler[R]) Destroy(R) error {
+	return nil
+}
+
+type controlDeviceHandler[R, S wire.Resource] struct {
+	m          *Manager
+	usedSource uint32
+}
+
+func (h controlDeviceHandler[R, S]) set(obj R, k Kind, res S) error {
+	s := h.m.controlSources[res]
+	if s != nil && !s.fresh() {
+		return controlError(obj, h.usedSource, "the source was already used")
+	}
+	return h.m.setControlSelection(k, s)
+}
+
+func (h controlDeviceHandler[R, S]) SetSelection(obj R, res S) error {
+	return h.set(obj, Clipboard, res)
+}
+
+func (h controlDeviceHandler[R, S]) SetPrimarySelection(obj R, res S) error {
+	return h.set(obj, Primary, res)
+}
+
+func (controlDeviceHandler[R, S]) Destroy(R) error {
+	return nil
+}
+
+type controlOfferHandler[R wire.Resource] struct{ o *selectionOffer }
+
+func (h controlOfferHandler[R]) Receive(_ R, mime string, fd int) error {
+	return h.o.receive(mime, fd)
+}
+
+func (controlOfferHandler[R]) Destroy(R) error {
+	return nil
+}
+
 func (m *Manager) bindWlrControl(c *server.Client, id wire.ObjectID, version uint32) error {
 	_, err := swdc.NewZwlrDataControlManagerV1(c, id, version, wlrControl{m, c})
 	return err
@@ -118,89 +207,16 @@ func (wlrControl) Destroy(*swdc.ZwlrDataControlManagerV1) error {
 }
 
 func (r wlrControl) CreateDataSource(_ *swdc.ZwlrDataControlManagerV1, res *swdc.ZwlrDataControlSourceV1) (swdc.ZwlrDataControlSourceV1Handler, error) {
-	s := &controlSource{source{m: r.m, client: r.c, send: res.SendSend, cancel: res.SendCancelled}}
-	server.OnDestroy(res, s.destroy)
-	return wlrSource{s}, nil
+	s := r.m.newControlSource(r.c, res, res.SendSend, res.SendCancelled)
+	return controlSourceHandler[*swdc.ZwlrDataControlSourceV1]{s, uint32(swdc.ZwlrDataControlSourceV1ErrorInvalidOffer)}, nil
 }
 
 func (r wlrControl) GetDataDevice(_ *swdc.ZwlrDataControlManagerV1, res *swdc.ZwlrDataControlDeviceV1, _ *sw.WlSeat) (swdc.ZwlrDataControlDeviceV1Handler, error) {
-	d := &controlDevice{client: r.c, primary: res.Base().Version() >= 2}
-	d.offer = func(k Kind, src Source) error {
-		send := res.SendSelection
-		if k == Primary {
-			send = res.SendPrimarySelection
-		}
-		return offerTo(src, func() (*swdc.ZwlrDataControlOfferV1, error) {
-			return res.SendDataOffer(wlrOffer{r.m.controlOffer(k, src)})
-		}, send)
-	}
-	server.OnDestroy(res, func() error {
-		r.m.removeControl(d)
-		return nil
-	})
-	return wlrDevice{r.m, d}, r.m.addControl(d)
-}
-
-type wlrSource struct{ s *controlSource }
-
-func (w wlrSource) Offer(obj *swdc.ZwlrDataControlSourceV1, mime string) error {
-	if !w.s.offer(mime) {
-		return obj.ProtocolError(swdc.ZwlrDataControlSourceV1ErrorInvalidOffer, "offer after the source was used")
-	}
-	return nil
-}
-
-func (wlrSource) Destroy(*swdc.ZwlrDataControlSourceV1) error {
-	return nil
-}
-
-func wlrSourceOf(res *swdc.ZwlrDataControlSourceV1) (*controlSource, error) {
-	if res == nil {
-		return nil, nil
-	}
-	h, ok := res.Handler().(wlrSource)
-	if !ok {
-		return nil, fmt.Errorf("data: data-control source@%d has handler %T", res.Base().ID(), res.Handler())
-	}
-	return h.s, nil
-}
-
-type wlrDevice struct {
-	m *Manager
-	d *controlDevice
-}
-
-func (wlrDevice) Destroy(*swdc.ZwlrDataControlDeviceV1) error {
-	return nil
-}
-
-func (w wlrDevice) set(obj *swdc.ZwlrDataControlDeviceV1, k Kind, res *swdc.ZwlrDataControlSourceV1) error {
-	s, err := wlrSourceOf(res)
-	if err != nil {
-		return err
-	}
-	if s != nil && !s.fresh() {
-		return obj.ProtocolError(swdc.ZwlrDataControlDeviceV1ErrorUsedSource, "the source was already used")
-	}
-	return w.m.setControlSelection(k, s)
-}
-
-func (w wlrDevice) SetSelection(obj *swdc.ZwlrDataControlDeviceV1, res *swdc.ZwlrDataControlSourceV1) error {
-	return w.set(obj, Clipboard, res)
-}
-
-func (w wlrDevice) SetPrimarySelection(obj *swdc.ZwlrDataControlDeviceV1, res *swdc.ZwlrDataControlSourceV1) error {
-	return w.set(obj, Primary, res)
-}
-
-type wlrOffer struct{ o *selectionOffer }
-
-func (w wlrOffer) Receive(_ *swdc.ZwlrDataControlOfferV1, mime string, fd int) error {
-	return w.o.receive(mime, fd)
-}
-
-func (wlrOffer) Destroy(*swdc.ZwlrDataControlOfferV1) error {
-	return nil
+	d := &controlDevice{client: r.c, primary: res.Base().Version() >= 2, offer: controlOffers(r.m, res, func(o *selectionOffer) swdc.ZwlrDataControlOfferV1Handler {
+		return controlOfferHandler[*swdc.ZwlrDataControlOfferV1]{o}
+	})}
+	h := controlDeviceHandler[*swdc.ZwlrDataControlDeviceV1, *swdc.ZwlrDataControlSourceV1]{r.m, uint32(swdc.ZwlrDataControlDeviceV1ErrorUsedSource)}
+	return h, r.m.openControl(res, d)
 }
 
 func (m *Manager) bindExtControl(c *server.Client, id wire.ObjectID, version uint32) error {
@@ -218,87 +234,14 @@ func (extControl) Destroy(*sedc.ExtDataControlManagerV1) error {
 }
 
 func (r extControl) CreateDataSource(_ *sedc.ExtDataControlManagerV1, res *sedc.ExtDataControlSourceV1) (sedc.ExtDataControlSourceV1Handler, error) {
-	s := &controlSource{source{m: r.m, client: r.c, send: res.SendSend, cancel: res.SendCancelled}}
-	server.OnDestroy(res, s.destroy)
-	return extSource{s}, nil
+	s := r.m.newControlSource(r.c, res, res.SendSend, res.SendCancelled)
+	return controlSourceHandler[*sedc.ExtDataControlSourceV1]{s, uint32(sedc.ExtDataControlSourceV1ErrorInvalidOffer)}, nil
 }
 
 func (r extControl) GetDataDevice(_ *sedc.ExtDataControlManagerV1, res *sedc.ExtDataControlDeviceV1, _ *sw.WlSeat) (sedc.ExtDataControlDeviceV1Handler, error) {
-	d := &controlDevice{client: r.c, primary: true}
-	d.offer = func(k Kind, src Source) error {
-		send := res.SendSelection
-		if k == Primary {
-			send = res.SendPrimarySelection
-		}
-		return offerTo(src, func() (*sedc.ExtDataControlOfferV1, error) {
-			return res.SendDataOffer(extOffer{r.m.controlOffer(k, src)})
-		}, send)
-	}
-	server.OnDestroy(res, func() error {
-		r.m.removeControl(d)
-		return nil
-	})
-	return extDevice{r.m, d}, r.m.addControl(d)
-}
-
-type extSource struct{ s *controlSource }
-
-func (e extSource) Offer(obj *sedc.ExtDataControlSourceV1, mime string) error {
-	if !e.s.offer(mime) {
-		return obj.ProtocolError(sedc.ExtDataControlSourceV1ErrorInvalidOffer, "offer after the source was used")
-	}
-	return nil
-}
-
-func (extSource) Destroy(*sedc.ExtDataControlSourceV1) error {
-	return nil
-}
-
-func extSourceOf(res *sedc.ExtDataControlSourceV1) (*controlSource, error) {
-	if res == nil {
-		return nil, nil
-	}
-	h, ok := res.Handler().(extSource)
-	if !ok {
-		return nil, fmt.Errorf("data: data-control source@%d has handler %T", res.Base().ID(), res.Handler())
-	}
-	return h.s, nil
-}
-
-type extDevice struct {
-	m *Manager
-	d *controlDevice
-}
-
-func (extDevice) Destroy(*sedc.ExtDataControlDeviceV1) error {
-	return nil
-}
-
-func (e extDevice) set(obj *sedc.ExtDataControlDeviceV1, k Kind, res *sedc.ExtDataControlSourceV1) error {
-	s, err := extSourceOf(res)
-	if err != nil {
-		return err
-	}
-	if s != nil && !s.fresh() {
-		return obj.ProtocolError(sedc.ExtDataControlDeviceV1ErrorUsedSource, "the source was already used")
-	}
-	return e.m.setControlSelection(k, s)
-}
-
-func (e extDevice) SetSelection(obj *sedc.ExtDataControlDeviceV1, res *sedc.ExtDataControlSourceV1) error {
-	return e.set(obj, Clipboard, res)
-}
-
-func (e extDevice) SetPrimarySelection(obj *sedc.ExtDataControlDeviceV1, res *sedc.ExtDataControlSourceV1) error {
-	return e.set(obj, Primary, res)
-}
-
-type extOffer struct{ o *selectionOffer }
-
-func (e extOffer) Receive(_ *sedc.ExtDataControlOfferV1, mime string, fd int) error {
-	return e.o.receive(mime, fd)
-}
-
-func (extOffer) Destroy(*sedc.ExtDataControlOfferV1) error {
-	return nil
+	d := &controlDevice{client: r.c, primary: true, offer: controlOffers(r.m, res, func(o *selectionOffer) sedc.ExtDataControlOfferV1Handler {
+		return controlOfferHandler[*sedc.ExtDataControlOfferV1]{o}
+	})}
+	h := controlDeviceHandler[*sedc.ExtDataControlDeviceV1, *sedc.ExtDataControlSourceV1]{r.m, uint32(sedc.ExtDataControlDeviceV1ErrorUsedSource)}
+	return h, r.m.openControl(res, d)
 }
