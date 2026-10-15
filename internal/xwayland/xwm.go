@@ -27,6 +27,12 @@ type Listener interface {
 	SetSelection(k data.Kind, src data.Source) error
 }
 
+const (
+	netWMStateRemove = iota
+	netWMStateAdd
+	netWMStateToggle
+)
+
 type Request interface {
 	isRequest()
 }
@@ -91,6 +97,7 @@ type wm struct {
 	stamps     uint32
 	client     *server.Client
 	post       func(func() error)
+	report     func(error)
 	focused    xproto.Window
 	clients    []xproto.Window
 	selections [2]*selection
@@ -444,14 +451,15 @@ func (m *wm) stateRequested(id xproto.Window, action uint32, a, b xproto.Atom) e
 	}
 	on := w.Fullscreen()
 	switch action {
-	case 0:
+	case netWMStateRemove:
 		on = false
-	case 1:
+	case netWMStateAdd:
 		on = true
-	case 2:
+	case netWMStateToggle:
 		on = !on
 	default:
-		return fmt.Errorf("xwayland: _NET_WM_STATE action %d on window %#x", action, id)
+		m.report(fmt.Errorf("xwayland: _NET_WM_STATE action %d on window %#x", action, id))
+		return nil
 	}
 	if !w.shown {
 		w.setState("_NET_WM_STATE_FULLSCREEN", on)

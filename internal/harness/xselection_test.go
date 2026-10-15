@@ -10,6 +10,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -218,9 +219,10 @@ func TestWaylandSelectionsPasteIntoX(t *testing.T) {
 
 type xowner struct {
 	*xclient
-	win  xproto.Window
-	text []byte
-	done chan error
+	win    xproto.Window
+	text   []byte
+	refuse bool
+	done   chan error
 }
 
 func (o *xowner) serve() {
@@ -239,6 +241,10 @@ func (o *xowner) serve() {
 				list := slices.Concat(binary.LittleEndian.AppendUint32(nil, uint32(o.atoms["TARGETS"])), binary.LittleEndian.AppendUint32(nil, uint32(o.atoms["UTF8_STRING"])))
 				xproto.ChangeProperty(o.x, xproto.PropModeReplace, e.Requestor, e.Property, xproto.AtomAtom, 32, 2, list)
 			case o.atoms["UTF8_STRING"]:
+				if o.refuse {
+					reply.Property = 0
+					break
+				}
 				if len(o.text) <= xchunk {
 					xproto.ChangeProperty(o.x, xproto.PropModeReplace, e.Requestor, e.Property, e.Target, 8, uint32(len(o.text)), o.text)
 					break
@@ -321,4 +327,41 @@ func TestXSelectionsPasteIntoWayland(t *testing.T) {
 			t.Fatalf("pasted %d bytes, want %d", len(got), len(text))
 		}
 	}
+}
+
+func TestARefusedXPasteIsReportedNotFatal(t *testing.T) {
+	var mu sync.Mutex
+	var reported []error
+	h := StartXwayland(t, func(err error) {
+		mu.Lock()
+		defer mu.Unlock()
+		reported = append(reported, err)
+	}, small)
+	xc := xDial(t, h)
+	xc.intern("CLIPBOARD", "TARGETS", "UTF8_STRING", "INCR")
+	o := &xowner{xclient: xc, text: []byte("never sent"), refuse: true, done: make(chan error, 1)}
+	o.win = xc.window(image.Rect(0, 0, 40, 40), 0xffffff, false, nil)
+	h.Eventually("the X window focused", func(_ *headless.Backend, c *compositor.Compositor) bool {
+		ws := windowsOf(c)
+		return len(ws) > 0 && ws[len(ws)-1].Focused
+	})
+	if err := xproto.SetSelectionOwnerChecked(xc.x, o.win, xc.atoms["CLIPBOARD"], xproto.TimeCurrentTime).Check(); err != nil {
+		t.Fatal(err)
+	}
+	go o.serve()
+	h.Eventually("the X selection taken for Wayland", func(_ *headless.Backend, c *compositor.Compositor) bool {
+		src := c.CurrentSelection(data.Clipboard)
+		return src != nil && slices.Equal(src.Mimes(), []string{"text/plain;charset=utf-8"})
+	})
+	p := join(t, h, "paster")
+	p.seen(t, "the X selection offered", func() bool { return p.cb.Selection != nil })
+	if got := receive(t, p, "text/plain;charset=utf-8"); got != "" {
+		t.Fatalf("a refused paste delivered %q", got)
+	}
+	h.Eventually("the refusal reported", func(*headless.Backend, *compositor.Compositor) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(reported) == 1 && strings.Contains(reported[0].Error(), "refused the conversion")
+	})
+	survives(t, h)
 }

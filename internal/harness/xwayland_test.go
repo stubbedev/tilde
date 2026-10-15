@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -473,5 +474,31 @@ func TestXModalDialogsTransientForEachOtherDoNotHangTilde(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.click(0, 5, 5, btnLeft)
+	survives(t, h)
+}
+
+func TestABadNetWMStateActionIsReportedNotFatal(t *testing.T) {
+	var mu sync.Mutex
+	var reported []error
+	h := StartXwayland(t, func(err error) {
+		mu.Lock()
+		defer mu.Unlock()
+		reported = append(reported, err)
+	}, small)
+	xc := xDial(t, h)
+	win := xc.window(image.Rect(10, 10, 90, 70), 0xff0000, false, map[string][]byte{"WM_CLASS": []byte("xtest\x00XTest\x00")})
+	h.Eventually("the window tiled", func(_ *headless.Backend, c *compositor.Compositor) bool { return len(windowsOf(c)) == 1 })
+	ev := xproto.ClientMessageEvent{
+		Format: 32, Window: win, Type: xc.atoms["_NET_WM_STATE"],
+		Data: xproto.ClientMessageDataUnionData32New([]uint32{3, uint32(xc.atoms["_NET_WM_STATE_FULLSCREEN"]), 0, 0, 0}),
+	}
+	if err := xproto.SendEventChecked(xc.x, false, xc.root, xproto.EventMaskSubstructureNotify|xproto.EventMaskSubstructureRedirect, string(ev.Bytes())).Check(); err != nil {
+		t.Fatal(err)
+	}
+	h.Eventually("the bad action reported", func(*headless.Backend, *compositor.Compositor) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(reported) == 1 && strings.Contains(reported[0].Error(), "_NET_WM_STATE action 3")
+	})
 	survives(t, h)
 }

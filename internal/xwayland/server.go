@@ -321,7 +321,7 @@ func (s *Server) manage(p *process, conn net.Conn) {
 		m := &wm{
 			x: c.x, root: c.root, sel: c.sel, atoms: c.atoms, windows: map[xproto.Window]*Window{}, shell: s.shell,
 			listener: s.opts.Listener, loop: s.loop, client: p.client, outgoing: map[outKey]*outgoing{},
-			post: func(f func() error) { _ = s.loop.Post(f) },
+			post: func(f func() error) { _ = s.loop.Post(f) }, report: s.report,
 		}
 		for _, k := range []data.Kind{data.Clipboard, data.Primary} {
 			m.selections[k] = &selection{kind: k, atom: c.atoms[[]string{"CLIPBOARD", "PRIMARY"}[k]]}

@@ -162,10 +162,12 @@ func (m *wm) receive(src *xSource, mime string, fd int) error {
 	}
 	atom, ok := src.atoms[mime]
 	if !ok || src.sel.x != src {
-		return errors.Join(fmt.Errorf("xwayland: the X selection no longer offers %s", mime), out.Close())
+		m.report(errors.Join(fmt.Errorf("xwayland: the X selection no longer offers %s", mime), out.Close()))
+		return nil
 	}
 	if len(m.incoming) >= maxIncoming {
-		return errors.Join(fmt.Errorf("xwayland: %d X selection transfers are already waiting; dropped %s", maxIncoming, mime), out.Close())
+		m.report(errors.Join(fmt.Errorf("xwayland: %d X selection transfers are already waiting; dropped %s", maxIncoming, mime), out.Close()))
+		return nil
 	}
 	m.incoming = append(m.incoming, &incoming{src: src, atom: atom, out: out})
 	if len(m.incoming) == 1 {
@@ -182,16 +184,14 @@ func (m *wm) convert() {
 	xproto.ConvertSelection(m.x, m.sel, in.src.sel.atom, in.atom, m.atoms["_WL_SELECTION"], xproto.TimeCurrentTime)
 }
 
-func (m *wm) finishIncoming(err error) error {
+func (m *wm) finishIncoming(err error) {
 	in := m.incoming[0]
 	m.incoming = m.incoming[1:]
 	xproto.DeleteProperty(m.x, m.sel, m.atoms["_WL_SELECTION"])
-	err = errors.Join(err, in.out.Close())
-	m.convert()
-	if err != nil {
-		return fmt.Errorf("xwayland: paste from the X selection: %w", err)
+	if err = errors.Join(err, in.out.Close()); err != nil {
+		m.report(fmt.Errorf("xwayland: paste from the X selection: %w", err))
 	}
-	return nil
+	m.convert()
 }
 
 func (m *wm) converted(target xproto.Atom, typ xproto.Atom, value []byte, ok bool) error {
@@ -201,7 +201,8 @@ func (m *wm) converted(target xproto.Atom, typ xproto.Atom, value []byte, ok boo
 	in := m.incoming[0]
 	switch {
 	case !ok:
-		return m.finishIncoming(errors.New("the X owner refused the conversion"))
+		m.finishIncoming(errors.New("the X owner refused the conversion"))
+		return nil
 	case typ == m.atoms["INCR"]:
 		in.incr = true
 		xproto.DeleteProperty(m.x, m.sel, m.atoms["_WL_SELECTION"])
@@ -216,7 +217,8 @@ func (m *wm) chunk(typ xproto.Atom, value []byte) error {
 	}
 	in := m.incoming[0]
 	if len(value) == 0 {
-		return m.finishIncoming(nil)
+		m.finishIncoming(nil)
+		return nil
 	}
 	return m.write(in, value, false)
 }
@@ -235,7 +237,8 @@ func (m *wm) write(in *incoming, value []byte, last bool) error {
 			}
 			in.busy = false
 			if err != nil || last {
-				return m.finishIncoming(err)
+				m.finishIncoming(err)
+				return nil
 			}
 			xproto.DeleteProperty(m.x, m.sel, m.atoms["_WL_SELECTION"])
 			return nil
@@ -267,7 +270,8 @@ func (m *wm) selectionChanged(k data.Kind, src data.Source) error {
 		atoms, err := intern(m.x, slices.Sorted(maps.Keys(names)))
 		m.post(func() error {
 			if err != nil {
-				return fmt.Errorf("xwayland: offer the Wayland selection to X: %w", err)
+				m.report(fmt.Errorf("xwayland: offer the Wayland selection to X: %w", err))
+				return nil
 			}
 			if sel.wayland != src {
 				return nil
@@ -310,17 +314,20 @@ func (m *wm) requested(e xproto.SelectionRequestEvent) error {
 	var p [2]int
 	if err := unix.Pipe2(p[:], unix.O_CLOEXEC); err != nil {
 		m.notifySelection(e, 0)
-		return fmt.Errorf("xwayland: pipe for a selection request: %w", err)
+		m.report(fmt.Errorf("xwayland: pipe for a selection request: %w", err))
+		return nil
 	}
 	in, err := pollable(p[0], "selection")
 	if err != nil {
 		m.notifySelection(e, 0)
-		return errors.Join(fmt.Errorf("xwayland: pipe for a selection request: %w", err), unix.Close(p[1]))
+		m.report(errors.Join(fmt.Errorf("xwayland: pipe for a selection request: %w", err), unix.Close(p[1])))
+		return nil
 	}
 	err = sel.wayland.Send(mime, p[1])
 	if err = errors.Join(err, unix.Close(p[1])); err != nil {
 		m.notifySelection(e, 0)
-		return errors.Join(fmt.Errorf("xwayland: ask the Wayland selection for %s: %w", mime, err), in.Close())
+		m.report(errors.Join(fmt.Errorf("xwayland: ask the Wayland selection for %s: %w", mime, err), in.Close()))
+		return nil
 	}
 	go func() {
 		value, err := readSelection(in)
@@ -344,7 +351,8 @@ func readSelection(in *os.File) ([]byte, error) {
 func (m *wm) sent(e xproto.SelectionRequestEvent, property xproto.Atom, value []byte, err error) error {
 	if err != nil {
 		m.notifySelection(e, 0)
-		return fmt.Errorf("xwayland: copy the Wayland selection to X: %w", err)
+		m.report(fmt.Errorf("xwayland: copy the Wayland selection to X: %w", err))
+		return nil
 	}
 	if len(value) <= incrChunk {
 		xproto.ChangeProperty(m.x, xproto.PropModeReplace, e.Requestor, property, e.Target, 8, uint32(len(value)), value) //nolint:gosec // at most one chunk
