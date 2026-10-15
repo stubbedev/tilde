@@ -37,7 +37,7 @@ type HeadConfig struct {
 	Enabled  bool
 	Mode     *ModeRequest
 	Position *image.Point
-	Scale    output.Scale
+	Scale    *output.Scale
 }
 
 type Controller interface {
@@ -300,7 +300,7 @@ type configHead struct {
 	enabled     bool
 	mode        *ModeRequest
 	position    *image.Point
-	scale       output.Scale
+	scale       *output.Scale
 	transform   bool
 	adaptive    bool
 	unsupported []string
@@ -448,7 +448,7 @@ func (ch *configHead) SetTransform(obj *swom.ZwlrOutputConfigurationHeadV1, tran
 }
 
 func (ch *configHead) SetScale(obj *swom.ZwlrOutputConfigurationHeadV1, scale wire.Fixed) error {
-	if err := ch.once(obj, ch.scale != 0, "scale"); err != nil {
+	if err := ch.once(obj, ch.scale != nil, "scale"); err != nil {
 		return err
 	}
 	f := scale.Float()
@@ -458,9 +458,8 @@ func (ch *configHead) SetScale(obj *swom.ZwlrOutputConfigurationHeadV1, scale wi
 	s, err := output.ParseScale(f)
 	if err != nil {
 		ch.unsupported = append(ch.unsupported, err.Error())
-		s = 1
 	}
-	ch.scale = s
+	ch.scale = &s
 	return nil
 }
 

@@ -303,8 +303,8 @@ func (c *Compositor) Configure(heads []outputmanagement.HeadConfig, apply bool) 
 			at := *h.Position
 			rule.Position = &at
 		}
-		if h.Scale != 0 {
-			rule.Scale = h.Scale
+		if h.Scale != nil {
+			rule.Scale = *h.Scale
 		}
 		overrides[b.Name()] = rule
 		if !h.Enabled {
