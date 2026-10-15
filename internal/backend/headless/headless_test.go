@@ -173,6 +173,49 @@ func TestFramesArePacedByRefresh(t *testing.T) {
 	}
 }
 
+func TestFramesRequestedBetweenVblanksMakeTheNextOne(t *testing.T) {
+	l, b, r := setup(t)
+	if err := b.Start(r); err != nil {
+		t.Fatal(err)
+	}
+	o, err := b.AddOutput(mode100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := l.AddTimer(o.ScheduleFrame)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Remove()
+	r.onFrame = func(out backend.Output) {
+		f, err := out.BeginFrame()
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, err := f.Renderer.Begin(f.Target, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := errors.Join(p.End(), out.Present(nil), client.Arm(2*time.Millisecond)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := o.ScheduleFrame(); err != nil {
+		t.Fatal(err)
+	}
+	runFor(t, l, 105*time.Millisecond)
+	if len(r.presented) < 8 {
+		t.Fatalf("%d presentations in 105 ms at 100 Hz", len(r.presented))
+	}
+	interval := mode100.Interval()
+	for i := 1; i < len(r.presented); i++ {
+		prev, cur := r.presented[i-1], r.presented[i]
+		if cur.Seq != prev.Seq+1 || cur.Time-prev.Time != interval {
+			t.Fatalf("presentation %d = %+v after %+v: want the next vblank, %v later", i, cur, prev, interval)
+		}
+	}
+}
+
 func TestIdleOutputStaysQuiet(t *testing.T) {
 	l, b, r := setup(t)
 	if _, err := b.AddOutput(mode100); err != nil {

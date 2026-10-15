@@ -223,11 +223,14 @@ type Output struct {
 	drawn          bool
 	timer          *loop.Timer
 	armed          bool
+	idleQueued     bool
 	frameRequested bool
 	presentPending bool
 	inFrame        bool
 	lastVblank     time.Duration
+	nextVblank     time.Duration
 	seq            uint64
+	nextSeq        uint64
 	presents       uint64
 	frames         uint64
 	damage         render.Region
@@ -313,7 +316,25 @@ func (o *Output) ScheduleFrame() error {
 		return nil
 	}
 	o.frameRequested = true
-	return o.arm()
+	o.maybeFrame()
+	return nil
+}
+
+func (o *Output) maybeFrame() {
+	if !o.frameRequested || o.presentPending || o.inFrame || o.idleQueued {
+		return
+	}
+	o.idleQueued = true
+	o.backend.loop.Idle(func() error {
+		o.idleQueued = false
+		h := o.backend.handler
+		if h == nil || !o.frameRequested || o.presentPending || o.removed || !o.state.Enabled || o.state.Off {
+			return nil
+		}
+		o.frameRequested = false
+		o.frames++
+		return h.Frame(o)
+	})
 }
 
 func (o *Output) BeginFrame() (backend.Frame, error) {
@@ -414,12 +435,15 @@ func (o *Output) arm() error {
 	if o.armed {
 		return nil
 	}
+	now := backend.Now()
 	interval := o.state.Mode.Interval()
-	delay := time.Duration(0)
-	if since := backend.Now() - o.lastVblank; since < interval {
-		delay = interval - since
+	base := o.lastVblank
+	if base == 0 {
+		base = now
 	}
-	if err := o.timer.Arm(delay); err != nil {
+	ticks := uint64((now-base)/interval) + 1                                  //nolint:gosec // now is never before the last vblank
+	o.nextVblank, o.nextSeq = base+time.Duration(ticks)*interval, o.seq+ticks //nolint:gosec // a tick count fits a duration
+	if err := o.timer.Arm(o.nextVblank - now); err != nil {
 		return fmt.Errorf("headless: arm frame timer for %s: %w", o.name, err)
 	}
 	o.armed = true
@@ -428,33 +452,25 @@ func (o *Output) arm() error {
 
 func (o *Output) vblank() error {
 	o.armed = false
-	now := backend.Now()
-	o.lastVblank = now
-	o.seq++
+	o.lastVblank, o.seq = o.nextVblank, o.nextSeq
 	h := o.backend.handler
-	if h == nil {
+	if h == nil || !o.presentPending {
 		return nil
 	}
-	if o.presentPending {
-		o.presentPending = false
-		left := o.shownRelease
-		o.shownRelease, o.queuedRelease = o.queuedRelease, nil
-		if left != nil {
-			if err := left(); err != nil {
-				return err
-			}
-		}
-		torn := o.queuedTorn
-		o.queuedTorn = false
-		if err := h.Presented(o, backend.Presentation{Time: now, Refresh: o.state.Mode.Interval(), Seq: o.seq, Torn: torn}); err != nil {
+	o.presentPending = false
+	left := o.shownRelease
+	o.shownRelease, o.queuedRelease = o.queuedRelease, nil
+	if left != nil {
+		if err := left(); err != nil {
 			return err
 		}
 	}
-	if o.frameRequested {
-		o.frameRequested = false
-		o.frames++
-		return h.Frame(o)
+	torn := o.queuedTorn
+	o.queuedTorn = false
+	if err := h.Presented(o, backend.Presentation{Time: o.lastVblank, Refresh: o.state.Mode.Interval(), Seq: o.seq, Torn: torn}); err != nil {
+		return err
 	}
+	o.maybeFrame()
 	return nil
 }
 
