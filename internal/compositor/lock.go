@@ -60,6 +60,9 @@ func (c *Compositor) lockTarget() *surface.Surface {
 
 func (c *Compositor) hitLock(p point) (*surface.Surface, point) {
 	o := c.outputAt(p)
+	if o == nil {
+		return nil, point{}
+	}
 	s := c.lockSurfaceOn(o)
 	if s == nil {
 		return nil, point{}

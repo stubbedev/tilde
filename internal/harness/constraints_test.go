@@ -10,6 +10,8 @@ import (
 	"github.com/stubbedev/tilde/internal/compositor"
 	cpc "github.com/stubbedev/tilde/internal/protocol/client/pointerconstraints"
 	crp "github.com/stubbedev/tilde/internal/protocol/client/relativepointer"
+	cvp "github.com/stubbedev/tilde/internal/protocol/client/wlrvirtualpointer"
+	"github.com/stubbedev/tilde/internal/testclient"
 	"github.com/stubbedev/tilde/internal/wire"
 )
 
@@ -203,5 +205,32 @@ func TestPointerConstraintsAreOnePerSurface(t *testing.T) {
 	var pe *wire.ProtocolError
 	if err = errors.Join(err, r.c.Display.Roundtrip()); !errors.As(err, &pe) || pe.Code != uint32(cpc.ZwpPointerConstraintsV1ErrorAlreadyConstrained) {
 		t.Fatalf("a second constraint on one surface: %v", err)
+	}
+}
+
+func TestALockedPointerHoldsAgainstVirtualAbsoluteMotion(t *testing.T) {
+	r := startInput(t)
+	r.expect("kb_enter win", "enter win 80,50", "frame")
+	l := &constraintLog{}
+	if _, err := r.constraints().LockPointer(l, r.w.Surface, r.in.Pointer, nil, cpc.ZwpPointerConstraintsV1LifetimePersistent); err != nil {
+		t.Fatal(err)
+	}
+	r.await(l, "locked")
+	driver := testclient.Connect(t, r.h.Socket())
+	seat, _ := driver.Seat()
+	mgr, err := cvp.NewZwlrVirtualPointerManagerV1(driver.Display, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	driver.Bind("zwlr_virtual_pointer_manager_v1", mgr)
+	vp, err := mgr.CreateVirtualPointer(seat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := errors.Join(vp.MotionAbsolute(1, 10, 10, 160, 100), vp.Frame(), driver.Display.Roundtrip()); err != nil {
+		t.Fatal(err)
+	}
+	if x, y := r.cursor(); x != 80 || y != 50 {
+		t.Fatalf("virtual absolute motion moved a locked cursor to %v,%v", x, y)
 	}
 }

@@ -87,13 +87,31 @@ func (c *Compositor) layoutBounds() image.Rectangle {
 	return b
 }
 
+func denormalize(r image.Rectangle, x, y float64) point {
+	return point{float64(r.Min.X) + x*float64(r.Dx()), float64(r.Min.Y) + y*float64(r.Dy())}
+}
+
+func (c *Compositor) clampToOutputs(p point) point {
+	best, nearest := p, math.Inf(1)
+	for _, o := range c.outputs {
+		r := o.Logical()
+		q := point{
+			X: math.Min(math.Max(p.X, float64(r.Min.X)), float64(r.Max.X)-1),
+			Y: math.Min(math.Max(p.Y, float64(r.Min.Y)), float64(r.Max.Y)-1),
+		}
+		if d := math.Hypot(q.X-p.X, q.Y-p.Y); d < nearest {
+			best, nearest = q, d
+		}
+	}
+	return best
+}
+
 func (c *Compositor) onOutput(o backend.Output, x, y float64) (point, *output.Output, bool) {
 	out := c.output(o)
 	if out == nil {
 		return point{}, nil, false
 	}
-	r := out.Logical()
-	return point{float64(r.Min.X) + x*float64(r.Dx()), float64(r.Min.Y) + y*float64(r.Dy())}, out, true
+	return denormalize(out.Logical(), x, y), out, true
 }
 
 func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
@@ -112,11 +130,7 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 		if err := c.seat.RelativeMotion(e.Time, e.DX, e.DY, e.UnaccelDX, e.UnaccelDY); err != nil {
 			return err
 		}
-		b := c.layoutBounds()
-		return c.moveCursor(e.Time, point{
-			X: math.Min(math.Max(c.cursor.X+e.DX, float64(b.Min.X)), float64(b.Max.X)-1),
-			Y: math.Min(math.Max(c.cursor.Y+e.DY, float64(b.Min.Y)), float64(b.Max.Y)-1),
-		})
+		return c.moveCursor(e.Time, c.clampToOutputs(point{X: c.cursor.X + e.DX, Y: c.cursor.Y + e.DY}))
 	case backend.PointerMotionAbsolute:
 		p, _, ok := c.onOutput(e.Output, e.X, e.Y)
 		if !ok {
@@ -200,8 +214,7 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 		if !ok {
 			return nil
 		}
-		r := t.output.Logical()
-		t.at = point{float64(r.Min.X) + e.X*float64(r.Dx()), float64(r.Min.Y) + e.Y*float64(r.Dy())}
+		t.at = denormalize(t.output.Logical(), e.X, e.Y)
 		c.touches[e.ID] = t
 		if c.touchDrag(e.ID) {
 			return errors.Join(c.dragMotion(e.Time), c.scheduleAll())

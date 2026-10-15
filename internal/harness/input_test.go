@@ -3,6 +3,7 @@ package harness
 import (
 	"errors"
 	"image"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/backend/headless"
 	"github.com/stubbedev/tilde/internal/compositor"
+	"github.com/stubbedev/tilde/internal/output"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	"github.com/stubbedev/tilde/internal/testclient"
 )
@@ -184,4 +186,17 @@ func TestLeavingToTheDesktopEndsThePointerFrame(t *testing.T) {
 	r.expect("kb_enter win", "enter win 80,50", "frame")
 	r.moveOn(1, 10, 10)
 	r.expect("leave win", "frame")
+}
+
+func TestTheCursorStaysOnAnOutput(t *testing.T) {
+	big := backend.Mode{Size: image.Pt(1920, 1080), RefreshMHz: 60000, Preferred: true}
+	h := Start(t, big, small)
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+		return errors.Join(b.Pointer().Move(5000, 5000), b.Pointer().Frame())
+	})
+	h.Eventually("the cursor on an output", func(_ *headless.Backend, c *compositor.Compositor) bool {
+		x, y := c.Cursor()
+		at := image.Pt(int(math.Floor(x)), int(math.Floor(y)))
+		return slices.ContainsFunc(c.Outputs(), func(o *output.Output) bool { return at.In(o.Logical()) })
+	})
 }

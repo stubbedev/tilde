@@ -131,9 +131,7 @@ func (v *virtualPointer) MotionAbsolute(_ *svp.ZwlrVirtualPointerV1, ms, x, y, x
 	if err := v.c.idle.Activity(); err != nil {
 		return err
 	}
-	b := v.c.layoutBounds()
-	v.c.cursor = point{float64(b.Min.X) + fx*float64(b.Dx()), float64(b.Min.Y) + fy*float64(b.Dy())}
-	return v.c.pointerMoved(millis(ms))
+	return v.c.moveCursor(millis(ms), v.c.clampToOutputs(denormalize(v.c.layoutBounds(), fx, fy)))
 }
 
 func (v *virtualPointer) Button(_ *svp.ZwlrVirtualPointerV1, ms, button uint32, state sw.WlPointerButtonState) error {
