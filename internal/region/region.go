@@ -108,14 +108,6 @@ func (g Region) Intersect(r image.Rectangle) Region {
 	return Region{rects: out}
 }
 
-func (g Region) Translate(d image.Point) Region {
-	out := make([]image.Rectangle, len(g.rects))
-	for i, r := range g.rects {
-		out[i] = r.Add(d)
-	}
-	return Region{rects: out}
-}
-
 func (g Region) Map(f func(image.Rectangle) image.Rectangle) Region {
 	var out Region
 	for _, r := range g.rects {

@@ -28,15 +28,6 @@ func (s State) MapFloating(id WindowID, rect image.Rectangle) (State, error) {
 	return s, nil
 }
 
-func (s State) Rect(id WindowID) (image.Rectangle, bool) {
-	for _, p := range s.Arrange(0).Windows {
-		if p.ID == id {
-			return p.Rect, true
-		}
-	}
-	return image.Rectangle{}, false
-}
-
 func (s State) ToggleFloating(at Autotile) (State, error) {
 	id, ok := s.Focused()
 	if !ok {

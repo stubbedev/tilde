@@ -96,10 +96,6 @@ func (s *Server) Display() string {
 	return ":" + strconv.Itoa(s.socks.n)
 }
 
-func (s *Server) Shell() *Shell {
-	return s.shell
-}
-
 func (s *Server) Pid() int {
 	if s.proc == nil {
 		return 0

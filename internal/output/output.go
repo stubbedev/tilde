@@ -148,15 +148,6 @@ func (m *Manager) resend(which func(*Output) bool) error {
 	return errors.Join(errs...)
 }
 
-func (m *Manager) Of(b backend.Output) *Output {
-	for _, o := range m.outputs {
-		if o.backend == b {
-			return o
-		}
-	}
-	return nil
-}
-
 func (m *Manager) Owner(res *sw.WlOutput) *Output {
 	for _, o := range m.outputs {
 		for _, b := range o.bindings {

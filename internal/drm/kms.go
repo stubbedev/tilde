@@ -17,8 +17,6 @@ const (
 	CapCursorWidth         = 0x8
 	CapCursorHeight        = 0x9
 	CapAddFB2Modifiers     = 0x10
-	CapCRTCInVblankEvent   = 0x12
-	CapTimestampMonotonic  = 0x6
 	CapAtomicAsyncFlip     = 0x15
 	ClientCapUniversal     = 2
 	ClientCapAtomic        = 3

@@ -78,7 +78,7 @@ func TestAddAndSubtractMatchAPixelGrid(t *testing.T) {
 	}
 }
 
-func TestUnionTranslateAndBounds(t *testing.T) {
+func TestUnionMapAndBounds(t *testing.T) {
 	a := Rect(image.Rect(0, 0, 4, 4))
 	b := Rect(image.Rect(2, 2, 6, 6))
 	u := a.Union(b)
@@ -87,10 +87,6 @@ func TestUnionTranslateAndBounds(t *testing.T) {
 	}
 	if u.Bounds() != image.Rect(0, 0, 6, 6) {
 		t.Fatalf("bounds %v", u.Bounds())
-	}
-	moved := u.Translate(image.Pt(10, -1))
-	if !moved.Contains(image.Pt(10, -1)) || moved.Contains(image.Pt(0, 0)) || moved.Area() != u.Area() {
-		t.Fatal("translate moved the wrong pixels")
 	}
 	doubled := u.Map(func(r image.Rectangle) image.Rectangle { return image.Rectangle{Min: r.Min.Mul(2), Max: r.Max.Mul(2)} })
 	if doubled.Area() != 4*u.Area() {

@@ -28,10 +28,6 @@ func (r *Request) Add(object, property uint32, value uint64) {
 	r.entries = append(r.entries, atomicEntry{object, property, value})
 }
 
-func (r *Request) Len() int {
-	return len(r.entries)
-}
-
 func (r *Request) build() {
 	slices.SortStableFunc(r.entries, func(a, b atomicEntry) int { return cmp.Compare(a.object, b.object) })
 	r.objects, r.counts, r.props, r.values = r.objects[:0], r.counts[:0], r.props[:0], r.values[:0]

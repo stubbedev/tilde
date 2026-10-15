@@ -172,10 +172,6 @@ func (l *Library) fail(op string) error {
 	return &EGLError{Op: op, Code: l.egl.getError()}
 }
 
-func (l *Library) ClientExtensions() []string {
-	return slices.Clone(l.clientExts)
-}
-
 func (l *Library) requireClient(ext string) error {
 	if !slices.Contains(l.clientExts, ext) {
 		return fmt.Errorf("%w: EGL client extension %s", ErrUnsupported, ext)

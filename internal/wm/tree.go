@@ -85,10 +85,6 @@ func (g *Group) clone() Node {
 	return &c
 }
 
-func (g *Group) Ephemeral() bool {
-	return g.ephemeral != ephemeralOff
-}
-
 func (g *Group) insert(at int, n Node) {
 	g.Children = slices.Insert(g.Children, at, Child{Node: n, Ratio: 1})
 	if g.ephemeral == ephemeralStaged && len(g.Children) >= 2 {

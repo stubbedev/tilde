@@ -79,10 +79,6 @@ func (d *Drag) Serial() uint32 {
 	return d.serial
 }
 
-func (d *Drag) Active() bool {
-	return !d.ended
-}
-
 func (d *Drag) liveDevices() []*sw.WlDataDevice {
 	if d.focus == nil {
 		return nil

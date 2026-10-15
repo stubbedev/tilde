@@ -65,10 +65,6 @@ func (d *Display) addClient(fd int, context *SecurityContext) (*Client, error) {
 	return c, nil
 }
 
-func (c *Client) Display() *Display {
-	return c.display
-}
-
 func (c *Client) OnDestroy(r wire.Resource, f func() error) {
 	id := r.Base().ID()
 	c.hooks[id] = append(c.hooks[id], f)
