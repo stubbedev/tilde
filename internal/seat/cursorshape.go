@@ -92,6 +92,6 @@ func (d shapeDevice) SetShape(obj *scs.WpCursorShapeDeviceV1, serial uint32, sha
 	if !d.pointer || p.focus == nil || p.focus.Client() != d.c || serial != p.enterSerial {
 		return nil
 	}
-	p.cursor = Cursor{client: d.c, shape: name, set: true}
+	p.cursor = clientCursor{client: d.c, want: ShapeCursor{Shape: name}}
 	return d.s.listener.CursorChanged()
 }

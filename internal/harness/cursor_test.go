@@ -11,6 +11,7 @@ import (
 	"github.com/stubbedev/tilde/internal/compositor"
 	"github.com/stubbedev/tilde/internal/golden"
 	ccs "github.com/stubbedev/tilde/internal/protocol/client/cursorshape"
+	"github.com/stubbedev/tilde/internal/seat"
 	"github.com/stubbedev/tilde/internal/testclient"
 	"github.com/stubbedev/tilde/internal/testenv"
 	"github.com/stubbedev/tilde/internal/xcursor"
@@ -84,7 +85,7 @@ func TestCursorShapeFromTheThemeAtFractionalScale(t *testing.T) {
 	}
 	c.Sync()
 	h.Eventually("the window under the pointer shape", func(b *headless.Backend, c *compositor.Compositor) bool {
-		return pixel(b.Outputs()[0].Snapshot(), 2, 2) == [3]byte{0x40, 0x40, 0x40} && c.Seat().Cursor().Shape() == "pointer"
+		return pixel(b.Outputs()[0].Snapshot(), 2, 2) == [3]byte{0x40, 0x40, 0x40} && c.Seat().Cursor() == seat.ShapeCursor{Shape: "pointer"}
 	})
 	golden.Assert(t, "cursor-shape", h.Rendered(0))
 	if err := device.SetShape(in.Serial, 99); err != nil {

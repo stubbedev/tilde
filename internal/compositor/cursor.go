@@ -9,6 +9,7 @@ import (
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/output"
 	"github.com/stubbedev/tilde/internal/render"
+	"github.com/stubbedev/tilde/internal/seat"
 	"github.com/stubbedev/tilde/internal/surface"
 	"github.com/stubbedev/tilde/internal/xcursor"
 )
@@ -63,16 +64,15 @@ func (c *Compositor) drawCursor(pass *frame, o *output.Output, shown []*surface.
 	if !c.seat.HasPointer() || !c.cursor.pixel().In(o.Logical()) {
 		return shown, nil
 	}
-	cur := c.seat.Cursor()
 	name := "default"
-	switch {
-	case cur.Set() && cur.Surface() != nil:
-		at := c.cursor.pixel().Sub(cur.Hotspot())
-		return c.drawTree(pass, o, cur.Surface(), flat(at), shown), nil
-	case cur.Set() && cur.Shape() == "":
+	switch cur := c.seat.Cursor().(type) {
+	case seat.SurfaceCursor:
+		at := c.cursor.pixel().Sub(cur.Hotspot)
+		return c.drawTree(pass, o, cur.Surface, flat(at), shown), nil
+	case seat.HiddenCursor:
 		return shown, nil
-	case cur.Set():
-		name = cur.Shape()
+	case seat.ShapeCursor:
+		name = cur.Shape
 	}
 	ct, err := c.cursorTexture(name, o.Scale())
 	if err != nil {
@@ -192,7 +192,7 @@ func inTree(root, s *surface.Surface) bool {
 }
 
 func (c *Compositor) cursorCommitted(s *surface.Surface) {
-	if cur := c.seat.Cursor(); cur.Set() && cur.Surface() != nil && inTree(cur.Surface(), s) {
+	if cur, ok := c.seat.Cursor().(seat.SurfaceCursor); ok && inTree(cur.Surface, s) {
 		c.cursorGen++
 	}
 }

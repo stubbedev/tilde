@@ -16,6 +16,7 @@ import (
 	"github.com/stubbedev/tilde/internal/compositor"
 	"github.com/stubbedev/tilde/internal/data"
 	"github.com/stubbedev/tilde/internal/loop"
+	"github.com/stubbedev/tilde/internal/seat"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/testenv"
 	"github.com/stubbedev/tilde/internal/wm"
@@ -121,8 +122,7 @@ func TestNestedTildeHidesTheHostCursor(t *testing.T) {
 	host := Start(t, small)
 	startNested(t, host)
 	host.Eventually("the nested window under the pointer with no host cursor", func(_ *headless.Backend, c *compositor.Compositor) bool {
-		cur := c.Seat().Cursor()
-		return c.Seat().PointerFocus() != nil && cur.Set() && cur.Surface() == nil && cur.Shape() == ""
+		return c.Seat().PointerFocus() != nil && c.Seat().Cursor() == seat.HiddenCursor{}
 	})
 }
 

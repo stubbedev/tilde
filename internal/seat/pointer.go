@@ -21,24 +21,38 @@ type Axis struct {
 	Value120    int32
 }
 
-type Cursor struct {
-	client  *server.Client
-	surface *surface.Surface
-	shape   string
-	hotspot image.Point
-	set     bool
+type Cursor interface {
+	cursor()
 }
 
-func (c Cursor) Set() bool                 { return c.set }
-func (c Cursor) Surface() *surface.Surface { return c.surface }
-func (c Cursor) Shape() string             { return c.shape }
-func (c Cursor) Hotspot() image.Point      { return c.hotspot }
+type DefaultCursor struct{}
+
+type HiddenCursor struct{}
+
+type SurfaceCursor struct {
+	Surface *surface.Surface
+	Hotspot image.Point
+}
+
+type ShapeCursor struct {
+	Shape string
+}
+
+func (DefaultCursor) cursor() {}
+func (HiddenCursor) cursor()  {}
+func (SurfaceCursor) cursor() {}
+func (ShapeCursor) cursor()   {}
+
+type clientCursor struct {
+	client *server.Client
+	want   Cursor
+}
 
 type pointerState struct {
 	focus       *surface.Surface
 	enterSerial uint32
 	buttons     []uint32
-	cursor      Cursor
+	cursor      clientCursor
 	framed      []*server.Client
 }
 
@@ -56,9 +70,9 @@ func (s *Seat) PointerGrabbed() bool {
 
 func (s *Seat) Cursor() Cursor {
 	if s.pointer.focus == nil || s.pointer.cursor.client != s.pointer.focus.Client() {
-		return Cursor{}
+		return DefaultCursor{}
 	}
-	return s.pointer.cursor
+	return s.pointer.cursor.want
 }
 
 func (s *Seat) focusPointers() (*server.Client, []*sw.WlPointer) {
@@ -214,8 +228,9 @@ func (cursorSurface) RoleName() string {
 
 func (c cursorSurface) Committed(sf *surface.Surface) error {
 	cur := &c.s.pointer.cursor
-	if cur.surface == sf {
-		cur.hotspot = cur.hotspot.Sub(sf.Offset())
+	if sc, ok := cur.want.(SurfaceCursor); ok && sc.Surface == sf {
+		sc.Hotspot = sc.Hotspot.Sub(sf.Offset())
+		cur.want = sc
 	}
 	return nil
 }
@@ -234,7 +249,7 @@ func (r pointerRequests) SetCursor(obj *sw.WlPointer, serial uint32, wl *sw.WlSu
 	if !s.PointerEntered(r.c, serial) {
 		return nil
 	}
-	cur := Cursor{client: r.c, hotspot: image.Pt(int(hx), int(hy)), set: true}
+	cur := clientCursor{client: r.c, want: HiddenCursor{}}
 	if wl != nil {
 		sf, err := surface.From(wl)
 		if err != nil {
@@ -245,7 +260,7 @@ func (r pointerRequests) SetCursor(obj *sw.WlPointer, serial uint32, wl *sw.WlSu
 				return obj.ProtocolError(sw.WlPointerErrorRole, err.Error())
 			}
 		}
-		cur.surface = sf
+		cur.want = SurfaceCursor{Surface: sf, Hotspot: image.Pt(int(hx), int(hy))}
 	}
 	s.pointer.cursor = cur
 	return s.listener.CursorChanged()

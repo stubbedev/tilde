@@ -220,8 +220,8 @@ func (s *Seat) SurfaceDestroyed(target *surface.Surface) error {
 		s.pointer.focus, s.pointer.buttons = nil, nil
 		err = errors.Join(err, s.listener.PointerFocusChanged(nil))
 	}
-	if s.pointer.cursor.surface == target {
-		s.pointer.cursor = Cursor{}
+	if sc, ok := s.pointer.cursor.want.(SurfaceCursor); ok && sc.Surface == target {
+		s.pointer.cursor = clientCursor{}
 	}
 	if s.gesture.surface == target {
 		s.gesture = gestureState{}
