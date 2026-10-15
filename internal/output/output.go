@@ -99,7 +99,6 @@ type Output struct {
 	position image.Point
 	scale    Scale
 	bindings []*binding
-	removed  bool
 }
 
 func (m *Manager) Add(b backend.Output, position image.Point, scale Scale) (*Output, error) {
@@ -208,7 +207,6 @@ func (o *Output) AppendResources(out []*sw.WlOutput, c *server.Client) []*sw.WlO
 
 func (o *Output) Remove() error {
 	before := o.m.xScale()
-	o.removed = true
 	o.m.outputs = slices.DeleteFunc(o.m.outputs, func(x *Output) bool { return x == o })
 	return errors.Join(o.global.Remove(), o.m.rescaled(before, o))
 }

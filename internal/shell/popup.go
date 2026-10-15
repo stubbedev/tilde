@@ -29,7 +29,6 @@ type Popup struct {
 	rules      Positioner
 	token      *uint32
 	box        image.Rectangle
-	requested  image.Rectangle
 	configures configures[image.Rectangle]
 	dismissed  bool
 }
@@ -179,7 +178,6 @@ func (p *Popup) place() error {
 	if err != nil {
 		return err
 	}
-	p.requested = box
 	p.configures.push(serial, box)
 	return nil
 }

@@ -183,11 +183,11 @@ const (
 )
 
 type Connector struct {
-	ID, Type, TypeID, Encoder uint32
-	Connection                Connection
-	PhysicalMM                [2]uint32
-	Modes                     []Mode
-	Encoders                  []uint32
+	ID, Type, TypeID uint32
+	Connection       Connection
+	PhysicalMM       [2]uint32
+	Modes            []Mode
+	Encoders         []uint32
 }
 
 var connectorTypes = map[uint32]string{
@@ -233,7 +233,7 @@ func (d *Device) Connector(id uint32) (Connector, error) {
 			continue
 		}
 		c := Connector{
-			ID: id, Type: arg.connectorType, TypeID: arg.connectorTypeID, Encoder: arg.encoderID,
+			ID: id, Type: arg.connectorType, TypeID: arg.connectorTypeID,
 			Connection: Connection(arg.connection), PhysicalMM: [2]uint32{arg.mmWidth, arg.mmHeight}, Encoders: encoders,
 		}
 		c.Modes = make([]Mode, arg.countModes)
@@ -352,7 +352,6 @@ func (d *Device) Properties(objectID, objectType uint32) (map[string]Property, e
 
 type PropertyInfo struct {
 	Name  string
-	Flags uint32
 	Enums map[string]uint64
 }
 
@@ -380,7 +379,7 @@ func (d *Device) PropertyInfo(id uint32) (PropertyInfo, error) {
 		if arg.countValues != wantV || arg.countE != wantE {
 			continue
 		}
-		info := PropertyInfo{Name: cstring(arg.name[:]), Flags: arg.flags, Enums: map[string]uint64{}}
+		info := PropertyInfo{Name: cstring(arg.name[:]), Enums: map[string]uint64{}}
 		for i := range int(arg.countE) {
 			e := enums[i*propertyEnumSize:]
 			info.Enums[cstring(e[8:propertyEnumSize])] = binary.NativeEndian.Uint64(e)
@@ -535,7 +534,6 @@ type FlipEvent struct {
 	Sec      uint32
 	Usec     uint32
 	Sequence uint32
-	CRTC     uint32
 }
 
 func ParseEvents(buf []byte, flip func(FlipEvent) error) error {
@@ -547,7 +545,7 @@ func ParseEvents(buf []byte, flip func(FlipEvent) error) error {
 		if typ == EventFlipComplete && length >= 32 {
 			e := FlipEvent{
 				UserData: binary.NativeEndian.Uint64(buf[8:]), Sec: binary.NativeEndian.Uint32(buf[16:]),
-				Usec: binary.NativeEndian.Uint32(buf[20:]), Sequence: binary.NativeEndian.Uint32(buf[24:]), CRTC: binary.NativeEndian.Uint32(buf[28:]),
+				Usec: binary.NativeEndian.Uint32(buf[20:]), Sequence: binary.NativeEndian.Uint32(buf[24:]),
 			}
 			if err := flip(e); err != nil {
 				return err

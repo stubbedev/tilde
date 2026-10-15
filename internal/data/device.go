@@ -52,7 +52,6 @@ type dataSource struct {
 	actions    Action
 	actionsSet bool
 	used       bool
-	dnd        bool
 	destroyed  bool
 }
 
@@ -173,7 +172,7 @@ func (d dataDevice) StartDrag(obj *sw.WlDataDevice, res *sw.WlDataSource, origin
 		}
 	}
 	if s != nil {
-		s.used, s.dnd = true, true
+		s.used = true
 	}
 	if from.Client() != d.c || !d.m.listener.CanDrag(from, serial) {
 		if s != nil {
