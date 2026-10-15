@@ -92,8 +92,7 @@ func (c *Compositor) cursorTip(o *output.Output) image.Point {
 
 type hwCursor struct {
 	plane   backend.CursorPlane
-	loaded  cursorImage
-	ok      bool
+	loaded  *cursorImage
 	inFrame bool
 }
 
@@ -133,11 +132,11 @@ func (c *Compositor) placeCursor(o *output.Output) (bool, error) {
 	if limit := hw.plane.CursorSize(); want.size.X > limit.X || want.size.Y > limit.Y {
 		return false, hw.plane.HideCursor()
 	}
-	if !hw.ok || hw.loaded != want {
+	if hw.loaded == nil || *hw.loaded != want {
 		if err := c.loadCursor(hw, box.Min, want.hotspot); err != nil {
 			return false, c.dropCursorPlane(o, err)
 		}
-		hw.loaded, hw.ok = want, true
+		hw.loaded = &want
 	}
 	if err := hw.plane.MoveCursor(tip); err != nil {
 		return false, c.dropCursorPlane(o, err)
