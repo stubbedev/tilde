@@ -124,23 +124,36 @@ func TestLockedPointerHoldsTheCursorAndWarpsToTheHint(t *testing.T) {
 	}
 }
 
-func TestOneshotLockEndsWithFocus(t *testing.T) {
-	r := startInput(t)
-	r.expect("kb_enter win", "enter win 80,50", "frame")
-	l := &constraintLog{}
-	if _, err := r.constraints().LockPointer(l, r.w.Surface, r.in.Pointer, nil, cpc.ZwpPointerConstraintsV1LifetimeOneshot); err != nil {
-		t.Fatal(err)
-	}
-	r.await(l, "locked")
-	r.h.dispatch("workspace 2")
-	r.await(l, "locked", "unlocked")
-	r.h.dispatch("workspace 1")
-	r.h.Eventually("the window focused again", func(_ *headless.Backend, c *compositor.Compositor) bool {
-		ws := c.Snapshot().Windows
-		return len(ws) == 1 && ws[0].Focused
-	})
-	if err := r.c.Display.Roundtrip(); err != nil || len(l.events) != 2 {
-		t.Fatalf("a oneshot lock came back: %q (%v)", l.events, err)
+func TestALockOutlivesFocusOnlyWhenPersistent(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		lifetime cpc.ZwpPointerConstraintsV1Lifetime
+		back     []string
+	}{
+		{"oneshot", cpc.ZwpPointerConstraintsV1LifetimeOneshot, []string{"locked", "unlocked"}},
+		{"persistent", cpc.ZwpPointerConstraintsV1LifetimePersistent, []string{"locked", "unlocked", "locked"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := startInput(t)
+			r.expect("kb_enter win", "enter win 80,50", "frame")
+			l := &constraintLog{}
+			if _, err := r.constraints().LockPointer(l, r.w.Surface, r.in.Pointer, nil, tc.lifetime); err != nil {
+				t.Fatal(err)
+			}
+			r.await(l, "locked")
+			r.h.dispatch("workspace 2")
+			r.await(l, "locked", "unlocked")
+			r.h.dispatch("workspace 1")
+			r.h.Eventually("the window focused again", func(_ *headless.Backend, c *compositor.Compositor) bool {
+				ws := c.Snapshot().Windows
+				return len(ws) == 1 && ws[0].Focused
+			})
+			r.nudge(1, 0)
+			r.c.Sync()
+			if !slices.Equal(l.events, tc.back) {
+				t.Fatalf("constraint events %q, want %q", l.events, tc.back)
+			}
+		})
 	}
 }
 

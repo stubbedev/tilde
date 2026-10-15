@@ -56,15 +56,43 @@ func (st *constraintState) setRegion(g *sw.WlRegion) error {
 type constraint struct {
 	c        *Compositor
 	surface  *surface.Surface
-	locked   *spc.ZwpLockedPointerV1
-	confined *spc.ZwpConfinedPointerV1
-	oneshot  bool
-	active   bool
-	spent    bool
+	kind     constraintKind
+	lifetime spc.ZwpPointerConstraintsV1Lifetime
+	phase    constraintPhase
 	hooks    *surface.Hooks
 	pending  constraintState
 	current  constraintState
 }
+
+type constraintKind interface {
+	send(cl *server.Client, active bool) error
+}
+
+type lock struct{ res *spc.ZwpLockedPointerV1 }
+
+type confine struct{ res *spc.ZwpConfinedPointerV1 }
+
+func (l lock) send(cl *server.Client, active bool) error {
+	if active {
+		return cl.Sent(l.res.SendLocked())
+	}
+	return cl.Sent(l.res.SendUnlocked())
+}
+
+func (f confine) send(cl *server.Client, active bool) error {
+	if active {
+		return cl.Sent(f.res.SendConfined())
+	}
+	return cl.Sent(f.res.SendUnconfined())
+}
+
+type constraintPhase uint8
+
+const (
+	constraintInactive constraintPhase = iota
+	constraintActive
+	constraintSpent
+)
 
 func (c *Compositor) addPointerConstraints(d *server.Display) error {
 	_, err := d.AddGlobal(spc.ZwpPointerConstraintsV1Interface, pointerConstraintsVersion, func(cl *server.Client, id wire.ObjectID, version uint32) error {
@@ -82,24 +110,22 @@ type pointerConstraints struct {
 func (pointerConstraints) Destroy(*spc.ZwpPointerConstraintsV1) error { return nil }
 
 func (m pointerConstraints) LockPointer(obj *spc.ZwpPointerConstraintsV1, res *spc.ZwpLockedPointerV1, wl *sw.WlSurface, _ *sw.WlPointer, g *sw.WlRegion, lifetime spc.ZwpPointerConstraintsV1Lifetime) (spc.ZwpLockedPointerV1Handler, error) {
-	k, err := m.constrain(obj, res, wl, g, lifetime)
+	k, err := m.constrain(obj, res, lock{res}, wl, g, lifetime)
 	if err != nil {
 		return nil, err
 	}
-	k.locked = res
 	return lockedPointer{k}, k.c.refreshConstraint()
 }
 
 func (m pointerConstraints) ConfinePointer(obj *spc.ZwpPointerConstraintsV1, res *spc.ZwpConfinedPointerV1, wl *sw.WlSurface, _ *sw.WlPointer, g *sw.WlRegion, lifetime spc.ZwpPointerConstraintsV1Lifetime) (spc.ZwpConfinedPointerV1Handler, error) {
-	k, err := m.constrain(obj, res, wl, g, lifetime)
+	k, err := m.constrain(obj, res, confine{res}, wl, g, lifetime)
 	if err != nil {
 		return nil, err
 	}
-	k.confined = res
 	return confinedPointer{k}, k.c.refreshConstraint()
 }
 
-func (m pointerConstraints) constrain(obj *spc.ZwpPointerConstraintsV1, res wire.Resource, wl *sw.WlSurface, g *sw.WlRegion, lifetime spc.ZwpPointerConstraintsV1Lifetime) (*constraint, error) {
+func (m pointerConstraints) constrain(obj *spc.ZwpPointerConstraintsV1, res wire.Resource, kind constraintKind, wl *sw.WlSurface, g *sw.WlRegion, lifetime spc.ZwpPointerConstraintsV1Lifetime) (*constraint, error) {
 	s, err := surface.From(wl)
 	if err != nil {
 		return nil, err
@@ -107,7 +133,7 @@ func (m pointerConstraints) constrain(obj *spc.ZwpPointerConstraintsV1, res wire
 	if _, ok := m.c.constraints[s]; ok {
 		return nil, obj.ProtocolError(spc.ZwpPointerConstraintsV1ErrorAlreadyConstrained, fmt.Sprintf("wl_surface@%d already has a pointer constraint", wl.Base().ID()))
 	}
-	k := &constraint{c: m.c, surface: s, oneshot: lifetime == spc.ZwpPointerConstraintsV1LifetimeOneshot}
+	k := &constraint{c: m.c, surface: s, kind: kind, lifetime: lifetime}
 	if err := k.current.setRegion(g); err != nil {
 		return nil, err
 	}
@@ -151,7 +177,7 @@ func (k *constraint) commit(u *surface.Update) error {
 }
 
 func (k *constraint) applied() error {
-	if !k.active {
+	if k.phase != constraintActive {
 		return k.c.refreshConstraint()
 	}
 	return k.c.confineCursor()
@@ -162,7 +188,7 @@ func (k *constraint) drop() error {
 		return nil
 	}
 	var err error
-	if k.active {
+	if k.phase == constraintActive {
 		err = k.c.release(k)
 	}
 	delete(k.c.constraints, k.surface)
@@ -175,7 +201,7 @@ func (k *constraint) surfaceGone() error {
 		return nil
 	}
 	var err error
-	if k.active {
+	if k.phase == constraintActive {
 		err = k.c.deactivate(k)
 	}
 	return errors.Join(err, k.drop())
@@ -215,16 +241,12 @@ func (k *constraint) clamp(local point) point {
 }
 
 func (k *constraint) send(active bool) error {
-	cl := k.surface.Client()
-	switch {
-	case k.locked != nil && active:
-		return cl.Sent(k.locked.SendLocked())
-	case k.locked != nil:
-		return cl.Sent(k.locked.SendUnlocked())
-	case active:
-		return cl.Sent(k.confined.SendConfined())
-	}
-	return cl.Sent(k.confined.SendUnconfined())
+	return k.kind.send(k.surface.Client(), active)
+}
+
+func (k *constraint) locks() bool {
+	_, ok := k.kind.(lock)
+	return ok
 }
 
 func (c *Compositor) ownedByFocus(s *surface.Surface) bool {
@@ -257,7 +279,7 @@ func (c *Compositor) eligibleConstraint() *constraint {
 		return nil
 	}
 	k, ok := c.constraints[focus]
-	if !ok || k.spent || !c.ownedByFocus(focus) {
+	if !ok || k.phase == constraintSpent || !c.ownedByFocus(focus) {
 		return nil
 	}
 	return k
@@ -269,14 +291,14 @@ func (c *Compositor) refreshConstraint() error {
 	if old := c.constraint; old != nil && old != want {
 		errs = append(errs, c.deactivate(old))
 	}
-	if want == nil || want.active {
+	if want == nil || want.phase == constraintActive {
 		return errors.Join(errs...)
 	}
 	org, ok := c.originOf(want.surface)
 	if !ok || !want.contains(org.local(c.cursor)) {
 		return errors.Join(errs...)
 	}
-	want.active, c.constraint = true, want
+	want.phase, c.constraint = constraintActive, want
 	return errors.Join(append(errs, want.send(true))...)
 }
 
@@ -285,10 +307,13 @@ func (c *Compositor) deactivate(k *constraint) error {
 }
 
 func (c *Compositor) release(k *constraint) error {
-	k.active, k.spent = false, k.oneshot
+	k.phase = constraintInactive
+	if k.lifetime == spc.ZwpPointerConstraintsV1LifetimeOneshot {
+		k.phase = constraintSpent
+	}
 	c.constraint = nil
 	org, ok := c.originOf(k.surface)
-	if !ok || k.locked == nil || k.current.set&constraintHint == 0 || !k.contains(k.current.hint) {
+	if !ok || !k.locks() || k.current.set&constraintHint == 0 || !k.contains(k.current.hint) {
 		return nil
 	}
 	c.cursor = org.global(k.current.hint)
@@ -300,7 +325,7 @@ func (c *Compositor) constrainMotion(next point) (point, bool) {
 	if k == nil {
 		return next, true
 	}
-	if k.locked != nil {
+	if k.locks() {
 		return c.cursor, false
 	}
 	org, ok := c.originOf(k.surface)
