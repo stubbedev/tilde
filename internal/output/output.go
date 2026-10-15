@@ -321,9 +321,26 @@ func (o *Output) send(b *binding) error {
 		if err := o.sendXdg(b.client, x); err != nil {
 			return err
 		}
+		if x.Base().Version() < xdgDoneOnWlOutput {
+			if err := x.SendDone(); err != nil {
+				return err
+			}
+		}
 	}
 	if v >= 2 {
 		return b.wl.SendDone()
+	}
+	return nil
+}
+
+const xdgDoneOnWlOutput = 3
+
+func xdgDone(wl *sw.WlOutput, x *sxo.ZxdgOutputV1) error {
+	switch {
+	case x.Base().Version() < xdgDoneOnWlOutput:
+		return x.SendDone()
+	case wl.Base().Version() >= 2:
+		return wl.SendDone()
 	}
 	return nil
 }
@@ -382,10 +399,7 @@ func (r xdgManagerRequests) GetXdgOutput(_ *sxo.ZxdgOutputManagerV1, x *sxo.Zxdg
 			if err := o.sendXdg(b.client, x); err != nil {
 				return nil, err
 			}
-			if x.Base().Version() >= 3 {
-				return xdgRequests{}, wl.SendDone()
-			}
-			return xdgRequests{}, x.SendDone()
+			return xdgRequests{}, xdgDone(wl, x)
 		}
 	}
 	return xdgRequests{}, nil

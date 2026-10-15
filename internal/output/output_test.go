@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"image"
 	"math/rand/v2"
-	"os"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -131,75 +130,109 @@ func (e *xdgEvents) Done(*cxo.ZxdgOutputV1) error {
 func (e *xdgEvents) Name(*cxo.ZxdgOutputV1, string) error        { return nil }
 func (e *xdgEvents) Description(*cxo.ZxdgOutputV1, string) error { return nil }
 
-func TestOutputAndXdgOutputEvents(t *testing.T) {
-	dir, err := os.MkdirTemp("", "tilde-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+type outputRig struct {
+	o       *Output
+	on      func(func())
+	d       *wlclient.Display
+	reg     *cw.WlRegistry
+	globals registry
+}
+
+func serveOutput(t *testing.T) *outputRig {
+	t.Helper()
+	dir := t.TempDir()
 	l, err := loop.New()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer l.Close()
+	t.Cleanup(func() { _ = l.Close() })
 	disp, err := server.New(l, server.Options{RuntimeDir: dir, Report: func(err error) { t.Error(err) }})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer disp.Close()
+	t.Cleanup(func() { _ = disp.Close() })
 	m, err := New(disp)
 	if err != nil {
 		t.Fatal(err)
 	}
-	o, err := m.Add(&fakeOutput{name: "FAKE-1", mode: backend.Mode{Size: image.Pt(300, 300), RefreshMHz: 60000}}, image.Pt(100, 0), 150)
-	if err != nil {
+	r := &outputRig{globals: registry{}}
+	if r.o, err = m.Add(&fakeOutput{name: "FAKE-1", mode: backend.Mode{Size: image.Pt(300, 300), RefreshMHz: 60000}}, image.Pt(100, 0), 150); err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)
 	go func() { done <- l.Run() }()
-	on := func(f func()) {
+	r.on = func(f func()) {
 		ran := make(chan struct{})
 		if err := l.Post(func() error { f(); close(ran); return nil }); err != nil {
 			t.Fatal(err)
 		}
 		<-ran
 	}
-	defer func() {
-		on(l.Stop)
+	t.Cleanup(func() {
+		r.on(l.Stop)
 		<-done
-	}()
-	d, err := wlclient.Connect(filepath.Join(dir, disp.Name()))
+	})
+	if r.d, err = wlclient.Connect(filepath.Join(dir, disp.Name())); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = r.d.Close() })
+	if r.reg, err = r.d.WlDisplay().GetRegistry(r.globals); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.d.Roundtrip(); err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
+func (r *outputRig) bind(t *testing.T, wlVersion, xdgVersion uint32, oe *outputEvents, xe *xdgEvents) *cw.WlOutput {
+	t.Helper()
+	wl, err := cw.NewWlOutput(r.d, wlVersion, oe)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer d.Close()
-	globals := registry{}
-	reg, err := d.WlDisplay().GetRegistry(globals)
+	mgr, err := cxo.NewZxdgOutputManagerV1(r.d, xdgVersion)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := d.Roundtrip(); err != nil {
+	if err := errors.Join(r.reg.Bind(r.globals["wl_output"], wl), r.reg.Bind(r.globals["zxdg_output_manager_v1"], mgr)); err != nil {
 		t.Fatal(err)
 	}
-	oe := &outputEvents{}
-	wl, err := cw.NewWlOutput(d, 4, oe)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mgr, err := cxo.NewZxdgOutputManagerV1(d, 3)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := errors.Join(reg.Bind(globals["wl_output"], wl), reg.Bind(globals["zxdg_output_manager_v1"], mgr)); err != nil {
-		t.Fatal(err)
-	}
-	xe := &xdgEvents{}
 	if _, err := mgr.GetXdgOutput(xe, wl); err != nil {
 		t.Fatal(err)
 	}
-	if err := d.Roundtrip(); err != nil {
+	if err := r.d.Roundtrip(); err != nil {
 		t.Fatal(err)
 	}
+	return wl
+}
+
+func TestXdgOutputDoneFollowsItsVersion(t *testing.T) {
+	r := serveOutput(t)
+	oe, xe := &outputEvents{}, &xdgEvents{}
+	r.bind(t, 1, 2, oe, xe)
+	if want := []string{"position 1", "size 2x2", "done"}; !slices.Equal(xe.log, want) {
+		t.Fatalf("xdg_output v2 events %v, want %v", xe.log, want)
+	}
+	r.on(func() {
+		if err := r.o.Update(image.Pt(0, 0), 300); err != nil {
+			t.Error(err)
+		}
+	})
+	if err := r.d.Roundtrip(); err != nil {
+		t.Fatal(err)
+	}
+	if got := xe.log[3:]; !slices.Equal(got, []string{"position 0", "size 1x1", "done"}) {
+		t.Fatalf("xdg_output v2 after an update: %v", got)
+	}
+	r.bind(t, 1, 3, &outputEvents{}, &xdgEvents{})
+}
+
+func TestOutputAndXdgOutputEvents(t *testing.T) {
+	r := serveOutput(t)
+	o, on, d := r.o, r.on, r.d
+	oe, xe := &outputEvents{}, &xdgEvents{}
+	r.bind(t, 4, 3, oe, xe)
 	wantOut := []string{"geometry", "mode", "scale 2", "name FAKE-1", "description", "done", "done"}
 	if !slices.Equal(oe.log, wantOut) {
 		t.Fatalf("wl_output events %v, want %v (the second done closes the xdg_output's first burst)", oe.log, wantOut)
