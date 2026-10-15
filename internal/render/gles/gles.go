@@ -48,7 +48,7 @@ varying vec2 v_texcoord;
 void main() { gl_FragColor = vec4(texture2D(tex, v_texcoord).rgb, 1.0) * alpha; }`
 )
 
-var requiredGL = []string{"GL_EXT_texture_format_BGRA8888", "GL_EXT_unpack_subimage", "GL_OES_EGL_image"}
+var requiredGL = []string{"GL_EXT_read_format_bgra", "GL_EXT_texture_format_BGRA8888", "GL_EXT_unpack_subimage", "GL_NV_pack_subimage", "GL_OES_EGL_image"}
 
 type program struct {
 	id                 uint32
@@ -471,23 +471,17 @@ func (f *Framebuffer) Size() image.Point {
 }
 
 func (f *Framebuffer) Read(pix []byte, stride int) error {
-	if stride < f.size.X*4 || len(pix) < stride*(f.size.Y-1)+f.size.X*4 {
-		return fmt.Errorf("gles: reading %v needs stride %d and %d bytes", f.size, f.size.X*4, f.size.X*4*f.size.Y)
+	if err := fits(f.size, stride, pix); err != nil {
+		return err
 	}
 	if err := f.r.enter(); err != nil {
 		return err
 	}
 	gl := f.r.gl
 	gl.BindFramebuffer(gpu.Framebuffer, f.fbo)
-	gl.PixelStorei(gpu.PackAlignment, 4)
-	row := make([]byte, f.size.X*4)
-	for y := range f.size.Y {
-		gl.ReadPixels(0, int32(y), int32(f.size.X), 1, gpu.RGBA, row) //nolint:gosec // inside the framebuffer
-		out := pix[y*stride : y*stride+len(row)]
-		for x := 0; x < len(row); x += 4 {
-			out[x], out[x+1], out[x+2], out[x+3] = row[x+2], row[x+1], row[x], row[x+3]
-		}
-	}
+	gl.PixelStorei(gpu.PackRowLengthNV, int32(stride/4))                    //nolint:gosec // bounded by fits
+	gl.ReadPixels(0, 0, int32(f.size.X), int32(f.size.Y), gpu.BGRAExt, pix) //nolint:gosec // framebuffer sizes fit GLsizei
+	gl.PixelStorei(gpu.PackRowLengthNV, 0)
 	gl.BindFramebuffer(gpu.Framebuffer, 0)
 	return f.r.leave("gles: read a framebuffer")
 }

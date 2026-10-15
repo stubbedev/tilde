@@ -24,7 +24,7 @@ const (
 	UnsignedByte                  = 0x1401
 	Float                         = 0x1406
 	UnpackAlignment               = 0x0CF5
-	PackAlignment                 = 0x0D05
+	PackRowLengthNV               = 0x0D02
 	UnpackRowLengthExt            = 0x0CF2
 	UnpackSkipPixelsExt           = 0x0CF4
 	UnpackSkipRowsExt             = 0x0CF3

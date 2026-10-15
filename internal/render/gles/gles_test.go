@@ -1,6 +1,7 @@
 package gles_test
 
 import (
+	"bytes"
 	"errors"
 	"image"
 	"os"
@@ -323,6 +324,37 @@ func TestScaledDrawsKeepFlatColor(t *testing.T) {
 	}
 	if px := got[18*80+18*4:][:4]; px[0] != 0 || px[3] != 0xff {
 		t.Errorf("outside the draw: %v", px)
+	}
+}
+
+func TestReadKeepsTheStridePadding(t *testing.T) {
+	g := renderer(t)
+	fb := framebuffer(t, g, image.Pt(5, 3))
+	paint(t, g, fb, render.Region{image.Rect(0, 0, 5, 3)}, func(p render.Pass) {
+		p.FillRect(image.Rect(0, 0, 5, 3), render.Color{B: 0xff, A: 0xff})
+		p.FillRect(image.Rect(1, 0, 2, 1), render.Color{R: 0xff, A: 0xff})
+		p.FillRect(image.Rect(4, 2, 5, 3), render.Color{G: 0xff, A: 0xff})
+	})
+	const stride = 32
+	got := bytes.Repeat([]byte{0xaa}, stride*3)
+	if err := fb.Read(got, stride); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		at   image.Point
+		want [4]byte
+	}{{image.Pt(0, 0), [4]byte{0xff, 0, 0, 0xff}}, {image.Pt(1, 0), [4]byte{0, 0, 0xff, 0xff}}, {image.Pt(4, 2), [4]byte{0, 0xff, 0, 0xff}}, {image.Pt(3, 1), [4]byte{0xff, 0, 0, 0xff}}} {
+		if px := [4]byte(got[c.at.Y*stride+c.at.X*4:]); px != c.want {
+			t.Errorf("%v: %v, want %v", c.at, px, c.want)
+		}
+	}
+	for y := range 3 {
+		if pad := got[y*stride+20 : (y+1)*stride]; !bytes.Equal(pad, bytes.Repeat([]byte{0xaa}, len(pad))) {
+			t.Errorf("row %d padding was overwritten: %v", y, pad)
+		}
+	}
+	if err := fb.Read(make([]byte, 21*3), 21); err == nil {
+		t.Error("a stride that is not a whole number of pixels was accepted")
 	}
 }
 
