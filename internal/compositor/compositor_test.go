@@ -5,6 +5,7 @@ import (
 	"image"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -271,4 +272,33 @@ func TestCommitUploadsDamageOnceAndReleases(t *testing.T) {
 			t.Error("destroying the surface kept its texture")
 		}
 	})
+}
+
+type unsyncable struct{ *soft.Renderer }
+
+func (unsyncable) NativeFences() bool          { return true }
+func (unsyncable) SyncFile() (int, error)      { return -1, errors.New("no fence") }
+func (unsyncable) RenderNode() (string, error) { return "", errors.New("no render node") }
+
+type rendererBackend struct{ r render.Renderer }
+
+func (b rendererBackend) Start(backend.Handler) error { return nil }
+func (b rendererBackend) Renderer() render.Renderer   { return b.r }
+func (b rendererBackend) Close() error                { return nil }
+
+func TestAFailedStartReturnsItsError(t *testing.T) {
+	l, err := loop.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	disp, err := server.New(l, server.Options{RuntimeDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer disp.Close()
+	c, err := New(l, disp, rendererBackend{unsyncable{soft.New()}}, DefaultConfig(testenv.Keymap(t), testenv.Font(t)))
+	if c != nil || err == nil || !strings.Contains(err.Error(), "no render node") {
+		t.Fatalf("New = %v, %v; want the render node error", c, err)
+	}
 }

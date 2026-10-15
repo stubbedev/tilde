@@ -237,90 +237,96 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 		nextWindow:    1,
 	}
 	c.adopt(cfg, m)
+	if err := c.setup(l, display, b, cfg); err != nil {
+		return nil, errors.Join(fmt.Errorf("compositor: %w", err), c.Close())
+	}
+	return c, nil
+}
+
+func (c *Compositor) setup(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) error {
+	var err error
 	if err := sandbox(display); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if c.repeat.timer, err = l.AddTimer(c.repeatFired); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if c.layout, err = output.New(display); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if c.surfaces, err = surface.New(display, c); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if c.shm, err = shm.New(display, c.renderer.Formats()); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if err := singlepixel.New(display); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if c.power, err = outputpower.New(display, c); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if c.gamma, err = gammacontrol.New(display, c); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if c.outputConfig, err = outputmanagement.New(display, c); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if c.alpha, err = alphamodifier.New(display); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if err := c.addPacing(l, display); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if _, err := display.AddGlobal(ssb.XdgSystemBellV1Interface, bellVersion, c.bindBell); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if imp, ok := c.renderer.(dmabufRenderer); ok {
 		c.importer = imp
 		if c.dmabuf, err = dmabuf.New(display, imp, c); err != nil {
-			return nil, fmt.Errorf("compositor: %w", err)
+			return err
 		}
 	}
 	if err := c.explicitSync(l, display); err != nil {
-		return nil, errors.Join(err, c.Close())
+		return err
 	}
 	if c.idle, err = idle.New(display, l, backend.Now, c.updateInhibition); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if err := c.addVirtualInput(display); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if err := c.addForeignToplevels(display); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if err := c.addWorkspaces(display); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if err := c.addScreencopy(display); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if err := c.addImageCapture(display); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if err := errors.Join(c.addPointerConstraints(display), c.addPointerWarp(display), c.addShortcutsInhibit(display), c.addGlobalShortcuts(display)); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if c.data, err = data.New(display, c); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if c.seat, err = seat.New(display, cfg.Seat, c); err != nil {
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if c.inputMethods, err = inputmethod.New(display, c.seat, c); err != nil {
-		c.seat.Close()
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if c.shell, err = shell.New(display, l, c); err != nil {
-		c.seat.Close()
-		return nil, fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if err := b.Start(c); err != nil {
-		return nil, fmt.Errorf("compositor: start backend: %w", err)
+		return fmt.Errorf("start backend: %w", err)
 	}
-	return c, nil
+	return nil
 }
 
 func (c *Compositor) Reconfigure(cfg Config) error {
@@ -360,10 +366,10 @@ func (c *Compositor) explicitSync(l *loop.Loop, display *server.Display) error {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	if c.drm, err = drm.Open(node); err != nil {
-		return fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	timelines, err := c.drm.Cap(drm.CapSyncobjTimeline)
 	if err != nil || timelines == 0 {
@@ -372,7 +378,7 @@ func (c *Compositor) explicitSync(l *loop.Loop, display *server.Display) error {
 		return errors.Join(err, dev.Close())
 	}
 	if _, err := syncobj.New(display, l, c.drm, r, c); err != nil {
-		return fmt.Errorf("compositor: %w", err)
+		return err
 	}
 	return nil
 }
@@ -390,7 +396,16 @@ func (c *Compositor) Close() error {
 		errs = append(errs, c.drm.Close())
 		c.drm = nil
 	}
-	c.seat.Close()
+	for s := range c.textures {
+		errs = append(errs, c.dropTexture(s))
+	}
+	if c.repeat.timer != nil {
+		errs = append(errs, c.repeat.timer.Remove())
+		c.repeat.timer = nil
+	}
+	if c.seat != nil {
+		c.seat.Close()
+	}
 	return errors.Join(errs...)
 }
 
