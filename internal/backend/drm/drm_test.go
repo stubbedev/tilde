@@ -1169,3 +1169,29 @@ func TestCursorAndGammaWaitingOnAFlipShareOneCommit(t *testing.T) {
 		t.Fatalf("the commit after the flip put the cursor at %v and GAMMA_LUT %d (%v)", at, lut, ok)
 	}
 }
+
+func TestACursorRefusedAfterAFlipLetsTheLUTThrough(t *testing.T) {
+	r := start(t)
+	o := r.lit()
+	if err := r.setCursor(o, image.Pt(4, 6)); err != nil {
+		t.Fatal(err)
+	}
+	cp, _ := o.CursorPlane()
+	if err := errors.Join(cp.MoveCursor(image.Pt(30, 20)), o.SetGamma([]uint16{0, 1, 2, 3, 10, 11, 12, 13, 20, 21, 22, 23})); err != nil {
+		t.Fatal(err)
+	}
+	r.dev.refuseCursor = true
+	before := len(r.dev.commits)
+	r.dev.flip(t, 10, 2)
+	r.settle()
+	last := r.dev.commits[len(r.dev.commits)-1]
+	if lut, ok := gammaOf(last); len(r.dev.commits) == before || last.flags&kdrm.AtomicTestOnly != 0 || !ok || lut == 0 {
+		t.Fatalf("the LUT did not go out after the cursor was refused: %+v", last)
+	}
+	if _, _, touched := cursorAt(last); touched {
+		t.Fatal("the commit after the refusal still carried the cursor")
+	}
+	if err := cp.MoveCursor(image.Pt(40, 30)); err == nil {
+		t.Fatal("the cursor plane kept moving after the kernel refused it")
+	}
+}

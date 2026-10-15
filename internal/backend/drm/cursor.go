@@ -93,7 +93,14 @@ func (c *cursor) SetCursor(hotspot image.Point) error {
 	if err := c.test(); err != nil {
 		return err
 	}
-	return c.o.flushPlanes()
+	return c.flush()
+}
+
+func (c *cursor) flush() error {
+	if err := c.o.flushPlanes(); err != nil {
+		return err
+	}
+	return c.refused
 }
 
 func (c *cursor) test() error {
@@ -122,7 +129,7 @@ func (c *cursor) MoveCursor(at image.Point) error {
 		return nil
 	}
 	c.dirty = true
-	return c.o.flushPlanes()
+	return c.flush()
 }
 
 func (c *cursor) HideCursor() error {
@@ -130,7 +137,7 @@ func (c *cursor) HideCursor() error {
 		return nil
 	}
 	c.visible, c.dirty = false, true
-	return c.o.flushPlanes()
+	return c.flush()
 }
 
 func (c *cursor) add() {

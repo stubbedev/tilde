@@ -878,16 +878,15 @@ func (o *Output) flushPlanes() error {
 	}
 	r := &o.b.req
 	flags := uint32(kdrm.AtomicNonblock | kdrm.AtomicPageFlipEvent)
-	var refused error
 	if cursor {
 		r.Reset()
 		c.add()
-		if refused = o.test(flags); refused != nil {
-			c.refused, c.visible, cursor = refused, false, false
+		if err := o.test(flags); err != nil {
+			c.refused, c.visible, cursor = err, false, false
 		}
 	}
 	if !cursor && !o.gamma.dirty {
-		return refused
+		return nil
 	}
 	r.Reset()
 	if cursor {
@@ -895,13 +894,13 @@ func (o *Output) flushPlanes() error {
 	}
 	o.addGamma()
 	if err := o.b.dev.Commit(r, flags, uint64(o.crtc.id)); err != nil {
-		return errors.Join(refused, fmt.Errorf("drm: commit the cursor and gamma of %s: %w", o.Name(), err))
+		return fmt.Errorf("drm: commit the cursor and gamma of %s: %w", o.Name(), err)
 	}
 	o.flipping = true
 	if cursor {
 		c.sent()
 	}
-	return errors.Join(refused, o.gammaSent())
+	return o.gammaSent()
 }
 
 func (o *Output) flipped(e kdrm.FlipEvent) error {
