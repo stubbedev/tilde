@@ -288,6 +288,7 @@ type XdgSurface struct {
 	resource        *sxdg.XdgSurface
 	surface         *surface.Surface
 	role            roleObject
+	exports         []*export
 	popups          []*Popup
 	configured      bool
 	initialSent     bool

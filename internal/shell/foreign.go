@@ -68,6 +68,7 @@ func (sh *Shell) export(xs *XdgSurface) (*export, error) {
 	}
 	e := &export{handle: handle, xs: xs}
 	sh.exports[handle] = e
+	xs.exports = append(xs.exports, e)
 	return e, nil
 }
 
@@ -76,6 +77,7 @@ func (sh *Shell) unexport(e *export) error {
 		return nil
 	}
 	delete(sh.exports, e.handle)
+	e.xs.exports = slices.DeleteFunc(e.xs.exports, func(x *export) bool { return x == e })
 	errs := make([]error, 0, 2*len(e.imports))
 	for _, imp := range e.imports {
 		imp.export = nil
@@ -87,10 +89,8 @@ func (sh *Shell) unexport(e *export) error {
 
 func (sh *Shell) toplevelGone(t *Toplevel) error {
 	var errs []error
-	for _, e := range sh.exports {
-		if e.xs == t.xs {
-			errs = append(errs, sh.unexport(e))
-		}
+	for _, e := range slices.Clone(t.xs.exports) {
+		errs = append(errs, sh.unexport(e))
 	}
 	return errors.Join(errs...)
 }
