@@ -21,7 +21,7 @@ func TestTheSystemBellMarksAnUnfocusedWindowUrgent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("xdg_system_bell_v1", bell)
+	c.Bind(bell)
 	if err := errors.Join(bell.Ring(nil), bell.Ring(second.Surface), bell.Ring(first.Surface), c.Display.Roundtrip()); err != nil {
 		t.Fatal(err)
 	}

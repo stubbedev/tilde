@@ -24,8 +24,8 @@ func TestStoppedManagersFinishOnceAndFallSilent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	watcher.Bind("ext_foreign_toplevel_list_v1", list)
-	watcher.Bind("zwlr_foreign_toplevel_manager_v1", mgr)
+	watcher.Bind(list)
+	watcher.Bind(mgr)
 	om := outputManager(t, watcher)
 	ws, wsClient, wsMgr := watchWorkspaces(t, h)
 

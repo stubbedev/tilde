@@ -147,8 +147,8 @@ func TestForeignToplevelsListAndManageWindows(t *testing.T) {
 		t.Fatal(err)
 	}
 	wlr := mgr.Handler().(*wlrWatcher)
-	watcher.Bind("ext_foreign_toplevel_list_v1", list)
-	watcher.Bind("zwlr_foreign_toplevel_manager_v1", mgr)
+	watcher.Bind(list)
+	watcher.Bind(mgr)
 	watcher.DispatchUntil("the first window listed", func() bool { return len(ext.order) == 1 && len(wlr.order) == 1 })
 	first := ext.toplevels[ext.order[0]]
 	if *first != (extToplevel{id: "tilde-1", title: "first", appID: "tilde.testclient", done: true}) {

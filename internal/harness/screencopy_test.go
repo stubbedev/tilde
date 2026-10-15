@@ -95,7 +95,7 @@ func TestScreencopyCapturesOutputsAndRegions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("zwlr_screencopy_manager_v1", mgr)
+	c.Bind(mgr)
 
 	f, _, pix := screenshot(t, c, mgr, image.Rectangle{}, false)
 	c.DispatchUntil("the full capture", func() bool { return f.ready || f.failed })
@@ -135,7 +135,7 @@ func TestADestroyedWaitingScreencopyIsNeverPainted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("zwlr_screencopy_manager_v1", mgr)
+	c.Bind(mgr)
 	gone, frame, gonePix := screenshot(t, c, mgr, image.Rectangle{}, true)
 	settle(t, h)
 	if err := errors.Join(frame.Destroy(), c.Display.Roundtrip()); err != nil {
@@ -158,7 +158,7 @@ func TestAScreencopyOfARemovedOutputFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("zwlr_screencopy_manager_v1", mgr)
+	c.Bind(mgr)
 	f := &copyFrame{}
 	frame, err := mgr.CaptureOutput(f, 0, c.Outputs[0])
 	if err != nil {
@@ -183,7 +183,7 @@ func TestAScreencopyFrameCopiesOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("zwlr_screencopy_manager_v1", mgr)
+	c.Bind(mgr)
 	f, frame, _ := screenshot(t, c, mgr, image.Rectangle{}, false)
 	c.DispatchUntil("the capture", func() bool { return f.ready || f.failed })
 	wl, _ := c.Target(f.size)

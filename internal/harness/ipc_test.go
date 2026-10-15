@@ -92,7 +92,7 @@ func TestEveryActionThroughIPC(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("hyprland_global_shortcuts_manager_v1", shortcuts)
+	c.Bind(shortcuts)
 	if _, err := shortcuts.RegisterShortcut(&shortcutLog{}, "ptt", "voice", "", ""); err != nil {
 		t.Fatal(err)
 	}

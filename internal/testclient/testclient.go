@@ -128,8 +128,9 @@ func Connect(t testing.TB, socket string) *Client {
 	return c
 }
 
-func (c *Client) Bind(iface string, r wire.Resource) {
+func (c *Client) Bind(r wire.Resource) {
 	c.t.Helper()
+	iface := r.Base().Interface().Name
 	g, ok := c.globals.byName[iface]
 	if !ok {
 		c.t.Fatalf("testclient: the compositor has no %s", iface)

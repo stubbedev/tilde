@@ -50,7 +50,7 @@ func (r *inputRig) constraints() *cpc.ZwpPointerConstraintsV1 {
 	if err != nil {
 		r.t.Fatal(err)
 	}
-	r.c.Bind("zwp_pointer_constraints_v1", m)
+	r.c.Bind(m)
 	return m
 }
 
@@ -84,7 +84,7 @@ func TestRelativePointerReportsRawMotion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r.c.Bind("zwp_relative_pointer_manager_v1", mgr)
+	r.c.Bind(mgr)
 	l := &relativeLog{}
 	if _, err := mgr.GetRelativePointer(l, r.in.Pointer); err != nil {
 		t.Fatal(err)
@@ -234,7 +234,7 @@ func TestALockedPointerHoldsAgainstVirtualAbsoluteMotion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	driver.Bind("zwlr_virtual_pointer_manager_v1", mgr)
+	driver.Bind(mgr)
 	vp, err := mgr.CreateVirtualPointer(seat)
 	if err != nil {
 		t.Fatal(err)

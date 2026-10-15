@@ -52,7 +52,7 @@ func lockSession(t *testing.T, h *Harness) *locker {
 	if err != nil {
 		t.Fatal(err)
 	}
-	l.c.Bind("ext_session_lock_manager_v1", mgr)
+	l.c.Bind(mgr)
 	if l.lock, err = mgr.Lock(l); err != nil {
 		t.Fatal(err)
 	}

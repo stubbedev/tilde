@@ -41,7 +41,7 @@ func TestVirtualKeyboardsTypeWithTheirOwnKeymap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	typist.Bind("zwp_virtual_keyboard_manager_v1", mgr)
+	typist.Bind(mgr)
 	kb, err := mgr.CreateVirtualKeyboard(seat)
 	if err != nil {
 		t.Fatal(err)
@@ -90,7 +90,7 @@ func TestVirtualPointersMoveClickAndScroll(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	driver.Bind("zwlr_virtual_pointer_manager_v1", mgr)
+	driver.Bind(mgr)
 	vp, err := mgr.CreateVirtualPointerWithOutput(seat, driver.Outputs[0])
 	if err != nil {
 		t.Fatal(err)
@@ -157,7 +157,7 @@ func TestEveryKeyboardOfAClientSharesAKeysSerial(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	typist.Bind("zwp_virtual_keyboard_manager_v1", mgr)
+	typist.Bind(mgr)
 	kb, err := mgr.CreateVirtualKeyboard(seat)
 	if err != nil {
 		t.Fatal(err)

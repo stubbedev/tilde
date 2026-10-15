@@ -31,7 +31,7 @@ func TestGlobalShortcutsFollowTheirBind(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("hyprland_global_shortcuts_manager_v1", mgr)
+	c.Bind(mgr)
 	l := &shortcutLog{}
 	if _, err := mgr.RegisterShortcut(l, "ptt", "voice", "Push to talk", ""); err != nil {
 		t.Fatal(err)
@@ -65,7 +65,7 @@ func TestAGlobalShortcutIsHeldOnlyByAHeldTrigger(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("hyprland_global_shortcuts_manager_v1", mgr)
+	c.Bind(mgr)
 	l := &shortcutLog{}
 	if _, err := mgr.RegisterShortcut(l, "ptt", "voice", "Push to talk", ""); err != nil {
 		t.Fatal(err)

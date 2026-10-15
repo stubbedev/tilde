@@ -24,7 +24,7 @@ func dialogManager(t *testing.T, c *testclient.Client) *cxdd.XdgWmDialogV1 {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("xdg_wm_dialog_v1", m)
+	c.Bind(m)
 	return m
 }
 

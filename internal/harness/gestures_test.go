@@ -72,7 +72,7 @@ func gestureClient(t *testing.T, h *Harness, window string) (*testclient.Client,
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("zwp_pointer_gestures_v1", m)
+	c.Bind(m)
 	log := &gestureLog{}
 	_, err1 := m.GetSwipeGesture(swipeLog{log}, in.Pointer)
 	_, err2 := m.GetPinchGesture(pinchLog{log}, in.Pointer)

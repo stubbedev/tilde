@@ -122,10 +122,10 @@ func newCaptureRig(t *testing.T, h *Harness, c *testclient.Client) *captureRig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("ext_output_image_capture_source_manager_v1", r.outputs)
-	c.Bind("ext_foreign_toplevel_image_capture_source_manager_v1", r.toplevels)
-	c.Bind("ext_image_copy_capture_manager_v1", r.mgr)
-	c.Bind("ext_foreign_toplevel_list_v1", list)
+	c.Bind(r.outputs)
+	c.Bind(r.toplevels)
+	c.Bind(r.mgr)
+	c.Bind(list)
 	return r
 }
 
@@ -285,8 +285,8 @@ func TestImageCopyCaptureIntoDMABUFs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("ext_output_image_capture_source_manager_v1", outputs)
-	c.Bind("ext_image_copy_capture_manager_v1", mgr)
+	c.Bind(outputs)
+	c.Bind(mgr)
 	src, err := outputs.CreateSource(c.Outputs[0])
 	if err != nil {
 		t.Fatal(err)

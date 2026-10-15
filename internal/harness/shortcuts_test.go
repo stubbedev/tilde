@@ -28,7 +28,7 @@ func TestShortcutInhibitorPassesKeysButKeepsLockedBinds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r.c.Bind("zwp_keyboard_shortcuts_inhibit_manager_v1", mgr)
+	r.c.Bind(mgr)
 	l := &constraintLog{}
 	if _, err := mgr.InhibitShortcuts(l, r.w.Surface, r.seat); err != nil {
 		t.Fatal(err)

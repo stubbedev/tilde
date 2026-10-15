@@ -32,7 +32,7 @@ func powerFor(t *testing.T, c *testclient.Client) (*cwop.ZwlrOutputPowerV1, *pow
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("zwlr_output_power_manager_v1", m)
+	c.Bind(m)
 	ev := &powerEvents{}
 	p, err := m.GetOutputPower(ev, c.Outputs[0])
 	if err != nil {

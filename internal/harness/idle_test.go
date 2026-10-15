@@ -42,7 +42,7 @@ func newIdler(t *testing.T, h *Harness) *idler {
 	if i.notifier, err = cei.NewExtIdleNotifierV1(i.c.Display, 2); err != nil {
 		t.Fatal(err)
 	}
-	i.c.Bind("ext_idle_notifier_v1", i.notifier)
+	i.c.Bind(i.notifier)
 	return i
 }
 
@@ -107,7 +107,7 @@ func TestVisibleInhibitorsHoldOffIdle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("zwp_idle_inhibit_manager_v1", mgr)
+	c.Bind(mgr)
 	inhibitor, err := mgr.CreateInhibitor(w.Surface)
 	if err != nil || c.Display.Roundtrip() != nil {
 		t.Fatal(err)
@@ -149,7 +149,7 @@ func TestAnInhibitorStopsHoldingWhenItsSurfaceIsDestroyed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("zwp_idle_inhibit_manager_v1", mgr)
+	c.Bind(mgr)
 	for range 20 {
 		toggled, err := mgr.CreateInhibitor(w.Surface)
 		if err != nil {

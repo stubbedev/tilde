@@ -130,7 +130,7 @@ func typing(t *testing.T, h *Harness, name string) *typist {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p.c.Bind("zwp_text_input_manager_v3", m)
+	p.c.Bind(m)
 	log := &textInputLog{}
 	ti, err := m.GetTextInput(log, p.seat)
 	if err != nil {
@@ -154,7 +154,7 @@ func inputMethod(t *testing.T, h *Harness) *method {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("zwp_input_method_manager_v2", m)
+	c.Bind(m)
 	log := &inputMethodLog{}
 	im, err := m.GetInputMethod(seat, log)
 	if err != nil {

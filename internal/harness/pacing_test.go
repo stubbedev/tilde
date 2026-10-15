@@ -28,17 +28,17 @@ func pace(t *testing.T, h *Harness) *paced {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("wp_presentation", p)
+	c.Bind(p)
 	fifos, err := cff.NewWpFifoManagerV1(c.Display, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("wp_fifo_manager_v1", fifos)
+	c.Bind(fifos)
 	timing, err := cct.NewWpCommitTimingManagerV1(c.Display, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("wp_commit_timing_manager_v1", timing)
+	c.Bind(timing)
 	return &paced{c: c, p: p, fifos: fifos, timing: timing}
 }
 

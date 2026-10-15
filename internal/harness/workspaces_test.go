@@ -119,7 +119,7 @@ func watchWorkspaces(t *testing.T, h *Harness) (*wsView, *testclient.Client, *ce
 	if err != nil {
 		t.Fatal(err)
 	}
-	watcher.Bind("ext_workspace_manager_v1", mgr)
+	watcher.Bind(mgr)
 	watcher.DispatchUntil("the first batch", func() bool { return v.dones > 0 })
 	return v, watcher, mgr
 }
@@ -139,7 +139,7 @@ func TestAnUrgentWindowMarksItsWorkspaceUrgent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("xdg_system_bell_v1", bell)
+	c.Bind(bell)
 	if err := errors.Join(bell.Ring(first.Surface), c.Display.Flush()); err != nil {
 		t.Fatal(err)
 	}

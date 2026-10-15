@@ -18,7 +18,7 @@ func pointerWarp(t *testing.T, c *testclient.Client) *cpw.WpPointerWarpV1 {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("wp_pointer_warp_v1", w)
+	c.Bind(w)
 	return w
 }
 

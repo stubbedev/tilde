@@ -72,7 +72,7 @@ func clipboardManager(t *testing.T, h *Harness) *extManager {
 	if m.mgr, err = cedc.NewExtDataControlManagerV1(m.c.Display, 1); err != nil {
 		t.Fatal(err)
 	}
-	m.c.Bind("ext_data_control_manager_v1", m.mgr)
+	m.c.Bind(m.mgr)
 	if m.dev, err = m.mgr.GetDataDevice(m, seat); err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func TestWlrDataControlSeesThePrimarySelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("zwlr_data_control_manager_v1", mgr)
+	c.Bind(mgr)
 	w := &wlrManager{}
 	if _, err := mgr.GetDataDevice(w, seat); err != nil {
 		t.Fatal(err)
@@ -220,7 +220,7 @@ func TestDataControlSourcesAreUsedOnce(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		c.Bind("zwlr_data_control_manager_v1", mgr)
+		c.Bind(mgr)
 		dev, err := mgr.GetDataDevice(&wlrManager{}, seat)
 		if err != nil {
 			t.Fatal(err)

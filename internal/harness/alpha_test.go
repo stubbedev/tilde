@@ -26,7 +26,7 @@ func TestAnAlphaModifierFadesASurface(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("wp_alpha_modifier_v1", m)
+	c.Bind(m)
 	fade, err := m.GetSurface(w.Surface)
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +66,7 @@ func TestAnAlphaMultiplierAfterTheSurfaceIsGoneIsAnError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("wp_alpha_modifier_v1", m)
+	c.Bind(m)
 	s := c.Surface()
 	fade, err := m.GetSurface(s)
 	if err != nil {

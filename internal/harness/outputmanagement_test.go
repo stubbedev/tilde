@@ -199,7 +199,7 @@ func outputManager(t *testing.T, c *testclient.Client) *omManager {
 		t.Fatal(err)
 	}
 	m.res = res
-	c.Bind("zwlr_output_manager_v1", res)
+	c.Bind(res)
 	c.DispatchUntil("the heads", func() bool { return m.dones > 0 })
 	return m
 }

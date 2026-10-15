@@ -45,7 +45,7 @@ func registerSandbox(t *testing.T, c *testclient.Client, listenFD, closeFD int) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("wp_security_context_manager_v1", m)
+	c.Bind(m)
 	ctx, err := m.CreateListener(listenFD, closeFD)
 	if err != nil {
 		t.Fatal(err)
@@ -135,7 +135,7 @@ func TestASecurityContextNeedsAListeningSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("wp_security_context_manager_v1", m)
+	c.Bind(m)
 	var pipe [2]int
 	if err := unix.Pipe2(pipe[:], unix.O_CLOEXEC); err != nil {
 		t.Fatal(err)
@@ -153,7 +153,7 @@ func securityContext(t *testing.T, c *testclient.Client) (*cwsc.WpSecurityContex
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("wp_security_context_manager_v1", m)
+	c.Bind(m)
 	_, listenFD := listeningSocket(t)
 	var closeFDs [2]int
 	if err := unix.Pipe2(closeFDs[:], unix.O_CLOEXEC); err != nil {

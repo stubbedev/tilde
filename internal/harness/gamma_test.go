@@ -36,7 +36,7 @@ func gammaControl(t *testing.T, h *Harness) (*testclient.Client, *cgc.ZwlrGammaC
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("zwlr_gamma_control_manager_v1", m)
+	c.Bind(m)
 	ev := &gammaEvents{}
 	g, err := m.GetGammaControl(ev, c.Outputs[0])
 	if err != nil {

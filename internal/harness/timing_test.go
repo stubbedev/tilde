@@ -56,7 +56,7 @@ func TestPresentationFeedback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("wp_presentation", p)
+	c.Bind(p)
 	w := c.Window("timed", quadrants)
 	c.DispatchUntil("the window to map", w.Mapped)
 	if pe.clock != 1 {
@@ -85,7 +85,7 @@ func TestPresentationFeedbackFollowsTheFrameThatDrewIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("wp_presentation", p)
+	c.Bind(p)
 	w := c.Window("timed", quadrants)
 	c.DispatchUntil("the window to map", w.Mapped)
 	w.Stop()
@@ -123,7 +123,7 @@ func TestSinglePixelBufferFillsItsViewport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("wp_single_pixel_buffer_manager_v1", spb)
+	c.Bind(spb)
 	w := c.Window("solid", quadrants)
 	c.DispatchUntil("the window to map", w.Mapped)
 	rel := &releases{}
@@ -170,13 +170,13 @@ func TestActivationMarksWindowsUrgent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a.c.Bind("xdg_activation_v1", aAct)
+	a.c.Bind(aAct)
 	b := join(t, h, "b")
 	bAct, err := cxa.NewXdgActivationV1(b.c.Display, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.c.Bind("xdg_activation_v1", bAct)
+	b.c.Bind(bAct)
 	b.seen(t, "b focused", func() bool { return slices.Contains(b.in.Log, "kb_enter b") })
 
 	urgent := func(name string) func(*headless.Backend, *compositor.Compositor) bool {
@@ -228,7 +228,7 @@ func TestActivationTokenCommittedTwice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("xdg_activation_v1", act)
+	c.Bind(act)
 	tok, err := act.GetActivationToken(&tokenEvents{})
 	if err != nil {
 		t.Fatal(err)

@@ -51,8 +51,8 @@ func bindForeignV2(t *testing.T, c *testclient.Client) foreignV2 {
 	if err := errors.Join(err1, err2); err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("zxdg_exporter_v2", exporter)
-	c.Bind("zxdg_importer_v2", importer)
+	c.Bind(exporter)
+	c.Bind(importer)
 	return foreignV2{exporter, importer}
 }
 
@@ -114,7 +114,7 @@ func TestGtk3StyleForeignV1Parents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	app.Bind("zxdg_exporter_v1", exporter)
+	app.Bind(exporter)
 	exported := &exportedHandleV1{}
 	if _, err := exporter.Export(exported, window.Surface); err != nil {
 		t.Fatal(err)
@@ -126,7 +126,7 @@ func TestGtk3StyleForeignV1Parents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	portal.Bind("zxdg_importer_v1", importer)
+	portal.Bind(importer)
 	parent := &importedStateV1{}
 	imported, err := importer.Import(parent, exported.handle)
 	if err != nil {

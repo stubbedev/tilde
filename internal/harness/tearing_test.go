@@ -39,7 +39,7 @@ func TestTearingFollowsTheSwitchTheHintAndTheRules(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				s.c.Bind("wp_tearing_control_manager_v1", m)
+				s.c.Bind(m)
 				hint, err := m.GetTearingControl(s.w.Surface)
 				if err != nil {
 					t.Fatal(err)
@@ -67,7 +67,7 @@ func tearingManager(t *testing.T, c *testclient.Client) *ctc.WpTearingControlMan
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Bind("wp_tearing_control_manager_v1", m)
+	c.Bind(m)
 	return m
 }
 
