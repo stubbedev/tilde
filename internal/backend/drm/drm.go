@@ -364,7 +364,12 @@ func (b *Backend) add(c kdrm.Connector) error {
 		return err
 	}
 	o := &Output{b: b, conn: c, connector: kmsObject{c.ID, props}, crtc: cr, primary: p}
-	o.clock = backend.NewFrameClock(b.loop.Idle, o.frameReady, o.runFrame)
+	o.clock = backend.NewFrameClock(b.loop.Idle, o.frameReady, o.runFrame, &backend.Latch{
+		Deadline: func(now time.Duration) time.Duration {
+			return backend.LatchDeadline(o.lastFlip, now, modeOf(o.mode).Interval())
+		},
+		Wake: func(after time.Duration) error { return o.latch.Arm(after) },
+	})
 	if blob, ok := props["EDID"]; ok && blob.Value != 0 {
 		data, err := b.dev.Blob(uint32(blob.Value)) //nolint:gosec // property blob IDs are 32-bit
 		if err != nil {
@@ -382,6 +387,9 @@ func (b *Backend) add(c kdrm.Connector) error {
 		o.cursor = &cursor{o: o, plane: cp}
 	}
 	if o.pacer, err = b.loop.AddTimer(o.paceElapsed); err != nil {
+		return errors.Join(err, o.release())
+	}
+	if o.latch, err = b.loop.AddTimer(o.clock.Woke); err != nil {
 		return errors.Join(err, o.release())
 	}
 	i := max(slices.IndexFunc(c.Modes, kdrm.Mode.Preferred), 0)
@@ -525,6 +533,7 @@ type Output struct {
 	flipping  bool
 	framing   bool
 	pacer     *loop.Timer
+	latch     *loop.Timer
 	paced     bool
 	lastFlip  time.Duration
 	presented uint64
@@ -673,8 +682,7 @@ func (o *Output) ScheduleFrame() error {
 	if !o.enabled || o.off || o.b.paused {
 		return nil
 	}
-	o.clock.Request()
-	return nil
+	return o.clock.Request()
 }
 
 func (o *Output) frameReady() bool {
@@ -703,8 +711,7 @@ func (o *Output) pace() error {
 
 func (o *Output) paceElapsed() error {
 	o.paced = false
-	o.clock.Kick()
-	return o.flushPlanes()
+	return errors.Join(o.clock.Kick(), o.flushPlanes())
 }
 
 func (o *Output) BeginFrame() (backend.Frame, error) {
@@ -914,8 +921,7 @@ func (o *Output) flipped(e kdrm.FlipEvent) error {
 		c.front, c.queued = c.queued, nil
 	}
 	if o.queued == nil {
-		o.clock.Kick()
-		return o.flushPlanes()
+		return errors.Join(o.clock.Kick(), o.flushPlanes())
 	}
 	var errs []error
 	if old := o.front; old != nil && old.client {
@@ -925,8 +931,7 @@ func (o *Output) flipped(e kdrm.FlipEvent) error {
 	o.presented++
 	o.front.presented = o.presented
 	errs = append(errs, o.b.handler.Presented(o, backend.Presentation{Time: o.lastFlip, Refresh: modeOf(o.mode).Interval(), Seq: uint64(e.Sequence), Torn: o.torn}))
-	o.clock.Kick()
-	return errors.Join(append(errs, o.flushPlanes())...)
+	return errors.Join(append(errs, o.clock.Kick(), o.flushPlanes())...)
 }
 
 func (o *Output) dropScanout(s *scanout) error {
@@ -958,6 +963,10 @@ func (o *Output) release() error {
 		o.modeBlob = 0
 	}
 	o.crtc.output, o.primary.taken = nil, false
+	if o.latch != nil {
+		err = errors.Join(err, o.latch.Remove())
+		o.latch = nil
+	}
 	if o.pacer != nil {
 		err = errors.Join(err, o.pacer.Remove())
 		o.pacer = nil

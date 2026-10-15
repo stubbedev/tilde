@@ -171,7 +171,12 @@ func (b *Backend) AddNamedOutput(name string, modes ...backend.Mode) (*Output, e
 		modes:   slices.Clone(modes),
 		state:   backend.OutputState{Power: backend.PoweredOn, Mode: current},
 	}
-	o.clock = backend.NewFrameClock(b.loop.Idle, o.frameReady, o.runFrame)
+	o.clock = backend.NewFrameClock(b.loop.Idle, o.frameReady, o.runFrame, &backend.Latch{
+		Deadline: func(now time.Duration) time.Duration {
+			return backend.LatchDeadline(o.lastVblank, now, o.state.Mode.Interval())
+		},
+		Wake: func(after time.Duration) error { return o.latch.Arm(after) },
+	})
 	if err := o.resize(current.Size); err != nil {
 		return nil, err
 	}
@@ -181,6 +186,9 @@ func (b *Backend) AddNamedOutput(name string, modes ...backend.Mode) (*Output, e
 	var err error
 	if o.timer, err = b.loop.AddTimer(o.vblank); err != nil {
 		return nil, errors.Join(err, o.freeTarget())
+	}
+	if o.latch, err = b.loop.AddTimer(o.clock.Woke); err != nil {
+		return nil, errors.Join(err, o.timer.Remove(), o.freeTarget())
 	}
 	b.outputs = append(b.outputs, o)
 	if b.handler != nil {
@@ -202,7 +210,7 @@ func (b *Backend) RemoveOutput(o *Output) error {
 	if b.handler != nil {
 		errs = append(errs, b.handler.OutputRemoved(o))
 	}
-	errs = append(errs, o.releaseClientBuffers(), o.timer.Remove(), o.freeTarget())
+	errs = append(errs, o.releaseClientBuffers(), o.timer.Remove(), o.latch.Remove(), o.freeTarget())
 	if o.cursor != nil {
 		errs = append(errs, o.cursor.destroy())
 	}
@@ -223,6 +231,7 @@ type Output struct {
 	target         render.Target
 	drawn          bool
 	timer          *loop.Timer
+	latch          *loop.Timer
 	armed          bool
 	clock          *backend.FrameClock
 	presentPending bool
@@ -329,8 +338,7 @@ func (o *Output) ScheduleFrame() error {
 	if !o.state.Lit() || o.removed {
 		return nil
 	}
-	o.clock.Request()
-	return nil
+	return o.clock.Request()
 }
 
 func (o *Output) frameReady() bool {
@@ -461,8 +469,7 @@ func (o *Output) vblank() error {
 			return err
 		}
 	}
-	o.clock.Kick()
-	return nil
+	return o.clock.Kick()
 }
 
 func (o *Output) present() error {

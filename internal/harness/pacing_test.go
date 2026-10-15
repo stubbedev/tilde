@@ -228,3 +228,33 @@ func TestAFifoAndATimerCanBeMadeAgainAfterTheirObjectsAreGone(t *testing.T) {
 		t.Fatalf("a fifo and a timer made again after their objects were destroyed: %v", err)
 	}
 }
+
+func TestAClientCommittingTwiceAFrameIsShownEveryRefresh(t *testing.T) {
+	h := Start(t, small)
+	pc := pace(t, h)
+	w := pc.window(t)
+	f, err := pc.fifos.GetFifo(w.Surface)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const frames = 12
+	shown := make([]*feedbackEvents, frames)
+	for i := range shown {
+		done := false
+		if _, err := w.Surface.Frame(frameDone{&done}); err != nil {
+			t.Fatal(err)
+		}
+		shown[i] = pc.update(t, w.Surface, pc.c.Buffer(w.Size, i%2, quadrants), f.SetBarrier)
+		if err := errors.Join(f.WaitBarrier(), w.Surface.Commit(), pc.c.Display.Flush()); err != nil {
+			t.Fatal(err)
+		}
+		pc.c.DispatchUntil("the frame callback", func() bool { return done })
+	}
+	pc.c.DispatchUntil("every frame answered", answered(shown...))
+	steady := shown[1:]
+	for i, fb := range steady[1:] {
+		if !slices.Equal(fb.log, []string{"presented"}) || fb.seq != steady[i].seq+1 {
+			t.Fatalf("frame %d was %v at refresh %d, frame %d at %d: a buffer and an empty fifo commit per frame should show every refresh", i+2, fb.log, fb.seq, i+1, steady[i].seq)
+		}
+	}
+}

@@ -252,7 +252,7 @@ func (b *Backend) Outputs() []*Output {
 func (b *Backend) AddOutput() (*Output, error) {
 	b.next++
 	o := &Output{backend: b, name: fmt.Sprintf("NESTED-%d", b.next)}
-	o.clock = backend.NewFrameClock(b.loop.Idle, o.frameReady, o.runFrame)
+	o.clock = backend.NewFrameClock(b.loop.Idle, o.frameReady, o.runFrame, nil)
 	var err error
 	if o.surface, err = b.compositor.CreateSurface(surfaceEvents{}); err != nil {
 		return nil, err
@@ -412,8 +412,7 @@ func (o *Output) ScheduleFrame() error {
 	if !o.configured {
 		return nil
 	}
-	o.clock.Request()
-	return nil
+	return o.clock.Request()
 }
 
 func (o *Output) frameReady() bool {
@@ -499,8 +498,7 @@ func (o *Output) frameDone() error {
 			return err
 		}
 	}
-	o.clock.Kick()
-	return nil
+	return o.clock.Kick()
 }
 
 func (o *Output) destroy() error {
@@ -570,8 +568,7 @@ type bufferEvents struct {
 
 func (e bufferEvents) Release(*cw.WlBuffer) error {
 	e.buf.busy = false
-	e.o.clock.Kick()
-	return nil
+	return e.o.clock.Kick()
 }
 
 type callbackEvents struct{ o *Output }
