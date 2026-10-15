@@ -56,7 +56,7 @@ func (o *Output) SetGamma(ramps []uint16) error {
 	}
 	err := o.dropPendingGamma()
 	o.gamma.next, o.gamma.dirty = blob, true
-	return errors.Join(err, o.flushGamma())
+	return errors.Join(err, o.flushPlanes())
 }
 
 func (o *Output) destroyBlob(blob uint32) error {
@@ -90,21 +90,6 @@ func (o *Output) gammaSent() error {
 	old := o.gamma.current
 	o.gamma.current, o.gamma.dirty = o.gamma.next, false
 	return o.destroyBlob(old)
-}
-
-func (o *Output) flushGamma() error {
-	if !o.gamma.dirty || !o.lit || o.off || o.b.paused || o.flipping || o.clock.Requested() || o.framing {
-		return nil
-	}
-	r := &o.b.req
-	r.Reset()
-	o.addGamma()
-	flags := uint32(kdrm.AtomicNonblock | kdrm.AtomicPageFlipEvent)
-	if err := o.b.dev.Commit(r, flags, uint64(o.crtc.id)); err != nil {
-		return fmt.Errorf("drm: commit the gamma LUT of %s: %w", o.Name(), err)
-	}
-	o.flipping = true
-	return o.gammaSent()
 }
 
 func (o *Output) releaseGamma() error {

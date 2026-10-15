@@ -687,7 +687,7 @@ func (o *Output) runFrame() error {
 	if err == nil && !o.flipping && o.enabled && !o.off {
 		err = o.pace()
 	}
-	return errors.Join(err, o.flushCursor(), o.flushGamma())
+	return errors.Join(err, o.flushPlanes())
 }
 
 func (o *Output) pace() error {
@@ -703,7 +703,7 @@ func (o *Output) pace() error {
 func (o *Output) paceElapsed() error {
 	o.paced = false
 	o.clock.Kick()
-	return errors.Join(o.flushCursor(), o.flushGamma())
+	return o.flushPlanes()
 }
 
 func (o *Output) BeginFrame() (backend.Frame, error) {
@@ -870,25 +870,38 @@ func (o *Output) test(flags uint32) error {
 	return nil
 }
 
-func (o *Output) flushCursor() error {
+func (o *Output) flushPlanes() error {
 	c := o.cursor
-	if c == nil || !c.dirty || !o.lit || o.off || o.b.paused || o.flipping || o.clock.Requested() || o.framing {
+	cursor := c != nil && c.dirty
+	if !cursor && !o.gamma.dirty || !o.lit || o.off || o.b.paused || o.flipping || o.clock.Requested() || o.framing {
 		return nil
 	}
 	r := &o.b.req
-	r.Reset()
-	c.add()
 	flags := uint32(kdrm.AtomicNonblock | kdrm.AtomicPageFlipEvent)
-	if err := o.test(flags); err != nil {
-		c.refused, c.visible = err, false
-		return err
+	var refused error
+	if cursor {
+		r.Reset()
+		c.add()
+		if refused = o.test(flags); refused != nil {
+			c.refused, c.visible, cursor = refused, false, false
+		}
 	}
+	if !cursor && !o.gamma.dirty {
+		return refused
+	}
+	r.Reset()
+	if cursor {
+		c.add()
+	}
+	o.addGamma()
 	if err := o.b.dev.Commit(r, flags, uint64(o.crtc.id)); err != nil {
-		return fmt.Errorf("drm: commit the cursor for %s: %w", o.Name(), err)
+		return errors.Join(refused, fmt.Errorf("drm: commit the cursor and gamma of %s: %w", o.Name(), err))
 	}
 	o.flipping = true
-	c.sent()
-	return nil
+	if cursor {
+		c.sent()
+	}
+	return errors.Join(refused, o.gammaSent())
 }
 
 func (o *Output) flipped(e kdrm.FlipEvent) error {
@@ -902,7 +915,7 @@ func (o *Output) flipped(e kdrm.FlipEvent) error {
 	}
 	if o.queued == nil {
 		o.clock.Kick()
-		return errors.Join(o.flushCursor(), o.flushGamma())
+		return o.flushPlanes()
 	}
 	var errs []error
 	if old := o.front; old != nil && old.client {
@@ -913,7 +926,7 @@ func (o *Output) flipped(e kdrm.FlipEvent) error {
 	o.front.presented = o.presented
 	errs = append(errs, o.b.handler.Presented(o, backend.Presentation{Time: o.lastFlip, Refresh: modeOf(o.mode).Interval(), Seq: uint64(e.Sequence), Torn: o.torn}))
 	o.clock.Kick()
-	return errors.Join(append(errs, o.flushCursor(), o.flushGamma())...)
+	return errors.Join(append(errs, o.flushPlanes())...)
 }
 
 func (o *Output) dropScanout(s *scanout) error {

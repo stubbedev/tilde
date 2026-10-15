@@ -1141,3 +1141,31 @@ func TestTearingScanoutsFlipAsync(t *testing.T) {
 		t.Fatalf("an async flip the driver refuses did not fall back to a full vblank flip: %+v", refused)
 	}
 }
+
+func TestCursorAndGammaWaitingOnAFlipShareOneCommit(t *testing.T) {
+	r := start(t)
+	o := r.lit()
+	if err := r.setCursor(o, image.Pt(4, 6)); err != nil {
+		t.Fatal(err)
+	}
+	cp, _ := o.CursorPlane()
+	if err := errors.Join(cp.MoveCursor(image.Pt(30, 20)), o.SetGamma([]uint16{0, 1, 2, 3, 10, 11, 12, 13, 20, 21, 22, 23})); err != nil {
+		t.Fatal(err)
+	}
+	before := len(r.dev.commits)
+	r.dev.flip(t, 10, 2)
+	r.settle()
+	var shown []commit
+	for _, c := range r.dev.commits[before:] {
+		if c.flags&kdrm.AtomicTestOnly == 0 {
+			shown = append(shown, c)
+		}
+	}
+	if len(shown) != 1 {
+		t.Fatalf("%d commits after the flip, want the cursor and the LUT in one", len(shown))
+	}
+	_, at, _ := cursorAt(shown[0])
+	if lut, ok := gammaOf(shown[0]); !ok || lut == 0 || at != image.Pt(26, 14) {
+		t.Fatalf("the commit after the flip put the cursor at %v and GAMMA_LUT %d (%v)", at, lut, ok)
+	}
+}
