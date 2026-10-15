@@ -35,6 +35,10 @@ func DeviceOf(path string) (Device, error) {
 	if err := unix.Stat(path, &st); err != nil {
 		return Device{}, fmt.Errorf("session: stat %s: %w", path, err)
 	}
+	return deviceOf(&st, path)
+}
+
+func deviceOf(st *unix.Stat_t, path string) (Device, error) {
 	if st.Mode&unix.S_IFMT != unix.S_IFCHR {
 		return Device{}, fmt.Errorf("session: %s is not a character device", path)
 	}

@@ -138,6 +138,8 @@ func replaceTree(dst string, files map[string][]byte) error {
 	return nil
 }
 
+const maxDownload = 4 << 20
+
 func fetchAll(m *manifest) error {
 	client := &http.Client{Timeout: 30 * time.Second}
 	files := map[string][]byte{}
@@ -164,9 +166,12 @@ func download(client *http.Client, url string) ([]byte, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("fetch %s: %s", url, resp.Status)
 	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxDownload+1))
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", url, err)
+	}
+	if len(data) > maxDownload {
+		return nil, fmt.Errorf("read %s: larger than %d bytes", url, maxDownload)
 	}
 	return data, nil
 }

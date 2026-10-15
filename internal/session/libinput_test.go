@@ -85,3 +85,17 @@ func TestLibinputRejectsNonInputDevices(t *testing.T) {
 		t.Fatalf("a missing library: %v", err)
 	}
 }
+
+func TestPlainOpenerNamesTheDeviceItOpened(t *testing.T) {
+	fd, d, err := PlainOpener{}.TakeDevice("/dev/null")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(fd)
+	if d != (Device{Major: 1, Minor: 3}) {
+		t.Fatalf("/dev/null is %+v", d)
+	}
+	if _, _, err := (PlainOpener{}).TakeDevice("/"); err == nil {
+		t.Fatal("a directory was taken as a device")
+	}
+}
