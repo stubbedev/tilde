@@ -544,3 +544,25 @@ func TestPingMarksUnresponsiveClients(t *testing.T) {
 		t.Fatalf("a late pong did not restore responsiveness: %v", got)
 	}
 }
+
+func TestDestroyingAParentHandsItsChildrenOnAndSaysSo(t *testing.T) {
+	e := setup(t)
+	c := e.connect(6)
+	parent, child := c.window(), c.window()
+	must(t, parent.top.SetTitle("parent"), child.top.SetTitle("child"), child.top.SetParent(parent.top))
+	c.roundtrip()
+	must(t, parent.top.Destroy(), parent.xs.Destroy())
+	c.roundtrip()
+	want := fmt.Sprintf(`changed %d "child" ""`, ChangedParent)
+	got := e.log()
+	if n := len(slices.DeleteFunc(slices.Clone(got), func(s string) bool { return s != want })); n != 2 {
+		t.Fatalf("events %v: want the child's parent change reported again when its parent was destroyed", got)
+	}
+	e.on(func() {
+		for _, tl := range e.rec.toplevels {
+			if tl.Title() == "child" && tl.Parent() != nil {
+				t.Error("the child still names its destroyed parent")
+			}
+		}
+	})
+}

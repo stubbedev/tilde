@@ -210,12 +210,15 @@ func (t *Toplevel) destroy() error {
 	}
 	errs = append(errs, xs.dismissPopups())
 	xs.role, xs.configured, xs.initialSent = nil, false, false
-	for _, other := range xs.base.surfaces {
-		if o, ok := other.role.(*Toplevel); ok && o.parent == t {
+	sh := xs.base.shell
+	sh.toplevels = slices.DeleteFunc(sh.toplevels, func(x *Toplevel) bool { return x == t })
+	for _, o := range sh.toplevels {
+		if o.parent == t {
 			o.parent = t.parent
+			errs = append(errs, sh.listener.ToplevelChanged(o, ChangedParent))
 		}
 	}
-	return errors.Join(append(errs, xs.base.shell.toplevelGone(t))...)
+	return errors.Join(append(errs, sh.toplevelGone(t))...)
 }
 
 func (t *Toplevel) Destroy(*sxdg.XdgToplevel) error {

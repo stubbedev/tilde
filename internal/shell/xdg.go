@@ -97,6 +97,7 @@ type Shell struct {
 	lock        *SessionLock
 	locked      bool
 	exports     map[string]*export
+	toplevels   []*Toplevel
 }
 
 func New(d *server.Display, l *loop.Loop, listener Listener) (*Shell, error) {
@@ -342,6 +343,7 @@ func (xs *XdgSurface) GetToplevel(obj *sxdg.XdgSurface, res *sxdg.XdgToplevel) (
 	}
 	t := &Toplevel{xs: xs, resource: res}
 	xs.role = t
+	xs.base.shell.toplevels = append(xs.base.shell.toplevels, t)
 	xs.base.client.OnDestroy(res, t.destroy)
 	if res.Base().Version() >= 5 {
 		caps := binary.NativeEndian.AppendUint32(nil, uint32(sxdg.XdgToplevelWmCapabilitiesFullscreen))
