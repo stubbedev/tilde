@@ -334,8 +334,11 @@ func TestCapabilitiesFollowDevices(t *testing.T) {
 	e := setup(t)
 	c := e.connect()
 	e.on(func() {
+		if err := e.seat.RemoveDevice(sw.WlSeatCapabilityKeyboard | sw.WlSeatCapabilityPointer); err == nil {
+			t.Error("removing a keyboard and a pointer that was never added succeeded")
+		}
 		if err := e.seat.RemoveDevice(sw.WlSeatCapabilityKeyboard); err != nil {
-			t.Error(err)
+			t.Errorf("the keyboard was taken by a refused removal: %v", err)
 		}
 		if err := e.seat.RemoveDevice(sw.WlSeatCapabilityKeyboard); err == nil {
 			t.Error("removing a keyboard that was never added succeeded")

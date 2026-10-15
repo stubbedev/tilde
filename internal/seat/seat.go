@@ -162,8 +162,10 @@ func (s *Seat) bind(c *server.Client, id wire.ObjectID, version uint32) error {
 	return nil
 }
 
+var deviceCapabilities = []sw.WlSeatCapability{sw.WlSeatCapabilityKeyboard, sw.WlSeatCapabilityPointer, sw.WlSeatCapabilityTouch}
+
 func (s *Seat) AddDevice(caps sw.WlSeatCapability) error {
-	for _, c := range []sw.WlSeatCapability{sw.WlSeatCapabilityKeyboard, sw.WlSeatCapabilityPointer, sw.WlSeatCapabilityTouch} {
+	for _, c := range deviceCapabilities {
 		if caps.Has(c) {
 			s.devices[c]++
 		}
@@ -172,14 +174,15 @@ func (s *Seat) AddDevice(caps sw.WlSeatCapability) error {
 }
 
 func (s *Seat) RemoveDevice(caps sw.WlSeatCapability) error {
-	for _, c := range []sw.WlSeatCapability{sw.WlSeatCapabilityKeyboard, sw.WlSeatCapabilityPointer, sw.WlSeatCapabilityTouch} {
-		if !caps.Has(c) {
-			continue
-		}
-		if s.devices[c] == 0 {
+	for _, c := range deviceCapabilities {
+		if caps.Has(c) && s.devices[c] == 0 {
 			return fmt.Errorf("seat: removed a device with capability %d that was never added", c)
 		}
-		s.devices[c]--
+	}
+	for _, c := range deviceCapabilities {
+		if caps.Has(c) {
+			s.devices[c]--
+		}
 	}
 	return s.updateCapabilities()
 }
