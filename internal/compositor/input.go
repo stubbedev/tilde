@@ -11,8 +11,8 @@ import (
 	"github.com/stubbedev/tilde/internal/binds"
 	"github.com/stubbedev/tilde/internal/output"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	swlr "github.com/stubbedev/tilde/internal/protocol/server/wlrlayershell"
 	"github.com/stubbedev/tilde/internal/seat"
+	"github.com/stubbedev/tilde/internal/shell"
 	"github.com/stubbedev/tilde/internal/surface"
 	"github.com/stubbedev/tilde/internal/wm"
 )
@@ -328,13 +328,15 @@ func hitPopups(popups []placedPopup, p point) (*surface.Surface, point) {
 	return nil, point{}
 }
 
-func hitLayers(layers []*layer, p point) (*surface.Surface, point) {
-	for _, e := range slices.Backward(layers) {
+func (c *Compositor) hitLayers(o *output.Output, levels []shell.Layer, p point) (*surface.Surface, point) {
+	var hit *surface.Surface
+	var at point
+	for e := range c.layersAt(o, levels) {
 		if s, local := hitTree(e.surface.Surface(), flat(e.bounds().Min), p); s != nil {
-			return s, local
+			hit, at = s, local
 		}
 	}
-	return nil, point{}
+	return hit, at
 }
 
 func (c *Compositor) outputAt(p point) *output.Output {
@@ -373,7 +375,7 @@ func (c *Compositor) surfaceAt(p point) (*surface.Surface, point, *window) {
 		}
 	}
 	o := c.outputAt(p)
-	if s, local := hitLayers(c.layersAt(o, swlr.ZwlrLayerShellV1LayerOverlay), p); s != nil {
+	if s, local := c.hitLayers(o, overlay, p); s != nil {
 		return s, local, nil
 	}
 	for _, w := range slices.Backward(c.stack) {
@@ -383,7 +385,7 @@ func (c *Compositor) surfaceAt(p point) (*surface.Surface, point, *window) {
 			}
 		}
 	}
-	if s, local := hitLayers(c.layersAt(o, swlr.ZwlrLayerShellV1LayerTop), p); s != nil {
+	if s, local := c.hitLayers(o, aboveWindows, p); s != nil {
 		return s, local, nil
 	}
 	for _, w := range slices.Backward(c.stack) {
@@ -403,7 +405,7 @@ func (c *Compositor) surfaceAt(p point) (*surface.Surface, point, *window) {
 			}
 		}
 	}
-	if s, local := hitLayers(c.layersAt(o, belowWindows...), p); s != nil {
+	if s, local := c.hitLayers(o, belowWindows, p); s != nil {
 		return s, local, nil
 	}
 	return nil, point{}, nil

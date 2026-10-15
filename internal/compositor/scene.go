@@ -9,7 +9,6 @@ import (
 	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/output"
 	spt "github.com/stubbedev/tilde/internal/protocol/server/presentationtime"
-	swlr "github.com/stubbedev/tilde/internal/protocol/server/wlrlayershell"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/surface"
 	"github.com/stubbedev/tilde/internal/wire"
@@ -110,9 +109,7 @@ func (c *Compositor) render(o *output.Output) error {
 var windowLayers = []wm.PlacementLayer{wm.LayerTiled, wm.LayerFloating}
 
 func (c *Compositor) drawDesktop(pass *frame, o *output.Output, shown []*surface.Surface) ([]*surface.Surface, error) {
-	for _, e := range c.layersAt(o, belowWindows...) {
-		shown = c.drawTree(pass, o, e.surface.Surface(), flat(e.bounds().Min), shown)
-	}
+	shown = c.drawLayers(pass, o, belowWindows, shown)
 	for _, layer := range windowLayers {
 		for _, w := range c.stack {
 			if w.layer == layer {
@@ -130,9 +127,7 @@ func (c *Compositor) drawDesktop(pass *frame, o *output.Output, shown []*surface
 			shown = c.drawPopups(pass, o, c.popups(w), shown)
 		}
 	}
-	for _, e := range c.layersAt(o, swlr.ZwlrLayerShellV1LayerTop) {
-		shown = c.drawTree(pass, o, e.surface.Surface(), flat(e.bounds().Min), shown)
-	}
+	shown = c.drawLayers(pass, o, aboveWindows, shown)
 	for _, w := range c.stack {
 		if w.layer == wm.LayerFullscreen {
 			shown = c.drawWindow(pass, o, w, shown)
@@ -142,9 +137,7 @@ func (c *Compositor) drawDesktop(pass *frame, o *output.Output, shown []*surface
 	if err := c.evictLabels(o); err != nil {
 		return shown, err
 	}
-	for _, e := range c.layersAt(o, swlr.ZwlrLayerShellV1LayerOverlay) {
-		shown = c.drawTree(pass, o, e.surface.Surface(), flat(e.bounds().Min), shown)
-	}
+	shown = c.drawLayers(pass, o, overlay, shown)
 	for _, e := range c.layers {
 		shown = c.drawPopups(pass, o, c.layerPopups(e), shown)
 	}

@@ -3,6 +3,7 @@ package compositor
 import (
 	"errors"
 	"image"
+	"iter"
 	"slices"
 
 	"github.com/stubbedev/tilde/internal/output"
@@ -142,19 +143,30 @@ func (c *Compositor) closeLayers(o *output.Output) error {
 	return errors.Join(errs...)
 }
 
-func (c *Compositor) layersAt(o *output.Output, levels ...shell.Layer) []*layer {
-	var out []*layer
-	for _, level := range levels {
-		for _, e := range c.layers {
-			if e.output == o && e.shown() && e.surface.Current().Layer == level {
-				out = append(out, e)
+func (c *Compositor) layersAt(o *output.Output, levels []shell.Layer) iter.Seq[*layer] {
+	return func(yield func(*layer) bool) {
+		for _, level := range levels {
+			for _, e := range c.layers {
+				if e.output == o && e.shown() && e.surface.Current().Layer == level && !yield(e) {
+					return
+				}
 			}
 		}
 	}
-	return out
 }
 
-var belowWindows = []shell.Layer{swlr.ZwlrLayerShellV1LayerBackground, swlr.ZwlrLayerShellV1LayerBottom}
+func (c *Compositor) drawLayers(pass *frame, o *output.Output, levels []shell.Layer, shown []*surface.Surface) []*surface.Surface {
+	for e := range c.layersAt(o, levels) {
+		shown = c.drawTree(pass, o, e.surface.Surface(), flat(e.bounds().Min), shown)
+	}
+	return shown
+}
+
+var (
+	belowWindows = []shell.Layer{swlr.ZwlrLayerShellV1LayerBackground, swlr.ZwlrLayerShellV1LayerBottom}
+	aboveWindows = []shell.Layer{swlr.ZwlrLayerShellV1LayerTop}
+	overlay      = []shell.Layer{swlr.ZwlrLayerShellV1LayerOverlay}
+)
 
 func (c *Compositor) layerPopups(e *layer) []placedPopup {
 	if !e.shown() {

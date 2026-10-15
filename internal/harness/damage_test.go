@@ -11,6 +11,7 @@ import (
 	"github.com/stubbedev/tilde/internal/backend/headless"
 	"github.com/stubbedev/tilde/internal/compositor"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
+	cwlr "github.com/stubbedev/tilde/internal/protocol/client/wlrlayershell"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/testclient"
 )
@@ -157,6 +158,8 @@ func TestIdleDesktopNeverWakes(t *testing.T) {
 func TestSteadyStateFramesDoNotAllocate(t *testing.T) {
 	h := StartUntraced(t, desktop)
 	c := testclient.Connect(t, h.Socket())
+	bar := c.Layer(topBar(cwlr.ZwlrLayerSurfaceV1KeyboardInteractivityNone), testclient.Fill(barColor[2], barColor[1], barColor[0]))
+	c.DispatchUntil("the bar to map", bar.Mapped)
 	w := c.Window("steady", quadrants)
 	c.DispatchUntil("the window to map", w.Mapped)
 	h.Do(func(b *headless.Backend, comp *compositor.Compositor) error {
@@ -195,6 +198,8 @@ func TestSteadyStateFramesDoNotAllocate(t *testing.T) {
 func TestPointerMotionDoesNotAllocate(t *testing.T) {
 	h := StartUntraced(t, desktop)
 	c := testclient.Connect(t, h.Socket())
+	bar := c.Layer(topBar(cwlr.ZwlrLayerSurfaceV1KeyboardInteractivityNone), testclient.Fill(barColor[2], barColor[1], barColor[0]))
+	c.DispatchUntil("the bar to map", bar.Mapped)
 	w := c.Window("steady", quadrants)
 	c.DispatchUntil("the window to map", w.Mapped)
 	h.Do(func(b *headless.Backend, comp *compositor.Compositor) error {
