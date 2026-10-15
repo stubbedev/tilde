@@ -209,3 +209,20 @@ func TestOutputsAddedWhileLockedStayBlank(t *testing.T) {
 			pixel(outs[0].Snapshot(), 150, 90) == [3]byte{compositor.LockedColour.R, compositor.LockedColour.G, compositor.LockedColour.B}
 	})
 }
+
+func TestPoweringOffBeforeTheLockFrameStillConfirmsTheLock(t *testing.T) {
+	slow := small
+	slow.RefreshMHz = 1000
+	h := Start(t, slow)
+	c := testclient.Connect(t, h.Socket())
+	w := c.Window("shown", quadrants)
+	c.DispatchUntil("the window to map", w.Mapped)
+	l := lockSession(t, h)
+	if err := l.c.Display.Roundtrip(); err != nil {
+		t.Fatal(err)
+	}
+	h.Do(func(_ *headless.Backend, comp *compositor.Compositor) error {
+		return comp.SetPower(comp.Outputs()[0], false)
+	})
+	l.seen("locked")
+}
