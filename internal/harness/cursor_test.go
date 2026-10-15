@@ -55,6 +55,13 @@ func TestClientCursorSurfaceAndHiding(t *testing.T) {
 	if got := pixel(r.h.Snapshot(0), 85, 55); got == [3]byte{0xff, 0, 0} {
 		t.Fatal("the cursor is larger than its 8x8 buffer")
 	}
+	if err := errors.Join(cursor.Offset(2, 2), cursor.Commit(), r.c.Display.Flush()); err != nil {
+		t.Fatal(err)
+	}
+	r.h.Eventually("the cursor moved by its offset, the hotspot with it", showing(85, 55, [3]byte{0xff, 0, 0}))
+	if got := pixel(r.h.Snapshot(0), 81, 46); got == [3]byte{0xff, 0, 0} {
+		t.Fatal("the cursor kept its old hotspot after a surface offset")
+	}
 	if err := r.in.Pointer.SetCursor(r.in.Serial, nil, 0, 0); err != nil {
 		t.Fatal(err)
 	}
