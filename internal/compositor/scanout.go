@@ -36,8 +36,8 @@ func (c *Compositor) scanout(o *output.Output, sc *scene, bounds image.Rectangle
 	if err := c.fill(o, op.surface, out); err != nil || !alone || sc.cur.cursorFrom != len(sc.cur.ops) {
 		return false, err
 	}
-	t := c.textures[op.surface]
-	if t == nil || t.buffer == nil {
+	t, ok := c.textures[op.surface].(imported)
+	if !ok {
 		return false, nil
 	}
 	b := t.buffer

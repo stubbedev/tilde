@@ -16,11 +16,23 @@ import (
 	"github.com/stubbedev/tilde/internal/syncobj"
 )
 
-type texture struct {
+type texture interface {
+	texture() render.Texture
+}
+
+type uploaded struct {
 	tex    render.Texture
 	format render.Format
+}
+
+type imported struct {
+	tex    render.Texture
 	buffer *dmabuf.Buffer
 }
+
+func (t uploaded) texture() render.Texture { return t.tex }
+
+func (t imported) texture() render.Texture { return t.tex }
 
 type dmabufRenderer interface {
 	dmabuf.Importer
@@ -58,7 +70,7 @@ func (c *Compositor) attach(s *surface.Surface) error {
 		}
 		return b.Release()
 	case *dmabuf.Buffer:
-		if t := c.textures[s]; t != nil && t.buffer == b {
+		if t, ok := c.textures[s].(imported); ok && t.buffer == b {
 			return nil
 		}
 		tex, ok := c.imported[b]
@@ -72,7 +84,7 @@ func (c *Compositor) attach(s *surface.Surface) error {
 		if err := c.dropTexture(s); err != nil {
 			return err
 		}
-		c.textures[s] = &texture{tex: tex, buffer: b}
+		c.textures[s] = imported{tex, b}
 		return nil
 	case *singlepixel.Buffer:
 		tex, err := c.renderer.NewTexture(render.ARGB8888, b.Size(), 4, b.Pixel())
@@ -82,7 +94,7 @@ func (c *Compositor) attach(s *surface.Surface) error {
 		if err := c.dropTexture(s); err != nil {
 			return errors.Join(err, tex.Destroy())
 		}
-		c.textures[s] = &texture{tex: tex, format: render.ARGB8888}
+		c.textures[s] = uploaded{tex, render.ARGB8888}
 		return b.Release()
 	default:
 		return fmt.Errorf("compositor: no upload path for buffers of type %T", b)
@@ -90,9 +102,9 @@ func (c *Compositor) attach(s *surface.Surface) error {
 }
 
 func (c *Compositor) upload(s *surface.Surface, b *shm.Buffer) error {
-	t := c.textures[s]
+	t, ok := c.textures[s].(uploaded)
 	return b.Read(func(data []byte, stride int) error {
-		if t != nil && t.format == b.Format() && t.tex.Size() == b.Size() {
+		if ok && t.format == b.Format() && t.tex.Size() == b.Size() {
 			return t.tex.Update(stride, data, s.BufferDamage().Rects())
 		}
 		tex, err := c.renderer.NewTexture(b.Format(), b.Size(), stride, data)
@@ -102,7 +114,7 @@ func (c *Compositor) upload(s *surface.Surface, b *shm.Buffer) error {
 		if err := c.dropTexture(s); err != nil {
 			return errors.Join(err, tex.Destroy())
 		}
-		c.textures[s] = &texture{tex: tex, format: b.Format()}
+		c.textures[s] = uploaded{tex, b.Format()}
 		return nil
 	})
 }
@@ -113,10 +125,10 @@ func (c *Compositor) dropTexture(s *surface.Surface) error {
 		return nil
 	}
 	delete(c.textures, s)
-	if t.buffer != nil {
+	if t, ok := t.(imported); ok {
 		return c.releaseBuffer(t.buffer, s.Client())
 	}
-	if err := t.tex.Destroy(); err != nil {
+	if err := t.texture().Destroy(); err != nil {
 		return fmt.Errorf("compositor: destroy the texture of wl_surface@%d: %w", s.Resource().Base().ID(), err)
 	}
 	return nil
@@ -126,7 +138,7 @@ func (c *Compositor) BufferDestroyed(b *dmabuf.Buffer) error {
 	c.scanoutBufferGone(b)
 	shown := false
 	for s, t := range c.textures {
-		if t.buffer == b {
+		if t, ok := t.(imported); ok && t.buffer == b {
 			delete(c.textures, s)
 			shown = true
 		}
@@ -144,7 +156,7 @@ func (c *Compositor) BufferDestroyed(b *dmabuf.Buffer) error {
 
 func (c *Compositor) textureOf(s *surface.Surface) render.Texture {
 	if t, ok := c.textures[s]; ok {
-		return t.tex
+		return t.texture()
 	}
 	return nil
 }

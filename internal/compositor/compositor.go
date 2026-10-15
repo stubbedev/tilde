@@ -95,7 +95,7 @@ type Compositor struct {
 	shm             *shm.Manager
 	seat            *seat.Seat
 	shell           *shell.Shell
-	textures        map[*surface.Surface]*texture
+	textures        map[*surface.Surface]texture
 	imported        map[*dmabuf.Buffer]render.Texture
 	dmabuf          *dmabuf.Manager
 	importer        dmabufRenderer
@@ -215,7 +215,7 @@ func New(l *loop.Loop, display *server.Display, b backend.Backend, cfg Config) (
 	}
 	c := &Compositor{
 		renderer:      b.Renderer(),
-		textures:      map[*surface.Surface]*texture{},
+		textures:      map[*surface.Surface]texture{},
 		imported:      map[*dmabuf.Buffer]render.Texture{},
 		shown:         map[*output.Output][]*surface.Surface{},
 		touches:       map[int32]touchAt{},
