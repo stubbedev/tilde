@@ -469,7 +469,7 @@ func (p *parser) tabColors(r *rawTabColors, key string, fallback compositor.TabC
 	return compositor.TabColors{Background: p.color(r.Background, key+".background", fallback.Background), Text: p.color(r.Text, key+".text", fallback.Text)}
 }
 
-func (p *parser) bind(submap string, i int, r rawBind) Bind {
+func (p *parser) bind(submap string, i int, r rawBind, submaps map[string][]rawBind) Bind {
 	key := fmt.Sprintf("binds[%d]", i)
 	if submap != "" {
 		key = fmt.Sprintf("submaps.%s[%d]", submap, i)
@@ -481,6 +481,11 @@ func (p *parser) bind(submap string, i int, r rawBind) Bind {
 	a, err := wm.ParseAction(r.Action.V)
 	if err != nil {
 		p.fail(r.Action.Line, key+".action", "%v", err)
+	}
+	if sm, ok := a.(wm.SubmapAction); ok && sm.Name != "" {
+		if _, defined := submaps[sm.Name]; !defined {
+			p.fail(r.Action.Line, key+".action", "submap %q is not defined under submaps", sm.Name)
+		}
 	}
 	b.Action = a
 	for _, f := range r.Flags {
@@ -613,11 +618,11 @@ func Parse(file string, data []byte) (Config, error) {
 		cfg.Outputs = append(cfg.Outputs, p.output(i, o.V))
 	}
 	for i, b := range raw.Binds {
-		cfg.Binds = append(cfg.Binds, p.bind("", i, b))
+		cfg.Binds = append(cfg.Binds, p.bind("", i, b, raw.Submaps))
 	}
 	for _, name := range slices.Sorted(maps.Keys(raw.Submaps)) {
 		for i, b := range raw.Submaps[name] {
-			cfg.Binds = append(cfg.Binds, p.bind(name, i, b))
+			cfg.Binds = append(cfg.Binds, p.bind(name, i, b, raw.Submaps))
 		}
 	}
 	for i, r := range raw.Rules {
@@ -650,6 +655,7 @@ func Parse(file string, data []byte) (Config, error) {
 
 func (c Config) resolveBinds(r binds.Resolver) ([]binds.Bind, error) {
 	out := make([]binds.Bind, 0, len(c.Binds))
+	src := make([]Bind, 0, len(c.Binds))
 	var errs []error
 	for _, b := range c.Binds {
 		chord, err := binds.ParseChord(b.Chord, r)
@@ -658,6 +664,11 @@ func (c Config) resolveBinds(r binds.Resolver) ([]binds.Bind, error) {
 			continue
 		}
 		out = append(out, binds.Bind{Submap: b.Submap, Chord: chord, Flags: b.Flags, Action: b.Action})
+		src = append(src, b)
+	}
+	for _, d := range binds.Duplicates(out) {
+		first, again := src[d[0]], src[d[1]]
+		errs = append(errs, &Error{File: c.File, Line: again.Line, Key: "chord", Err: fmt.Errorf("%q is the same chord as %q at line %d", again.Chord, first.Chord, first.Line)})
 	}
 	return out, errors.Join(errs...)
 }

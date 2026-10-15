@@ -113,35 +113,36 @@ func TestEmptyConfigIsTheDefaults(t *testing.T) {
 
 func TestErrorsNameFileLineAndKey(t *testing.T) {
 	cases := map[string]string{
-		"borders:\n  colour: red\n":                                "t.yaml:2: borders.colour: unknown key (known: active, inactive, width)",
-		"binds:\n  - chord: Q\n    acton: kill\n":                  "t.yaml:3: binds[0].acton: unknown key (known: action, chord, flags)",
-		"submaps:\n  r:\n    - {chord: Q, action: kill, x: 1}\n":   "t.yaml:3: submaps.r[0].x: unknown key",
-		"tabs:\n  urgent:\n    fg: red\n":                          "t.yaml:3: tabs.urgent.fg: unknown key (known: background, text)",
-		"rules:\n  - {app_id: a, floating: true}\n":                "t.yaml:2: rules[0].floating: unknown key",
-		"env:\n  TILDE_SOCKET: /x\n":                               "t.yaml:2: env.TILDE_SOCKET: is set by tilde",
-		"env:\n  A=B: c\n":                                         "t.yaml:2: env.A=B: is not a valid environment variable",
-		"tabs:\n  height: tall\n":                                  "t.yaml: yaml: unmarshal errors:\n  line 2: cannot unmarshal",
-		"borders:\n  active: chartreuse\n":                         `t.yaml:2: borders.active: "chartreuse" is neither`,
-		"binds:\n  - chord: SUPER + Q\n    action: teleport\n":     `t.yaml:3: binds[0].action: bad action: unknown action "teleport"`,
-		"binds:\n  - chord: Q\n    action: kill\n    flags: [x]\n": `t.yaml:4: binds[0].flags: unknown flag "x"`,
-		"rules:\n  - title: '('\n":                                 "t.yaml:2: rules[0].title: error parsing regexp",
-		"rules:\n  - app_id: a\n    float: true\n    tile: true\n": "t.yaml:2: rules[0]: cannot both float and tile",
-		"rules:\n  - float: true\n":                                "t.yaml:2: rules[0]: matches every window",
-		"outputs:\n  - match: DP-1\n    mode: big\n":               `t.yaml:3: outputs[0].mode: "big" is not`,
-		"outputs:\n  - match: DP-1\n    scale: 20\n":               "t.yaml:3: outputs[0].scale: output: scale 20 is outside",
-		"outputs:\n  - match: DP-1\n    scale: .nan\n":             "t.yaml:3: outputs[0].scale: output: scale NaN is outside",
-		"outputs:\n  - match: DP-1\n    mode: 1x1@nan\n":           `t.yaml:3: outputs[0].mode: "1x1@nan" is not`,
-		"outputs:\n  - match: DP-1\n    mode: 1x1@inf\n":           `t.yaml:3: outputs[0].mode: "1x1@inf" is not`,
-		"outputs:\n  - match: DP-1\n    mode: 1x1@1e12\n":          `t.yaml:3: outputs[0].mode: "1x1@1e12" is not`,
-		"tabs:\n  height: 0\n":                                     "t.yaml:2: tabs.height: 0 is not a positive number",
-		"palette:\n  accent: orange\n":                             `t.yaml:2: palette.accent: "orange" is not #rrggbb[aa]`,
-		"input:\n  touchpad:\n    tapping: true\n":                 "t.yaml:3: input.touchpad.tapping: unknown key (known: accel_profile, accel_speed,",
-		"input:\n  devices:\n    mouse:\n      speed: 1\n":         `t.yaml:4: input.devices.mouse.speed: unknown key`,
-		"input:\n  touchpad:\n    click_method: tap\n":             `t.yaml:3: input.touchpad.click_method: "tap" is not one of button_areas, clickfinger, none`,
-		"input:\n  pointer:\n    accel_speed: 2\n":                 "t.yaml:3: input.pointer.accel_speed: 2 is not from -1 to 1",
-		"input:\n  pointer:\n    scroll_factor: 0\n":               "t.yaml:3: input.pointer.scroll_factor: 0 is not above 0 to 100",
-		"input:\n  devices:\n    mouse:\n      accel_profile: x\n": `t.yaml:4: input.devices."mouse".accel_profile: "x" is not one of adaptive, flat`,
-		"gpu: renderD128\n":                                        `t.yaml:1: gpu: "renderD128" is not a DRM card such as card1 or /dev/dri/card1`,
+		"borders:\n  colour: red\n":                                 "t.yaml:2: borders.colour: unknown key (known: active, inactive, width)",
+		"binds:\n  - chord: Q\n    acton: kill\n":                   "t.yaml:3: binds[0].acton: unknown key (known: action, chord, flags)",
+		"submaps:\n  r:\n    - {chord: Q, action: kill, x: 1}\n":    "t.yaml:3: submaps.r[0].x: unknown key",
+		"tabs:\n  urgent:\n    fg: red\n":                           "t.yaml:3: tabs.urgent.fg: unknown key (known: background, text)",
+		"rules:\n  - {app_id: a, floating: true}\n":                 "t.yaml:2: rules[0].floating: unknown key",
+		"env:\n  TILDE_SOCKET: /x\n":                                "t.yaml:2: env.TILDE_SOCKET: is set by tilde",
+		"env:\n  A=B: c\n":                                          "t.yaml:2: env.A=B: is not a valid environment variable",
+		"tabs:\n  height: tall\n":                                   "t.yaml: yaml: unmarshal errors:\n  line 2: cannot unmarshal",
+		"borders:\n  active: chartreuse\n":                          `t.yaml:2: borders.active: "chartreuse" is neither`,
+		"binds:\n  - chord: SUPER + Q\n    action: teleport\n":      `t.yaml:3: binds[0].action: bad action: unknown action "teleport"`,
+		"binds:\n  - chord: Q\n    action: kill\n    flags: [x]\n":  `t.yaml:4: binds[0].flags: unknown flag "x"`,
+		"binds:\n  - chord: SUPER + R\n    action: submap resise\n": `t.yaml:3: binds[0].action: submap "resise" is not defined under submaps`,
+		"rules:\n  - title: '('\n":                                  "t.yaml:2: rules[0].title: error parsing regexp",
+		"rules:\n  - app_id: a\n    float: true\n    tile: true\n":  "t.yaml:2: rules[0]: cannot both float and tile",
+		"rules:\n  - float: true\n":                                 "t.yaml:2: rules[0]: matches every window",
+		"outputs:\n  - match: DP-1\n    mode: big\n":                `t.yaml:3: outputs[0].mode: "big" is not`,
+		"outputs:\n  - match: DP-1\n    scale: 20\n":                "t.yaml:3: outputs[0].scale: output: scale 20 is outside",
+		"outputs:\n  - match: DP-1\n    scale: .nan\n":              "t.yaml:3: outputs[0].scale: output: scale NaN is outside",
+		"outputs:\n  - match: DP-1\n    mode: 1x1@nan\n":            `t.yaml:3: outputs[0].mode: "1x1@nan" is not`,
+		"outputs:\n  - match: DP-1\n    mode: 1x1@inf\n":            `t.yaml:3: outputs[0].mode: "1x1@inf" is not`,
+		"outputs:\n  - match: DP-1\n    mode: 1x1@1e12\n":           `t.yaml:3: outputs[0].mode: "1x1@1e12" is not`,
+		"tabs:\n  height: 0\n":                                      "t.yaml:2: tabs.height: 0 is not a positive number",
+		"palette:\n  accent: orange\n":                              `t.yaml:2: palette.accent: "orange" is not #rrggbb[aa]`,
+		"input:\n  touchpad:\n    tapping: true\n":                  "t.yaml:3: input.touchpad.tapping: unknown key (known: accel_profile, accel_speed,",
+		"input:\n  devices:\n    mouse:\n      speed: 1\n":          `t.yaml:4: input.devices.mouse.speed: unknown key`,
+		"input:\n  touchpad:\n    click_method: tap\n":              `t.yaml:3: input.touchpad.click_method: "tap" is not one of button_areas, clickfinger, none`,
+		"input:\n  pointer:\n    accel_speed: 2\n":                  "t.yaml:3: input.pointer.accel_speed: 2 is not from -1 to 1",
+		"input:\n  pointer:\n    scroll_factor: 0\n":                "t.yaml:3: input.pointer.scroll_factor: 0 is not above 0 to 100",
+		"input:\n  devices:\n    mouse:\n      accel_profile: x\n":  `t.yaml:4: input.devices."mouse".accel_profile: "x" is not one of adaptive, flat`,
+		"gpu: renderD128\n":                                         `t.yaml:1: gpu: "renderD128" is not a DRM card such as card1 or /dev/dri/card1`,
 	}
 	for text, want := range cases {
 		_, err := Parse("t.yaml", []byte(text))
@@ -171,6 +172,18 @@ func TestChordsResolveWithTheirLine(t *testing.T) {
 	var ce *Error
 	if !errors.As(err, &ce) || ce.Line != 4 || !errors.Is(err, binds.ErrBadChord) {
 		t.Fatalf("an unknown key resolved to %v", err)
+	}
+}
+
+func TestTwoBindsOnOneChordNameBothLines(t *testing.T) {
+	cfg, err := Parse("t.yaml", []byte("binds:\n  - chord: SUPER + Q\n    action: kill\n  - chord: SUPER+Q\n    action: reload\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = cfg.resolveBinds(keys{})
+	var ce *Error
+	if !errors.As(err, &ce) || ce.Line != 4 || !strings.Contains(err.Error(), "at line 2") {
+		t.Fatalf("a chord bound twice resolved to %v", err)
 	}
 }
 

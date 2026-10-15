@@ -132,13 +132,28 @@ type Map struct {
 	relevant uint32
 }
 
-func NewMap(binds []Bind, relevant uint32) (Map, error) {
+func Duplicates(binds []Bind) [][2]int {
+	type key struct {
+		submap string
+		chord  Chord
+	}
+	first := map[key]int{}
+	var dups [][2]int
 	for i, b := range binds {
-		for _, other := range binds[:i] {
-			if other.Submap == b.Submap && other.Chord == b.Chord {
-				return Map{}, fmt.Errorf("binds: %s and %s share a chord in submap %q", other.Action, b.Action, b.Submap)
-			}
+		k := key{b.Submap, b.Chord}
+		if j, ok := first[k]; ok {
+			dups = append(dups, [2]int{j, i})
+			continue
 		}
+		first[k] = i
+	}
+	return dups
+}
+
+func NewMap(binds []Bind, relevant uint32) (Map, error) {
+	if dups := Duplicates(binds); len(dups) > 0 {
+		a, b := binds[dups[0][0]], binds[dups[0][1]]
+		return Map{}, fmt.Errorf("binds: %s and %s share a chord in submap %q", a.Action, b.Action, b.Submap)
 	}
 	return Map{binds: binds, relevant: relevant}, nil
 }
