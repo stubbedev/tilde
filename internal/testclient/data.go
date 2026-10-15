@@ -2,7 +2,6 @@ package testclient
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"slices"
@@ -25,7 +24,7 @@ type Offer struct {
 type Clipboard struct {
 	Device    *cw.WlDataDevice
 	Primaries *cps.ZwpPrimarySelectionDeviceV1
-	Log       []string
+	Log       Log
 	Selection *Offer
 	Primary   *Offer
 	Drag      *Offer
@@ -44,11 +43,6 @@ func (c *Client) Clipboard(seat *cw.WlSeat) *Clipboard {
 	return cb
 }
 
-func (cb *Clipboard) note(format string, args ...any) error {
-	cb.Log = append(cb.Log, fmt.Sprintf(format, args...))
-	return nil
-}
-
 type dataDeviceEvents struct{ cb *Clipboard }
 
 func (e dataDeviceEvents) DataOffer(_ *cw.WlDataDevice, res *cw.WlDataOffer) (cw.WlDataOfferHandler, error) {
@@ -63,19 +57,19 @@ func (e dataDeviceEvents) Enter(_ *cw.WlDataDevice, serial uint32, _ *cw.WlSurfa
 	if res != nil {
 		e.cb.Drag = e.cb.pending
 	}
-	return e.cb.note("enter %g,%g", x.Float(), y.Float())
+	return e.cb.Log.Note("enter %g,%g", x.Float(), y.Float())
 }
 
 func (e dataDeviceEvents) Leave(*cw.WlDataDevice) error {
-	return e.cb.note("leave")
+	return e.cb.Log.Note("leave")
 }
 
 func (e dataDeviceEvents) Motion(_ *cw.WlDataDevice, _ uint32, x, y wire.Fixed) error {
-	return e.cb.note("motion %g,%g", x.Float(), y.Float())
+	return e.cb.Log.Note("motion %g,%g", x.Float(), y.Float())
 }
 
 func (e dataDeviceEvents) Drop(*cw.WlDataDevice) error {
-	return e.cb.note("drop")
+	return e.cb.Log.Note("drop")
 }
 
 func (e dataDeviceEvents) Selection(_ *cw.WlDataDevice, res *cw.WlDataOffer) error {
@@ -83,7 +77,7 @@ func (e dataDeviceEvents) Selection(_ *cw.WlDataDevice, res *cw.WlDataOffer) err
 	if res != nil {
 		e.cb.Selection = e.cb.pending
 	}
-	return e.cb.note("selection %v", res != nil)
+	return e.cb.Log.Note("selection %v", res != nil)
 }
 
 type dataOfferEvents struct{ o *Offer }
@@ -116,7 +110,7 @@ func (e primaryDeviceEvents) Selection(_ *cps.ZwpPrimarySelectionDeviceV1, res *
 	if res != nil {
 		e.cb.Primary = e.cb.pending
 	}
-	return e.cb.note("primary %v", res != nil)
+	return e.cb.Log.Note("primary %v", res != nil)
 }
 
 type primaryOfferEvents struct{ o *Offer }
@@ -129,14 +123,9 @@ func (e primaryOfferEvents) Offer(_ *cps.ZwpPrimarySelectionOfferV1, mime string
 type Source struct {
 	Data    *cw.WlDataSource
 	Primary *cps.ZwpPrimarySelectionSourceV1
-	Log     []string
+	Log     Log
 	content map[string]string
 	c       *Client
-}
-
-func (s *Source) note(format string, args ...any) error {
-	s.Log = append(s.Log, fmt.Sprintf(format, args...))
-	return nil
 }
 
 func sortedMimes(content map[string]string) []string {
@@ -176,16 +165,16 @@ func (s *Source) send(mime string, fd int) error {
 	f := os.NewFile(uintptr(fd), "transfer")
 	_, werr := io.WriteString(f, s.content[mime])
 	s.c.sends++
-	return errors.Join(werr, f.Close(), s.note("send %s", mime))
+	return errors.Join(werr, f.Close(), s.Log.Note("send %s", mime))
 }
 
 type dataSourceEvents struct{ s *Source }
 
 func (e dataSourceEvents) Target(_ *cw.WlDataSource, mime *string) error {
 	if mime == nil {
-		return e.s.note("target none")
+		return e.s.Log.Note("target none")
 	}
-	return e.s.note("target %s", *mime)
+	return e.s.Log.Note("target %s", *mime)
 }
 
 func (e dataSourceEvents) Send(_ *cw.WlDataSource, mime string, fd int) error {
@@ -193,19 +182,19 @@ func (e dataSourceEvents) Send(_ *cw.WlDataSource, mime string, fd int) error {
 }
 
 func (e dataSourceEvents) Cancelled(*cw.WlDataSource) error {
-	return e.s.note("cancelled")
+	return e.s.Log.Note("cancelled")
 }
 
 func (e dataSourceEvents) DndDropPerformed(*cw.WlDataSource) error {
-	return e.s.note("dropped")
+	return e.s.Log.Note("dropped")
 }
 
 func (e dataSourceEvents) DndFinished(*cw.WlDataSource) error {
-	return e.s.note("finished")
+	return e.s.Log.Note("finished")
 }
 
 func (e dataSourceEvents) Action(_ *cw.WlDataSource, a cw.WlDataDeviceManagerDndAction) error {
-	return e.s.note("action %d", a)
+	return e.s.Log.Note("action %d", a)
 }
 
 type primarySourceEvents struct{ s *Source }
@@ -215,7 +204,7 @@ func (e primarySourceEvents) Send(_ *cps.ZwpPrimarySelectionSourceV1, mime strin
 }
 
 func (e primarySourceEvents) Cancelled(*cps.ZwpPrimarySelectionSourceV1) error {
-	return e.s.note("cancelled")
+	return e.s.Log.Note("cancelled")
 }
 
 func (c *Client) Receive(request func(fd int) error, source *Client) string {

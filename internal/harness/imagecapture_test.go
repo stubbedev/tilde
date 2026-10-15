@@ -2,7 +2,6 @@ package harness
 
 import (
 	"errors"
-	"fmt"
 	"image"
 	"slices"
 	"strings"
@@ -312,26 +311,22 @@ func TestImageCopyCaptureIntoDMABUFs(t *testing.T) {
 	}
 }
 
-type cursorWatch struct{ events []string }
+type cursorWatch struct{ events testclient.Log }
 
 func (w *cursorWatch) Enter(*ceic.ExtImageCopyCaptureCursorSessionV1) error {
-	w.events = append(w.events, "enter")
-	return nil
+	return w.events.Note("enter")
 }
 
 func (w *cursorWatch) Leave(*ceic.ExtImageCopyCaptureCursorSessionV1) error {
-	w.events = append(w.events, "leave")
-	return nil
+	return w.events.Note("leave")
 }
 
 func (w *cursorWatch) Position(_ *ceic.ExtImageCopyCaptureCursorSessionV1, x, y int32) error {
-	w.events = append(w.events, fmt.Sprintf("position %d,%d", x, y))
-	return nil
+	return w.events.Note("position %d,%d", x, y)
 }
 
 func (w *cursorWatch) Hotspot(_ *ceic.ExtImageCopyCaptureCursorSessionV1, x, y int32) error {
-	w.events = append(w.events, fmt.Sprintf("hotspot %d,%d", x, y))
-	return nil
+	return w.events.Note("hotspot %d,%d", x, y)
 }
 
 func TestCursorSessionsFollowThePointer(t *testing.T) {

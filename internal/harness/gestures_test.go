@@ -2,7 +2,6 @@ package harness
 
 import (
 	"errors"
-	"fmt"
 	"slices"
 	"testing"
 
@@ -15,11 +14,10 @@ import (
 	"github.com/stubbedev/tilde/internal/wire"
 )
 
-type gestureLog struct{ events []string }
+type gestureLog struct{ events testclient.Log }
 
 func (l *gestureLog) add(format string, args ...any) error {
-	l.events = append(l.events, fmt.Sprintf(format, args...))
-	return nil
+	return l.events.Note(format, args...)
 }
 
 type swipeLog struct{ *gestureLog }

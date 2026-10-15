@@ -8,7 +8,7 @@ import (
 )
 
 type Input struct {
-	Log        []string
+	Log        Log
 	Surfaces   map[wire.ObjectID]string
 	Serial     uint32
 	Press      uint32
@@ -26,11 +26,6 @@ func (in *Input) name(s *cw.WlSurface) string {
 		return n
 	}
 	return fmt.Sprint("surface@", s.Base().ID())
-}
-
-func (in *Input) note(format string, args ...any) error {
-	in.Log = append(in.Log, fmt.Sprintf(format, args...))
-	return nil
 }
 
 func (in *Input) Name(s *cw.WlSurface, name string) {
@@ -74,50 +69,50 @@ type pointerEvents struct{ in *Input }
 
 func (e pointerEvents) Enter(_ *cw.WlPointer, serial uint32, s *cw.WlSurface, x, y wire.Fixed) error {
 	e.in.Serial = serial
-	return e.in.note("enter %s %g,%g", e.in.name(s), x.Float(), y.Float())
+	return e.in.Log.Note("enter %s %g,%g", e.in.name(s), x.Float(), y.Float())
 }
 
 func (e pointerEvents) Leave(_ *cw.WlPointer, _ uint32, s *cw.WlSurface) error {
-	return e.in.note("leave %s", e.in.name(s))
+	return e.in.Log.Note("leave %s", e.in.name(s))
 }
 
 func (e pointerEvents) Motion(_ *cw.WlPointer, _ uint32, x, y wire.Fixed) error {
-	return e.in.note("motion %g,%g", x.Float(), y.Float())
+	return e.in.Log.Note("motion %g,%g", x.Float(), y.Float())
 }
 
 func (e pointerEvents) Button(_ *cw.WlPointer, serial, _, button uint32, state cw.WlPointerButtonState) error {
 	if state == cw.WlPointerButtonStatePressed {
 		e.in.Press = serial
 	}
-	return e.in.note("button %d %d", button, state)
+	return e.in.Log.Note("button %d %d", button, state)
 }
 
 func (e pointerEvents) Axis(_ *cw.WlPointer, _ uint32, axis cw.WlPointerAxis, v wire.Fixed) error {
-	return e.in.note("axis %d %g", axis, v.Float())
+	return e.in.Log.Note("axis %d %g", axis, v.Float())
 }
 
 func (e pointerEvents) Frame(*cw.WlPointer) error {
-	return e.in.note("frame")
+	return e.in.Log.Note("frame")
 }
 
 func (e pointerEvents) AxisSource(_ *cw.WlPointer, src cw.WlPointerAxisSource) error {
-	return e.in.note("axis_source %d", src)
+	return e.in.Log.Note("axis_source %d", src)
 }
 
 func (e pointerEvents) AxisStop(_ *cw.WlPointer, _ uint32, axis cw.WlPointerAxis) error {
-	return e.in.note("axis_stop %d", axis)
+	return e.in.Log.Note("axis_stop %d", axis)
 }
 
 func (e pointerEvents) AxisDiscrete(_ *cw.WlPointer, axis cw.WlPointerAxis, d int32) error {
-	return e.in.note("axis_discrete %d %d", axis, d)
+	return e.in.Log.Note("axis_discrete %d %d", axis, d)
 }
 
 func (e pointerEvents) AxisValue120(_ *cw.WlPointer, axis cw.WlPointerAxis, v int32) error {
-	return e.in.note("axis_value120 %d %d", axis, v)
+	return e.in.Log.Note("axis_value120 %d %d", axis, v)
 }
 
 func (e pointerEvents) AxisRelativeDirection(_ *cw.WlPointer, axis cw.WlPointerAxis, d cw.WlPointerAxisRelativeDirection) error {
-	return e.in.note("axis_relative_direction %d %d", axis, d)
+	return e.in.Log.Note("axis_relative_direction %d %d", axis, d)
 }
 
 func (e pointerEvents) Warp(*cw.WlPointer, wire.Fixed, wire.Fixed) error { return nil }
@@ -126,19 +121,19 @@ type touchEvents struct{ in *Input }
 
 func (e touchEvents) Down(_ *cw.WlTouch, serial, _ uint32, s *cw.WlSurface, id int32, x, y wire.Fixed) error {
 	e.in.Press = serial
-	return e.in.note("down %d %s %g,%g", id, e.in.name(s), x.Float(), y.Float())
+	return e.in.Log.Note("down %d %s %g,%g", id, e.in.name(s), x.Float(), y.Float())
 }
 
 func (e touchEvents) Up(_ *cw.WlTouch, _, _ uint32, id int32) error {
-	return e.in.note("up %d", id)
+	return e.in.Log.Note("up %d", id)
 }
 
 func (e touchEvents) Motion(_ *cw.WlTouch, _ uint32, id int32, x, y wire.Fixed) error {
-	return e.in.note("touch_motion %d %g,%g", id, x.Float(), y.Float())
+	return e.in.Log.Note("touch_motion %d %g,%g", id, x.Float(), y.Float())
 }
 
-func (e touchEvents) Frame(*cw.WlTouch) error  { return e.in.note("touch_frame") }
-func (e touchEvents) Cancel(*cw.WlTouch) error { return e.in.note("cancel") }
+func (e touchEvents) Frame(*cw.WlTouch) error  { return e.in.Log.Note("touch_frame") }
+func (e touchEvents) Cancel(*cw.WlTouch) error { return e.in.Log.Note("cancel") }
 
 func (e touchEvents) Shape(*cw.WlTouch, int32, wire.Fixed, wire.Fixed) error { return nil }
 func (e touchEvents) Orientation(*cw.WlTouch, int32, wire.Fixed) error       { return nil }
@@ -151,18 +146,18 @@ func (e keyboardEvents) Keymap(_ *cw.WlKeyboard, _ cw.WlKeyboardKeymapFormat, fd
 }
 
 func (e keyboardEvents) Enter(_ *cw.WlKeyboard, _ uint32, s *cw.WlSurface, _ []byte) error {
-	return e.in.note("kb_enter %s", e.in.name(s))
+	return e.in.Log.Note("kb_enter %s", e.in.name(s))
 }
 
 func (e keyboardEvents) Leave(_ *cw.WlKeyboard, _ uint32, s *cw.WlSurface) error {
-	return e.in.note("kb_leave %s", e.in.name(s))
+	return e.in.Log.Note("kb_leave %s", e.in.name(s))
 }
 
 func (e keyboardEvents) Key(_ *cw.WlKeyboard, serial, _, key uint32, state cw.WlKeyboardKeyState) error {
 	if state == cw.WlKeyboardKeyStatePressed {
 		e.in.Press = serial
 	}
-	return e.in.note("key %d %d", key, state)
+	return e.in.Log.Note("key %d %d", key, state)
 }
 
 func (e keyboardEvents) Modifiers(_ *cw.WlKeyboard, _, depressed, _, _, _ uint32) error {

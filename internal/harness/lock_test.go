@@ -2,7 +2,6 @@ package harness
 
 import (
 	"errors"
-	"fmt"
 	"image"
 	"slices"
 	"testing"
@@ -20,26 +19,23 @@ type locker struct {
 	t      *testing.T
 	c      *testclient.Client
 	lock   *cel.ExtSessionLockV1
-	log    []string
+	log    testclient.Log
 	serial uint32
 	size   image.Point
 	in     *testclient.Input
 }
 
 func (l *locker) Locked(*cel.ExtSessionLockV1) error {
-	l.log = append(l.log, "locked")
-	return nil
+	return l.log.Note("locked")
 }
 
 func (l *locker) Finished(*cel.ExtSessionLockV1) error {
-	l.log = append(l.log, "finished")
-	return nil
+	return l.log.Note("finished")
 }
 
 func (l *locker) Configure(_ *cel.ExtSessionLockSurfaceV1, serial, w, h uint32) error {
 	l.serial, l.size = serial, image.Pt(int(w), int(h))
-	l.log = append(l.log, fmt.Sprintf("configure %dx%d", w, h))
-	return nil
+	return l.log.Note("configure %dx%d", w, h)
 }
 
 func lockSession(t *testing.T, h *Harness) *locker {

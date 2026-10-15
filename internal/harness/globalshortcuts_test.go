@@ -12,16 +12,14 @@ import (
 	"github.com/stubbedev/tilde/internal/testclient"
 )
 
-type shortcutLog struct{ events []string }
+type shortcutLog struct{ events testclient.Log }
 
 func (l *shortcutLog) Pressed(*chgs.HyprlandGlobalShortcutV1, uint32, uint32, uint32) error {
-	l.events = append(l.events, "pressed")
-	return nil
+	return l.events.Note("pressed")
 }
 
 func (l *shortcutLog) Released(*chgs.HyprlandGlobalShortcutV1, uint32, uint32, uint32) error {
-	l.events = append(l.events, "released")
-	return nil
+	return l.events.Note("released")
 }
 
 func TestGlobalShortcutsFollowTheirBind(t *testing.T) {

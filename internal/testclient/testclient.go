@@ -601,3 +601,10 @@ func (e frameEvents) Done(cb *cw.WlCallback, _ uint32) error {
 func closeFD(fd int) error {
 	return unix.Close(fd)
 }
+
+type Log []string
+
+func (l *Log) Note(format string, args ...any) error {
+	*l = append(*l, fmt.Sprintf(format, args...))
+	return nil
+}

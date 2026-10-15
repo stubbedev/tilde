@@ -23,7 +23,7 @@ func (p *presentationEvents) ClockID(_ *cpt.WpPresentation, id uint32) error {
 }
 
 type feedbackEvents struct {
-	log     []string
+	log     testclient.Log
 	synced  int
 	at      time.Duration
 	refresh uint32
@@ -37,15 +37,14 @@ func (f *feedbackEvents) SyncOutput(*cpt.WpPresentationFeedback, *cw.WlOutput) e
 }
 
 func (f *feedbackEvents) Presented(_ *cpt.WpPresentationFeedback, secHi, secLo, nsec, refresh, seqHi, seqLo uint32, flags cpt.WpPresentationFeedbackKind) error {
-	f.log = append(f.log, "presented")
+	_ = f.log.Note("presented")
 	f.at = time.Duration(uint64(secHi)<<32|uint64(secLo))*time.Second + time.Duration(nsec)
 	f.refresh, f.flags, f.seq = refresh, flags, uint64(seqHi)<<32|uint64(seqLo)
 	return nil
 }
 
 func (f *feedbackEvents) Discarded(*cpt.WpPresentationFeedback) error {
-	f.log = append(f.log, "discarded")
-	return nil
+	return f.log.Note("discarded")
 }
 
 func TestPresentationFeedback(t *testing.T) {

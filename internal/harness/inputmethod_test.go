@@ -15,78 +15,68 @@ import (
 	"github.com/stubbedev/tilde/internal/testclient"
 )
 
-type textInputLog struct{ log []string }
+type textInputLog struct{ log testclient.Log }
 
-func (l *textInputLog) note(format string, args ...any) error {
-	l.log = append(l.log, fmt.Sprintf(format, args...))
-	return nil
-}
+func (l *textInputLog) Enter(*ctix.ZwpTextInputV3, *cw.WlSurface) error { return l.log.Note("enter") }
 
-func (l *textInputLog) Enter(*ctix.ZwpTextInputV3, *cw.WlSurface) error { return l.note("enter") }
-
-func (l *textInputLog) Leave(*ctix.ZwpTextInputV3, *cw.WlSurface) error { return l.note("leave") }
+func (l *textInputLog) Leave(*ctix.ZwpTextInputV3, *cw.WlSurface) error { return l.log.Note("leave") }
 
 func (l *textInputLog) PreeditString(_ *ctix.ZwpTextInputV3, text *string, begin, end int32) error {
-	return l.note("preedit %q %d %d", *text, begin, end)
+	return l.log.Note("preedit %q %d %d", *text, begin, end)
 }
 
 func (l *textInputLog) CommitString(_ *ctix.ZwpTextInputV3, text *string) error {
-	return l.note("commit %q", *text)
+	return l.log.Note("commit %q", *text)
 }
 
 func (l *textInputLog) DeleteSurroundingText(_ *ctix.ZwpTextInputV3, before, after uint32) error {
-	return l.note("delete %d %d", before, after)
+	return l.log.Note("delete %d %d", before, after)
 }
 
 func (l *textInputLog) Done(_ *ctix.ZwpTextInputV3, serial uint32) error {
-	return l.note("done %d", serial)
+	return l.log.Note("done %d", serial)
 }
 
 func (l *textInputLog) Action(*ctix.ZwpTextInputV3, ctix.ZwpTextInputV3Action, uint32) error {
-	return l.note("action")
+	return l.log.Note("action")
 }
 
-func (l *textInputLog) Language(*ctix.ZwpTextInputV3, string) error { return l.note("language") }
+func (l *textInputLog) Language(*ctix.ZwpTextInputV3, string) error { return l.log.Note("language") }
 
 func (l *textInputLog) PreeditHint(*ctix.ZwpTextInputV3, uint32, uint32, ctix.ZwpTextInputV3PreeditHint) error {
-	return l.note("preedit_hint")
+	return l.log.Note("preedit_hint")
 }
 
 type inputMethodLog struct {
-	log   []string
+	log   testclient.Log
 	dones uint32
 }
 
-func (l *inputMethodLog) note(format string, args ...any) error {
-	l.log = append(l.log, fmt.Sprintf(format, args...))
-	return nil
-}
+func (l *inputMethodLog) Activate(*cim.ZwpInputMethodV2) error { return l.log.Note("activate") }
 
-func (l *inputMethodLog) Activate(*cim.ZwpInputMethodV2) error { return l.note("activate") }
-
-func (l *inputMethodLog) Deactivate(*cim.ZwpInputMethodV2) error { return l.note("deactivate") }
+func (l *inputMethodLog) Deactivate(*cim.ZwpInputMethodV2) error { return l.log.Note("deactivate") }
 
 func (l *inputMethodLog) SurroundingText(_ *cim.ZwpInputMethodV2, text string, cursor, anchor uint32) error {
-	return l.note("surrounding %q %d %d", text, cursor, anchor)
+	return l.log.Note("surrounding %q %d %d", text, cursor, anchor)
 }
 
 func (l *inputMethodLog) TextChangeCause(_ *cim.ZwpInputMethodV2, cause ctix.ZwpTextInputV3ChangeCause) error {
-	return l.note("cause %d", cause)
+	return l.log.Note("cause %d", cause)
 }
 
 func (l *inputMethodLog) ContentType(_ *cim.ZwpInputMethodV2, hint ctix.ZwpTextInputV3ContentHint, purpose ctix.ZwpTextInputV3ContentPurpose) error {
-	return l.note("content %d %d", hint, purpose)
+	return l.log.Note("content %d %d", hint, purpose)
 }
 
 func (l *inputMethodLog) Done(*cim.ZwpInputMethodV2) error {
 	l.dones++
-	return l.note("done")
+	return l.log.Note("done")
 }
 
-func (l *inputMethodLog) Unavailable(*cim.ZwpInputMethodV2) error { return l.note("unavailable") }
+func (l *inputMethodLog) Unavailable(*cim.ZwpInputMethodV2) error { return l.log.Note("unavailable") }
 
 type grabLog struct {
-	log    []string
+	log    testclient.Log
 	keymap uint32
 	repeat [2]int32
 }
@@ -97,8 +87,7 @@ func (g *grabLog) Keymap(_ *cim.ZwpInputMethodKeyboardGrabV2, _ cw.WlKeyboardKey
 }
 
 func (g *grabLog) Key(_ *cim.ZwpInputMethodKeyboardGrabV2, _, _, key uint32, state cw.WlKeyboardKeyState) error {
-	g.log = append(g.log, fmt.Sprintf("key %d %d", key, state))
-	return nil
+	return g.log.Note("key %d %d", key, state)
 }
 
 func (g *grabLog) Modifiers(*cim.ZwpInputMethodKeyboardGrabV2, uint32, uint32, uint32, uint32, uint32) error {
@@ -183,10 +172,10 @@ func (ty *typist) commit(t *testing.T, requests ...func() error) {
 	send(t, append(requests, ty.ti.Commit, ty.c.Display.Flush)...)
 }
 
-func until(t *testing.T, c *testclient.Client, what string, log *[]string, want ...string) {
+func until(t *testing.T, c *testclient.Client, what string, log *testclient.Log, want ...string) {
 	t.Helper()
 	c.DispatchUntil(what, func() bool { return len(*log) >= len(want) })
-	if got := (*log)[:len(want)]; !slices.Equal(got, want) {
+	if got := []string((*log)[:len(want)]); !slices.Equal(got, want) {
 		t.Fatalf("%s: got %q, want %q", what, *log, want)
 	}
 	*log = (*log)[len(want):]

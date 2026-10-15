@@ -8,13 +8,11 @@ import (
 )
 
 func (l *constraintLog) Active(*cksi.ZwpKeyboardShortcutsInhibitorV1) error {
-	l.events = append(l.events, "active")
-	return nil
+	return l.events.Note("active")
 }
 
 func (l *constraintLog) Inactive(*cksi.ZwpKeyboardShortcutsInhibitorV1) error {
-	l.events = append(l.events, "inactive")
-	return nil
+	return l.events.Note("inactive")
 }
 
 func TestShortcutInhibitorPassesKeysButKeepsLockedBinds(t *testing.T) {

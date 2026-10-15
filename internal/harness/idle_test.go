@@ -15,16 +15,14 @@ import (
 	"github.com/stubbedev/tilde/internal/wm"
 )
 
-type idleLog struct{ log []string }
+type idleLog struct{ log testclient.Log }
 
 func (l *idleLog) Idled(*cei.ExtIdleNotificationV1) error {
-	l.log = append(l.log, "idled")
-	return nil
+	return l.log.Note("idled")
 }
 
 func (l *idleLog) Resumed(*cei.ExtIdleNotificationV1) error {
-	l.log = append(l.log, "resumed")
-	return nil
+	return l.log.Note("resumed")
 }
 
 type idler struct {

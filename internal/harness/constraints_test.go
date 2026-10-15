@@ -15,26 +15,22 @@ import (
 	"github.com/stubbedev/tilde/internal/wire"
 )
 
-type constraintLog struct{ events []string }
+type constraintLog struct{ events testclient.Log }
 
 func (l *constraintLog) Locked(*cpc.ZwpLockedPointerV1) error {
-	l.events = append(l.events, "locked")
-	return nil
+	return l.events.Note("locked")
 }
 
 func (l *constraintLog) Unlocked(*cpc.ZwpLockedPointerV1) error {
-	l.events = append(l.events, "unlocked")
-	return nil
+	return l.events.Note("unlocked")
 }
 
 func (l *constraintLog) Confined(*cpc.ZwpConfinedPointerV1) error {
-	l.events = append(l.events, "confined")
-	return nil
+	return l.events.Note("confined")
 }
 
 func (l *constraintLog) Unconfined(*cpc.ZwpConfinedPointerV1) error {
-	l.events = append(l.events, "unconfined")
-	return nil
+	return l.events.Note("unconfined")
 }
 
 type relativeLog struct{ deltas [][4]float64 }
