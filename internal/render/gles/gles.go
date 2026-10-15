@@ -189,7 +189,7 @@ func (r *Renderer) NewTexture(format render.Format, size image.Point, stride int
 	r.gl.TexImage2D(gpu.Texture2D, gpu.BGRAExt, int32(size.X), int32(size.Y), gpu.BGRAExt, data) //nolint:gosec // texture sizes fit GLsizei
 	r.gl.PixelStorei(gpu.UnpackRowLengthExt, 0)
 	if err := r.leave("gles: new texture"); err != nil {
-		return nil, err
+		return nil, errors.Join(err, t.Destroy())
 	}
 	return t, nil
 }
@@ -263,7 +263,10 @@ func (r *Renderer) SyncFile() (int, error) {
 		fd, err = sync.FD()
 		err = errors.Join(err, sync.Destroy())
 	}
-	return fd, errors.Join(err, r.leave("gles: fence"))
+	if err = errors.Join(err, r.leave("gles: fence")); err != nil && fd >= 0 {
+		return -1, errors.Join(err, unix.Close(fd))
+	}
+	return fd, err
 }
 
 func (r *Renderer) WaitFence(fd int) error {
@@ -367,12 +370,12 @@ func (t *texture) Destroy() error {
 	if t.id == 0 {
 		return nil
 	}
-	if err := t.r.enter(); err != nil {
-		return err
+	err := t.r.enter()
+	if err == nil {
+		t.r.gl.DeleteTextures(1, &t.id)
+		err = t.r.leave("gles: destroy texture")
 	}
-	t.r.gl.DeleteTextures(1, &t.id)
 	t.id = 0
-	err := t.r.leave("gles: destroy texture")
 	if t.img != nil {
 		err = errors.Join(err, t.img.Destroy())
 		t.img = nil

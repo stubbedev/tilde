@@ -208,9 +208,14 @@ func (gl *GL) load(l *Library, path string) error {
 	)
 }
 
+const maxErrorFlags = 16
+
 func (gl *GL) Check(op string) error {
 	if code := gl.getError(); code != NoError {
-		for gl.getError() != NoError {
+		for range maxErrorFlags {
+			if gl.getError() == NoError {
+				break
+			}
 		}
 		return &GLError{Op: op, Code: code}
 	}

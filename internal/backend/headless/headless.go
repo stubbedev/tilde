@@ -179,7 +179,7 @@ func (b *Backend) AddNamedOutput(name string, modes ...backend.Mode) (*Output, e
 	}
 	var err error
 	if o.timer, err = b.loop.AddTimer(o.vblank); err != nil {
-		return nil, err
+		return nil, errors.Join(err, o.freeTarget())
 	}
 	b.outputs = append(b.outputs, o)
 	if b.handler != nil {
