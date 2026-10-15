@@ -17,8 +17,8 @@ type repeat struct {
 	active bool
 }
 
-func (c *Compositor) run(a wm.Action) {
-	if err := c.Dispatch(a); err != nil {
+func (c *Compositor) run(a wm.Action, trigger binds.Trigger) {
+	if err := c.dispatch(a, trigger); err != nil {
 		c.report(err)
 	}
 }
@@ -62,9 +62,7 @@ func (c *Compositor) bindKey(code uint32, pressed bool) (bool, error) {
 		return false, nil
 	}
 	c.held = append(c.held, code)
-	c.firing = binds.Key{Code: code}
-	c.run(b.Action)
-	c.firing = nil
+	c.run(b.Action, binds.Key{Code: code})
 	if !b.Flags.Repeating || c.seatConfig.RepeatRate == 0 {
 		return true, nil
 	}
@@ -76,6 +74,6 @@ func (c *Compositor) repeatFired() error {
 	if !c.repeat.active {
 		return nil
 	}
-	c.run(c.repeat.action)
+	c.run(c.repeat.action, nil)
 	return c.repeat.timer.Arm(time.Second / time.Duration(c.seatConfig.RepeatRate))
 }

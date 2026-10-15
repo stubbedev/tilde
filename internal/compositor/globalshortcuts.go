@@ -75,15 +75,15 @@ func (c *Compositor) globalShortcut(appID, id string) *globalShortcut {
 	return nil
 }
 
-func (c *Compositor) pressShortcut(s wm.Shortcut) error {
+func (c *Compositor) pressShortcut(s wm.Shortcut, trigger binds.Trigger) error {
 	g := c.globalShortcut(s.AppID, s.ID)
 	if g == nil {
 		return fmt.Errorf("no application registered the global shortcut %s:%s", s.AppID, s.ID)
 	}
 	err := g.send(true)
-	switch c.firing.(type) {
+	switch trigger.(type) {
 	case binds.Key, binds.Button:
-		c.heldShortcuts = append(c.heldShortcuts, heldShortcut{trigger: c.firing, shortcut: g})
+		c.heldShortcuts = append(c.heldShortcuts, heldShortcut{trigger: trigger, shortcut: g})
 		return err
 	}
 	return errors.Join(err, g.send(false))

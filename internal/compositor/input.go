@@ -162,9 +162,7 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 		}
 		if b, ok := c.match(binds.Button{Code: e.Button}); e.Pressed && ok {
 			c.consumed = append(c.consumed, e.Button)
-			c.firing = binds.Button{Code: e.Button}
-			c.run(b.Action)
-			c.firing = nil
+			c.run(b.Action, binds.Button{Code: e.Button})
 			return nil
 		}
 		if e.Pressed {
@@ -180,7 +178,7 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 				dir = binds.ScrollUp
 			}
 			if b, ok := c.match(binds.Scroll{Dir: dir}); ok {
-				c.run(b.Action)
+				c.run(b.Action, binds.Scroll{Dir: dir})
 				return nil
 			}
 		}

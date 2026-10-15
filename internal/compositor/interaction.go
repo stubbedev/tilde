@@ -22,8 +22,8 @@ type interaction struct {
 
 var ErrNotFromMouseBind = errors.New("only a mouse bind can start a drag")
 
-func (c *Compositor) beginDrag(mode wm.DragMode) error {
-	button, ok := c.firing.(binds.Button)
+func (c *Compositor) beginDrag(mode wm.DragMode, trigger binds.Trigger) error {
+	button, ok := trigger.(binds.Button)
 	if !ok {
 		return ErrNotFromMouseBind
 	}

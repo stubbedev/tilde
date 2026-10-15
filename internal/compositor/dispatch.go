@@ -8,10 +8,15 @@ import (
 	"os/exec"
 	"syscall"
 
+	"github.com/stubbedev/tilde/internal/binds"
 	"github.com/stubbedev/tilde/internal/wm"
 )
 
 func (c *Compositor) Dispatch(a wm.Action) error {
+	return c.dispatch(a, nil)
+}
+
+func (c *Compositor) dispatch(a wm.Action, trigger binds.Trigger) error {
 	s, effects, err := wm.Dispatch(c.wm, a, c.settings)
 	if err != nil {
 		return err
@@ -23,14 +28,14 @@ func (c *Compositor) Dispatch(a wm.Action) error {
 		c.dispatched(a)
 	}
 	for _, e := range effects {
-		if err := c.perform(e); err != nil {
+		if err := c.perform(e, trigger); err != nil {
 			return fmt.Errorf("compositor: %s: %w", a, err)
 		}
 	}
 	return nil
 }
 
-func (c *Compositor) perform(e wm.Effect) error {
+func (c *Compositor) perform(e wm.Effect, trigger binds.Trigger) error {
 	switch e := e.(type) {
 	case wm.Close:
 		w := c.windowByID(e.ID)
@@ -41,12 +46,12 @@ func (c *Compositor) perform(e wm.Effect) error {
 	case wm.Exec:
 		return c.spawn(e.Command)
 	case wm.Shortcut:
-		return c.pressShortcut(e)
+		return c.pressShortcut(e, trigger)
 	case wm.SetSubmap:
 		c.submap = e.Name
 		return nil
 	case wm.BeginDrag:
-		return c.beginDrag(e.Mode)
+		return c.beginDrag(e.Mode, trigger)
 	case wm.Power:
 		return c.dpms(e)
 	case wm.Reload:

@@ -114,7 +114,6 @@ type Compositor struct {
 	windows         []*window
 	stack           []*window
 	interaction     *interaction
-	firing          binds.Trigger
 	wm              wm.State
 	settings        wm.Settings
 	rules           []wm.Rule
