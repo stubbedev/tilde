@@ -516,11 +516,18 @@ func (d *Device) CreateDumb(size image.Point) (Dumb, error) {
 	return b, nil
 }
 
-func (d *Device) DestroyDumb(b Dumb) error {
-	var err error
-	if b.Pix != nil {
-		err = unix.Munmap(b.Pix)
+func (d *Device) UnmapDumb(b Dumb) error {
+	if b.Pix == nil {
+		return nil
 	}
+	if err := unix.Munmap(b.Pix); err != nil {
+		return fmt.Errorf("drm: unmap dumb buffer %d: %w", b.Handle, err)
+	}
+	return nil
+}
+
+func (d *Device) DestroyDumb(b Dumb) error {
+	err := d.UnmapDumb(b)
 	arg := b.Handle
 	return errors.Join(err, d.ioctl("DRM_IOCTL_MODE_DESTROY_DUMB", ioctlDestroyDumb, unsafe.Pointer(&arg), unsafe.Sizeof(arg))) //nolint:gosec // the kernel reads this value during the call
 }

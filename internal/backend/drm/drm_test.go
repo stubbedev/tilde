@@ -72,6 +72,7 @@ type fakeDevice struct {
 	pix            map[uint32][]byte
 	scanouts       map[uint32]uint32
 	removedFBs     int
+	unmapped       map[uint32]bool
 }
 
 var modes = []kdrm.Mode{
@@ -226,6 +227,17 @@ func (f *fakeDevice) DestroyDumb(b kdrm.Dumb) error {
 		return fmt.Errorf("dumb buffer %d destroyed twice", b.Handle)
 	}
 	delete(f.live, b.Handle)
+	return f.UnmapDumb(b)
+}
+
+func (f *fakeDevice) UnmapDumb(b kdrm.Dumb) error {
+	if f.unmapped == nil {
+		f.unmapped = map[uint32]bool{}
+	}
+	if f.unmapped[b.Handle] {
+		return fmt.Errorf("dumb buffer %d unmapped twice", b.Handle)
+	}
+	f.unmapped[b.Handle] = true
 	return nil
 }
 
@@ -899,6 +911,11 @@ func TestUnpluggedDevicesDropTheirOutputsWithoutTouchingTheDevice(t *testing.T) 
 	}
 	if len(r.dev.commits) != commits || len(r.dev.live) != dumbs || r.dev.removedFBs != fbs {
 		t.Fatalf("unplugging touched the gone device: %d commits, %d dumb buffers, %d framebuffers removed", len(r.dev.commits)-commits, dumbs-len(r.dev.live), r.dev.removedFBs-fbs)
+	}
+	for handle := range r.dev.live {
+		if !r.dev.unmapped[handle] {
+			t.Errorf("dumb buffer %d of the gone device is still mapped", handle)
+		}
 	}
 	if err := r.b.Close(); err != nil {
 		t.Fatal(err)

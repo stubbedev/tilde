@@ -43,6 +43,7 @@ type device interface {
 	DestroyBlob(id uint32) error
 	CreateDumb(size image.Point) (kdrm.Dumb, error)
 	DestroyDumb(b kdrm.Dumb) error
+	UnmapDumb(b kdrm.Dumb) error
 	AddFB2(fb kdrm.FB) (uint32, error)
 	PrimeFDToHandle(fd int) (uint32, error)
 	CloseHandle(handle uint32) error
