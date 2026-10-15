@@ -112,11 +112,10 @@ func (m pointerConstraints) constrain(obj *spc.ZwpPointerConstraintsV1, res wire
 	if err := k.current.setRegion(g); err != nil {
 		return nil, err
 	}
-	k.hooks = &surface.Hooks{Commit: k.commit, Applied: k.applied}
+	k.hooks = &surface.Hooks{Commit: k.commit, Applied: k.applied, Destroyed: k.surfaceGone}
 	s.AddHooks(k.hooks)
 	m.c.constraints[s] = k
 	m.cl.OnDestroy(res, k.drop)
-	m.cl.OnDestroy(wl, k.surfaceGone)
 	return k, nil
 }
 

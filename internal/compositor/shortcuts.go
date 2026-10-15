@@ -16,6 +16,7 @@ const shortcutsInhibitVersion = 1
 type shortcutsInhibitor struct {
 	res     *sksi.ZwpKeyboardShortcutsInhibitorV1
 	surface *surface.Surface
+	hooks   *surface.Hooks
 }
 
 func (*shortcutsInhibitor) Destroy(*sksi.ZwpKeyboardShortcutsInhibitorV1) error { return nil }
@@ -44,10 +45,11 @@ func (m shortcutsInhibitors) InhibitShortcuts(obj *sksi.ZwpKeyboardShortcutsInhi
 		return nil, obj.ProtocolError(sksi.ZwpKeyboardShortcutsInhibitManagerV1ErrorAlreadyInhibited, fmt.Sprintf("wl_surface@%d already inhibits shortcuts", wl.Base().ID()))
 	}
 	i := &shortcutsInhibitor{res: res, surface: s}
-	m.c.keyInhibitors[s] = i
 	drop := func() error { return m.c.dropShortcutsInhibitor(i) }
+	i.hooks = &surface.Hooks{Destroyed: drop}
+	s.AddHooks(i.hooks)
+	m.c.keyInhibitors[s] = i
 	m.cl.OnDestroy(res, drop)
-	m.cl.OnDestroy(wl, drop)
 	return i, m.c.refreshShortcutsInhibitor()
 }
 
@@ -56,6 +58,7 @@ func (c *Compositor) dropShortcutsInhibitor(i *shortcutsInhibitor) error {
 		return nil
 	}
 	delete(c.keyInhibitors, i.surface)
+	i.surface.RemoveHooks(i.hooks)
 	if c.inhibiting == i {
 		c.inhibiting = nil
 	}
