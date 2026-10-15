@@ -114,6 +114,9 @@ func (s *Server) IsClient(c *server.Client) bool {
 }
 
 func (s *Server) arm() error {
+	if len(s.watch) > 0 {
+		return nil
+	}
 	for _, fd := range s.socks.fds {
 		src, err := s.loop.AddFD(fd, loop.Readable, s.connecting)
 		if err != nil {
@@ -138,9 +141,36 @@ func (s *Server) connecting(loop.Events) error {
 		return err
 	}
 	if err := s.start(); err != nil {
-		return errors.Join(fmt.Errorf("xwayland: start %s for %s: %w", s.opts.Binary, s.Display(), err), s.arm())
+		s.report(fmt.Errorf("xwayland: start %s for %s: %w", s.opts.Binary, s.Display(), err))
+		if s.proc != nil {
+			return nil
+		}
+		return errors.Join(s.refuseWaiting(), s.arm())
 	}
 	return nil
+}
+
+func (s *Server) refuseWaiting() error {
+	var errs []error
+	for _, fd := range s.socks.fds {
+		for {
+			ready, err := unix.Poll([]unix.PollFd{{Fd: int32(fd), Events: unix.POLLIN}}, 0) //nolint:gosec // fds fit int32
+			if errors.Is(err, unix.EINTR) {
+				continue
+			}
+			if err != nil || ready == 0 {
+				errs = append(errs, err)
+				break
+			}
+			conn, _, err := unix.Accept4(fd, unix.SOCK_CLOEXEC)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("xwayland: refuse a waiting X client: %w", err))
+				break
+			}
+			errs = append(errs, unix.Close(conn))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func pair() ([2]int, error) {

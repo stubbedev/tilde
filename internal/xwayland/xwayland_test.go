@@ -3,15 +3,18 @@ package xwayland
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/sys/unix"
 
+	"github.com/stubbedev/tilde/internal/data"
 	"github.com/stubbedev/tilde/internal/loop"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	cxs "github.com/stubbedev/tilde/internal/protocol/client/xwaylandshell"
@@ -256,5 +259,67 @@ func TestShellErrors(t *testing.T) {
 			}
 			protocolError(t, r.d.Roundtrip(), c.code, c.what)
 		})
+	}
+}
+
+type quietListener struct{}
+
+func (quietListener) XWindowMapped(*Window) error               { return nil }
+func (quietListener) XWindowUnmapped(*Window) error             { return nil }
+func (quietListener) XWindowChanged(*Window) error              { return nil }
+func (quietListener) XWindowRequest(*Window, Request) error     { return nil }
+func (quietListener) XWindowResponsive(*Window, bool) error     { return nil }
+func (quietListener) CurrentSelection(data.Kind) data.Source    { return nil }
+func (quietListener) SetSelection(data.Kind, data.Source) error { return nil }
+
+func TestAnXwaylandThatCannotStartIsTriedAgainNextTime(t *testing.T) {
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "Xwayland")
+	if err := os.WriteFile(binary, []byte("not a program"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	l, err := loop.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	d, err := server.New(l, server.Options{RuntimeDir: t.TempDir(), Report: func(err error) { t.Error(err) }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	var reports []error
+	s, err := Listen(l, d, Options{Binary: binary, Dir: dir, Log: io.Discard, Report: func(err error) { reports = append(reports, err) }, Listener: quietListener{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	sock := filepath.Join(dir, ".X11-unix", "X"+strings.TrimPrefix(s.Display(), ":"))
+	for attempt := 1; attempt <= 2; attempt++ {
+		fd, err := unix.Socket(unix.AF_UNIX, unix.SOCK_STREAM|unix.SOCK_CLOEXEC, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := unix.Connect(fd, &unix.SockaddrUnix{Name: sock}); err != nil {
+			t.Fatal(err)
+		}
+		stop, err := l.AddTimer(func() error {
+			l.Stop()
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := errors.Join(stop.Arm(50 * time.Millisecond)); err != nil {
+			t.Fatal(err)
+		}
+		if err := l.Run(); err != nil {
+			t.Fatalf("attempt %d: the loop ended with %v", attempt, err)
+		}
+		_ = stop.Remove()
+		_ = unix.Close(fd)
+		if len(reports) != attempt {
+			t.Fatalf("attempt %d: reports %v", attempt, reports)
+		}
 	}
 }
