@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stubbedev/tilde/internal/backend"
+	"github.com/stubbedev/tilde/internal/gpu"
 	"github.com/stubbedev/tilde/internal/loop"
 	"github.com/stubbedev/tilde/internal/render"
 )
@@ -379,5 +380,39 @@ func TestInputInjection(t *testing.T) {
 	}
 	if !b.Keyboard().Capabilities().Has(backend.Keyboard) || b.Pointer().Capabilities().Has(backend.Touch) {
 		t.Fatal("device capabilities are wrong")
+	}
+}
+
+func TestClientBuffersAreReleasedWhenTheOutputStopsShowingThem(t *testing.T) {
+	for name, stop := range map[string]func(b *Backend, o *Output) error{
+		"removed":  func(b *Backend, o *Output) error { return b.RemoveOutput(o) },
+		"disabled": func(_ *Backend, o *Output) error { return o.Commit(backend.OutputState{}) },
+		"powered off": func(_ *Backend, o *Output) error {
+			return o.Commit(backend.OutputState{Enabled: true, Mode: mode100, Off: true})
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, b, r := setup(t)
+			if err := b.Start(r); err != nil {
+				t.Fatal(err)
+			}
+			o, err := b.AddOutput(mode100)
+			if err != nil {
+				t.Fatal(err)
+			}
+			format := gpu.FormatModifier{Format: gpu.FormatXRGB8888, Modifier: gpu.ModifierLinear}
+			o.AllowScanout(gpu.ScanoutTarget{Formats: []gpu.FormatModifier{format}})
+			released := 0
+			buf := gpu.DMABUF{Size: mode100.Size, Format: format.Format, Modifier: format.Modifier}
+			if ok, err := o.Scanout(buf, func() error { released++; return nil }, false); !ok || err != nil {
+				t.Fatalf("Scanout = %t, %v", ok, err)
+			}
+			if err := stop(b, o); err != nil {
+				t.Fatal(err)
+			}
+			if released != 1 {
+				t.Fatalf("the client buffer was released %d times", released)
+			}
+		})
 	}
 }

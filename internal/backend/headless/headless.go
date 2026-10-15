@@ -201,7 +201,7 @@ func (b *Backend) RemoveOutput(o *Output) error {
 	if b.handler != nil {
 		errs = append(errs, b.handler.OutputRemoved(o))
 	}
-	errs = append(errs, o.timer.Remove(), o.freeTarget())
+	errs = append(errs, o.releaseClientBuffers(), o.timer.Remove(), o.freeTarget())
 	if o.cursor != nil {
 		errs = append(errs, o.cursor.destroy())
 	}
@@ -304,11 +304,24 @@ func (o *Output) Commit(s backend.OutputState) error {
 			}
 		}
 	}
+	var err error
 	if !s.Enabled || s.Off {
 		o.frameRequested, o.presentPending = false, false
+		err = o.releaseClientBuffers()
 	}
 	o.state = s
-	return nil
+	return err
+}
+
+func (o *Output) releaseClientBuffers() error {
+	var errs []error
+	for _, release := range []func() error{o.shownRelease, o.queuedRelease} {
+		if release != nil {
+			errs = append(errs, release())
+		}
+	}
+	o.shownRelease, o.queuedRelease, o.queuedTorn = nil, nil, false
+	return errors.Join(errs...)
 }
 
 func (o *Output) ScheduleFrame() error {
