@@ -4,6 +4,7 @@ import (
 	"image"
 	"testing"
 
+	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/backend/headless"
 	"github.com/stubbedev/tilde/internal/compositor"
 	cwop "github.com/stubbedev/tilde/internal/protocol/client/wlroutputpower"
@@ -61,7 +62,7 @@ func TestOutputPowerProtocol(t *testing.T) {
 	var presents uint64
 	h.Do(func(b *headless.Backend, comp *compositor.Compositor) error {
 		o := b.Outputs()[0]
-		if !o.State().Off || ev.modes[1] != cwop.ZwlrOutputPowerV1ModeOff {
+		if o.State().Power != backend.PoweredOff || ev.modes[1] != cwop.ZwlrOutputPowerV1ModeOff {
 			t.Errorf("state %+v, modes %v", o.State(), ev.modes)
 		}
 		presents = o.Presents()

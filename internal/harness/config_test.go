@@ -136,7 +136,7 @@ type placed struct {
 func layout(b *headless.Backend, c *compositor.Compositor) []placed {
 	var out []placed
 	for _, bo := range b.Outputs() {
-		p := placed{name: bo.Name(), mode: bo.State().Mode.Size, enabled: bo.State().Enabled}
+		p := placed{name: bo.Name(), mode: bo.State().Mode.Size, enabled: bo.State().Enabled()}
 		for _, o := range c.Outputs() {
 			if o.Backend() == backend.Output(bo) {
 				p.at, p.scale, p.inLayout = o.Position(), o.Scale(), true
@@ -325,4 +325,32 @@ func TestARepeatedReloadThatTurnsRepeatOffStopsIt(t *testing.T) {
 	if errs := r.take(); len(errs) != 0 {
 		t.Fatalf("reports %v", errs)
 	}
+}
+
+func TestAReenabledOutputComesBackPoweredOn(t *testing.T) {
+	var cfg compositor.Config
+	h := StartWith(t, func(c *compositor.Config) { cfg = *c }, small)
+	h.dispatch("dpms off")
+	lit := func(want bool) func(*headless.Backend, *compositor.Compositor) bool {
+		return func(b *headless.Backend, _ *compositor.Compositor) bool { return b.Outputs()[0].State().Lit() == want }
+	}
+	h.Eventually("the output powered off", lit(false))
+	h.Do(func(b *headless.Backend, c *compositor.Compositor) error {
+		cfg.Outputs = []compositor.OutputRule{{Name: "HEADLESS-1", Disabled: true}}
+		if err := c.Reconfigure(cfg); err != nil {
+			return err
+		}
+		if s := b.Outputs()[0].State(); s.Power != backend.Disabled {
+			return fmt.Errorf("a disabled output is in power state %d", s.Power)
+		}
+		cfg.Outputs = nil
+		return c.Reconfigure(cfg)
+	})
+	h.Eventually("the re-enabled output lit", lit(true))
+	h.Do(func(_ *headless.Backend, c *compositor.Compositor) error {
+		if snap := c.Snapshot(); len(snap.Outputs) != 1 || !snap.Outputs[0].Powered {
+			return fmt.Errorf("the re-enabled output is reported as %+v", snap.Outputs)
+		}
+		return nil
+	})
 }

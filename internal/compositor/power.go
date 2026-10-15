@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/stubbedev/tilde/internal/backend"
 	"github.com/stubbedev/tilde/internal/output"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	"github.com/stubbedev/tilde/internal/wm"
@@ -14,16 +15,23 @@ func (c *Compositor) Owner(res *sw.WlOutput) *output.Output {
 }
 
 func (c *Compositor) Powered(o *output.Output) bool {
-	return !o.Backend().State().Off
+	return o.Backend().State().Lit()
 }
 
 func (c *Compositor) SetPower(o *output.Output, on bool) error {
 	b := o.Backend()
 	st := b.State()
-	if st.Off == !on {
+	if !st.Enabled() {
+		return fmt.Errorf("compositor: power %s on=%v: the output is disabled", b.Name(), on)
+	}
+	want := backend.PoweredOff
+	if on {
+		want = backend.PoweredOn
+	}
+	if st.Power == want {
 		return nil
 	}
-	st.Off = !on
+	st.Power = want
 	if err := b.Commit(st); err != nil {
 		return fmt.Errorf("compositor: power %s on=%v: %w", b.Name(), on, err)
 	}

@@ -95,7 +95,7 @@ func (c *Compositor) confirmLock() error {
 		return nil
 	}
 	for _, o := range c.outputs {
-		if !o.Backend().State().Off && !c.blanked[o] {
+		if o.Backend().State().Lit() && !c.blanked[o] {
 			return nil
 		}
 	}

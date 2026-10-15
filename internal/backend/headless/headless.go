@@ -169,7 +169,7 @@ func (b *Backend) AddNamedOutput(name string, modes ...backend.Mode) (*Output, e
 		backend: b,
 		name:    name,
 		modes:   slices.Clone(modes),
-		state:   backend.OutputState{Enabled: true, Mode: current},
+		state:   backend.OutputState{Power: backend.PoweredOn, Mode: current},
 	}
 	if err := o.resize(current.Size); err != nil {
 		return nil, err
@@ -294,7 +294,7 @@ func (o *Output) Commit(s backend.OutputState) error {
 	if o.removed {
 		return fmt.Errorf("headless: commit to removed output %s", o.name)
 	}
-	if s.Enabled {
+	if s.Enabled() {
 		if err := s.Mode.Valid(); err != nil {
 			return fmt.Errorf("headless: %s: %w", o.name, err)
 		}
@@ -305,7 +305,7 @@ func (o *Output) Commit(s backend.OutputState) error {
 		}
 	}
 	var err error
-	if !s.Enabled || s.Off {
+	if !s.Lit() {
 		o.frameRequested, o.presentPending = false, false
 		err = o.releaseClientBuffers()
 	}
@@ -325,7 +325,7 @@ func (o *Output) releaseClientBuffers() error {
 }
 
 func (o *Output) ScheduleFrame() error {
-	if !o.state.Enabled || o.state.Off || o.removed {
+	if !o.state.Lit() || o.removed {
 		return nil
 	}
 	o.frameRequested = true
@@ -341,7 +341,7 @@ func (o *Output) maybeFrame() {
 	o.backend.loop.Idle(func() error {
 		o.idleQueued = false
 		h := o.backend.handler
-		if h == nil || !o.frameRequested || o.armed || o.removed || !o.state.Enabled || o.state.Off {
+		if h == nil || !o.frameRequested || o.armed || o.removed || !o.state.Lit() {
 			return nil
 		}
 		o.frameRequested = false
@@ -357,7 +357,7 @@ func (o *Output) BeginFrame() (backend.Frame, error) {
 	switch {
 	case o.removed:
 		return backend.Frame{}, fmt.Errorf("headless: frame on removed output %s", o.name)
-	case !o.state.Enabled:
+	case !o.state.Enabled():
 		return backend.Frame{}, fmt.Errorf("headless: frame on disabled output %s", o.name)
 	case o.inFrame:
 		return backend.Frame{}, fmt.Errorf("headless: %s already has a frame in progress", o.name)
@@ -407,7 +407,7 @@ func (o *Output) ShowsClientBuffer() bool {
 }
 
 func (o *Output) Scanout(d gpu.DMABUF, release func() error, tear bool) (bool, error) {
-	if o.scanout == nil || !slices.Contains(o.scanout.Formats, gpu.FormatModifier{Format: d.Format, Modifier: d.Modifier}) || o.removed || !o.state.Enabled || o.state.Off || o.inFrame || o.presentPending || d.Size != o.state.Mode.Size {
+	if o.scanout == nil || !slices.Contains(o.scanout.Formats, gpu.FormatModifier{Format: d.Format, Modifier: d.Modifier}) || o.removed || !o.state.Lit() || o.inFrame || o.presentPending || d.Size != o.state.Mode.Size {
 		return false, nil
 	}
 	o.queuedRelease, o.presentPending, o.drawn, o.queuedTorn = release, true, false, tear

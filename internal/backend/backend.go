@@ -66,10 +66,25 @@ func (m Mode) Interval() time.Duration {
 	return time.Duration(int64(time.Second) * 1000 / int64(m.RefreshMHz))
 }
 
+type Power uint8
+
+const (
+	Disabled Power = iota
+	PoweredOn
+	PoweredOff
+)
+
 type OutputState struct {
-	Enabled bool
-	Mode    Mode
-	Off     bool
+	Power Power
+	Mode  Mode
+}
+
+func (s OutputState) Enabled() bool {
+	return s.Power != Disabled
+}
+
+func (s OutputState) Lit() bool {
+	return s.Power == PoweredOn
 }
 
 type Frame struct {

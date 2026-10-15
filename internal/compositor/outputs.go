@@ -131,8 +131,14 @@ func abs(v int32) int32 {
 
 func (c *Compositor) commitOutput(b backend.Output, rule OutputRule) (bool, error) {
 	current := b.State()
-	next := backend.OutputState{Enabled: !rule.Disabled, Mode: current.Mode, Off: current.Off}
-	if next.Enabled {
+	next := current
+	switch {
+	case rule.Disabled:
+		next.Power = backend.Disabled
+	case !current.Enabled():
+		next.Power = backend.PoweredOn
+	}
+	if next.Enabled() {
 		m, err := rule.mode().choose(b.Modes(), current.Mode)
 		if err != nil {
 			return false, fmt.Errorf("compositor: output %s: %w", b.Name(), err)
@@ -195,7 +201,7 @@ func (c *Compositor) OutputAdded(b backend.Output) error {
 	if _, err := c.commitOutput(b, rule); err != nil {
 		c.report(err)
 	}
-	if !b.State().Enabled {
+	if !b.State().Enabled() {
 		c.disabled = append(c.disabled, b)
 		return c.outputConfig.Changed()
 	}

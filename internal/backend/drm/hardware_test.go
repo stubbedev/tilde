@@ -126,7 +126,7 @@ func TestStartOnThisCardWithoutMaster(t *testing.T) {
 		t.Fatalf("%d outputs for %d connected connectors", len(h.outputs), connected(t))
 	}
 	for _, o := range b.Outputs() {
-		if len(o.buffers) != buffersPerOut || o.buffers[0].fb == 0 || !o.State().Enabled || !o.State().Mode.Preferred {
+		if len(o.buffers) != buffersPerOut || o.buffers[0].fb == 0 || !o.State().Enabled() || !o.State().Mode.Preferred {
 			t.Errorf("%s: %d buffers, state %+v", o.Name(), len(o.buffers), o.State())
 		}
 		if o.Description() == o.Name() {

@@ -437,7 +437,7 @@ func TestOutputsPickACRTCAndPrimaryPlane(t *testing.T) {
 	if o.Name() != "DP-1" || o.crtc.id != 10 || o.primary.id != 40 || len(o.buffers) != buffersPerOut || !slices.Equal(o.primary.modifiers, []uint64{0, 7}) {
 		t.Fatalf("%s on CRTC %d plane %d, %d buffers, modifiers %v", o.Name(), o.crtc.id, o.primary.id, len(o.buffers), o.primary.modifiers)
 	}
-	if s := o.State(); !s.Enabled || s.Mode.Size != image.Pt(1920, 1080) || s.Mode.RefreshMHz != 60000 || len(o.Modes()) != 2 {
+	if s := o.State(); !s.Enabled() || s.Mode.Size != image.Pt(1920, 1080) || s.Mode.RefreshMHz != 60000 || len(o.Modes()) != 2 {
 		t.Fatalf("state %+v, modes %v", s, o.Modes())
 	}
 }
@@ -524,7 +524,7 @@ func TestFramesThatPresentNothingWaitForTheNextRefresh(t *testing.T) {
 func TestModeChangesAndDisabling(t *testing.T) {
 	r := start(t)
 	o := r.b.Outputs()[0]
-	if err := o.Commit(backend.OutputState{Enabled: true, Mode: modeOf(modes[1])}); err != nil {
+	if err := o.Commit(backend.OutputState{Power: backend.PoweredOn, Mode: modeOf(modes[1])}); err != nil {
 		t.Fatal(err)
 	}
 	r.settle()
@@ -532,14 +532,14 @@ func TestModeChangesAndDisabling(t *testing.T) {
 	if last.flags&kdrm.AtomicAllowModeset == 0 || last.values[[2]uint32{40, propCRTCW}] != 1280 || !slices.Contains(r.dev.destroyed, 601) {
 		t.Fatalf("mode change commit %+v, destroyed blobs %v", last, r.dev.destroyed)
 	}
-	if err := o.Commit(backend.OutputState{Enabled: true, Mode: backend.Mode{Size: image.Pt(1, 1), RefreshMHz: 1}}); err == nil {
+	if err := o.Commit(backend.OutputState{Power: backend.PoweredOn, Mode: backend.Mode{Size: image.Pt(1, 1), RefreshMHz: 1}}); err == nil {
 		t.Fatal("a mode the connector lacks was accepted")
 	}
 	if err := o.Commit(backend.OutputState{}); err != nil {
 		t.Fatal(err)
 	}
 	off := r.dev.commits[len(r.dev.commits)-1]
-	if off.flags != kdrm.AtomicAllowModeset || off.values[[2]uint32{10, propActive}] != 0 || off.values[[2]uint32{40, propFB}] != 0 || o.State().Enabled || len(o.buffers) != 0 {
+	if off.flags != kdrm.AtomicAllowModeset || off.values[[2]uint32{10, propActive}] != 0 || off.values[[2]uint32{40, propFB}] != 0 || o.State().Enabled() || len(o.buffers) != 0 {
 		t.Fatalf("disable commit %+v, state %+v", off, o.State())
 	}
 }
@@ -607,12 +607,12 @@ func TestPowerAndWake(t *testing.T) {
 	}
 	r.settle()
 	state := o.State()
-	state.Off = true
+	state.Power = backend.PoweredOff
 	if err := o.Commit(state); err != nil {
 		t.Fatal(err)
 	}
 	off := r.dev.commits[len(r.dev.commits)-1]
-	if off.flags != kdrm.AtomicAllowModeset || off.values[[2]uint32{10, propActive}] != 0 || !o.State().Off || len(o.buffers) == 0 {
+	if off.flags != kdrm.AtomicAllowModeset || off.values[[2]uint32{10, propActive}] != 0 || o.State().Power != backend.PoweredOff || len(o.buffers) == 0 {
 		t.Fatalf("power off commit %+v, state %+v", off, o.State())
 	}
 	before := len(r.dev.commits)
@@ -623,13 +623,13 @@ func TestPowerAndWake(t *testing.T) {
 	if len(r.dev.commits) != before {
 		t.Fatal("an output that is off drew a frame")
 	}
-	state.Off = false
+	state.Power = backend.PoweredOn
 	if err := o.Commit(state); err != nil {
 		t.Fatal(err)
 	}
 	r.settle()
 	on := r.dev.commits[len(r.dev.commits)-1]
-	if on.flags&kdrm.AtomicAllowModeset == 0 || on.values[[2]uint32{10, propActive}] != 1 || o.State().Off {
+	if on.flags&kdrm.AtomicAllowModeset == 0 || on.values[[2]uint32{10, propActive}] != 1 || o.State().Power == backend.PoweredOff {
 		t.Fatalf("power on commit %+v", on)
 	}
 	r.dev.flip(t, 10, 5)
@@ -972,7 +972,7 @@ func TestClientBuffersAreReleasedWhenTheOutputStopsShowingThem(t *testing.T) {
 		"disabled": func(_ *rig, o *Output) error { return o.Commit(backend.OutputState{}) },
 		"powered off": func(_ *rig, o *Output) error {
 			st := o.State()
-			st.Off = true
+			st.Power = backend.PoweredOff
 			return o.Commit(st)
 		},
 		"paused and resumed": func(r *rig, _ *Output) error {
@@ -1004,11 +1004,11 @@ func TestAFailedPowerOffLeavesTheOutputOn(t *testing.T) {
 	o := r.lit()
 	r.dev.refusePowerOff = true
 	st := o.State()
-	st.Off = true
+	st.Power = backend.PoweredOff
 	if err := o.Commit(st); err == nil {
 		t.Fatal("a refused power off succeeded")
 	}
-	if o.State().Off {
+	if o.State().Power == backend.PoweredOff {
 		t.Fatal("a refused power off left the output marked off")
 	}
 }

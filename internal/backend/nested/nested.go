@@ -337,7 +337,10 @@ func (o *Output) Modes() []backend.Mode {
 }
 
 func (o *Output) State() backend.OutputState {
-	return backend.OutputState{Enabled: o.configured, Mode: o.mode()}
+	if !o.configured {
+		return backend.OutputState{Power: backend.Disabled, Mode: o.mode()}
+	}
+	return backend.OutputState{Power: backend.PoweredOn, Mode: o.mode()}
 }
 
 func (o *Output) Commit(s backend.OutputState) error {

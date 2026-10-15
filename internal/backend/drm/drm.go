@@ -557,7 +557,14 @@ func (o *Output) Modes() []backend.Mode {
 }
 
 func (o *Output) State() backend.OutputState {
-	return backend.OutputState{Enabled: o.enabled, Mode: modeOf(o.mode), Off: o.enabled && o.off}
+	power := backend.PoweredOn
+	switch {
+	case !o.enabled:
+		power = backend.Disabled
+	case o.off:
+		power = backend.PoweredOff
+	}
+	return backend.OutputState{Power: power, Mode: modeOf(o.mode)}
 }
 
 func (o *Output) setMode(m kdrm.Mode) error {
@@ -584,7 +591,7 @@ func (o *Output) setMode(m kdrm.Mode) error {
 }
 
 func (o *Output) Commit(s backend.OutputState) error {
-	if !s.Enabled {
+	if !s.Enabled() {
 		return o.disable()
 	}
 	i := slices.IndexFunc(o.conn.Modes, func(m kdrm.Mode) bool { return modeOf(m) == s.Mode })
@@ -592,12 +599,12 @@ func (o *Output) Commit(s backend.OutputState) error {
 		return fmt.Errorf("drm: %s has no mode %+v", o.Name(), s.Mode)
 	}
 	if o.enabled && o.conn.Modes[i] == o.mode {
-		return o.setPower(!s.Off)
+		return o.setPower(s.Lit())
 	}
 	if err := o.setMode(o.conn.Modes[i]); err != nil {
 		return err
 	}
-	o.off = s.Off
+	o.off = !s.Lit()
 	return o.ScheduleFrame()
 }
 

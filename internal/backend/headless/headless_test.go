@@ -242,7 +242,7 @@ func TestCommitResizesAndDisables(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := o.Commit(backend.OutputState{Enabled: true, Mode: small}); err != nil {
+	if err := o.Commit(backend.OutputState{Power: backend.PoweredOn, Mode: small}); err != nil {
 		t.Fatal(err)
 	}
 	if f, err := o.BeginFrame(); err != nil || f.Target.Size() != small.Size || f.Age != 0 {
@@ -265,7 +265,7 @@ func TestCommitResizesAndDisables(t *testing.T) {
 	if slices.Contains(r.log[before:], "frame HEADLESS-1") {
 		t.Fatal("a disabled output produced a frame")
 	}
-	if err := o.Commit(backend.OutputState{Enabled: true, Mode: backend.Mode{Size: image.Pt(0, 1), RefreshMHz: 1}}); err == nil {
+	if err := o.Commit(backend.OutputState{Power: backend.PoweredOn, Mode: backend.Mode{Size: image.Pt(0, 1), RefreshMHz: 1}}); err == nil {
 		t.Fatal("an invalid mode was committed")
 	}
 }
@@ -388,7 +388,7 @@ func TestClientBuffersAreReleasedWhenTheOutputStopsShowingThem(t *testing.T) {
 		"removed":  func(b *Backend, o *Output) error { return b.RemoveOutput(o) },
 		"disabled": func(_ *Backend, o *Output) error { return o.Commit(backend.OutputState{}) },
 		"powered off": func(_ *Backend, o *Output) error {
-			return o.Commit(backend.OutputState{Enabled: true, Mode: mode100, Off: true})
+			return o.Commit(backend.OutputState{Power: backend.PoweredOff, Mode: mode100})
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

@@ -26,7 +26,7 @@ func (c *Compositor) Snapshot() ipc.Snapshot {
 			Mode:        ipc.Mode{Width: mode.Size.X, Height: mode.Size.Y, RefreshMHz: mode.RefreshMHz},
 			Workspace:   active,
 			Focused:     b.Name() == focusedOutput,
-			Powered:     !b.State().Off,
+			Powered:     b.State().Lit(),
 		})
 	}
 	for _, w := range s.Workspaces() {
