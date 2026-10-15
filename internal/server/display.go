@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"slices"
 	"time"
@@ -25,6 +26,7 @@ const (
 type Options struct {
 	RuntimeDir string
 	Trace      io.Writer
+	Report     func(error)
 }
 
 type Display struct {
@@ -37,6 +39,8 @@ type Display struct {
 	lockPath   string
 	listenFD   int
 	lockFD     int
+	spare      int
+	report     func(error)
 	bound      bool
 	listener   *loop.Source
 	clients    []*Client
@@ -53,11 +57,17 @@ func New(l *loop.Loop, opts Options) (*Display, error) {
 	if opts.RuntimeDir == "" {
 		return nil, errors.New("server: no runtime directory: XDG_RUNTIME_DIR is not set")
 	}
-	d := &Display{loop: l, trace: opts.Trace, start: time.Now(), listenFD: -1, lockFD: -1}
+	if opts.Report == nil {
+		return nil, errors.New("server: Options.Report is required")
+	}
+	d := &Display{loop: l, trace: opts.Trace, report: opts.Report, start: time.Now(), listenFD: -1, lockFD: -1, spare: -1}
 	if err := d.bind(opts.RuntimeDir); err != nil {
 		return nil, err
 	}
 	var err error
+	if d.spare, err = openSpare(); err != nil {
+		return nil, errors.Join(err, d.release())
+	}
 	if d.listener, err = l.AddFD(d.listenFD, loop.Readable, d.accept); err != nil {
 		_ = d.release()
 		return nil, err
@@ -123,6 +133,10 @@ func (d *Display) release() error {
 		errs = append(errs, unix.Unlink(d.lockPath), unix.Close(d.lockFD))
 		d.lockFD = -1
 	}
+	if d.spare >= 0 {
+		errs = append(errs, unix.Close(d.spare))
+		d.spare = -1
+	}
 	if err := errors.Join(errs...); err != nil {
 		return fmt.Errorf("server: release %s: %w", d.socketPath, err)
 	}
@@ -157,21 +171,59 @@ func (d *Display) Close() error {
 	return errors.Join(append(errs, d.listener.Remove(), d.release())...)
 }
 
+func openSpare() (int, error) {
+	fd, err := unix.Open(os.DevNull, unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return -1, fmt.Errorf("server: hold a spare fd: %w", err)
+	}
+	return fd, nil
+}
+
 func (d *Display) accept(loop.Events) error {
+	return d.acceptOn(d.listenFD, d.socketPath, nil)
+}
+
+func (d *Display) acceptOn(listenFD int, where string, context *SecurityContext) error {
 	for {
-		fd, _, err := unix.Accept4(d.listenFD, unix.SOCK_CLOEXEC|unix.SOCK_NONBLOCK)
+		fd, _, err := unix.Accept4(listenFD, unix.SOCK_CLOEXEC|unix.SOCK_NONBLOCK)
 		switch {
 		case errors.Is(err, unix.EAGAIN):
 			return nil
 		case errors.Is(err, unix.EINTR), errors.Is(err, unix.ECONNABORTED):
 			continue
+		case errors.Is(err, unix.EMFILE), errors.Is(err, unix.ENFILE):
+			d.report(fmt.Errorf("server: refused a client on %s: %w", where, err))
+			d.shed(listenFD)
+			return nil
+		case errors.Is(err, unix.ENOBUFS), errors.Is(err, unix.ENOMEM), errors.Is(err, unix.EPROTO), errors.Is(err, unix.EPERM):
+			d.report(fmt.Errorf("server: refused a client on %s: %w", where, err))
+			return nil
 		case err != nil:
-			return fmt.Errorf("server: accept on %s: %w", d.socketPath, err)
+			return fmt.Errorf("server: accept on %s: %w", where, err)
 		}
-		if _, err := d.AddClient(fd); err != nil {
-			_ = unix.Close(fd)
-			return err
+		var ctx *SecurityContext
+		if context != nil {
+			copied := *context
+			ctx = &copied
 		}
+		if _, err := d.addClient(fd, ctx); err != nil {
+			d.report(errors.Join(fmt.Errorf("server: refused a client on %s: %w", where, err), unix.Close(fd)))
+		}
+	}
+}
+
+func (d *Display) shed(listenFD int) {
+	if d.spare < 0 {
+		return
+	}
+	errs := []error{unix.Close(d.spare)}
+	if fd, _, err := unix.Accept4(listenFD, unix.SOCK_CLOEXEC); err == nil {
+		errs = append(errs, unix.Close(fd))
+	}
+	var err error
+	d.spare, err = openSpare()
+	if err = errors.Join(append(errs, err)...); err != nil {
+		d.report(fmt.Errorf("server: shed a client on %s: %w", d.socketPath, err))
 	}
 }
 

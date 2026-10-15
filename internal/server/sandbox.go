@@ -92,21 +92,7 @@ func (d *Display) AddSandbox(listenFD, closeFD int, ctx SecurityContext) error {
 }
 
 func (sb *sandbox) accept(loop.Events) error {
-	for {
-		fd, _, err := unix.Accept4(sb.listenFD, unix.SOCK_CLOEXEC|unix.SOCK_NONBLOCK)
-		switch {
-		case errors.Is(err, unix.EAGAIN):
-			return nil
-		case errors.Is(err, unix.EINTR), errors.Is(err, unix.ECONNABORTED):
-			continue
-		case err != nil:
-			return fmt.Errorf("server: accept on a %s sandbox socket: %w", sb.ctx.Engine, err)
-		}
-		ctx := sb.ctx
-		if _, err := sb.d.addClient(fd, &ctx); err != nil {
-			return errors.Join(err, unix.Close(fd))
-		}
-	}
+	return sb.d.acceptOn(sb.listenFD, fmt.Sprintf("a %s sandbox socket", sb.ctx.Engine), &sb.ctx)
 }
 
 func (sb *sandbox) close() error {

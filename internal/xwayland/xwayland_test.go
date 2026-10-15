@@ -114,7 +114,7 @@ func startShell(t *testing.T) *shellRig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	disp, err := server.New(l, server.Options{RuntimeDir: t.TempDir()})
+	disp, err := server.New(l, server.Options{RuntimeDir: t.TempDir(), Report: func(err error) { t.Error(err) }})
 	if err != nil {
 		t.Fatal(err)
 	}

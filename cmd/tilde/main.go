@@ -415,7 +415,7 @@ func run(args []string) (err error) {
 	}
 	cfg.SwitchVT, s.configureInput = b.switchVT, b.configureInput
 	defer func() { err = errors.Join(err, b.Close()) }()
-	display, err := server.New(l, server.Options{RuntimeDir: os.Getenv("XDG_RUNTIME_DIR"), Trace: trace})
+	display, err := server.New(l, server.Options{RuntimeDir: os.Getenv("XDG_RUNTIME_DIR"), Trace: trace, Report: cfg.Report})
 	if err != nil {
 		return err
 	}

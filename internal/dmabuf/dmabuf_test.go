@@ -103,7 +103,7 @@ func setup(t *testing.T, device error) *env {
 		t.Fatal(err)
 	}
 	e := &env{t: t, dir: t.TempDir(), l: l, imp: &importer{device: device}}
-	if e.d, err = server.New(l, server.Options{RuntimeDir: e.dir}); err != nil {
+	if e.d, err = server.New(l, server.Options{RuntimeDir: e.dir, Report: func(err error) { t.Error(err) }}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := surface.New(e.d, e.imp); err != nil {

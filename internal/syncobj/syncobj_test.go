@@ -151,7 +151,7 @@ func setup(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	d, err := server.New(l, server.Options{RuntimeDir: dir})
+	d, err := server.New(l, server.Options{RuntimeDir: dir, Report: func(err error) { t.Error(err) }})
 	if err != nil {
 		t.Fatal(err)
 	}

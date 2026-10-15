@@ -46,7 +46,7 @@ func startNestedWith(t *testing.T, host *Harness, configure func(*compositor.Con
 	if err != nil {
 		t.Fatal(err)
 	}
-	display, err := server.New(n.loop, server.Options{RuntimeDir: n.dir})
+	display, err := server.New(n.loop, server.Options{RuntimeDir: n.dir, Report: func(err error) { t.Error(err) }})
 	if err != nil {
 		t.Fatal(err)
 	}

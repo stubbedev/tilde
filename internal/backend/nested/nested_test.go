@@ -142,7 +142,7 @@ func TestNestedInSway(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(runtime)
-	display, err := server.New(l, server.Options{RuntimeDir: runtime})
+	display, err := server.New(l, server.Options{RuntimeDir: runtime, Report: func(err error) { t.Error(err) }})
 	if err != nil {
 		t.Fatal(err)
 	}

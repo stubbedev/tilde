@@ -34,7 +34,7 @@ func start(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 	h := &harness{t: t, loop: l, dir: t.TempDir(), trace: &bytes.Buffer{}}
-	if h.disp, err = New(l, Options{RuntimeDir: h.dir, Trace: h.trace}); err != nil {
+	if h.disp, err = New(l, Options{RuntimeDir: h.dir, Trace: h.trace, Report: func(err error) { t.Error(err) }}); err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)
@@ -139,11 +139,11 @@ func TestSocketLockAndCleanup(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Close()
-	first, err := New(l, Options{RuntimeDir: dir})
+	first, err := New(l, Options{RuntimeDir: dir, Report: func(err error) { t.Error(err) }})
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := New(l, Options{RuntimeDir: dir})
+	second, err := New(l, Options{RuntimeDir: dir, Report: func(err error) { t.Error(err) }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,11 +163,14 @@ func TestSocketLockAndCleanup(t *testing.T) {
 	if err != nil || len(left) != 0 {
 		t.Fatalf("Close left %v behind (%v)", left, err)
 	}
-	if _, err := New(l, Options{}); err == nil || !strings.Contains(err.Error(), "XDG_RUNTIME_DIR") {
+	if _, err := New(l, Options{Report: func(error) {}}); err == nil || !strings.Contains(err.Error(), "XDG_RUNTIME_DIR") {
 		t.Fatalf("New without a runtime dir = %v", err)
 	}
+	if _, err := New(l, Options{RuntimeDir: dir}); err == nil || !strings.Contains(err.Error(), "Report is required") {
+		t.Fatalf("New without a report hook = %v", err)
+	}
 	long := filepath.Join(dir, strings.Repeat("x", 100))
-	if _, err := New(l, Options{RuntimeDir: long}); err == nil || !strings.Contains(err.Error(), "a Unix socket allows 107") {
+	if _, err := New(l, Options{RuntimeDir: long, Report: func(error) {}}); err == nil || !strings.Contains(err.Error(), "a Unix socket allows 107") {
 		t.Fatalf("New with an overlong path = %v", err)
 	}
 }
@@ -558,4 +561,65 @@ func TestPrivateGlobalsAndSocketpairClients(t *testing.T) {
 			t.Errorf("a hidden global was bound: %v", bound)
 		}
 	})
+}
+
+func TestRunningOutOfFDsRefusesAClientAndKeepsServing(t *testing.T) {
+	l, err := loop.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	var reported []error
+	d, err := New(l, Options{RuntimeDir: t.TempDir(), Report: func(err error) { reported = append(reported, err) }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	dial := func() int {
+		fd, err := unix.Socket(unix.AF_UNIX, unix.SOCK_STREAM|unix.SOCK_CLOEXEC, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := unix.Connect(fd, &unix.SockaddrUnix{Name: filepath.Join(filepath.Dir(d.socketPath), d.Name())}); err != nil {
+			t.Fatal(err)
+		}
+		return fd
+	}
+	refused := dial()
+	defer unix.Close(refused)
+	var limit unix.Rlimit
+	if err := unix.Getrlimit(unix.RLIMIT_NOFILE, &limit); err != nil {
+		t.Fatal(err)
+	}
+	var filler []int
+	tight := limit
+	tight.Cur = uint64(refused) + 64
+	if err := unix.Setrlimit(unix.RLIMIT_NOFILE, &tight); err != nil {
+		t.Fatal(err)
+	}
+	for {
+		fd, err := unix.Open(os.DevNull, unix.O_RDONLY|unix.O_CLOEXEC, 0)
+		if err != nil {
+			break
+		}
+		filler = append(filler, fd)
+	}
+	acceptErr := d.accept(0)
+	for _, fd := range filler {
+		_ = unix.Close(fd)
+	}
+	if err := unix.Setrlimit(unix.RLIMIT_NOFILE, &limit); err != nil {
+		t.Fatal(err)
+	}
+	if acceptErr != nil || len(reported) != 1 || !errors.Is(reported[0], unix.EMFILE) {
+		t.Fatalf("accept = %v, reported %v; want nil and one EMFILE report", acceptErr, reported)
+	}
+	if n, err := unix.Read(refused, make([]byte, 1)); n != 0 || err != nil {
+		t.Fatalf("the refused client read %d, %v; want EOF", n, err)
+	}
+	served := dial()
+	defer unix.Close(served)
+	if err := d.accept(0); err != nil || len(d.clients) != 1 {
+		t.Fatalf("accept after the shortage = %v with %d clients", err, len(d.clients))
+	}
 }

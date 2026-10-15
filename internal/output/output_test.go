@@ -142,7 +142,7 @@ func TestOutputAndXdgOutputEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Close()
-	disp, err := server.New(l, server.Options{RuntimeDir: dir})
+	disp, err := server.New(l, server.Options{RuntimeDir: dir, Report: func(err error) { t.Error(err) }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +229,7 @@ func TestPhysicalClientsSeeOutputsInXSpace(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Close()
-	disp, err := server.New(l, server.Options{RuntimeDir: t.TempDir()})
+	disp, err := server.New(l, server.Options{RuntimeDir: t.TempDir(), Report: func(err error) { t.Error(err) }})
 	if err != nil {
 		t.Fatal(err)
 	}

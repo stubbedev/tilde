@@ -132,7 +132,7 @@ func setup(t *testing.T, configure ...func(*recorder)) *env {
 		t.Fatal(err)
 	}
 	e := &env{t: t, loop: l, dir: dir, rec: &recorder{}}
-	if e.disp, err = server.New(l, server.Options{RuntimeDir: dir}); err != nil {
+	if e.disp, err = server.New(l, server.Options{RuntimeDir: dir, Report: func(err error) { t.Error(err) }}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := surface.New(e.disp, noSurfaces{}); err != nil {

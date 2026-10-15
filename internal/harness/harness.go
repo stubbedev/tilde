@@ -102,7 +102,7 @@ func start(t *testing.T, s setup, modes ...backend.Mode) *Harness {
 	if h.loop, err = loop.New(); err != nil {
 		t.Fatalf("harness: %v", err)
 	}
-	opts := server.Options{RuntimeDir: dir}
+	opts := server.Options{RuntimeDir: dir, Report: func(err error) { t.Errorf("server reported: %v", err) }}
 	if s.traced {
 		opts.Trace = h.trace
 	}

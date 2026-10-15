@@ -59,7 +59,7 @@ func setup(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	e := &env{t: t, loop: l, dir: dir, keymap: testenv.Keymap(t), surf: &surfaces{}}
-	if e.disp, err = server.New(l, server.Options{RuntimeDir: dir}); err != nil {
+	if e.disp, err = server.New(l, server.Options{RuntimeDir: dir, Report: func(err error) { t.Error(err) }}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := surface.New(e.disp, e.surf); err != nil {
