@@ -185,7 +185,7 @@ func (hb *headBinding) addMode(mode backend.Mode) error {
 func (hb *headBinding) sendPlacement(now, before Head) error {
 	var errs []error
 	if now.Mode != before.Mode {
-		if i := slices.IndexFunc(hb.modes, func(mb *modeBinding) bool { return mb.mode == now.Mode }); i >= 0 {
+		if i := slices.IndexFunc(hb.modes, func(mb *modeBinding) bool { return mb.mode == now.Mode && !mb.released }); i >= 0 {
 			errs = append(errs, hb.res.SendCurrentMode(hb.modes[i].res))
 		}
 	}

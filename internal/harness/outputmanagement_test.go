@@ -341,6 +341,36 @@ func TestOutputManagementAppliesAConfiguration(t *testing.T) {
 	})
 }
 
+func TestAReleasedModeIsNeverNamedCurrent(t *testing.T) {
+	h := Start(t, small)
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+		_, err := b.AddNamedOutput("HEADLESS-9", wideMode, smallMode)
+		return err
+	})
+	c := testclient.Connect(t, h.Socket())
+	m := outputManager(t, c)
+	watcher := testclient.Connect(t, h.Socket())
+	seen := outputManager(t, watcher).head("HEADLESS-9")
+	released := seen.mode(smallMode)
+	if err := errors.Join(released.res.Release(), watcher.Display.Roundtrip()); err != nil {
+		t.Fatal(err)
+	}
+	plugged := m.head("HEADLESS-9")
+	r := configure(t, c, m, m.serial, true, everyHead(m, map[*omHead][]headSetting{plugged: {
+		func(ch *cwom.ZwlrOutputConfigurationHeadV1) error { return ch.SetMode(plugged.mode(smallMode).res) },
+	}}))
+	if !r.succeeded {
+		t.Fatalf("apply answered %+v", *r)
+	}
+	c.DispatchUntil("the applied state", func() bool { return plugged.current == plugged.mode(smallMode) })
+	if err := watcher.Display.Roundtrip(); err != nil {
+		t.Fatalf("the client that released the mode: %v", err)
+	}
+	if seen.current == released {
+		t.Fatal("a released mode was named the current mode")
+	}
+}
+
 func TestOutputManagementRefusesWhatItCannotDo(t *testing.T) {
 	h := Start(t, small, small)
 	c := testclient.Connect(t, h.Socket())
