@@ -8,6 +8,7 @@ import (
 	"math"
 	"slices"
 
+	"github.com/stubbedev/tilde/internal/region"
 	"github.com/stubbedev/tilde/internal/render"
 )
 
@@ -129,12 +130,7 @@ func (r *Renderer) Begin(target render.Target, damage render.Region) (render.Pas
 	}
 	p := &r.pass
 	p.active, p.buf, p.err = true, buf, nil
-	p.damage = p.damage[:0]
-	for _, d := range damage {
-		if d = d.Intersect(buf.bounds()); !d.Empty() {
-			p.damage = append(p.damage, d)
-		}
-	}
+	damage.ClipInto(&p.damage, buf.bounds())
 	return p, nil
 }
 
@@ -142,7 +138,7 @@ type pass struct {
 	owner  *Renderer
 	active bool
 	buf    *Buffer
-	damage []image.Rectangle
+	damage region.Set
 	err    error
 	cols   []int
 	rows   []int
@@ -187,7 +183,7 @@ func (p *pass) Clear(c render.Color) {
 		p.fail(fmt.Errorf("soft: color %+v is not premultiplied", c))
 		return
 	}
-	for _, d := range p.damage {
+	for _, d := range p.damage.Rects() {
 		for y := d.Min.Y; y < d.Max.Y; y++ {
 			row := p.buf.Pix[y*p.buf.Stride:]
 			for x := d.Min.X; x < d.Max.X; x++ {
@@ -206,7 +202,7 @@ func (p *pass) FillRect(r image.Rectangle, c render.Color) {
 		p.fail(fmt.Errorf("soft: color %+v is not premultiplied", c))
 		return
 	}
-	for _, d := range p.damage {
+	for _, d := range p.damage.Rects() {
 		clip := r.Intersect(d)
 		for y := clip.Min.Y; y < clip.Max.Y; y++ {
 			row := p.buf.Pix[y*p.buf.Stride:]
@@ -244,7 +240,7 @@ func (p *pass) DrawTexture(t render.Texture, src render.FRect, dst image.Rectang
 	p.cols = sampleMap(p.cols[:0], dst.Dx(), horizontal, src, tex.size)
 	p.rows = sampleMap(p.rows[:0], dst.Dy(), vertical, src, tex.size)
 	swap := transform.SwapsAxes()
-	for _, d := range p.damage {
+	for _, d := range p.damage.Rects() {
 		clip := dst.Intersect(d)
 		for y := clip.Min.Y; y < clip.Max.Y; y++ {
 			out := p.buf.Pix[y*p.buf.Stride:]

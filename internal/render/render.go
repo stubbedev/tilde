@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"image"
 	"math"
+
+	"github.com/stubbedev/tilde/internal/region"
 )
 
 type Transform uint8
@@ -151,6 +153,13 @@ func CheckDraw(texture image.Point, src FRect, transform Transform, alpha float3
 }
 
 type Region []image.Rectangle
+
+func (g Region) ClipInto(dst *region.Set, bounds image.Rectangle) {
+	dst.Reset()
+	for _, r := range g {
+		dst.Add(r.Intersect(bounds))
+	}
+}
 
 func CheckPixels(size image.Point, stride, n int) error {
 	switch {

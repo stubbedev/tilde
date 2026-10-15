@@ -14,6 +14,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/stubbedev/tilde/internal/gpu"
+	"github.com/stubbedev/tilde/internal/region"
 	"github.com/stubbedev/tilde/internal/render"
 )
 
@@ -508,7 +509,7 @@ type pass struct {
 	owner  *Renderer
 	active bool
 	fb     *Framebuffer
-	damage []image.Rectangle
+	damage region.Set
 	err    error
 }
 
@@ -527,13 +528,7 @@ func (r *Renderer) Begin(target render.Target, damage render.Region) (render.Pas
 	}
 	p := &r.pass
 	p.active, p.fb, p.err = true, fb, nil
-	p.damage = p.damage[:0]
-	bounds := image.Rectangle{Max: fb.size}
-	for _, d := range damage {
-		if d = d.Intersect(bounds); !d.Empty() {
-			p.damage = append(p.damage, d)
-		}
-	}
+	damage.ClipInto(&p.damage, image.Rectangle{Max: fb.size})
 	gl := r.gl
 	gl.BindFramebuffer(gpu.Framebuffer, fb.fbo)
 	gl.Viewport(0, 0, int32(fb.size.X), int32(fb.size.Y)) //nolint:gosec // framebuffer sizes fit GLsizei
@@ -581,7 +576,7 @@ func (p *pass) draw(prog program, dst image.Rectangle) {
 			gl.EnableVertexAttribArray(uint32(a.loc))
 		}
 	}
-	for _, d := range p.damage {
+	for _, d := range p.damage.Rects() {
 		clip := dst.Intersect(d)
 		if clip.Empty() {
 			continue
@@ -602,7 +597,7 @@ func (p *pass) Clear(c render.Color) {
 	}
 	gl := p.owner.gl
 	gl.ClearColor(float32(c.R)/255, float32(c.G)/255, float32(c.B)/255, float32(c.A)/255)
-	for _, d := range p.damage {
+	for _, d := range p.damage.Rects() {
 		gl.Scissor(int32(d.Min.X), int32(d.Min.Y), int32(d.Dx()), int32(d.Dy())) //nolint:gosec // inside the framebuffer
 		gl.Clear(gpu.ColorBufferBit)
 	}

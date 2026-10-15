@@ -112,6 +112,20 @@ func TestFillRectBlendsAndClipsToDamage(t *testing.T) {
 	}
 }
 
+func TestOverlappingDamageBlendsOnce(t *testing.T) {
+	r := soft.New()
+	b := soft.NewBuffer(4, 1)
+	frame(t, r, b, full(b), func(p render.Pass) { p.FillRect(bounds(b), render.Color{A: 0xff}) })
+	frame(t, r, b, render.Region{image.Rect(0, 0, 3, 1), image.Rect(1, 0, 4, 1), image.Rect(1, 0, 2, 1)}, func(p render.Pass) {
+		p.FillRect(bounds(b), render.Color{R: 0x80, A: 0x80})
+	})
+	for x := range 4 {
+		if got := at(b, x, 0); got != px(0, 0, 0x80, 0xff) {
+			t.Fatalf("pixel %d is %v, want one blend of half-transparent red over black", x, got)
+		}
+	}
+}
+
 func TestClearReplacesTheDamageWithoutBlending(t *testing.T) {
 	r := soft.New()
 	b := soft.NewBuffer(4, 1)

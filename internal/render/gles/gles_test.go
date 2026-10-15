@@ -160,6 +160,33 @@ func compare(t *testing.T, want *soft.Buffer, got *gles.Framebuffer, tolerance i
 	}
 }
 
+func TestOverlappingDamageBlendsOnce(t *testing.T) {
+	r := renderer(t)
+	fb, err := r.NewFramebuffer(image.Pt(4, 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := fb.Destroy(); err != nil {
+			t.Error(err)
+		}
+	})
+	all := image.Rect(0, 0, 4, 1)
+	paint(t, r, fb, render.Region{all}, func(p render.Pass) { p.FillRect(all, render.Color{A: 0xff}) })
+	paint(t, r, fb, render.Region{image.Rect(0, 0, 3, 1), image.Rect(1, 0, 4, 1), image.Rect(1, 0, 2, 1)}, func(p render.Pass) {
+		p.FillRect(all, render.Color{R: 0x80, A: 0x80})
+	})
+	pix := make([]byte, 16)
+	if err := fb.Read(pix, 16); err != nil {
+		t.Fatal(err)
+	}
+	for x := range 4 {
+		if got := pix[4*x : 4*x+4]; got[2] < 0x7f || got[2] > 0x81 || got[3] != 0xff {
+			t.Fatalf("pixel %d is %v, want one blend of half-transparent red over black", x, got)
+		}
+	}
+}
+
 func TestParityWithTheSoftwareRenderer(t *testing.T) {
 	parity(t, renderer(t))
 }
