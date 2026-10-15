@@ -88,21 +88,11 @@ type primaryOffer struct {
 }
 
 func (m *Manager) offerPrimary(dev *sps.ZwpPrimarySelectionDeviceV1, src Source) error {
-	if src == nil {
-		return dev.SendSelection(nil)
-	}
-	o := &primaryOffer{selectionOffer{source: src}}
-	res, err := dev.SendDataOffer(o)
-	if err != nil {
-		return err
-	}
-	m.offers[Primary] = append(m.offers[Primary], &o.selectionOffer)
-	for _, mime := range src.Mimes() {
-		if err := res.SendOffer(mime); err != nil {
-			return err
-		}
-	}
-	return dev.SendSelection(res)
+	return offerTo(src, func() (*sps.ZwpPrimarySelectionOfferV1, error) {
+		o := &primaryOffer{selectionOffer{source: src}}
+		m.offers[Primary] = append(m.offers[Primary], &o.selectionOffer)
+		return dev.SendDataOffer(o)
+	}, dev.SendSelection)
 }
 
 func (o *primaryOffer) Receive(_ *sps.ZwpPrimarySelectionOfferV1, mime string, fd int) error {

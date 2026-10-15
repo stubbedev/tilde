@@ -74,26 +74,6 @@ func (m *Manager) controlOffer(k Kind, src Source) *selectionOffer {
 	return o
 }
 
-func offerTo[O interface {
-	comparable
-	SendOffer(mime string) error
-}](src Source, create func() (O, error), send func(O) error) error {
-	var none O
-	if src == nil {
-		return send(none)
-	}
-	o, err := create()
-	if err != nil {
-		return err
-	}
-	for _, mime := range src.Mimes() {
-		if err := o.SendOffer(mime); err != nil {
-			return err
-		}
-	}
-	return send(o)
-}
-
 func (m *Manager) setControlSelection(k Kind, s *controlSource) error {
 	if s == nil {
 		return m.SetSelection(k, nil)

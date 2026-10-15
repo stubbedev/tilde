@@ -185,6 +185,26 @@ func (m *Manager) sourceGone(src Source) error {
 	return errors.Join(errs...)
 }
 
+func offerTo[O interface {
+	comparable
+	SendOffer(mime string) error
+}](src Source, create func() (O, error), send func(O) error) error {
+	var none O
+	if src == nil {
+		return send(none)
+	}
+	o, err := create()
+	if err != nil {
+		return err
+	}
+	for _, mime := range src.Mimes() {
+		if err := o.SendOffer(mime); err != nil {
+			return err
+		}
+	}
+	return send(o)
+}
+
 type selectionOffer struct {
 	source Source
 	dead   bool

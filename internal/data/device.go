@@ -173,22 +173,13 @@ type dataOffer struct {
 }
 
 func (m *Manager) offerData(c *server.Client, dev *sw.WlDataDevice, src Source) error {
-	if src == nil {
-		return dev.SendSelection(nil)
-	}
-	o := &dataOffer{source: src, m: m, client: c}
-	res, err := dev.SendDataOffer(o)
-	if err != nil {
-		return err
-	}
-	o.resource = res
-	m.offers[Clipboard] = append(m.offers[Clipboard], &o.selectionOffer)
-	for _, mime := range src.Mimes() {
-		if err := res.SendOffer(mime); err != nil {
-			return err
-		}
-	}
-	return dev.SendSelection(res)
+	return offerTo(src, func() (*sw.WlDataOffer, error) {
+		o := &dataOffer{source: src, m: m, client: c}
+		res, err := dev.SendDataOffer(o)
+		o.resource = res
+		m.offers[Clipboard] = append(m.offers[Clipboard], &o.selectionOffer)
+		return res, err
+	}, dev.SendSelection)
 }
 
 func (o *dataOffer) Accept(_ *sw.WlDataOffer, _ uint32, mime *string) error {
