@@ -32,7 +32,10 @@ func (d dialogs) GetXdgDialog(obj *sxdd.XdgWmDialogV1, res *sxdd.XdgDialogV1, to
 		return nil, obj.ProtocolError(sxdd.XdgWmDialogV1ErrorAlreadyUsed, fmt.Sprintf("xdg_toplevel@%d already has an xdg_dialog_v1", top.Base().ID()))
 	}
 	t.dialog = true
-	d.c.OnDestroy(res, func() error { return t.setModal(false) })
+	d.c.OnDestroy(res, func() error {
+		t.dialog = false
+		return t.setModal(false)
+	})
 	return dialog{t}, nil
 }
 

@@ -95,6 +95,27 @@ func TestAPlainDialogDoesNotHoldTheFocus(t *testing.T) {
 	s.expectFocus("the app takes the keyboard from a non-modal dialog", s.app)
 }
 
+func TestADialogObjectCanBeMadeAgainAfterTheFirstIsGone(t *testing.T) {
+	h := Start(t, small)
+	c := testclient.Connect(t, h.Socket())
+	m := dialogManager(t, c)
+	w := c.Window("app", testclient.Fill(0xff, 0, 0))
+	c.DispatchUntil("the window to map", w.Mapped)
+	first, err := m.GetXdgDialog(w.Toplevel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := first.Destroy(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.GetXdgDialog(w.Toplevel); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Display.Roundtrip(); err != nil {
+		t.Fatalf("an xdg_dialog_v1 after the first was destroyed: %v", err)
+	}
+}
+
 func TestASecondDialogObjectIsAnError(t *testing.T) {
 	h := Start(t, small)
 	c := testclient.Connect(t, h.Socket())
