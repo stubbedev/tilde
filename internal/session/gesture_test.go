@@ -60,3 +60,25 @@ func TestLibinputGesturesBecomeBackendEvents(t *testing.T) {
 		t.Fatalf("translated\n%+v\nwant\n%+v", got, want)
 	}
 }
+
+func TestOnlyKnownSwitchesBecomeBackendEvents(t *testing.T) {
+	kinds := []int32{switchLid, switchTabletMode, 3}
+	in := &Libinput{fn: libinputFuncs{
+		eventType:   func(uintptr) int32 { return evSwitchToggle },
+		switchEvent: func(ev uintptr) uintptr { return ev },
+		switchKind:  func(s uintptr) int32 { return kinds[s-1] },
+		switchTime:  func(uintptr) uint64 { return 1000 },
+		switchState: func(uintptr) int32 { return 1 },
+	}}
+	var got []backend.Event
+	for i := range kinds {
+		got = in.translate(got, &InputDevice{}, uintptr(i+1))
+	}
+	want := []backend.Event{
+		backend.Switch{Time: time.Millisecond, Kind: backend.SwitchLid, On: true},
+		backend.Switch{Time: time.Millisecond, Kind: backend.SwitchTabletMode, On: true},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("translated %+v, want %+v: an unknown switch must not act as the lid", got, want)
+	}
+}

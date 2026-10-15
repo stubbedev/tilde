@@ -60,6 +60,8 @@ const (
 	configStatusSuccess = 0
 )
 
+var switchKinds = map[int32]backend.SwitchKind{switchLid: backend.SwitchLid, switchTabletMode: backend.SwitchTabletMode}
+
 type libinputFuncs struct {
 	createContext  func(iface unsafe.Pointer, userData uintptr) uintptr
 	unref          func(li uintptr) uintptr
@@ -548,9 +550,9 @@ func (in *Libinput) translate(out []backend.Event, d *InputDevice, ev uintptr) [
 		return append(out, backend.GestureEnd{Time: usec(f.gestureTime(g)), Gesture: gestures[typ], Cancelled: f.cancelled(g) != 0})
 	case evSwitchToggle:
 		s := f.switchEvent(ev)
-		kind := backend.SwitchLid
-		if f.switchKind(s) == switchTabletMode {
-			kind = backend.SwitchTabletMode
+		kind, ok := switchKinds[f.switchKind(s)]
+		if !ok {
+			return out
 		}
 		return append(out, backend.Switch{Time: usec(f.switchTime(s)), Kind: kind, On: f.switchState(s) == 1})
 	}
