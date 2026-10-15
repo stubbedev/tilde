@@ -70,10 +70,20 @@ type allocator interface {
 	close() error
 }
 
+type kmsObject struct {
+	id    uint32
+	props map[string]kdrm.Property
+}
+
+func (k kmsObject) set(r *kdrm.Request, name string, value uint64) {
+	if p, ok := k.props[name]; ok {
+		r.Add(k.id, p.ID, value)
+	}
+}
+
 type crtc struct {
-	id     uint32
+	kmsObject
 	index  int
-	props  map[string]kdrm.Property
 	output *Output
 }
 
@@ -85,12 +95,11 @@ const (
 )
 
 type plane struct {
-	id        uint32
+	kmsObject
 	kind      planeKind
 	possible  uint32
 	modifiers []fourcc.Modifier
 	clients   []gpu.FormatModifier
-	props     map[string]kdrm.Property
 	taken     bool
 }
 
@@ -145,7 +154,7 @@ func newBackend(l *loop.Loop, dev device, alloc allocator, opts Options) (*Backe
 		if err != nil {
 			return nil, err
 		}
-		b.crtcs = append(b.crtcs, &crtc{id: id, index: i, props: props})
+		b.crtcs = append(b.crtcs, &crtc{kmsObject: kmsObject{id, props}, index: i})
 	}
 	planes, err := dev.Planes()
 	if err != nil {
@@ -194,7 +203,7 @@ func (b *Backend) plane(id uint32, renderable []fourcc.Modifier) (*plane, error)
 	if err != nil {
 		return nil, err
 	}
-	p := &plane{id: id, possible: info.PossibleCRTCs, props: props}
+	p := &plane{kmsObject: kmsObject{id, props}, possible: info.PossibleCRTCs}
 	var format fourcc.Format
 	switch kind.Value {
 	case enum.Enums["Primary"]:
@@ -357,7 +366,7 @@ func (b *Backend) add(c kdrm.Connector) error {
 	if err != nil {
 		return err
 	}
-	o := &Output{b: b, conn: c, props: props, crtc: cr, primary: p}
+	o := &Output{b: b, conn: c, connector: kmsObject{c.ID, props}, crtc: cr, primary: p}
 	o.clock = backend.NewFrameClock(b.loop.Idle, o.frameReady, o.runFrame)
 	if blob, ok := props["EDID"]; ok && blob.Value != 0 {
 		data, err := b.dev.Blob(uint32(blob.Value)) //nolint:gosec // property blob IDs are 32-bit
@@ -501,7 +510,7 @@ type Output struct {
 	b         *Backend
 	identity  edid.Info
 	conn      kdrm.Connector
-	props     map[string]kdrm.Property
+	connector kmsObject
 	crtc      *crtc
 	primary   *plane
 	cursor    *cursor
@@ -620,7 +629,7 @@ func (o *Output) setPower(on bool) error {
 	if o.lit {
 		r := &o.b.req
 		r.Reset()
-		o.add(o.crtc.id, o.crtc.props, "ACTIVE", 0)
+		o.crtc.set(&o.b.req, "ACTIVE", 0)
 		o.detach()
 		if err := o.b.dev.Commit(r, kdrm.AtomicAllowModeset, 0); err != nil {
 			return fmt.Errorf("drm: power off %s: %w", o.Name(), err)
@@ -641,9 +650,9 @@ func (o *Output) disable() error {
 	}
 	r := &o.b.req
 	r.Reset()
-	o.add(o.conn.ID, o.props, "CRTC_ID", 0)
-	o.add(o.crtc.id, o.crtc.props, "ACTIVE", 0)
-	o.add(o.crtc.id, o.crtc.props, "MODE_ID", 0)
+	o.connector.set(&o.b.req, "CRTC_ID", 0)
+	o.crtc.set(&o.b.req, "ACTIVE", 0)
+	o.crtc.set(&o.b.req, "MODE_ID", 0)
 	o.detach()
 	if err := o.b.dev.Commit(r, kdrm.AtomicAllowModeset, 0); err != nil {
 		return fmt.Errorf("drm: disable %s: %w", o.Name(), err)
@@ -654,18 +663,12 @@ func (o *Output) disable() error {
 }
 
 func (o *Output) detach() {
-	o.add(o.primary.id, o.primary.props, "FB_ID", 0)
-	o.add(o.primary.id, o.primary.props, "CRTC_ID", 0)
+	o.primary.set(&o.b.req, "FB_ID", 0)
+	o.primary.set(&o.b.req, "CRTC_ID", 0)
 	if c := o.cursor; c != nil {
-		o.add(c.plane.id, c.plane.props, "FB_ID", 0)
-		o.add(c.plane.id, c.plane.props, "CRTC_ID", 0)
+		c.plane.set(&o.b.req, "FB_ID", 0)
+		c.plane.set(&o.b.req, "CRTC_ID", 0)
 		c.queued, c.front, c.dirty = nil, nil, true
-	}
-}
-
-func (o *Output) add(object uint32, props map[string]kdrm.Property, name string, value uint64) {
-	if p, ok := props[name]; ok {
-		o.b.req.Add(object, p.ID, value)
 	}
 }
 
@@ -803,7 +806,7 @@ func (o *Output) tearable(fb uint32, flags uint32) bool {
 	}
 	r := &o.b.req
 	r.Reset()
-	o.add(o.primary.id, o.primary.props, "FB_ID", uint64(fb))
+	o.primary.set(&o.b.req, "FB_ID", uint64(fb))
 	return o.test(flags) == nil
 }
 
@@ -835,9 +838,9 @@ func (o *Output) frame(s *scanout, fence int) {
 	r := &o.b.req
 	r.Reset()
 	if o.modeset {
-		o.add(o.conn.ID, o.props, "CRTC_ID", uint64(o.crtc.id))
-		o.add(o.crtc.id, o.crtc.props, "MODE_ID", uint64(o.modeBlob))
-		o.add(o.crtc.id, o.crtc.props, "ACTIVE", 1)
+		o.connector.set(&o.b.req, "CRTC_ID", uint64(o.crtc.id))
+		o.crtc.set(&o.b.req, "MODE_ID", uint64(o.modeBlob))
+		o.crtc.set(&o.b.req, "ACTIVE", 1)
 	}
 	o.place(o.primary, s.fb, image.Rectangle{Max: image.Pt(int(o.mode.HDisplay), int(o.mode.VDisplay))}, fence)
 	if o.cursor != nil {
@@ -848,18 +851,18 @@ func (o *Output) frame(s *scanout, fence int) {
 
 func (o *Output) place(p *plane, fb uint32, at image.Rectangle, fence int) {
 	w, h := uint64(at.Dx()), uint64(at.Dy()) //nolint:gosec // plane sizes are positive
-	o.add(p.id, p.props, "FB_ID", uint64(fb))
-	o.add(p.id, p.props, "CRTC_ID", uint64(o.crtc.id))
-	o.add(p.id, p.props, "SRC_X", 0)
-	o.add(p.id, p.props, "SRC_Y", 0)
-	o.add(p.id, p.props, "SRC_W", w<<16)
-	o.add(p.id, p.props, "SRC_H", h<<16)
-	o.add(p.id, p.props, "CRTC_X", uint64(int64(at.Min.X))) //nolint:gosec // signed plane positions travel as two's complement
-	o.add(p.id, p.props, "CRTC_Y", uint64(int64(at.Min.Y))) //nolint:gosec // signed plane positions travel as two's complement
-	o.add(p.id, p.props, "CRTC_W", w)
-	o.add(p.id, p.props, "CRTC_H", h)
+	p.set(&o.b.req, "FB_ID", uint64(fb))
+	p.set(&o.b.req, "CRTC_ID", uint64(o.crtc.id))
+	p.set(&o.b.req, "SRC_X", 0)
+	p.set(&o.b.req, "SRC_Y", 0)
+	p.set(&o.b.req, "SRC_W", w<<16)
+	p.set(&o.b.req, "SRC_H", h<<16)
+	p.set(&o.b.req, "CRTC_X", uint64(int64(at.Min.X))) //nolint:gosec // signed plane positions travel as two's complement
+	p.set(&o.b.req, "CRTC_Y", uint64(int64(at.Min.Y))) //nolint:gosec // signed plane positions travel as two's complement
+	p.set(&o.b.req, "CRTC_W", w)
+	p.set(&o.b.req, "CRTC_H", h)
 	if fence >= 0 {
-		o.add(p.id, p.props, "IN_FENCE_FD", uint64(fence))
+		p.set(&o.b.req, "IN_FENCE_FD", uint64(fence))
 	}
 }
 

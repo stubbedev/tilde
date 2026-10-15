@@ -49,7 +49,7 @@ func (o *Output) SetGamma(ramps []uint16) error {
 	if o.lit && !o.off && !o.b.paused {
 		r := &o.b.req
 		r.Reset()
-		o.add(o.crtc.id, o.crtc.props, "GAMMA_LUT", uint64(blob))
+		o.crtc.set(&o.b.req, "GAMMA_LUT", uint64(blob))
 		if err := o.test(kdrm.AtomicNonblock); err != nil {
 			return errors.Join(fmt.Errorf("drm: %s refuses the gamma LUT: %w", o.Name(), err), o.destroyBlob(blob))
 		}
@@ -77,9 +77,9 @@ func (o *Output) dropPendingGamma() error {
 func (o *Output) addGamma() {
 	switch {
 	case o.gamma.dirty:
-		o.add(o.crtc.id, o.crtc.props, "GAMMA_LUT", uint64(o.gamma.next))
+		o.crtc.set(&o.b.req, "GAMMA_LUT", uint64(o.gamma.next))
 	case o.modeset:
-		o.add(o.crtc.id, o.crtc.props, "GAMMA_LUT", uint64(o.gamma.current))
+		o.crtc.set(&o.b.req, "GAMMA_LUT", uint64(o.gamma.current))
 	}
 }
 

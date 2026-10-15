@@ -143,14 +143,14 @@ func (c *cursor) HideCursor() error {
 func (c *cursor) add() {
 	o, p := c.o, c.plane
 	if !c.visible {
-		o.add(p.id, p.props, "FB_ID", 0)
-		o.add(p.id, p.props, "CRTC_ID", 0)
+		p.set(&o.b.req, "FB_ID", 0)
+		p.set(&o.b.req, "CRTC_ID", 0)
 		return
 	}
 	at := c.at.Sub(c.hotspot)
 	o.place(p, c.pending.fb, image.Rectangle{Min: at, Max: at.Add(o.b.cursor)}, -1)
-	o.add(p.id, p.props, "HOTSPOT_X", uint64(int64(c.hotspot.X))) //nolint:gosec // signed plane properties travel as two's complement
-	o.add(p.id, p.props, "HOTSPOT_Y", uint64(int64(c.hotspot.Y))) //nolint:gosec // signed plane properties travel as two's complement
+	p.set(&o.b.req, "HOTSPOT_X", uint64(int64(c.hotspot.X))) //nolint:gosec // signed plane properties travel as two's complement
+	p.set(&o.b.req, "HOTSPOT_Y", uint64(int64(c.hotspot.Y))) //nolint:gosec // signed plane properties travel as two's complement
 }
 
 func (c *cursor) sent() {
