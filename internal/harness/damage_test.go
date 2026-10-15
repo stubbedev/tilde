@@ -180,6 +180,14 @@ func TestSteadyStateFramesDoNotAllocate(t *testing.T) {
 		if moving != 0 || idle != 0 {
 			t.Errorf("cursor frames allocated %d times each and unchanged frames %d times", moving, idle)
 		}
+		presented := func() {
+			if err := comp.Presented(o, backend.Presentation{Time: backend.Now(), Refresh: desktop.Interval(), Seq: 1}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if n := allocsPerRun(100, func() {}, presented); n != 0 {
+			t.Errorf("a presentation allocated %d times", n)
+		}
 		return nil
 	})
 }

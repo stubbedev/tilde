@@ -247,11 +247,12 @@ func (c *Compositor) Presented(b backend.Output, p backend.Presentation) error {
 	if p.Torn {
 		kind = 0
 	}
-	var errs []error
+	var errs error
 	for _, s := range c.shown[o] {
-		errs = append(errs,
+		c.outputResources = o.AppendResources(c.outputResources[:0], s.Client())
+		errs = errors.Join(errs,
 			s.Client().Sent(s.FrameDone(wire.Millis(p.Time))),
-			s.Client().Sent(s.Presented(o.Resources(s.Client()), p.Time, p.Refresh, p.Seq, kind)))
+			s.Client().Sent(s.Presented(c.outputResources, p.Time, p.Refresh, p.Seq, kind)))
 	}
-	return errors.Join(append(errs, c.timing.Presented())...)
+	return errors.Join(errs, c.timing.Presented())
 }
