@@ -46,10 +46,22 @@ func (c *Compositor) SetSelection(k data.Kind, src data.Source) error {
 	return c.data.SetSelection(k, src)
 }
 
-type dragInput struct {
-	touch bool
-	id    int32
+type dragging struct {
+	*data.Drag
+	by dragInput
 }
+
+type dragInput interface {
+	at(c *Compositor) point
+}
+
+type pointerInput struct{}
+
+type touchInput struct{ id int32 }
+
+func (pointerInput) at(c *Compositor) point { return c.cursor }
+
+func (t touchInput) at(c *Compositor) point { return c.touches[t.id].at }
 
 type touchAt struct {
 	output *output.Output
@@ -67,40 +79,48 @@ func (c *Compositor) CanDrag(origin *surface.Surface, serial uint32) bool {
 }
 
 func (c *Compositor) DragStarted(d *data.Drag) error {
-	c.drag = d
 	if id, ok := c.seat.TouchBySerial(d.Origin(), d.Serial()); ok {
-		c.dragBy = dragInput{touch: true, id: id}
+		c.drag = &dragging{d, touchInput{id}}
 		return errors.Join(c.dragMotion(backend.Now()), c.scheduleAll())
 	}
-	c.dragBy = dragInput{}
+	c.drag = &dragging{d, pointerInput{}}
 	return errors.Join(c.seat.SetPointerFocus(nil, 0, 0), c.seat.PointerFrame(), c.dragMotion(backend.Now()), c.scheduleAll())
 }
 
 func (c *Compositor) DragEnded(d *data.Drag) error {
-	if c.drag != d {
+	if c.drag == nil || c.drag.Drag != d {
 		return nil
 	}
-	c.drag, c.dragBy = nil, dragInput{}
+	c.drag = nil
 	return errors.Join(c.refreshPointer(), c.seat.PointerFrame(), c.scheduleAll())
 }
 
 func (c *Compositor) pointerDrag() bool {
-	return c.drag != nil && !c.dragBy.touch
+	if c.drag == nil {
+		return false
+	}
+	_, ok := c.drag.by.(pointerInput)
+	return ok
 }
 
 func (c *Compositor) touchDrag(id int32) bool {
-	return c.drag != nil && c.dragBy.touch && c.dragBy.id == id
+	if c.drag == nil {
+		return false
+	}
+	t, ok := c.drag.by.(touchInput)
+	return ok && t.id == id
 }
 
-func (c *Compositor) dragAt() point {
-	if c.dragBy.touch {
-		return c.touches[c.dragBy.id].at
+func (c *Compositor) touchDragging() bool {
+	if c.drag == nil {
+		return false
 	}
-	return c.cursor
+	_, ok := c.drag.by.(touchInput)
+	return ok
 }
 
 func (c *Compositor) dragMotion(at time.Duration) error {
-	s, local, _ := c.surfaceAt(c.dragAt())
+	s, local, _ := c.surfaceAt(c.drag.by.at(c))
 	return c.drag.Motion(s, local.X, local.Y, at)
 }
 
@@ -112,7 +132,6 @@ func (c *Compositor) drawDragIcon(pass *frame, o *output.Output, shown []*surfac
 	if icon == nil {
 		return shown
 	}
-	p := c.dragAt()
-	at := p.pixel().Add(offset)
+	at := c.drag.by.at(c).pixel().Add(offset)
 	return c.drawTree(pass, o, icon, flat(at), shown)
 }

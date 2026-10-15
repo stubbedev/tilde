@@ -242,7 +242,7 @@ func (c *Compositor) Input(_ backend.Device, e backend.Event) error {
 		return c.seat.TouchUp(e.Time, e.ID)
 	case backend.TouchCancel:
 		var err error
-		if c.drag != nil && c.dragBy.touch {
+		if c.touchDragging() {
 			err = c.drag.Cancel()
 		}
 		clear(c.touches)

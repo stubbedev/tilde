@@ -228,6 +228,32 @@ func TestDragAndDropStartedByTouch(t *testing.T) {
 	a.seen(t, "a drag with another serial refused", func() bool { return slices.Contains(stale.Log, "cancelled") })
 }
 
+func TestACancelledTouchCancelsItsDrag(t *testing.T) {
+	h := Start(t, small)
+	a := join(t, h, "a")
+	touch := func(f func(t *headless.Touch, o *headless.Output) error) {
+		h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+			return errors.Join(f(b.Touch(), b.Outputs()[0]), b.Touch().Frame())
+		})
+	}
+	touch(func(t *headless.Touch, o *headless.Output) error { return t.Down(3, o, 20.0/160, 50.0/100) })
+	a.seen(t, "the touch down on a", func() bool { return slices.Contains(a.in.Log, "down 3 a 20,50") })
+	dragged := a.c.DataSource(map[string]string{"text/plain": "x"})
+	if err := a.cb.Device.StartDrag(dragged.Data, a.w.Surface, nil, a.in.Press); err != nil {
+		t.Fatal(err)
+	}
+	a.seen(t, "the drag entering a", func() bool { return a.cb.Drag != nil })
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+		return errors.Join(b.Pointer().Button(272, true), b.Pointer().Frame(), b.Pointer().Button(272, false), b.Pointer().Frame())
+	})
+	a.c.Sync()
+	if slices.Contains(dragged.Log, "cancelled") || slices.Contains(dragged.Log, "dropped") {
+		t.Fatalf("a mouse click ended a touch drag: %v", dragged.Log)
+	}
+	touch(func(t *headless.Touch, _ *headless.Output) error { return t.Cancel(3) })
+	a.seen(t, "the drag cancelled", func() bool { return slices.Contains(dragged.Log, "cancelled") })
+}
+
 func TestDragWithoutATakerIsCancelled(t *testing.T) {
 	h := Start(t, small)
 	a := join(t, h, "a")

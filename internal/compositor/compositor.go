@@ -142,8 +142,7 @@ type Compositor struct {
 	consumed        []uint32
 	layers          []*layer
 	data            *data.Manager
-	drag            *data.Drag
-	dragBy          dragInput
+	drag            *dragging
 	usable          map[*output.Output]image.Rectangle
 	layerFocus      *shell.LayerSurface
 	shown           map[*output.Output][]*surface.Surface
