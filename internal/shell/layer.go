@@ -43,24 +43,20 @@ type LayerState struct {
 }
 
 type LayerSurface struct {
-	shell       *Shell
-	client      *server.Client
-	manager     *swlr.ZwlrLayerShellV1
-	resource    *swlr.ZwlrLayerSurfaceV1
-	surface     *surface.Surface
-	output      *sw.WlOutput
-	namespace   string
-	pending     LayerState
-	current     LayerState
-	configures  configures[image.Point]
-	sentSize    image.Point
-	sent        bool
-	configured  bool
-	initialSent bool
-	mapped      bool
-	closed      bool
-	destroyed   bool
-	popups      []*Popup
+	shell      *Shell
+	client     *server.Client
+	manager    *swlr.ZwlrLayerShellV1
+	resource   *swlr.ZwlrLayerSurfaceV1
+	surface    *surface.Surface
+	output     *sw.WlOutput
+	namespace  string
+	pending    LayerState
+	current    LayerState
+	configures configures[image.Point]
+	life       roleLife
+	closed     bool
+	destroyed  bool
+	popups     []*Popup
 }
 
 func (sh *Shell) bindLayerShell(c *server.Client, id wire.ObjectID, version uint32) error {
@@ -119,11 +115,11 @@ func (l *LayerSurface) Current() LayerState {
 }
 
 func (l *LayerSurface) Mapped() bool {
-	return l.mapped
+	return l.life.mapped()
 }
 
 func (l *LayerSurface) Live() bool {
-	return l.initialSent && !l.closed && !l.destroyed
+	return l.life.initialSent() && !l.closed && !l.destroyed
 }
 
 func (l *LayerSurface) Popups() []*Popup {
@@ -143,7 +139,7 @@ func (l *LayerSurface) offset() image.Point {
 }
 
 func (l *LayerSurface) Configure(size image.Point) error {
-	if l.closed || l.destroyed || !l.initialSent || (l.sent && size == l.sentSize) {
+	if last, sent := l.configures.last(); l.closed || l.destroyed || !l.life.initialSent() || (sent && last == size) {
 		return nil
 	}
 	w, errW := wire.Uint32(size.X)
@@ -156,7 +152,6 @@ func (l *LayerSurface) Configure(size image.Point) error {
 		return err
 	}
 	l.configures.push(serial, size)
-	l.sentSize, l.sent = size, true
 	return nil
 }
 
@@ -166,8 +161,8 @@ func (l *LayerSurface) Close() error {
 	}
 	l.closed = true
 	errs := []error{l.dismissPopups()}
-	if l.mapped {
-		l.mapped = false
+	if l.life.mapped() {
+		l.life.reset()
 		errs = append(errs, l.shell.listener.LayerUnmapped(l))
 	}
 	return errors.Join(append(errs, l.client.Sent(l.resource.SendClosed()))...)
@@ -204,20 +199,15 @@ func (l *LayerSurface) Committed(s *surface.Surface) error {
 	}
 	l.current = l.pending
 	if _, ok := l.configures.take(); ok {
-		l.configured = true
+		l.life.acked()
 	}
-	if s.Buffer() != nil && !l.configured {
+	step, configured := l.life.commit(s.Buffer() != nil)
+	if !configured {
 		return l.resource.ProtocolError(swlr.ZwlrLayerSurfaceV1ErrorInvalidSurfaceState, "a buffer was attached before the first configure was acked")
 	}
-	switch {
-	case !l.initialSent:
-		l.initialSent = true
-	case s.Buffer() == nil && l.mapped:
-		l.mapped, l.configured, l.initialSent, l.sent = false, false, false, false
+	if step == stepUnmap {
 		l.configures.reset()
 		return errors.Join(l.dismissPopups(), l.shell.listener.LayerUnmapped(l))
-	case s.Buffer() != nil && !l.mapped:
-		l.mapped = true
 	}
 	return l.shell.listener.LayerCommitted(l)
 }
@@ -228,8 +218,8 @@ func (l *LayerSurface) destroy() error {
 	}
 	l.destroyed = true
 	errs := []error{l.dismissPopups()}
-	if l.mapped {
-		l.mapped = false
+	if l.life.mapped() {
+		l.life.reset()
 		errs = append(errs, l.shell.listener.LayerUnmapped(l))
 	}
 	l.surface.ClearRole(l)
@@ -272,7 +262,7 @@ func (l *LayerSurface) GetPopup(_ *swlr.ZwlrLayerSurfaceV1, res *sxdg.XdgPopup) 
 	if !ok {
 		return fmt.Errorf("shell: xdg_popup@%d has handler %T", res.Base().ID(), res.Handler())
 	}
-	if p.parent != nil || p.xs.initialSent {
+	if p.parent != nil || p.xs.life.initialSent() {
 		return p.xs.base.resource.ProtocolError(sxdg.XdgWmBaseErrorInvalidPopupParent, "the popup already has a parent or its initial commit")
 	}
 	p.adopt(l)

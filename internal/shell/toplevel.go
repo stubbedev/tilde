@@ -37,7 +37,6 @@ type Toplevel struct {
 	pendingMax image.Point
 	minSet     bool
 	maxSet     bool
-	requested  State
 	current    State
 	configures configures[State]
 	decoration *sxd.ZxdgToplevelDecorationV1
@@ -55,7 +54,7 @@ func (t *Toplevel) Geometry() image.Rectangle {
 }
 
 func (t *Toplevel) Mapped() bool {
-	return t.xs.mapped
+	return t.xs.life.mapped()
 }
 
 func (t *Toplevel) Title() string {
@@ -83,7 +82,8 @@ func (t *Toplevel) Current() State {
 }
 
 func (t *Toplevel) Requested() State {
-	return t.requested
+	s, _ := t.configures.last()
+	return s
 }
 
 func (t *Toplevel) Configure(s State) (uint32, error) {
@@ -99,7 +99,6 @@ func (t *Toplevel) Configure(s State) (uint32, error) {
 		return 0, err
 	}
 	c := t.xs.base.client
-	t.requested = s
 	if t.resource.Base().Version() >= 4 && s.Bounds != (image.Point{}) {
 		if err := c.Sent(t.resource.SendConfigureBounds(boundsW, boundsH)); err != nil {
 			return 0, err
@@ -107,9 +106,7 @@ func (t *Toplevel) Configure(s State) (uint32, error) {
 	}
 	states := make([]byte, 0, 4*len(s.States))
 	for _, st := range s.States {
-		if (st >= sxdg.XdgToplevelStateTiledLeft && st <= sxdg.XdgToplevelStateTiledBottom && t.resource.Base().Version() < 2) ||
-			(st == sxdg.XdgToplevelStateSuspended && t.resource.Base().Version() < 6) ||
-			(st >= sxdg.XdgToplevelStateConstrainedLeft && st <= sxdg.XdgToplevelStateConstrainedBottom && t.resource.Base().Version() < 7) {
+		if !st.Valid(t.resource.Base().Version()) {
 			continue
 		}
 		states = binary.NativeEndian.AppendUint32(states, uint32(st))
@@ -160,7 +157,7 @@ func (t *Toplevel) initialCommit() error {
 		return err
 	}
 	if len(t.configures.pending) == 0 {
-		_, err := t.Configure(t.requested)
+		_, err := t.Configure(t.Requested())
 		return err
 	}
 	return nil
@@ -187,11 +184,12 @@ func (t *Toplevel) destroy() error {
 	t.destroyed = true
 	xs := t.xs
 	var errs []error
-	if xs.mapped {
+	if xs.life.mapped() {
 		errs = append(errs, xs.unmap())
 	}
 	errs = append(errs, xs.dismissPopups())
-	xs.role, xs.configured, xs.initialSent = nil, false, false
+	xs.role = nil
+	xs.life.reset()
 	sh := xs.base.shell
 	sh.toplevels = slices.DeleteFunc(sh.toplevels, func(x *Toplevel) bool { return x == t })
 	for _, o := range sh.toplevels {

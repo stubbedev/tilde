@@ -72,7 +72,7 @@ func (p *Popup) Box() image.Rectangle {
 }
 
 func (p *Popup) Mapped() bool {
-	return p.xs.mapped
+	return p.xs.life.mapped()
 }
 
 func (p *Popup) Popups() []*Popup {
@@ -185,7 +185,7 @@ func (p *Popup) place() error {
 }
 
 func (p *Popup) Reconstrain() error {
-	if !p.rules.Reactive || !p.xs.initialSent || p.dismissed {
+	if !p.rules.Reactive || !p.xs.life.initialSent() || p.dismissed {
 		return nil
 	}
 	return p.place()
@@ -217,7 +217,7 @@ func (p *Popup) dismiss() error {
 	}
 	errs := []error{p.xs.dismissPopups()}
 	p.dismissed = true
-	if p.xs.mapped {
+	if p.xs.life.mapped() {
 		errs = append(errs, p.xs.unmap())
 	}
 	sh := p.xs.base.shell
@@ -241,7 +241,7 @@ func (p *Popup) destroy() error {
 	xs := p.xs
 	sh := xs.base.shell
 	var errs []error
-	if xs.mapped {
+	if xs.life.mapped() {
 		errs = append(errs, xs.unmap())
 	}
 	errs = append(errs, xs.dismissPopups())
@@ -254,13 +254,14 @@ func (p *Popup) destroy() error {
 		*list = slices.DeleteFunc(*list, func(x *Popup) bool { return x == p })
 	}
 	p.dismissed = true
-	xs.role, xs.configured, xs.initialSent = nil, false, false
+	xs.role = nil
+	xs.life.reset()
 	return errors.Join(errs...)
 }
 
 func (p *Popup) Grab(obj *sxdg.XdgPopup, _ *sw.WlSeat, serial uint32) error {
 	sh := p.xs.base.shell
-	if p.xs.initialSent {
+	if p.xs.life.initialSent() {
 		return obj.ProtocolError(sxdg.XdgPopupErrorInvalidGrab, "the popup took a grab after its initial commit")
 	}
 	parent := p.parentPopup()
@@ -288,7 +289,7 @@ func (p *Popup) Reposition(_ *sxdg.XdgPopup, pos *sxdg.XdgPositioner, token uint
 		return err
 	}
 	p.rules, p.token = rules, &token
-	if !p.xs.initialSent || p.dismissed {
+	if !p.xs.life.initialSent() || p.dismissed {
 		return nil
 	}
 	return p.place()

@@ -241,10 +241,20 @@ type queued[T any] struct {
 type configures[T any] struct {
 	pending []queued[T]
 	acked   *T
+	sent    *T
 }
 
 func (q *configures[T]) push(serial uint32, state T) {
 	q.pending = append(q.pending, queued[T]{serial, state})
+	q.sent = &state
+}
+
+func (q *configures[T]) last() (T, bool) {
+	if q.sent == nil {
+		var zero T
+		return zero, false
+	}
+	return *q.sent, true
 }
 
 func (q *configures[T]) ack(serial uint32) bool {
@@ -269,7 +279,7 @@ func (q *configures[T]) take() (T, bool) {
 }
 
 func (q *configures[T]) reset() {
-	q.pending, q.acked = nil, nil
+	q.pending, q.acked, q.sent = nil, nil, nil
 }
 
 type roleObject interface {
@@ -288,9 +298,7 @@ type XdgSurface struct {
 	role            roleObject
 	exports         []*export
 	popups          []*Popup
-	configured      bool
-	initialSent     bool
-	mapped          bool
+	life            roleLife
 	geometry        image.Rectangle
 	pendingGeometry image.Rectangle
 	geometrySet     bool
@@ -373,7 +381,7 @@ func (xs *XdgSurface) AckConfigure(obj *sxdg.XdgSurface, serial uint32) error {
 	if !xs.role.ack(serial) {
 		return obj.ProtocolError(sxdg.XdgSurfaceErrorInvalidSerial, fmt.Sprintf("serial %d was never sent or is already acked", serial))
 	}
-	xs.configured = true
+	xs.life.acked()
 	return nil
 }
 
@@ -405,26 +413,29 @@ func (xs *XdgSurface) Committed(s *surface.Surface) error {
 	if err := r.applyPending(); err != nil {
 		return err
 	}
-	if s.Buffer() != nil && !xs.configured {
+	step, configured := xs.life.commit(s.Buffer() != nil)
+	if !configured {
 		return xs.resource.ProtocolError(sxdg.XdgSurfaceErrorUnconfiguredBuffer, "a buffer was attached before the first configure was acked")
 	}
 	if !xs.geometrySet {
 		xs.geometry = treeBounds(s, image.Point{})
 	}
-	switch {
-	case !xs.initialSent:
-		xs.initialSent = true
+	switch step {
+	case stepInitial:
 		return r.initialCommit()
-	case s.Buffer() == nil && xs.mapped:
-		return xs.unmap()
-	case s.Buffer() != nil && !xs.mapped:
-		xs.mapped = true
+	case stepUnmap:
+		return xs.unmapped()
+	case stepMap:
 		return r.mapped()
 	}
 	return nil
 }
 
 func (xs *XdgSurface) unmap() error {
-	xs.mapped, xs.configured, xs.initialSent = false, false, false
+	xs.life.reset()
+	return xs.unmapped()
+}
+
+func (xs *XdgSurface) unmapped() error {
 	return errors.Join(xs.dismissPopups(), xs.role.unmapped())
 }

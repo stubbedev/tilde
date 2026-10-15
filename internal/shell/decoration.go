@@ -49,10 +49,10 @@ func (d decoration) configure() error {
 	if err := t.xs.base.client.Sent(t.decoration.SendConfigure(sxd.ZxdgToplevelDecorationV1ModeServerSide)); err != nil {
 		return err
 	}
-	if !t.xs.initialSent {
+	if !t.xs.life.initialSent() {
 		return nil
 	}
-	_, err := t.Configure(t.requested)
+	_, err := t.Configure(t.Requested())
 	return err
 }
 

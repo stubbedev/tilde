@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"slices"
@@ -41,7 +42,6 @@ type LockSurface struct {
 	output     *sw.WlOutput
 	configures configures[image.Point]
 	size       image.Point
-	sent       image.Point
 	acked      bool
 	mapped     bool
 }
@@ -173,13 +173,17 @@ func (l *SessionLock) GetLockSurface(obj *sel.ExtSessionLockV1, res *sel.ExtSess
 
 func (s *LockSurface) configure() error {
 	size, ok := s.lock.shell.listener.LockOutputSize(s.output)
-	if !ok || size == s.sent {
+	if last, sent := s.configures.last(); !ok || (sent && last == size) {
 		return nil
 	}
-	s.sent = size
+	w, errW := wire.Uint32(size.X)
+	h, errH := wire.Uint32(size.Y)
+	if err := errors.Join(errW, errH); err != nil {
+		return fmt.Errorf("shell: configure a lock surface to %v: %w", size, err)
+	}
 	serial := s.lock.shell.display.NextSerial()
 	s.configures.push(serial, size)
-	return s.lock.client.Sent(s.resource.SendConfigure(serial, uint32(size.X), uint32(size.Y))) //nolint:gosec // output sizes are positive
+	return s.lock.client.Sent(s.resource.SendConfigure(serial, w, h))
 }
 
 func (s *LockSurface) destroy() error {
