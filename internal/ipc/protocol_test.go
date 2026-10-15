@@ -11,7 +11,7 @@ import (
 
 func TestParseRequest(t *testing.T) {
 	r, err := parseRequest([]byte(`{"request":"dispatch","action":"workspace 3"}`))
-	if err != nil || r.kind != KindDispatch || r.action != (wm.WorkspaceAction{Target: wm.WorkspaceTarget{ID: 3}}) {
+	if err != nil || r.kind != KindDispatch || r.action != (wm.WorkspaceAction{Target: wm.WorkspaceID(3)}) {
 		t.Fatalf("dispatch parsed to %+v, %v", r, err)
 	}
 	if r, err := parseRequest([]byte(`{"request":"windows"}` + "\n")); err != nil || r.kind != KindWindows {

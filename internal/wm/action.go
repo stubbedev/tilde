@@ -62,23 +62,27 @@ type Settings struct {
 	Autotile Autotile
 }
 
-type WorkspaceTarget struct {
-	ID       WorkspaceID
-	Relative int
+type WorkspaceTarget interface {
+	fmt.Stringer
+	resolve(s State) (WorkspaceID, error)
 }
 
-func (w WorkspaceTarget) String() string {
-	if w.ID != 0 {
-		return strconv.Itoa(int(w.ID))
-	}
-	return fmt.Sprintf("e%+d", w.Relative)
+type RelativeWorkspace int
+
+func (id WorkspaceID) String() string {
+	return strconv.Itoa(int(id))
 }
 
-func (w WorkspaceTarget) resolve(s State) (WorkspaceID, error) {
-	if w.ID != 0 {
-		return w.ID, nil
-	}
-	return s.relative(w.Relative)
+func (id WorkspaceID) resolve(State) (WorkspaceID, error) {
+	return id, nil
+}
+
+func (r RelativeWorkspace) String() string {
+	return fmt.Sprintf("e%+d", int(r))
+}
+
+func (r RelativeWorkspace) resolve(s State) (WorkspaceID, error) {
+	return s.relative(int(r))
 }
 
 type (
@@ -294,10 +298,10 @@ func parseDirection(s string) (Direction, bool) {
 func parseWorkspace(s string) (WorkspaceTarget, bool) {
 	if rest, ok := strings.CutPrefix(s, "e"); ok && len(rest) > 1 && (rest[0] == '+' || rest[0] == '-') {
 		n, err := strconv.Atoi(rest)
-		return WorkspaceTarget{Relative: n}, err == nil && n != 0
+		return RelativeWorkspace(n), err == nil && n != 0
 	}
 	n, err := strconv.Atoi(s)
-	return WorkspaceTarget{ID: WorkspaceID(n)}, err == nil && n >= 1
+	return WorkspaceID(n), err == nil && n >= 1
 }
 
 func parseLayout(s string) (Layout, bool) {

@@ -17,11 +17,11 @@ var everyAction = []Action{
 	FocusAction{Dir: Down},
 	MoveAction{Dir: Right},
 	MoveAction{Dir: Up},
-	WorkspaceAction{Target: WorkspaceTarget{ID: 3}},
-	WorkspaceAction{Target: WorkspaceTarget{Relative: 1}},
-	WorkspaceAction{Target: WorkspaceTarget{Relative: -2}},
-	MoveToWorkspaceAction{Target: WorkspaceTarget{ID: 10}},
-	MoveToWorkspaceAction{Target: WorkspaceTarget{Relative: -1}},
+	WorkspaceAction{Target: WorkspaceID(3)},
+	WorkspaceAction{Target: RelativeWorkspace(1)},
+	WorkspaceAction{Target: RelativeWorkspace(-2)},
+	MoveToWorkspaceAction{Target: WorkspaceID(10)},
+	MoveToWorkspaceAction{Target: RelativeWorkspace(-1)},
 	KillAction{},
 	ReloadAction{},
 	ExitAction{},
@@ -137,7 +137,7 @@ func TestDispatch(t *testing.T) {
 	if got := s.workspace(2).Tree.String(); got != "h[*tab~[*1]]" {
 		t.Fatalf("after makegroup: %s", got)
 	}
-	if _, _, err := Dispatch(State{}, WorkspaceAction{Target: WorkspaceTarget{Relative: 1}}, settings); !errors.Is(err, ErrUnknownOutput) {
+	if _, _, err := Dispatch(State{}, WorkspaceAction{Target: RelativeWorkspace(1)}, settings); !errors.Is(err, ErrUnknownOutput) {
 		t.Fatalf("a relative workspace with no output: %v", err)
 	}
 }

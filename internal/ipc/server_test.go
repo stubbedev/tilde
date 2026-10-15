@@ -140,7 +140,7 @@ func TestQueriesAndDispatch(t *testing.T) {
 		t.Fatalf("a failing dispatch: %v", err)
 	}
 	r.do(func(f *fake) {
-		if len(f.dispatched) != 1 || f.dispatched[0] != (wm.WorkspaceAction{Target: wm.WorkspaceTarget{ID: 2}}) {
+		if len(f.dispatched) != 1 || f.dispatched[0] != (wm.WorkspaceAction{Target: wm.WorkspaceID(2)}) {
 			t.Errorf("dispatched %v", f.dispatched)
 		}
 	})
