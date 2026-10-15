@@ -202,14 +202,22 @@ func (t *texture) Size() image.Point {
 	return t.size
 }
 
+func (r *Renderer) supported(format fourcc.Format) ([]gpu.ModifierSupport, error) {
+	if mods, ok := r.modifiers[format]; ok {
+		return mods, nil
+	}
+	mods, err := r.d.DMABUFModifiers(format)
+	if err != nil {
+		return nil, err
+	}
+	r.modifiers[format] = mods
+	return mods, nil
+}
+
 func (r *Renderer) externalOnly(b gpu.DMABUF) (bool, error) {
-	mods, ok := r.modifiers[b.Format]
-	if !ok {
-		var err error
-		if mods, err = r.d.DMABUFModifiers(b.Format); err != nil {
-			return false, err
-		}
-		r.modifiers[b.Format] = mods
+	mods, err := r.supported(b.Format)
+	if err != nil {
+		return false, err
 	}
 	for _, m := range mods {
 		if m.Modifier == b.Modifier {
@@ -226,11 +234,10 @@ func (r *Renderer) DMABUFFormats() ([]gpu.FormatModifier, error) {
 	}
 	var out []gpu.FormatModifier
 	for _, f := range formats {
-		mods, err := r.d.DMABUFModifiers(f)
+		mods, err := r.supported(f)
 		if err != nil {
 			return nil, err
 		}
-		r.modifiers[f] = mods
 		out = append(out, gpu.FormatModifier{Format: f, Modifier: fourcc.Invalid})
 		for _, m := range mods {
 			out = append(out, gpu.FormatModifier{Format: f, Modifier: m.Modifier})
@@ -422,7 +429,7 @@ func (r *Renderer) ImportTarget(b gpu.DMABUF) (render.ReadTarget, error) {
 }
 
 func (r *Renderer) RenderableModifiers(format fourcc.Format) ([]fourcc.Modifier, error) {
-	mods, err := r.d.DMABUFModifiers(format)
+	mods, err := r.supported(format)
 	if err != nil {
 		return nil, err
 	}
