@@ -1,48 +1,59 @@
 package xcursor
 
-import "image"
+import (
+	"image"
+	"slices"
+)
 
-var legacy = map[string][]string{
-	"default":       {"left_ptr"},
-	"context-menu":  {"left_ptr"},
-	"help":          {"question_arrow", "left_ptr"},
-	"pointer":       {"hand2", "hand1"},
-	"progress":      {"left_ptr_watch", "watch"},
-	"wait":          {"watch"},
-	"cell":          {"plus"},
-	"crosshair":     {"cross", "tcross"},
-	"text":          {"xterm"},
-	"vertical-text": {"xterm"},
-	"alias":         {"dnd-link"},
-	"copy":          {"dnd-copy"},
-	"move":          {"fleur", "dnd-move"},
-	"no-drop":       {"dnd-none", "crossed_circle"},
-	"not-allowed":   {"crossed_circle"},
-	"grab":          {"openhand", "hand1"},
-	"grabbing":      {"closedhand", "fleur"},
-	"e-resize":      {"right_side"},
-	"n-resize":      {"top_side"},
-	"ne-resize":     {"top_right_corner"},
-	"nw-resize":     {"top_left_corner"},
-	"s-resize":      {"bottom_side"},
-	"se-resize":     {"bottom_right_corner"},
-	"sw-resize":     {"bottom_left_corner"},
-	"w-resize":      {"left_side"},
-	"ew-resize":     {"sb_h_double_arrow"},
-	"ns-resize":     {"sb_v_double_arrow"},
-	"nesw-resize":   {"fd_double_arrow"},
-	"nwse-resize":   {"bd_double_arrow"},
-	"col-resize":    {"sb_h_double_arrow"},
-	"row-resize":    {"sb_v_double_arrow"},
-	"all-scroll":    {"fleur"},
-	"zoom-in":       {"left_ptr"},
-	"zoom-out":      {"left_ptr"},
-	"dnd-ask":       {"dnd-copy"},
-	"all-resize":    {"fleur"},
+type Shape struct {
+	Name   string
+	Legacy []string
+}
+
+var Shapes = []Shape{
+	{"default", []string{"left_ptr"}},
+	{"context-menu", []string{"left_ptr"}},
+	{"help", []string{"question_arrow", "left_ptr"}},
+	{"pointer", []string{"hand2", "hand1"}},
+	{"progress", []string{"left_ptr_watch", "watch"}},
+	{"wait", []string{"watch"}},
+	{"cell", []string{"plus"}},
+	{"crosshair", []string{"cross", "tcross"}},
+	{"text", []string{"xterm"}},
+	{"vertical-text", []string{"xterm"}},
+	{"alias", []string{"dnd-link"}},
+	{"copy", []string{"dnd-copy"}},
+	{"move", []string{"fleur", "dnd-move"}},
+	{"no-drop", []string{"dnd-none", "crossed_circle"}},
+	{"not-allowed", []string{"crossed_circle"}},
+	{"grab", []string{"openhand", "hand1"}},
+	{"grabbing", []string{"closedhand", "fleur"}},
+	{"e-resize", []string{"right_side"}},
+	{"n-resize", []string{"top_side"}},
+	{"ne-resize", []string{"top_right_corner"}},
+	{"nw-resize", []string{"top_left_corner"}},
+	{"s-resize", []string{"bottom_side"}},
+	{"se-resize", []string{"bottom_right_corner"}},
+	{"sw-resize", []string{"bottom_left_corner"}},
+	{"w-resize", []string{"left_side"}},
+	{"ew-resize", []string{"sb_h_double_arrow"}},
+	{"ns-resize", []string{"sb_v_double_arrow"}},
+	{"nesw-resize", []string{"fd_double_arrow"}},
+	{"nwse-resize", []string{"bd_double_arrow"}},
+	{"col-resize", []string{"sb_h_double_arrow"}},
+	{"row-resize", []string{"sb_v_double_arrow"}},
+	{"all-scroll", []string{"fleur"}},
+	{"zoom-in", []string{"left_ptr"}},
+	{"zoom-out", []string{"left_ptr"}},
+	{"dnd-ask", []string{"dnd-copy"}},
+	{"all-resize", []string{"fleur"}},
 }
 
 func Names(css string) []string {
-	return append([]string{css}, legacy[css]...)
+	if i := slices.IndexFunc(Shapes, func(s Shape) bool { return s.Name == css }); i >= 0 {
+		return append([]string{css}, Shapes[i].Legacy...)
+	}
+	return []string{css}
 }
 
 func Builtin(size int) Image {

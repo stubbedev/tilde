@@ -8,47 +8,16 @@ import (
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/tilde/internal/xcursor"
 )
 
 const cursorShapeVersion = 2
 
-var shapeNames = map[scs.WpCursorShapeDeviceV1Shape]string{
-	scs.WpCursorShapeDeviceV1ShapeDefault:      "default",
-	scs.WpCursorShapeDeviceV1ShapeContextMenu:  "context-menu",
-	scs.WpCursorShapeDeviceV1ShapeHelp:         "help",
-	scs.WpCursorShapeDeviceV1ShapePointer:      "pointer",
-	scs.WpCursorShapeDeviceV1ShapeProgress:     "progress",
-	scs.WpCursorShapeDeviceV1ShapeWait:         "wait",
-	scs.WpCursorShapeDeviceV1ShapeCell:         "cell",
-	scs.WpCursorShapeDeviceV1ShapeCrosshair:    "crosshair",
-	scs.WpCursorShapeDeviceV1ShapeText:         "text",
-	scs.WpCursorShapeDeviceV1ShapeVerticalText: "vertical-text",
-	scs.WpCursorShapeDeviceV1ShapeAlias:        "alias",
-	scs.WpCursorShapeDeviceV1ShapeCopy:         "copy",
-	scs.WpCursorShapeDeviceV1ShapeMove:         "move",
-	scs.WpCursorShapeDeviceV1ShapeNoDrop:       "no-drop",
-	scs.WpCursorShapeDeviceV1ShapeNotAllowed:   "not-allowed",
-	scs.WpCursorShapeDeviceV1ShapeGrab:         "grab",
-	scs.WpCursorShapeDeviceV1ShapeGrabbing:     "grabbing",
-	scs.WpCursorShapeDeviceV1ShapeEResize:      "e-resize",
-	scs.WpCursorShapeDeviceV1ShapeNResize:      "n-resize",
-	scs.WpCursorShapeDeviceV1ShapeNeResize:     "ne-resize",
-	scs.WpCursorShapeDeviceV1ShapeNwResize:     "nw-resize",
-	scs.WpCursorShapeDeviceV1ShapeSResize:      "s-resize",
-	scs.WpCursorShapeDeviceV1ShapeSeResize:     "se-resize",
-	scs.WpCursorShapeDeviceV1ShapeSwResize:     "sw-resize",
-	scs.WpCursorShapeDeviceV1ShapeWResize:      "w-resize",
-	scs.WpCursorShapeDeviceV1ShapeEwResize:     "ew-resize",
-	scs.WpCursorShapeDeviceV1ShapeNsResize:     "ns-resize",
-	scs.WpCursorShapeDeviceV1ShapeNeswResize:   "nesw-resize",
-	scs.WpCursorShapeDeviceV1ShapeNwseResize:   "nwse-resize",
-	scs.WpCursorShapeDeviceV1ShapeColResize:    "col-resize",
-	scs.WpCursorShapeDeviceV1ShapeRowResize:    "row-resize",
-	scs.WpCursorShapeDeviceV1ShapeAllScroll:    "all-scroll",
-	scs.WpCursorShapeDeviceV1ShapeZoomIn:       "zoom-in",
-	scs.WpCursorShapeDeviceV1ShapeZoomOut:      "zoom-out",
-	scs.WpCursorShapeDeviceV1ShapeDndAsk:       "dnd-ask",
-	scs.WpCursorShapeDeviceV1ShapeAllResize:    "all-resize",
+func shapeName(shape scs.WpCursorShapeDeviceV1Shape) (string, bool) {
+	if shape < scs.WpCursorShapeDeviceV1ShapeDefault || int(shape) > len(xcursor.Shapes) {
+		return "", false
+	}
+	return xcursor.Shapes[shape-scs.WpCursorShapeDeviceV1ShapeDefault].Name, true
 }
 
 func (s *Seat) bindCursorShape(c *server.Client, id wire.ObjectID, version uint32) error {
@@ -84,7 +53,7 @@ func (shapeDevice) Destroy(*scs.WpCursorShapeDeviceV1) error {
 }
 
 func (d shapeDevice) SetShape(obj *scs.WpCursorShapeDeviceV1, serial uint32, shape scs.WpCursorShapeDeviceV1Shape) error {
-	name, ok := shapeNames[shape]
+	name, ok := shapeName(shape)
 	if !ok || (obj.Base().Version() < 2 && shape > scs.WpCursorShapeDeviceV1ShapeZoomOut) {
 		return obj.ProtocolError(scs.WpCursorShapeDeviceV1ErrorInvalidShape, fmt.Sprintf("invalid shape %d", shape))
 	}
