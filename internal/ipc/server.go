@@ -203,6 +203,11 @@ func (s *Server) onLoop(f func() (any, error)) (any, error) {
 	case o := <-ch:
 		return o.v, o.err
 	case <-s.done:
+	}
+	select {
+	case o := <-ch:
+		return o.v, o.err
+	default:
 		return nil, ErrShutdown
 	}
 }

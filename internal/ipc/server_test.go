@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -281,5 +282,41 @@ func TestFindSocket(t *testing.T) {
 	env[SocketEnv] = "/elsewhere.sock"
 	if got, err := FindSocket(getenv); err != nil || got != "/elsewhere.sock" {
 		t.Fatalf("TILDE_SOCKET: %q, %v", got, err)
+	}
+}
+
+type stopping struct {
+	fake
+	loop *loop.Loop
+}
+
+func (s *stopping) Dispatch(wm.Action) error {
+	s.loop.Stop()
+	return nil
+}
+
+func TestADispatchThatStopsTildeIsAnswered(t *testing.T) {
+	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
+	for range 50 {
+		l, err := loop.New()
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(t.TempDir(), "tilde.sock")
+		s, err := Listen(l, path, &stopping{loop: l}, func(err error) { t.Error(err) })
+		if err != nil {
+			t.Fatal(err)
+		}
+		answered := make(chan error, 1)
+		go func() {
+			_, err := Do(path, Request{Request: KindDispatch, Action: "exit"})
+			answered <- err
+		}()
+		if err := errors.Join(l.Run(), s.Close(), l.Close()); err != nil {
+			t.Fatal(err)
+		}
+		if err := <-answered; err != nil {
+			t.Fatalf("the exit that stopped tilde was answered with %v", err)
+		}
 	}
 }
