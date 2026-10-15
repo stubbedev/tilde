@@ -17,6 +17,7 @@ import (
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/render/gles"
+	"github.com/stubbedev/tilde/internal/wire"
 	"github.com/stubbedev/tilde/internal/wlclient"
 )
 
@@ -256,8 +257,9 @@ func (c *dmabufChain) hostBuffer(o *Output, buf *buffer, d gpu.DMABUF) (*cw.WlBu
 	if err != nil {
 		return nil, err
 	}
+	hi, lo := wire.Halves(d.Modifier)
 	for i, p := range d.Planes {
-		if err := params.Add(p.FD, uint32(i), p.Offset, p.Stride, uint32(d.Modifier>>32), uint32(d.Modifier)); err != nil { //nolint:gosec // plane indices are below four; the protocol splits the modifier
+		if err := params.Add(p.FD, uint32(i), p.Offset, p.Stride, hi, lo); err != nil {
 			return nil, err
 		}
 	}

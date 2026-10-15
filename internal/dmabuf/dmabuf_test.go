@@ -146,7 +146,7 @@ func (l *legacy) Format(_ *cld.ZwpLinuxDmabufV1, f uint32) error {
 }
 
 func (l *legacy) Modifier(_ *cld.ZwpLinuxDmabufV1, f, hi, lo uint32) error {
-	l.modifiers = append(l.modifiers, gpu.FormatModifier{Format: f, Modifier: uint64(hi)<<32 | uint64(lo)})
+	l.modifiers = append(l.modifiers, gpu.FormatModifier{Format: f, Modifier: wire.Join(hi, lo)})
 	return nil
 }
 

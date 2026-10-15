@@ -13,6 +13,8 @@ import (
 	"github.com/jezek/xgb/composite"
 	"github.com/jezek/xgb/xfixes"
 	"github.com/jezek/xgb/xproto"
+
+	"github.com/stubbedev/tilde/internal/wire"
 )
 
 func init() {
@@ -285,7 +287,7 @@ func (c *xconn) message(e xproto.ClientMessageEvent) {
 	d := e.Data.Data32
 	switch e.Type {
 	case c.atoms["WL_SURFACE_SERIAL"]:
-		serial := uint64(d[1])<<32 | uint64(d[0])
+		serial := wire.Join(d[1], d[0])
 		c.post(func(m *wm) error { return m.serialSet(e.Window, serial) })
 	case c.atoms["_NET_WM_STATE"]:
 		c.post(func(m *wm) error { return m.stateRequested(e.Window, d[0], xproto.Atom(d[1]), xproto.Atom(d[2])) })

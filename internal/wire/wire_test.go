@@ -775,3 +775,14 @@ func TestTimespecSplitsLikeTheProtocol(t *testing.T) {
 		t.Errorf("Halves = %d, %d", hi, lo)
 	}
 }
+
+func TestJoinUndoesHalves(t *testing.T) {
+	for _, v := range []uint64{0, 1, 0xffffffff, 0x100000000, 0x00ffffffffffffff, ^uint64(0)} {
+		if got := Join(Halves(v)); got != v {
+			t.Errorf("Join(Halves(%#x)) = %#x", v, got)
+		}
+	}
+	if hi, lo := Halves(0x0123456789abcdef); hi != 0x01234567 || lo != 0x89abcdef {
+		t.Errorf("Halves split into %#x and %#x", hi, lo)
+	}
+}

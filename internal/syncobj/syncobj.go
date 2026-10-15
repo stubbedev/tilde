@@ -87,7 +87,7 @@ func newPoint(res *sls.WpLinuxDrmSyncobjTimelineV1, hi, lo uint32) (*point, erro
 	if !ok {
 		return nil, fmt.Errorf("syncobj: timeline@%d has handler %T", res.Base().ID(), res.Handler())
 	}
-	return &point{t: h.t.ref(), value: uint64(hi)<<32 | uint64(lo)}, nil
+	return &point{t: h.t.ref(), value: wire.Join(hi, lo)}, nil
 }
 
 func (p *point) drop() error {

@@ -104,7 +104,7 @@ type timer struct {
 func (*timer) Destroy(*sct.WpCommitTimerV1) error { return nil }
 
 func target(secHi, secLo, nsec uint32) time.Duration {
-	sec := uint64(secHi)<<32 | uint64(secLo)
+	sec := wire.Join(secHi, secLo)
 	if sec > uint64(math.MaxInt64/int64(time.Second)) {
 		return math.MaxInt64
 	}

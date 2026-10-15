@@ -138,7 +138,8 @@ func (m *Manager) bind(c *server.Client, id wire.ObjectID, version uint32) error
 			}
 			continue
 		}
-		errs = append(errs, res.SendModifier(f.Format, uint32(f.Modifier>>32), uint32(f.Modifier))) //nolint:gosec // the protocol splits the modifier in halves
+		hi, lo := wire.Halves(f.Modifier)
+		errs = append(errs, res.SendModifier(f.Format, hi, lo))
 	}
 	return errors.Join(errs...)
 }
@@ -268,7 +269,7 @@ func (p *params) Destroy(*sld.ZwpLinuxBufferParamsV1) error {
 }
 
 func (p *params) Add(obj *sld.ZwpLinuxBufferParamsV1, fd int, idx, offset, stride, hi, lo uint32) error {
-	modifier := uint64(hi)<<32 | uint64(lo)
+	modifier := wire.Join(hi, lo)
 	var err error
 	switch {
 	case p.used:

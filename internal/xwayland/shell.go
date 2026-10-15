@@ -87,7 +87,7 @@ func (x *xsurface) Committed(*surface.Surface) error {
 }
 
 func (x *xsurface) SetSerial(obj *sxs.XwaylandSurfaceV1, lo, hi uint32) error {
-	serial := uint64(hi)<<32 | uint64(lo)
+	serial := wire.Join(hi, lo)
 	switch {
 	case serial == 0:
 		return obj.ProtocolError(sxs.XwaylandSurfaceV1ErrorInvalidSerial, "serial 0 names no X window")

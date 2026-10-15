@@ -10,6 +10,7 @@ import (
 
 	cld "github.com/stubbedev/tilde/internal/protocol/client/linuxdmabuf"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
+	"github.com/stubbedev/tilde/internal/wire"
 )
 
 const (
@@ -35,7 +36,7 @@ func (m *dmabufModifiers) Modifier(_ *cld.ZwpLinuxDmabufV1, format, hi, lo uint3
 	if format != xrgb8888 {
 		return nil
 	}
-	switch uint64(hi)<<32 | uint64(lo) {
+	switch wire.Join(hi, lo) {
 	case modLinear:
 		m.linear = true
 	case modInvalid:
@@ -118,7 +119,8 @@ func (c *Client) DMABUF(size image.Point, paint Painter) *DMABUF {
 	}
 	params, err := linux.CreateParams(paramsEvents{})
 	c.must(err)
-	c.must(params.Add(fd, 0, 0, uint32(stride), uint32(modifier>>32), uint32(modifier))) //nolint:gosec // test buffers are small
+	hi, lo := wire.Halves(modifier)
+	c.must(params.Add(fd, 0, 0, uint32(stride), hi, lo)) //nolint:gosec // test buffers are small
 	b := &DMABUF{Pix: mapping[:stride*size.Y]}
 	b.WL, err = params.CreateImmed(b, int32(size.X), int32(size.Y), xrgb8888, 0) //nolint:gosec // test buffers are small
 	c.must(err)

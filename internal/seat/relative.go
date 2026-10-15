@@ -43,10 +43,10 @@ func (s *Seat) RelativeMotion(at time.Duration, dx, dy, unaccelDX, unaccelDY flo
 	if r == nil {
 		return nil
 	}
-	us := uint64(max(at, 0) / time.Microsecond)
+	hi, lo := wire.Halves(uint64(max(at, 0) / time.Microsecond))
 	errs := make([]error, 0, len(r.relatives))
 	for _, rel := range r.relatives {
-		errs = append(errs, c.Sent(rel.SendRelativeMotion(uint32(us>>32), uint32(us), //nolint:gosec // split as the protocol asks
+		errs = append(errs, c.Sent(rel.SendRelativeMotion(hi, lo,
 			wire.FixedFromFloat(dx), wire.FixedFromFloat(dy), wire.FixedFromFloat(unaccelDX), wire.FixedFromFloat(unaccelDY))))
 	}
 	return errors.Join(errs...)

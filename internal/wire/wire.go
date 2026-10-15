@@ -86,6 +86,10 @@ func Halves(v uint64) (hi, lo uint32) {
 	return uint32(v >> 32), uint32(v)
 }
 
+func Join(hi, lo uint32) uint64 {
+	return uint64(hi)<<32 | uint64(lo)
+}
+
 type Timespec struct{ SecHi, SecLo, Nsec uint32 }
 
 func TimespecOf(t time.Duration) Timespec {
