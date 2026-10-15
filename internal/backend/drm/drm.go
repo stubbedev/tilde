@@ -432,7 +432,9 @@ func (b *Backend) Resume() error {
 	b.paused = false
 	var errs []error
 	for _, o := range b.outputs {
-		o.modeset, o.flipping, o.queued = true, false, nil
+		o.modeset, o.flipping = true, false
+		errs = append(errs, o.dropScanout(o.queued))
+		o.queued = nil
 		if o.cursor != nil {
 			o.cursor.queued = nil
 		}
@@ -590,18 +592,17 @@ func (o *Output) setPower(on bool) error {
 		o.off, o.modeset = false, true
 		return o.b.handler.OutputDamaged(o)
 	}
-	o.off, o.queued, o.front, o.frameRequested, o.flipping = true, nil, nil, false, false
-	if !o.lit {
-		return nil
+	if o.lit {
+		r := &o.b.req
+		r.Reset()
+		o.add(o.crtc.id, o.crtc.props, "ACTIVE", 0)
+		o.detach()
+		if err := o.b.dev.Commit(r, kdrm.AtomicAllowModeset, 0); err != nil {
+			return fmt.Errorf("drm: power off %s: %w", o.Name(), err)
+		}
 	}
-	r := &o.b.req
-	r.Reset()
-	o.add(o.crtc.id, o.crtc.props, "ACTIVE", 0)
-	o.detach()
-	if err := o.b.dev.Commit(r, kdrm.AtomicAllowModeset, 0); err != nil {
-		return fmt.Errorf("drm: power off %s: %w", o.Name(), err)
-	}
-	return nil
+	o.off, o.frameRequested, o.flipping = true, false, false
+	return o.dropScanouts()
 }
 
 func (o *Output) disable() error {
@@ -621,7 +622,7 @@ func (o *Output) disable() error {
 	if err := o.b.dev.Commit(r, kdrm.AtomicAllowModeset, 0); err != nil {
 		return fmt.Errorf("drm: disable %s: %w", o.Name(), err)
 	}
-	o.enabled, o.lit, o.queued, o.front, o.frameRequested, o.flipping = false, false, nil, nil, false, false
+	o.enabled, o.lit, o.frameRequested, o.flipping = false, false, false, false
 	return o.freeBuffers()
 }
 
@@ -896,17 +897,24 @@ func (o *Output) flipped(e kdrm.FlipEvent) error {
 	return errors.Join(append(errs, o.flushCursor(), o.flushGamma())...)
 }
 
-func (o *Output) freeBuffers() error {
-	var errs []error
-	for _, s := range []*scanout{o.front, o.queued} {
-		if s != nil && s.client {
-			if o.b.gone {
-				errs = append(errs, s.drop())
-			} else {
-				errs = append(errs, s.free())
-			}
-		}
+func (o *Output) dropScanout(s *scanout) error {
+	switch {
+	case s == nil || !s.client:
+		return nil
+	case o.b.gone:
+		return s.drop()
 	}
+	return s.free()
+}
+
+func (o *Output) dropScanouts() error {
+	err := errors.Join(o.dropScanout(o.front), o.dropScanout(o.queued))
+	o.front, o.queued = nil, nil
+	return err
+}
+
+func (o *Output) freeBuffers() error {
+	errs := []error{o.dropScanouts()}
 	for _, s := range o.buffers {
 		if o.b.gone {
 			errs = append(errs, s.drop())

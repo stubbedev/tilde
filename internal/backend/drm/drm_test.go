@@ -51,21 +51,22 @@ type commit struct {
 }
 
 type fakeDevice struct {
-	events, write int
-	connected     bool
-	refuseCursor  bool
-	refuseGamma   bool
-	refuseAsync   bool
-	asyncFlips    bool
-	commits       []commit
-	blobs         uint32
-	blobData      map[uint32][]byte
-	destroyed     []uint32
-	dumbs, fbs    uint32
-	live          map[uint32]bool
-	pix           map[uint32][]byte
-	scanouts      map[uint32]uint32
-	removedFBs    int
+	events, write  int
+	connected      bool
+	refuseCursor   bool
+	refuseGamma    bool
+	refuseAsync    bool
+	refusePowerOff bool
+	asyncFlips     bool
+	commits        []commit
+	blobs          uint32
+	blobData       map[uint32][]byte
+	destroyed      []uint32
+	dumbs, fbs     uint32
+	live           map[uint32]bool
+	pix            map[uint32][]byte
+	scanouts       map[uint32]uint32
+	removedFBs     int
 }
 
 var modes = []kdrm.Mode{
@@ -231,7 +232,8 @@ func (f *fakeDevice) Commit(r *kdrm.Request, flags uint32, userData uint64) erro
 	c := commit{flags: flags, userData: userData, values: map[[2]uint32]uint64{}}
 	r.Each(func(object, property uint32, value uint64) { c.values[[2]uint32{object, property}] = value })
 	f.commits = append(f.commits, c)
-	if f.refuseCursor && c.values[[2]uint32{43, propFB}] != 0 || f.refuseGamma && c.values[[2]uint32{10, propGammaLUT}] != 0 || f.refuseAsync && flags&kdrm.AtomicPageFlipAsync != 0 {
+	active, setsActive := c.values[[2]uint32{10, propActive}]
+	if f.refuseCursor && c.values[[2]uint32{43, propFB}] != 0 || f.refuseGamma && c.values[[2]uint32{10, propGammaLUT}] != 0 || f.refuseAsync && flags&kdrm.AtomicPageFlipAsync != 0 || f.refusePowerOff && setsActive && active == 0 {
 		return unix.EINVAL
 	}
 	return nil
@@ -901,6 +903,52 @@ func TestClientBuffersScanOutUntilTheNextFlip(t *testing.T) {
 	}
 	if ok, err := o.Scanout(gpu.DMABUF{Size: image.Pt(640, 480), Format: scanoutFormat}, func() error { return nil }, false); ok || err != nil {
 		t.Fatalf("a buffer that does not fill the mode scanned out: %t, %v", ok, err)
+	}
+}
+
+func TestClientBuffersAreReleasedWhenTheOutputStopsShowingThem(t *testing.T) {
+	for name, stop := range map[string]func(r *rig, o *Output) error{
+		"disabled": func(_ *rig, o *Output) error { return o.Commit(backend.OutputState{}) },
+		"powered off": func(_ *rig, o *Output) error {
+			st := o.State()
+			st.Off = true
+			return o.Commit(st)
+		},
+		"paused and resumed": func(r *rig, _ *Output) error {
+			r.b.Pause()
+			return r.b.Resume()
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := start(t)
+			o := r.lit()
+			released := 0
+			client := gpu.DMABUF{Size: image.Pt(1920, 1080), Format: scanoutFormat, Modifier: gpu.ModifierLinear, Planes: []gpu.Plane{{FD: 7, Stride: 1920 * 4}}}
+			if ok, err := o.Scanout(client, func() error { released++; return nil }, false); err != nil || !ok {
+				t.Fatalf("Scanout = %t, %v", ok, err)
+			}
+			fbs := r.dev.removedFBs
+			if err := stop(r, o); err != nil {
+				t.Fatal(err)
+			}
+			if released != 1 || r.dev.removedFBs != fbs+1 {
+				t.Fatalf("released %d times and %d framebuffers removed; want the client buffer let go once", released, r.dev.removedFBs-fbs)
+			}
+		})
+	}
+}
+
+func TestAFailedPowerOffLeavesTheOutputOn(t *testing.T) {
+	r := start(t)
+	o := r.lit()
+	r.dev.refusePowerOff = true
+	st := o.State()
+	st.Off = true
+	if err := o.Commit(st); err == nil {
+		t.Fatal("a refused power off succeeded")
+	}
+	if o.State().Off {
+		t.Fatal("a refused power off left the output marked off")
 	}
 }
 
