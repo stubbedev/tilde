@@ -330,8 +330,8 @@ func (obj *ZwpLinuxBufferParamsV1) SendFailed() error {
 	return nil
 }
 
-func (obj *ZwpLinuxBufferParamsV1) ProtocolError(code ZwpLinuxBufferParamsV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZwpLinuxBufferParamsV1) ProtocolError(code ZwpLinuxBufferParamsV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ZwpLinuxDmabufFeedbackV1Interface = &wire.Interface{

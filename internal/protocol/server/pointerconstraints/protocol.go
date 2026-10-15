@@ -137,8 +137,8 @@ func (obj *ZwpPointerConstraintsV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *ZwpPointerConstraintsV1) ProtocolError(code ZwpPointerConstraintsV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZwpPointerConstraintsV1) ProtocolError(code ZwpPointerConstraintsV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ZwpLockedPointerV1Interface = &wire.Interface{

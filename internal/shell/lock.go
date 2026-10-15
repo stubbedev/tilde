@@ -163,7 +163,7 @@ func (l *SessionLock) GetLockSurface(obj *sel.ExtSessionLockV1, res *sel.ExtSess
 		return nil, obj.ProtocolError(sel.ExtSessionLockV1ErrorAlreadyConstructed, "the surface already has a buffer")
 	}
 	if err := s.SetRole(ls); err != nil {
-		return nil, obj.ProtocolError(sel.ExtSessionLockV1ErrorRole, err.Error())
+		return nil, obj.ProtocolError(sel.ExtSessionLockV1ErrorRole, "%v", err)
 	}
 	l.surfaces = append(l.surfaces, ls)
 	server.OnDestroy(res, ls.destroy)
@@ -207,7 +207,7 @@ func (*LockSurface) Destroy(*sel.ExtSessionLockSurfaceV1) error {
 
 func (s *LockSurface) AckConfigure(obj *sel.ExtSessionLockSurfaceV1, serial uint32) error {
 	if !s.configures.ack(serial) {
-		return obj.ProtocolError(sel.ExtSessionLockSurfaceV1ErrorInvalidSerial, fmt.Sprintf("serial %d was never sent", serial))
+		return obj.ProtocolError(sel.ExtSessionLockSurfaceV1ErrorInvalidSerial, "serial %d was never sent", serial)
 	}
 	return nil
 }
@@ -234,7 +234,7 @@ func (s *LockSurface) Committed(sf *surface.Surface) error {
 	case sf.Buffer() == nil:
 		return s.resource.ProtocolError(sel.ExtSessionLockSurfaceV1ErrorNullBuffer, "a lock surface cannot unmap")
 	case sf.Size() != s.size:
-		return s.resource.ProtocolError(sel.ExtSessionLockSurfaceV1ErrorDimensionsMismatch, fmt.Sprintf("the buffer is %v, the configure was %v", sf.Size(), s.size))
+		return s.resource.ProtocolError(sel.ExtSessionLockSurfaceV1ErrorDimensionsMismatch, "the buffer is %v, the configure was %v", sf.Size(), s.size)
 	}
 	s.mapped = true
 	if s.lock.shell.lock != s.lock {

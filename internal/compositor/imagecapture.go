@@ -154,7 +154,7 @@ func (imageCaptures) Destroy(*seic.ExtImageCopyCaptureManagerV1) error { return 
 
 func (m imageCaptures) CreateSession(obj *seic.ExtImageCopyCaptureManagerV1, res *seic.ExtImageCopyCaptureSessionV1, source *seis.ExtImageCaptureSourceV1, options seic.ExtImageCopyCaptureManagerV1Options) (seic.ExtImageCopyCaptureSessionV1Handler, error) {
 	if options&^seic.ExtImageCopyCaptureManagerV1OptionsPaintCursors != 0 {
-		return nil, obj.ProtocolError(seic.ExtImageCopyCaptureManagerV1ErrorInvalidOption, fmt.Sprintf("options %#x", options))
+		return nil, obj.ProtocolError(seic.ExtImageCopyCaptureManagerV1ErrorInvalidOption, "options %#x", options)
 	}
 	src, err := sourceOf(source)
 	if err != nil {
@@ -445,7 +445,7 @@ func (f *captureFrame) AttachBuffer(_ *seic.ExtImageCopyCaptureFrameV1, b *sw.Wl
 
 func (f *captureFrame) DamageBuffer(obj *seic.ExtImageCopyCaptureFrameV1, x, y, w, h int32) error {
 	if x < 0 || y < 0 || w <= 0 || h <= 0 {
-		return obj.ProtocolError(seic.ExtImageCopyCaptureFrameV1ErrorInvalidBufferDamage, fmt.Sprintf("damage %d,%d %dx%d", x, y, w, h))
+		return obj.ProtocolError(seic.ExtImageCopyCaptureFrameV1ErrorInvalidBufferDamage, "damage %d,%d %dx%d", x, y, w, h)
 	}
 	return nil
 }

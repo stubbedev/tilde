@@ -123,8 +123,8 @@ func (obj *ZwpVirtualKeyboardV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *ZwpVirtualKeyboardV1) ProtocolError(code ZwpVirtualKeyboardV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZwpVirtualKeyboardV1) ProtocolError(code ZwpVirtualKeyboardV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ZwpVirtualKeyboardManagerV1Interface = &wire.Interface{
@@ -214,6 +214,6 @@ func (obj *ZwpVirtualKeyboardManagerV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *ZwpVirtualKeyboardManagerV1) ProtocolError(code ZwpVirtualKeyboardManagerV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZwpVirtualKeyboardManagerV1) ProtocolError(code ZwpVirtualKeyboardManagerV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

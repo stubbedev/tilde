@@ -104,8 +104,8 @@ func (obj *WpFifoManagerV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *WpFifoManagerV1) ProtocolError(code WpFifoManagerV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WpFifoManagerV1) ProtocolError(code WpFifoManagerV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var WpFifoV1Interface = &wire.Interface{
@@ -207,6 +207,6 @@ func (obj *WpFifoV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *WpFifoV1) ProtocolError(code WpFifoV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WpFifoV1) ProtocolError(code WpFifoV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

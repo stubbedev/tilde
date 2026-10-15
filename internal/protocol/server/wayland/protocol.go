@@ -137,8 +137,8 @@ func (obj *WlDisplay) SendDeleteID(id uint32) error {
 	return nil
 }
 
-func (obj *WlDisplay) ProtocolError(code WlDisplayError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WlDisplay) ProtocolError(code WlDisplayError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var WlRegistryInterface = &wire.Interface{
@@ -496,8 +496,8 @@ func (obj *WlShmPool) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *WlShmPool) ProtocolError(code WlShmPoolError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WlShmPool) ProtocolError(code WlShmPoolError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var WlShmInterface = &wire.Interface{
@@ -778,8 +778,8 @@ func (obj *WlShm) SendFormat(format WlShmFormat) error {
 	return nil
 }
 
-func (obj *WlShm) ProtocolError(code WlShmError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WlShm) ProtocolError(code WlShmError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var WlBufferInterface = &wire.Interface{
@@ -1027,8 +1027,8 @@ func (obj *WlDataOffer) SendAction(dndAction WlDataDeviceManagerDndAction) error
 	return nil
 }
 
-func (obj *WlDataOffer) ProtocolError(code WlDataOfferError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WlDataOffer) ProtocolError(code WlDataOfferError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var WlDataSourceInterface = &wire.Interface{
@@ -1206,8 +1206,8 @@ func (obj *WlDataSource) SendAction(dndAction WlDataDeviceManagerDndAction) erro
 	return nil
 }
 
-func (obj *WlDataSource) ProtocolError(code WlDataSourceError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WlDataSource) ProtocolError(code WlDataSourceError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var WlDataDeviceInterface = &wire.Interface{
@@ -1419,8 +1419,8 @@ func (obj *WlDataDevice) SendSelection(id *WlDataOffer) error {
 	return nil
 }
 
-func (obj *WlDataDevice) ProtocolError(code WlDataDeviceError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WlDataDevice) ProtocolError(code WlDataDeviceError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var WlDataDeviceManagerInterface = &wire.Interface{
@@ -1622,8 +1622,8 @@ func (obj *WlShell) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *WlShell) ProtocolError(code WlShellError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WlShell) ProtocolError(code WlShellError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var WlShellSurfaceInterface = &wire.Interface{
@@ -2121,8 +2121,8 @@ func (obj *WlSurface) SendPreferredBufferTransform(transform WlOutputTransform) 
 	return nil
 }
 
-func (obj *WlSurface) ProtocolError(code WlSurfaceError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WlSurface) ProtocolError(code WlSurfaceError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var WlSeatInterface = &wire.Interface{
@@ -2285,8 +2285,8 @@ func (obj *WlSeat) SendName(name string) error {
 	return nil
 }
 
-func (obj *WlSeat) ProtocolError(code WlSeatError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WlSeat) ProtocolError(code WlSeatError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var WlPointerInterface = &wire.Interface{
@@ -2619,8 +2619,8 @@ func (obj *WlPointer) SendWarp(surfaceX wire.Fixed, surfaceY wire.Fixed) error {
 	return nil
 }
 
-func (obj *WlPointer) ProtocolError(code WlPointerError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WlPointer) ProtocolError(code WlPointerError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var WlKeyboardInterface = &wire.Interface{
@@ -3385,8 +3385,8 @@ func (obj *WlSubcompositor) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *WlSubcompositor) ProtocolError(code WlSubcompositorError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WlSubcompositor) ProtocolError(code WlSubcompositorError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var WlSubsurfaceInterface = &wire.Interface{
@@ -3513,8 +3513,8 @@ func (obj *WlSubsurface) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *WlSubsurface) ProtocolError(code WlSubsurfaceError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WlSubsurface) ProtocolError(code WlSubsurfaceError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var WlFixesInterface = &wire.Interface{
@@ -3619,6 +3619,6 @@ func (obj *WlFixes) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *WlFixes) ProtocolError(code WlFixesError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WlFixes) ProtocolError(code WlFixesError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

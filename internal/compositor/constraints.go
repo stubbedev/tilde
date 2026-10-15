@@ -2,7 +2,6 @@ package compositor
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"slices"
 
@@ -132,7 +131,7 @@ func (m pointerConstraints) constrain(obj *spc.ZwpPointerConstraintsV1, res wire
 		return nil, err
 	}
 	if _, ok := m.c.constraints[s]; ok {
-		return nil, obj.ProtocolError(spc.ZwpPointerConstraintsV1ErrorAlreadyConstrained, fmt.Sprintf("wl_surface@%d already has a pointer constraint", wl.Base().ID()))
+		return nil, obj.ProtocolError(spc.ZwpPointerConstraintsV1ErrorAlreadyConstrained, "wl_surface@%d already has a pointer constraint", wl.Base().ID())
 	}
 	k := &constraint{c: m.c, surface: s, kind: kind, lifetime: lifetime}
 	if err := k.current.setRegion(g); err != nil {

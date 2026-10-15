@@ -6,7 +6,6 @@ package fifo
 
 import (
 	"errors"
-	"fmt"
 	"slices"
 
 	sff "github.com/stubbedev/tilde/internal/protocol/server/fifo"
@@ -61,7 +60,7 @@ func (r requests) GetFifo(obj *sff.WpFifoManagerV1, res *sff.WpFifoV1, wl *sw.Wl
 	}
 	i := slices.IndexFunc(r.m.fifos, func(f *fifo) bool { return f.s == s })
 	if i >= 0 && r.m.fifos[i].live {
-		return nil, obj.ProtocolError(sff.WpFifoManagerV1ErrorAlreadyExists, fmt.Sprintf("wl_surface@%d already has a fifo", wl.Base().ID()))
+		return nil, obj.ProtocolError(sff.WpFifoManagerV1ErrorAlreadyExists, "wl_surface@%d already has a fifo", wl.Base().ID())
 	}
 	var f *fifo
 	if i >= 0 {

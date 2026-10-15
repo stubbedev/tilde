@@ -1,7 +1,6 @@
 package surface
 
 import (
-	"fmt"
 	"image"
 
 	svp "github.com/stubbedev/tilde/internal/protocol/server/viewporter"
@@ -30,7 +29,7 @@ func (viewporterRequests) GetViewport(obj *svp.WpViewporter, res *svp.WpViewport
 		return nil, err
 	}
 	if s.viewport != nil {
-		return nil, obj.ProtocolError(svp.WpViewporterErrorViewportExists, fmt.Sprintf("wl_surface@%d already has a viewport", wl.Base().ID()))
+		return nil, obj.ProtocolError(svp.WpViewporterErrorViewportExists, "wl_surface@%d already has a viewport", wl.Base().ID())
 	}
 	v := &viewport{s: s, resource: res}
 	s.viewport = v
@@ -73,7 +72,7 @@ func (v *viewport) SetSource(_ *svp.WpViewport, x, y, w, h wire.Fixed) error {
 		return nil
 	}
 	if x < 0 || y < 0 || w <= 0 || h <= 0 {
-		return v.resource.ProtocolError(svp.WpViewportErrorBadValue, fmt.Sprintf("invalid source %v,%v %vx%v", x.Float(), y.Float(), w.Float(), h.Float()))
+		return v.resource.ProtocolError(svp.WpViewportErrorBadValue, "invalid source %v,%v %vx%v", x.Float(), y.Float(), w.Float(), h.Float())
 	}
 	st.source, st.hasSource = render.FRect{X: x.Float(), Y: y.Float(), W: w.Float(), H: h.Float()}, true
 	return nil
@@ -90,16 +89,16 @@ func (v *viewport) SetDestination(_ *svp.WpViewport, w, h int32) error {
 		return nil
 	}
 	if w <= 0 || h <= 0 {
-		return v.resource.ProtocolError(svp.WpViewportErrorBadValue, fmt.Sprintf("invalid destination %dx%d", w, h))
+		return v.resource.ProtocolError(svp.WpViewportErrorBadValue, "invalid destination %dx%d", w, h)
 	}
 	st.dest, st.hasDest = image.Pt(int(w), int(h)), true
 	return nil
 }
 
 func (v *viewport) badSize(src render.FRect) error {
-	return v.resource.ProtocolError(svp.WpViewportErrorBadSize, fmt.Sprintf("source %vx%v is not integral and no destination is set", src.W, src.H))
+	return v.resource.ProtocolError(svp.WpViewportErrorBadSize, "source %vx%v is not integral and no destination is set", src.W, src.H)
 }
 
 func (v *viewport) outOfBuffer(src render.FRect, size image.Point) error {
-	return v.resource.ProtocolError(svp.WpViewportErrorOutOfBuffer, fmt.Sprintf("source %+v extends outside the %v buffer", src, size))
+	return v.resource.ProtocolError(svp.WpViewportErrorOutOfBuffer, "source %+v extends outside the %v buffer", src, size)
 }

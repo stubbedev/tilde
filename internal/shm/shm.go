@@ -64,7 +64,7 @@ func (m *Manager) bind(c *server.Client, id wire.ObjectID, version uint32) error
 }
 
 func shmError(object wire.Resource, code sw.WlShmError, format string, args ...any) error {
-	return &wire.ProtocolError{Object: object.Base().ID(), Code: uint32(code), Message: fmt.Sprintf(format, args...)}
+	return wire.NewProtocolError(object.Base().ID(), uint32(code), format, args...)
 }
 
 type shmRequests struct {
@@ -75,12 +75,12 @@ type shmRequests struct {
 func (r shmRequests) CreatePool(obj *sw.WlShm, res *sw.WlShmPool, fd int, size int32) (sw.WlShmPoolHandler, error) {
 	if size <= 0 {
 		_ = unix.Close(fd)
-		return nil, obj.ProtocolError(sw.WlShmErrorInvalidStride, fmt.Sprintf("invalid pool size %d", size))
+		return nil, obj.ProtocolError(sw.WlShmErrorInvalidStride, "invalid pool size %d", size)
 	}
 	mapping, err := unix.Mmap(fd, 0, int(size), unix.PROT_READ, unix.MAP_SHARED)
 	if err != nil {
 		_ = unix.Close(fd)
-		return nil, obj.ProtocolError(sw.WlShmErrorInvalidFD, fmt.Sprintf("cannot map pool fd: %v", err))
+		return nil, obj.ProtocolError(sw.WlShmErrorInvalidFD, "cannot map pool fd: %v", err)
 	}
 	p := &pool{m: r.m, c: r.c, resource: res, fd: fd, mapping: mapping, refs: 1}
 	server.OnDestroy(res, p.unref)

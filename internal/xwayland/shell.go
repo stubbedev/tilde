@@ -61,7 +61,7 @@ func (r shellRequests) GetXwaylandSurface(obj *sxs.XwaylandShellV1, _ *sxs.Xwayl
 	}
 	x := &xsurface{sh: r.sh, s: s}
 	if err := s.SetRole(x); err != nil {
-		return nil, obj.ProtocolError(sxs.XwaylandShellV1ErrorRole, err.Error())
+		return nil, obj.ProtocolError(sxs.XwaylandShellV1ErrorRole, "%v", err)
 	}
 	server.OnDestroy(wl, x.forget)
 	return x, nil
@@ -92,7 +92,7 @@ func (x *xsurface) SetSerial(obj *sxs.XwaylandSurfaceV1, lo, hi uint32) error {
 	case serial == 0:
 		return obj.ProtocolError(sxs.XwaylandSurfaceV1ErrorInvalidSerial, "serial 0 names no X window")
 	case x.pending != 0:
-		return obj.ProtocolError(sxs.XwaylandSurfaceV1ErrorAlreadyAssociated, fmt.Sprintf("the surface already has serial %d", x.pending))
+		return obj.ProtocolError(sxs.XwaylandSurfaceV1ErrorAlreadyAssociated, "the surface already has serial %d", x.pending)
 	}
 	x.pending = serial
 	return nil

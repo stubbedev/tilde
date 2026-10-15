@@ -480,7 +480,7 @@ func (s *Surface) synchronized() bool {
 }
 
 func (s *Surface) protocolError(code sw.WlSurfaceError, format string, args ...any) error {
-	return s.resource.ProtocolError(code, fmt.Sprintf(format, args...))
+	return s.resource.ProtocolError(code, format, args...)
 }
 
 func (s *Surface) unapplied() []*state {

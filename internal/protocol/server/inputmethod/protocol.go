@@ -222,8 +222,8 @@ func (obj *ZwpInputMethodV2) SendUnavailable() error {
 	return nil
 }
 
-func (obj *ZwpInputMethodV2) ProtocolError(code ZwpInputMethodV2Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZwpInputMethodV2) ProtocolError(code ZwpInputMethodV2Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ZwpInputPopupSurfaceV2Interface = &wire.Interface{

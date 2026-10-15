@@ -105,8 +105,8 @@ func (obj *ZwpKeyboardShortcutsInhibitManagerV1) Dispatch(msg *wire.Message) err
 	return msg.Finish()
 }
 
-func (obj *ZwpKeyboardShortcutsInhibitManagerV1) ProtocolError(code ZwpKeyboardShortcutsInhibitManagerV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZwpKeyboardShortcutsInhibitManagerV1) ProtocolError(code ZwpKeyboardShortcutsInhibitManagerV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ZwpKeyboardShortcutsInhibitorV1Interface = &wire.Interface{

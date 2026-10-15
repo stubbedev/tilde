@@ -104,8 +104,8 @@ func (obj *XdgWmDialogV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *XdgWmDialogV1) ProtocolError(code XdgWmDialogV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *XdgWmDialogV1) ProtocolError(code XdgWmDialogV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var XdgDialogV1Interface = &wire.Interface{

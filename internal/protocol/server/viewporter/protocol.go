@@ -104,8 +104,8 @@ func (obj *WpViewporter) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *WpViewporter) ProtocolError(code WpViewporterError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WpViewporter) ProtocolError(code WpViewporterError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var WpViewportInterface = &wire.Interface{
@@ -216,6 +216,6 @@ func (obj *WpViewport) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *WpViewport) ProtocolError(code WpViewportError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WpViewport) ProtocolError(code WpViewportError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

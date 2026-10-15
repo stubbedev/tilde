@@ -127,8 +127,8 @@ func (obj *ZwlrLayerShellV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *ZwlrLayerShellV1) ProtocolError(code ZwlrLayerShellV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZwlrLayerShellV1) ProtocolError(code ZwlrLayerShellV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ZwlrLayerSurfaceV1Interface = &wire.Interface{
@@ -355,6 +355,6 @@ func (obj *ZwlrLayerSurfaceV1) SendClosed() error {
 	return nil
 }
 
-func (obj *ZwlrLayerSurfaceV1) ProtocolError(code ZwlrLayerSurfaceV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZwlrLayerSurfaceV1) ProtocolError(code ZwlrLayerSurfaceV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

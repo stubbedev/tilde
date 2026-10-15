@@ -659,8 +659,8 @@ func (obj *ZwlrOutputConfigurationV1) SendCancelled() error {
 	return nil
 }
 
-func (obj *ZwlrOutputConfigurationV1) ProtocolError(code ZwlrOutputConfigurationV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZwlrOutputConfigurationV1) ProtocolError(code ZwlrOutputConfigurationV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ZwlrOutputConfigurationHeadV1Interface = &wire.Interface{
@@ -796,6 +796,6 @@ func (obj *ZwlrOutputConfigurationHeadV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *ZwlrOutputConfigurationHeadV1) ProtocolError(code ZwlrOutputConfigurationHeadV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZwlrOutputConfigurationHeadV1) ProtocolError(code ZwlrOutputConfigurationHeadV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

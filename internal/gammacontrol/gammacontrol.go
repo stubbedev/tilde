@@ -157,7 +157,7 @@ func (k *control) setGamma(obj *swgc.ZwlrGammaControlV1, fd int) error {
 	}
 	table, err := ramps(fd, k.gamma.GammaSize())
 	if errors.Is(err, errRampSize) {
-		return obj.ProtocolError(swgc.ZwlrGammaControlV1ErrorInvalidGamma, fmt.Sprintf("%v: want %d entries per ramp", err, k.gamma.GammaSize()))
+		return obj.ProtocolError(swgc.ZwlrGammaControlV1ErrorInvalidGamma, "%v: want %d entries per ramp", err, k.gamma.GammaSize())
 	}
 	if err == nil {
 		err = k.gamma.SetGamma(table)

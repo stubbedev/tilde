@@ -244,7 +244,7 @@ type seatRequests struct {
 }
 
 func missing(obj *sw.WlSeat, what string) error {
-	return obj.ProtocolError(sw.WlSeatErrorMissingCapability, "the seat has never had a "+what)
+	return obj.ProtocolError(sw.WlSeatErrorMissingCapability, "%s", "the seat has never had a "+what)
 }
 
 func (r seatRequests) Release(*sw.WlSeat) error {

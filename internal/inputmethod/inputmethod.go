@@ -399,7 +399,7 @@ func (im *inputMethod) GetInputPopupSurface(obj *sim.ZwpInputMethodV2, res *sim.
 	}
 	p := &popup{im: im, s: s, res: res}
 	if err := s.SetRole(p); err != nil {
-		return nil, obj.ProtocolError(sim.ZwpInputMethodV2ErrorRole, err.Error())
+		return nil, obj.ProtocolError(sim.ZwpInputMethodV2ErrorRole, "%v", err)
 	}
 	im.popups = append(im.popups, p)
 	server.OnDestroy(res, p.gone)

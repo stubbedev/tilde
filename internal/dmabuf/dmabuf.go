@@ -251,7 +251,7 @@ type params struct {
 }
 
 func fail(res *sld.ZwpLinuxBufferParamsV1, code sld.ZwpLinuxBufferParamsV1Error, format string, args ...any) error {
-	return res.ProtocolError(code, fmt.Sprintf(format, args...))
+	return res.ProtocolError(code, format, args...)
 }
 
 func (p *params) closePlanes() error {

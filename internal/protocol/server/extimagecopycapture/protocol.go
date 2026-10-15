@@ -134,8 +134,8 @@ func (obj *ExtImageCopyCaptureManagerV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *ExtImageCopyCaptureManagerV1) ProtocolError(code ExtImageCopyCaptureManagerV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ExtImageCopyCaptureManagerV1) ProtocolError(code ExtImageCopyCaptureManagerV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ExtImageCopyCaptureSessionV1Interface = &wire.Interface{
@@ -296,8 +296,8 @@ func (obj *ExtImageCopyCaptureSessionV1) SendStopped() error {
 	return nil
 }
 
-func (obj *ExtImageCopyCaptureSessionV1) ProtocolError(code ExtImageCopyCaptureSessionV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ExtImageCopyCaptureSessionV1) ProtocolError(code ExtImageCopyCaptureSessionV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ExtImageCopyCaptureFrameV1Interface = &wire.Interface{
@@ -485,8 +485,8 @@ func (obj *ExtImageCopyCaptureFrameV1) SendFailed(reason ExtImageCopyCaptureFram
 	return nil
 }
 
-func (obj *ExtImageCopyCaptureFrameV1) ProtocolError(code ExtImageCopyCaptureFrameV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ExtImageCopyCaptureFrameV1) ProtocolError(code ExtImageCopyCaptureFrameV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ExtImageCopyCaptureCursorSessionV1Interface = &wire.Interface{
@@ -627,6 +627,6 @@ func (obj *ExtImageCopyCaptureCursorSessionV1) SendHotspot(x int32, y int32) err
 	return nil
 }
 
-func (obj *ExtImageCopyCaptureCursorSessionV1) ProtocolError(code ExtImageCopyCaptureCursorSessionV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ExtImageCopyCaptureCursorSessionV1) ProtocolError(code ExtImageCopyCaptureCursorSessionV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

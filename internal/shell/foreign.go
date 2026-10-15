@@ -163,7 +163,7 @@ func (x exporterV2) ExportToplevel(obj *sxf2.ZxdgExporterV2, res *sxf2.ZxdgExpor
 		return nil, err
 	}
 	if top == nil {
-		return nil, obj.ProtocolError(sxf2.ZxdgExporterV2ErrorInvalidSurface, fmt.Sprintf("wl_surface@%d is not an xdg_toplevel", wl.Base().ID()))
+		return nil, obj.ProtocolError(sxf2.ZxdgExporterV2ErrorInvalidSurface, "wl_surface@%d is not an xdg_toplevel", wl.Base().ID())
 	}
 	e, err := x.sh.export(top.xs)
 	if err != nil {
@@ -204,7 +204,7 @@ func (x importedV2) SetParentOf(obj *sxf2.ZxdgImportedV2, wl *sw.WlSurface) erro
 		return err
 	}
 	if child == nil {
-		return obj.ProtocolError(sxf2.ZxdgImportedV2ErrorInvalidSurface, fmt.Sprintf("wl_surface@%d is not an xdg_toplevel", wl.Base().ID()))
+		return obj.ProtocolError(sxf2.ZxdgImportedV2ErrorInvalidSurface, "wl_surface@%d is not an xdg_toplevel", wl.Base().ID())
 	}
 	return x.setParentOf(child)
 }
@@ -227,7 +227,7 @@ func (x exporterV1) Export(obj *sxf1.ZxdgExporterV1, res *sxf1.ZxdgExportedV1, w
 		return nil, err
 	}
 	if xs == nil {
-		return nil, &wire.ProtocolError{Object: obj.Base().ID(), Message: fmt.Sprintf("wl_surface@%d is not an xdg_surface", wl.Base().ID())}
+		return nil, wire.NewProtocolError(obj.Base().ID(), 0, "wl_surface@%d is not an xdg_surface", wl.Base().ID())
 	}
 	e, err := x.sh.export(xs)
 	if err != nil {
@@ -268,7 +268,7 @@ func (x importedV1) SetParentOf(obj *sxf1.ZxdgImportedV1, wl *sw.WlSurface) erro
 		return err
 	}
 	if child == nil {
-		return &wire.ProtocolError{Object: obj.Base().ID(), Message: fmt.Sprintf("wl_surface@%d is not an xdg_toplevel", wl.Base().ID())}
+		return wire.NewProtocolError(obj.Base().ID(), 0, "wl_surface@%d is not an xdg_toplevel", wl.Base().ID())
 	}
 	return x.setParentOf(child)
 }

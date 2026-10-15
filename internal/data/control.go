@@ -101,7 +101,7 @@ func (m *Manager) openControl(res wire.Resource, d *controlDevice) error {
 }
 
 func controlError(obj wire.Resource, code uint32, message string) error {
-	return &wire.ProtocolError{Object: obj.Base().ID(), Code: code, Message: message}
+	return wire.NewProtocolError(obj.Base().ID(), code, "%s", message)
 }
 
 func controlOffers[D interface {

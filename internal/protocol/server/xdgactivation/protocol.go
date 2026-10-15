@@ -227,6 +227,6 @@ func (obj *XdgActivationTokenV1) SendDone(token string) error {
 	return nil
 }
 
-func (obj *XdgActivationTokenV1) ProtocolError(code XdgActivationTokenV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *XdgActivationTokenV1) ProtocolError(code XdgActivationTokenV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

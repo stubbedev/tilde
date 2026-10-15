@@ -592,8 +592,8 @@ func (obj *ZwpTabletToolV2) SendFrame(time uint32) error {
 	return nil
 }
 
-func (obj *ZwpTabletToolV2) ProtocolError(code ZwpTabletToolV2Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZwpTabletToolV2) ProtocolError(code ZwpTabletToolV2Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ZwpTabletV2Interface = &wire.Interface{

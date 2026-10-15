@@ -74,7 +74,7 @@ func (layerShell) Destroy(*swlr.ZwlrLayerShellV1) error {
 
 func (m layerShell) GetLayerSurface(obj *swlr.ZwlrLayerShellV1, res *swlr.ZwlrLayerSurfaceV1, wl *sw.WlSurface, out *sw.WlOutput, layer Layer, namespace string) (swlr.ZwlrLayerSurfaceV1Handler, error) {
 	if !layer.Valid(obj.Base().Version()) {
-		return nil, obj.ProtocolError(swlr.ZwlrLayerShellV1ErrorInvalidLayer, fmt.Sprintf("layer %d", layer))
+		return nil, obj.ProtocolError(swlr.ZwlrLayerShellV1ErrorInvalidLayer, "layer %d", layer)
 	}
 	surf, err := surface.From(wl)
 	if err != nil {
@@ -86,7 +86,7 @@ func (m layerShell) GetLayerSurface(obj *swlr.ZwlrLayerShellV1, res *swlr.ZwlrLa
 	l := &LayerSurface{shell: m.sh, client: m.c, manager: obj, resource: res, surface: surf, output: out, namespace: namespace}
 	l.pending.Layer = layer
 	if err := surf.SetRole(l); err != nil {
-		return nil, obj.ProtocolError(swlr.ZwlrLayerShellV1ErrorRole, err.Error())
+		return nil, obj.ProtocolError(swlr.ZwlrLayerShellV1ErrorRole, "%v", err)
 	}
 	server.OnDestroy(res, l.destroy)
 	server.OnDestroy(wl, l.destroy)
@@ -168,7 +168,7 @@ func (l *LayerSurface) validate(s LayerState) error {
 	case s.Size.Y == 0 && s.Anchor&vertical != vertical:
 		return l.resource.ProtocolError(swlr.ZwlrLayerSurfaceV1ErrorInvalidSize, "a height of 0 needs both the top and the bottom anchor")
 	case s.ExclusiveEdge != 0 && s.Anchor&s.ExclusiveEdge == 0:
-		return l.resource.ProtocolError(swlr.ZwlrLayerSurfaceV1ErrorInvalidExclusiveEdge, fmt.Sprintf("exclusive edge %d is not among the anchors %d", s.ExclusiveEdge, s.Anchor))
+		return l.resource.ProtocolError(swlr.ZwlrLayerSurfaceV1ErrorInvalidExclusiveEdge, "exclusive edge %d is not among the anchors %d", s.ExclusiveEdge, s.Anchor)
 	}
 	return nil
 }
@@ -216,7 +216,7 @@ func (l *LayerSurface) SetSize(_ *swlr.ZwlrLayerSurfaceV1, w, h uint32) error {
 
 func (l *LayerSurface) SetAnchor(obj *swlr.ZwlrLayerSurfaceV1, anchor Edges) error {
 	if anchor&^allEdges != 0 {
-		return obj.ProtocolError(swlr.ZwlrLayerSurfaceV1ErrorInvalidAnchor, fmt.Sprintf("anchor %d", anchor))
+		return obj.ProtocolError(swlr.ZwlrLayerSurfaceV1ErrorInvalidAnchor, "anchor %d", anchor)
 	}
 	l.pending.Anchor = anchor
 	return nil
@@ -234,7 +234,7 @@ func (l *LayerSurface) SetMargin(_ *swlr.ZwlrLayerSurfaceV1, top, right, bottom,
 
 func (l *LayerSurface) SetKeyboardInteractivity(obj *swlr.ZwlrLayerSurfaceV1, k Interactivity) error {
 	if !k.Valid(obj.Base().Version()) {
-		return obj.ProtocolError(swlr.ZwlrLayerSurfaceV1ErrorInvalidKeyboardInteractivity, fmt.Sprintf("keyboard interactivity %d at version %d", k, obj.Base().Version()))
+		return obj.ProtocolError(swlr.ZwlrLayerSurfaceV1ErrorInvalidKeyboardInteractivity, "keyboard interactivity %d at version %d", k, obj.Base().Version())
 	}
 	l.pending.Interactivity = k
 	return nil
@@ -254,7 +254,7 @@ func (l *LayerSurface) GetPopup(_ *swlr.ZwlrLayerSurfaceV1, res *sxdg.XdgPopup) 
 
 func (l *LayerSurface) AckConfigure(obj *swlr.ZwlrLayerSurfaceV1, serial uint32) error {
 	if !l.configures.ack(serial) {
-		return obj.ProtocolError(swlr.ZwlrLayerSurfaceV1ErrorInvalidSurfaceState, fmt.Sprintf("serial %d was never sent or is already acked", serial))
+		return obj.ProtocolError(swlr.ZwlrLayerSurfaceV1ErrorInvalidSurfaceState, "serial %d was never sent or is already acked", serial)
 	}
 	return nil
 }
@@ -265,7 +265,7 @@ func (l *LayerSurface) Destroy(*swlr.ZwlrLayerSurfaceV1) error {
 
 func (l *LayerSurface) SetLayer(_ *swlr.ZwlrLayerSurfaceV1, layer Layer) error {
 	if !layer.Valid(l.manager.Base().Version()) {
-		return l.manager.ProtocolError(swlr.ZwlrLayerShellV1ErrorInvalidLayer, fmt.Sprintf("layer %d", layer))
+		return l.manager.ProtocolError(swlr.ZwlrLayerShellV1ErrorInvalidLayer, "layer %d", layer)
 	}
 	l.pending.Layer = layer
 	return nil
@@ -273,7 +273,7 @@ func (l *LayerSurface) SetLayer(_ *swlr.ZwlrLayerSurfaceV1, layer Layer) error {
 
 func (l *LayerSurface) SetExclusiveEdge(obj *swlr.ZwlrLayerSurfaceV1, edge Edges) error {
 	if edge&^allEdges != 0 || bits.OnesCount32(uint32(edge)) > 1 {
-		return obj.ProtocolError(swlr.ZwlrLayerSurfaceV1ErrorInvalidExclusiveEdge, fmt.Sprintf("exclusive edge %d is not a single edge", edge))
+		return obj.ProtocolError(swlr.ZwlrLayerSurfaceV1ErrorInvalidExclusiveEdge, "exclusive edge %d is not a single edge", edge)
 	}
 	l.pending.ExclusiveEdge = edge
 	return nil

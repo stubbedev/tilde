@@ -139,7 +139,7 @@ func (t *Toplevel) applyPending() error {
 		maxSize = t.pendingMax
 	}
 	if maxSize.X > 0 && minSize.X > maxSize.X || maxSize.Y > 0 && minSize.Y > maxSize.Y {
-		return t.resource.ProtocolError(sxdg.XdgToplevelErrorInvalidSize, fmt.Sprintf("minimum size %v exceeds maximum size %v", minSize, maxSize))
+		return t.resource.ProtocolError(sxdg.XdgToplevelErrorInvalidSize, "minimum size %v exceeds maximum size %v", minSize, maxSize)
 	}
 	t.min, t.max, t.minSet, t.maxSet = minSize, maxSize, false, false
 	if s, ok := t.configures.take(); ok {
@@ -261,12 +261,12 @@ func (t *Toplevel) Resize(obj *sxdg.XdgToplevel, _ *sw.WlSeat, serial uint32, ed
 		sxdg.XdgToplevelResizeEdgeTopRight, sxdg.XdgToplevelResizeEdgeBottomRight:
 		return t.request(Resize{Serial: serial, Edges: edges})
 	}
-	return obj.ProtocolError(sxdg.XdgToplevelErrorInvalidResizeEdge, fmt.Sprintf("invalid resize edge %d", edges))
+	return obj.ProtocolError(sxdg.XdgToplevelErrorInvalidResizeEdge, "invalid resize edge %d", edges)
 }
 
 func sizeArg(obj *sxdg.XdgToplevel, w, h int32) (image.Point, error) {
 	if w < 0 || h < 0 {
-		return image.Point{}, obj.ProtocolError(sxdg.XdgToplevelErrorInvalidSize, fmt.Sprintf("size %dx%d is negative", w, h))
+		return image.Point{}, obj.ProtocolError(sxdg.XdgToplevelErrorInvalidSize, "size %dx%d is negative", w, h)
 	}
 	return image.Pt(int(w), int(h)), nil
 }

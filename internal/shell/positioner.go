@@ -148,7 +148,7 @@ func (b *wmBase) rules(res *sxdg.XdgPositioner) (Positioner, error) {
 		return Positioner{}, fmt.Errorf("shell: xdg_positioner@%d has handler %T", res.Base().ID(), res.Handler())
 	}
 	if !p.sizeSet || !p.anchorSet {
-		return Positioner{}, b.resource.ProtocolError(sxdg.XdgWmBaseErrorInvalidPositioner, fmt.Sprintf("xdg_positioner@%d has no size or anchor rectangle", res.Base().ID()))
+		return Positioner{}, b.resource.ProtocolError(sxdg.XdgWmBaseErrorInvalidPositioner, "xdg_positioner@%d has no size or anchor rectangle", res.Base().ID())
 	}
 	return p.rules, nil
 }
@@ -158,7 +158,7 @@ func (*positioner) Destroy(*sxdg.XdgPositioner) error {
 }
 
 func invalidInput(obj *sxdg.XdgPositioner, format string, args ...any) error {
-	return obj.ProtocolError(sxdg.XdgPositionerErrorInvalidInput, fmt.Sprintf(format, args...))
+	return obj.ProtocolError(sxdg.XdgPositionerErrorInvalidInput, format, args...)
 }
 
 func (p *positioner) SetSize(obj *sxdg.XdgPositioner, w, h int32) error {

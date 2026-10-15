@@ -130,7 +130,7 @@ func (r requests) ImportTimeline(obj *sls.WpLinuxDrmSyncobjManagerV1, res *sls.W
 		return nil, errors.Join(closeErr, r.m.dev.DestroySyncobj(handle))
 	}
 	if err != nil {
-		return nil, obj.ProtocolError(sls.WpLinuxDrmSyncobjManagerV1ErrorInvalidTimeline, fmt.Sprintf("not a syncobj: %v", err))
+		return nil, obj.ProtocolError(sls.WpLinuxDrmSyncobjManagerV1ErrorInvalidTimeline, "not a syncobj: %v", err)
 	}
 	t := &timeline{m: r.m, handle: handle, refs: 1}
 	server.OnDestroy(res, t.unref)
@@ -149,7 +149,7 @@ func (r requests) GetSurface(obj *sls.WpLinuxDrmSyncobjManagerV1, res *sls.WpLin
 		return nil, err
 	}
 	if prev, ok := r.m.surfaces[s]; ok && prev.res != nil {
-		return nil, obj.ProtocolError(sls.WpLinuxDrmSyncobjManagerV1ErrorSurfaceExists, fmt.Sprintf("wl_surface@%d already has a syncobj surface", wl.Base().ID()))
+		return nil, obj.ProtocolError(sls.WpLinuxDrmSyncobjManagerV1ErrorSurfaceExists, "wl_surface@%d already has a syncobj surface", wl.Base().ID())
 	}
 	ss, ok := r.m.surfaces[s]
 	if !ok {
@@ -223,7 +223,7 @@ func (ss *syncSurface) SetReleasePoint(obj *sls.WpLinuxDrmSyncobjSurfaceV1, t *s
 }
 
 func (ss *syncSurface) fail(code sls.WpLinuxDrmSyncobjSurfaceV1Error, format string, args ...any) error {
-	return ss.res.ProtocolError(code, fmt.Sprintf(format, args...))
+	return ss.res.ProtocolError(code, format, args...)
 }
 
 func (ss *syncSurface) check(buffer surface.Buffer, attached bool) (*dmabuf.Buffer, error) {

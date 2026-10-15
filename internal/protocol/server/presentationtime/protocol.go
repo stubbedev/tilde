@@ -118,8 +118,8 @@ func (obj *WpPresentation) SendClockID(clkID uint32) error {
 	return nil
 }
 
-func (obj *WpPresentation) ProtocolError(code WpPresentationError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WpPresentation) ProtocolError(code WpPresentationError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var WpPresentationFeedbackInterface = &wire.Interface{

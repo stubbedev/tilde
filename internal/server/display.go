@@ -326,5 +326,5 @@ func (d *Display) global(name uint32) *Global {
 }
 
 func invalidObject(object wire.Resource, format string, args ...any) error {
-	return &wire.ProtocolError{Object: object.Base().ID(), Code: uint32(sw.WlDisplayErrorInvalidObject), Message: fmt.Sprintf(format, args...)}
+	return wire.NewProtocolError(object.Base().ID(), uint32(sw.WlDisplayErrorInvalidObject), format, args...)
 }

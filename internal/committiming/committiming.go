@@ -68,7 +68,7 @@ func (r requests) GetTimer(obj *sct.WpCommitTimingManagerV1, res *sct.WpCommitTi
 	}
 	i := slices.IndexFunc(r.m.timers, func(t *timer) bool { return t.s == s })
 	if i >= 0 && r.m.timers[i].live {
-		return nil, obj.ProtocolError(sct.WpCommitTimingManagerV1ErrorCommitTimerExists, fmt.Sprintf("wl_surface@%d already has a commit timer", wl.Base().ID()))
+		return nil, obj.ProtocolError(sct.WpCommitTimingManagerV1ErrorCommitTimerExists, "wl_surface@%d already has a commit timer", wl.Base().ID())
 	}
 	var t *timer
 	if i >= 0 {
@@ -116,7 +116,7 @@ func (t *timer) SetTimestamp(obj *sct.WpCommitTimerV1, secHi, secLo, nsec uint32
 	case t.gone:
 		return obj.ProtocolError(sct.WpCommitTimerV1ErrorSurfaceDestroyed, "set_timestamp after the wl_surface was destroyed")
 	case nsec >= uint32(time.Second):
-		return obj.ProtocolError(sct.WpCommitTimerV1ErrorInvalidTimestamp, fmt.Sprintf("tv_nsec %d is not below one second", nsec))
+		return obj.ProtocolError(sct.WpCommitTimerV1ErrorInvalidTimestamp, "tv_nsec %d is not below one second", nsec)
 	case t.pending != nil:
 		return obj.ProtocolError(sct.WpCommitTimerV1ErrorTimestampExists, "the next commit already has a timestamp")
 	}

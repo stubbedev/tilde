@@ -1,7 +1,6 @@
 package surface
 
 import (
-	"fmt"
 	"image"
 	"slices"
 
@@ -77,11 +76,11 @@ func (subcompositorRequests) GetSubsurface(obj *sw.WlSubcompositor, res *sw.WlSu
 		return nil, err
 	}
 	if s.isAncestorOf(p) {
-		return nil, obj.ProtocolError(sw.WlSubcompositorErrorBadParent, fmt.Sprintf("wl_surface@%d cannot be a subsurface of itself or its descendant wl_surface@%d", surface.Base().ID(), parent.Base().ID()))
+		return nil, obj.ProtocolError(sw.WlSubcompositorErrorBadParent, "wl_surface@%d cannot be a subsurface of itself or its descendant wl_surface@%d", surface.Base().ID(), parent.Base().ID())
 	}
 	sub := &Subsurface{resource: res, surface: s, parent: p, sync: true}
 	if err := s.SetRole(sub); err != nil {
-		return nil, obj.ProtocolError(sw.WlSubcompositorErrorBadSurface, err.Error())
+		return nil, obj.ProtocolError(sw.WlSubcompositorErrorBadSurface, "%v", err)
 	}
 	s.sub = sub
 	p.order = append(p.order, s)
@@ -124,7 +123,7 @@ func (r subsurfaceRequests) place(obj *sw.WlSubsurface, sibling *sw.WlSurface, a
 		return err
 	}
 	if ref == sub.surface || (ref != p && (ref.sub == nil || ref.sub.parent != p)) {
-		return obj.ProtocolError(sw.WlSubsurfaceErrorBadSurface, fmt.Sprintf("wl_surface@%d is neither the parent nor a sibling", sibling.Base().ID()))
+		return obj.ProtocolError(sw.WlSubsurfaceErrorBadSurface, "wl_surface@%d is neither the parent nor a sibling", sibling.Base().ID())
 	}
 	order := slices.DeleteFunc(p.pendingOrder, func(s *Surface) bool { return s == sub.surface })
 	i := slices.Index(order, ref)

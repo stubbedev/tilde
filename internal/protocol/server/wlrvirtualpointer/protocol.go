@@ -170,8 +170,8 @@ func (obj *ZwlrVirtualPointerV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *ZwlrVirtualPointerV1) ProtocolError(code ZwlrVirtualPointerV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZwlrVirtualPointerV1) ProtocolError(code ZwlrVirtualPointerV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ZwlrVirtualPointerManagerV1Interface = &wire.Interface{

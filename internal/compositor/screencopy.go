@@ -106,7 +106,7 @@ func (f *screencopyFrame) copy(obj *swsc.ZwlrScreencopyFrameV1, wl *sw.WlBuffer,
 	}
 	target, err := shmTarget(b, f.region.Size(), []render.Format{render.XRGB8888})
 	if err != nil {
-		return obj.ProtocolError(swsc.ZwlrScreencopyFrameV1ErrorInvalidBuffer, err.Error())
+		return obj.ProtocolError(swsc.ZwlrScreencopyFrameV1ErrorInvalidBuffer, "%v", err)
 	}
 	var damaged region.Set
 	k := &capture{output: f.output, size: f.region.Size(), clear: opaque, draw: f.c.outputDraw(f.output, f.region, f.cursor), target: target}

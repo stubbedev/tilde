@@ -314,6 +314,6 @@ func (obj *ZwlrScreencopyFrameV1) SendBufferDone() error {
 	return nil
 }
 
-func (obj *ZwlrScreencopyFrameV1) ProtocolError(code ZwlrScreencopyFrameV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZwlrScreencopyFrameV1) ProtocolError(code ZwlrScreencopyFrameV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

@@ -248,6 +248,6 @@ func (obj *WpCursorShapeDeviceV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *WpCursorShapeDeviceV1) ProtocolError(code WpCursorShapeDeviceV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WpCursorShapeDeviceV1) ProtocolError(code WpCursorShapeDeviceV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

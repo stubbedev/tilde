@@ -62,7 +62,7 @@ func (s *dataSource) Offer(_ *sw.WlDataSource, mime string) error {
 func (s *dataSource) SetActions(obj *sw.WlDataSource, actions Action) error {
 	switch {
 	case actions&^allActions != 0:
-		return obj.ProtocolError(sw.WlDataSourceErrorInvalidActionMask, fmt.Sprintf("actions %d", actions))
+		return obj.ProtocolError(sw.WlDataSourceErrorInvalidActionMask, "actions %d", actions)
 	case s.actionsSet || !s.fresh():
 		return obj.ProtocolError(sw.WlDataSourceErrorInvalidSource, "set_actions must come once, before the source is used")
 	}
@@ -209,9 +209,9 @@ func (o *dataOffer) Finish(obj *sw.WlDataOffer) error {
 func (o *dataOffer) SetActions(obj *sw.WlDataOffer, actions, preferred Action) error {
 	switch {
 	case actions&^allActions != 0:
-		return obj.ProtocolError(sw.WlDataOfferErrorInvalidActionMask, fmt.Sprintf("actions %d", actions))
+		return obj.ProtocolError(sw.WlDataOfferErrorInvalidActionMask, "actions %d", actions)
 	case preferred&^allActions != 0 || (preferred != 0 && preferred&(preferred-1) != 0):
-		return obj.ProtocolError(sw.WlDataOfferErrorInvalidAction, fmt.Sprintf("preferred action %d is not a single action", preferred))
+		return obj.ProtocolError(sw.WlDataOfferErrorInvalidAction, "preferred action %d is not a single action", preferred)
 	case o.drag == nil:
 		return obj.ProtocolError(sw.WlDataOfferErrorInvalidOffer, "set_actions on a selection offer")
 	}

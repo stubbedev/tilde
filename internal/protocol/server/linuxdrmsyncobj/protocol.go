@@ -122,8 +122,8 @@ func (obj *WpLinuxDrmSyncobjManagerV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *WpLinuxDrmSyncobjManagerV1) ProtocolError(code WpLinuxDrmSyncobjManagerV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WpLinuxDrmSyncobjManagerV1) ProtocolError(code WpLinuxDrmSyncobjManagerV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var WpLinuxDrmSyncobjTimelineV1Interface = &wire.Interface{
@@ -307,6 +307,6 @@ func (obj *WpLinuxDrmSyncobjSurfaceV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *WpLinuxDrmSyncobjSurfaceV1) ProtocolError(code WpLinuxDrmSyncobjSurfaceV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WpLinuxDrmSyncobjSurfaceV1) ProtocolError(code WpLinuxDrmSyncobjSurfaceV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

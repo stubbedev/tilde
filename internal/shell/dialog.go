@@ -29,7 +29,7 @@ func (d dialogs) GetXdgDialog(obj *sxdd.XdgWmDialogV1, res *sxdd.XdgDialogV1, to
 		return nil, fmt.Errorf("shell: xdg_toplevel@%d has handler %T", top.Base().ID(), top.Handler())
 	}
 	if t.dialog {
-		return nil, obj.ProtocolError(sxdd.XdgWmDialogV1ErrorAlreadyUsed, fmt.Sprintf("xdg_toplevel@%d already has an xdg_dialog_v1", top.Base().ID()))
+		return nil, obj.ProtocolError(sxdd.XdgWmDialogV1ErrorAlreadyUsed, "xdg_toplevel@%d already has an xdg_dialog_v1", top.Base().ID())
 	}
 	t.dialog = true
 	server.OnDestroy(res, func() error {

@@ -1,8 +1,6 @@
 package surface
 
 import (
-	"fmt"
-
 	sfs "github.com/stubbedev/tilde/internal/protocol/server/fractionalscale"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
 	"github.com/stubbedev/tilde/internal/server"
@@ -28,7 +26,7 @@ func (fractionalManagerRequests) GetFractionalScale(obj *sfs.WpFractionalScaleMa
 		return nil, err
 	}
 	if s.fractional != nil {
-		return nil, obj.ProtocolError(sfs.WpFractionalScaleManagerV1ErrorFractionalScaleExists, fmt.Sprintf("wl_surface@%d already has a fractional scale object", wl.Base().ID()))
+		return nil, obj.ProtocolError(sfs.WpFractionalScaleManagerV1ErrorFractionalScaleExists, "wl_surface@%d already has a fractional scale object", wl.Base().ID())
 	}
 	f := &fractional{resource: res}
 	s.fractional = f

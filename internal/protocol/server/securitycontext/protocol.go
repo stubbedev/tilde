@@ -110,8 +110,8 @@ func (obj *WpSecurityContextManagerV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *WpSecurityContextManagerV1) ProtocolError(code WpSecurityContextManagerV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WpSecurityContextManagerV1) ProtocolError(code WpSecurityContextManagerV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var WpSecurityContextV1Interface = &wire.Interface{
@@ -232,6 +232,6 @@ func (obj *WpSecurityContextV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *WpSecurityContextV1) ProtocolError(code WpSecurityContextV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WpSecurityContextV1) ProtocolError(code WpSecurityContextV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

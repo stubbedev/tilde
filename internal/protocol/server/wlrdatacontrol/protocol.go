@@ -277,8 +277,8 @@ func (obj *ZwlrDataControlDeviceV1) SendPrimarySelection(id *ZwlrDataControlOffe
 	return nil
 }
 
-func (obj *ZwlrDataControlDeviceV1) ProtocolError(code ZwlrDataControlDeviceV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZwlrDataControlDeviceV1) ProtocolError(code ZwlrDataControlDeviceV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ZwlrDataControlSourceV1Interface = &wire.Interface{
@@ -396,8 +396,8 @@ func (obj *ZwlrDataControlSourceV1) SendCancelled() error {
 	return nil
 }
 
-func (obj *ZwlrDataControlSourceV1) ProtocolError(code ZwlrDataControlSourceV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZwlrDataControlSourceV1) ProtocolError(code ZwlrDataControlSourceV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ZwlrDataControlOfferV1Interface = &wire.Interface{

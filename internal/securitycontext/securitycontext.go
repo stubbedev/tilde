@@ -6,7 +6,6 @@ package securitycontext
 
 import (
 	"errors"
-	"fmt"
 
 	"golang.org/x/sys/unix"
 
@@ -41,7 +40,7 @@ func (m manager) CreateListener(obj *swsc.WpSecurityContextManagerV1, res *swsc.
 	}
 	listener, err := server.ListeningSocket(listenFD)
 	if err != nil {
-		return nil, errors.Join(obj.ProtocolError(swsc.WpSecurityContextManagerV1ErrorInvalidListenFD, fmt.Sprintf("listen_fd: %v", err)), closeBoth())
+		return nil, errors.Join(obj.ProtocolError(swsc.WpSecurityContextManagerV1ErrorInvalidListenFD, "listen_fd: %v", err), closeBoth())
 	}
 	ctx := &context{d: m.d, listener: listener, closeFD: closeFD}
 	server.OnDestroy(res, func() error {
@@ -70,7 +69,7 @@ func (x *context) setOnce(obj *swsc.WpSecurityContextV1, name, value string, fie
 		return obj.ProtocolError(swsc.WpSecurityContextV1ErrorAlreadyUsed, "the security context was already committed")
 	}
 	if *field != nil {
-		return obj.ProtocolError(swsc.WpSecurityContextV1ErrorAlreadySet, fmt.Sprintf("the %s is already set", name))
+		return obj.ProtocolError(swsc.WpSecurityContextV1ErrorAlreadySet, "the %s is already set", name)
 	}
 	*field = &value
 	return nil

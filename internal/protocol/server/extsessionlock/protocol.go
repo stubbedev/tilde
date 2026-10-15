@@ -221,8 +221,8 @@ func (obj *ExtSessionLockV1) SendFinished() error {
 	return nil
 }
 
-func (obj *ExtSessionLockV1) ProtocolError(code ExtSessionLockV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ExtSessionLockV1) ProtocolError(code ExtSessionLockV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ExtSessionLockSurfaceV1Interface = &wire.Interface{
@@ -335,6 +335,6 @@ func (obj *ExtSessionLockSurfaceV1) SendConfigure(serial uint32, width uint32, h
 	return nil
 }
 
-func (obj *ExtSessionLockSurfaceV1) ProtocolError(code ExtSessionLockSurfaceV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ExtSessionLockSurfaceV1) ProtocolError(code ExtSessionLockSurfaceV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

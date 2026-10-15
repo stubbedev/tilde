@@ -104,8 +104,8 @@ func (obj *WpCommitTimingManagerV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *WpCommitTimingManagerV1) ProtocolError(code WpCommitTimingManagerV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WpCommitTimingManagerV1) ProtocolError(code WpCommitTimingManagerV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var WpCommitTimerV1Interface = &wire.Interface{
@@ -205,6 +205,6 @@ func (obj *WpCommitTimerV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *WpCommitTimerV1) ProtocolError(code WpCommitTimerV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *WpCommitTimerV1) ProtocolError(code WpCommitTimerV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

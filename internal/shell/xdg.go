@@ -5,7 +5,6 @@ package shell
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"image"
 	"slices"
 	"time"
@@ -162,7 +161,7 @@ func (sh *Shell) bind(c *server.Client, id wire.ObjectID, version uint32) error 
 
 func (b *wmBase) Destroy(obj *sxdg.XdgWmBase) error {
 	if len(b.surfaces) > 0 {
-		return obj.ProtocolError(sxdg.XdgWmBaseErrorDefunctSurfaces, fmt.Sprintf("%d xdg_surfaces still exist", len(b.surfaces)))
+		return obj.ProtocolError(sxdg.XdgWmBaseErrorDefunctSurfaces, "%d xdg_surfaces still exist", len(b.surfaces))
 	}
 	return nil
 }
@@ -217,7 +216,7 @@ func (b *wmBase) GetXdgSurface(obj *sxdg.XdgWmBase, res *sxdg.XdgSurface, wl *sw
 	}
 	xs := &XdgSurface{base: b, resource: res, surface: surf}
 	if err := surf.SetRole(xs); err != nil {
-		return nil, obj.ProtocolError(sxdg.XdgWmBaseErrorRole, err.Error())
+		return nil, obj.ProtocolError(sxdg.XdgWmBaseErrorRole, "%v", err)
 	}
 	b.surfaces = append(b.surfaces, xs)
 	forget := func() error {
@@ -326,7 +325,7 @@ func (xs *XdgSurface) setSubRole(obj *sxdg.XdgSurface, role string) error {
 		return obj.ProtocolError(sxdg.XdgSurfaceErrorAlreadyConstructed, "the xdg_surface already has a role object")
 	}
 	if prev, ok := sh.subRoles[xs.surface]; ok && prev != role {
-		return xs.base.resource.ProtocolError(sxdg.XdgWmBaseErrorRole, fmt.Sprintf("the wl_surface was an %s and cannot become an %s", prev, role))
+		return xs.base.resource.ProtocolError(sxdg.XdgWmBaseErrorRole, "the wl_surface was an %s and cannot become an %s", prev, role)
 	}
 	sh.subRoles[xs.surface] = role
 	return nil
@@ -352,7 +351,7 @@ func (xs *XdgSurface) GetToplevel(obj *sxdg.XdgSurface, res *sxdg.XdgToplevel) (
 
 func (xs *XdgSurface) SetWindowGeometry(obj *sxdg.XdgSurface, x, y, w, h int32) error {
 	if w <= 0 || h <= 0 {
-		return obj.ProtocolError(sxdg.XdgSurfaceErrorInvalidSize, fmt.Sprintf("window geometry %dx%d is not positive", w, h))
+		return obj.ProtocolError(sxdg.XdgSurfaceErrorInvalidSize, "window geometry %dx%d is not positive", w, h)
 	}
 	xs.pendingGeometry = image.Rect(int(x), int(y), int(x)+int(w), int(y)+int(h))
 	xs.geometrySet = true
@@ -367,7 +366,7 @@ func (xs *XdgSurface) AckConfigure(obj *sxdg.XdgSurface, serial uint32) error {
 		return nil
 	}
 	if !xs.role.ack(serial) {
-		return obj.ProtocolError(sxdg.XdgSurfaceErrorInvalidSerial, fmt.Sprintf("serial %d was never sent or is already acked", serial))
+		return obj.ProtocolError(sxdg.XdgSurfaceErrorInvalidSerial, "serial %d was never sent or is already acked", serial)
 	}
 	xs.life.acked()
 	return nil

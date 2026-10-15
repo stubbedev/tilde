@@ -3,7 +3,6 @@
 package alphamodifier
 
 import (
-	"fmt"
 	"math"
 
 	swam "github.com/stubbedev/tilde/internal/protocol/server/alphamodifier"
@@ -51,7 +50,7 @@ func (r requests) GetSurface(obj *swam.WpAlphaModifierV1, res *swam.WpAlphaModif
 	}
 	v, ok := r.m.alpha.Attach(s)
 	if !ok {
-		return nil, obj.ProtocolError(swam.WpAlphaModifierV1ErrorAlreadyConstructed, fmt.Sprintf("wl_surface@%d already has an alpha modifier", wl.Base().ID()))
+		return nil, obj.ProtocolError(swam.WpAlphaModifierV1ErrorAlreadyConstructed, "wl_surface@%d already has an alpha modifier", wl.Base().ID())
 	}
 	server.OnDestroy(res, v.Detach)
 	return modified{v}, nil

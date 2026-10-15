@@ -220,6 +220,6 @@ func (obj *ZxdgToplevelDecorationV1) SendConfigure(mode ZxdgToplevelDecorationV1
 	return nil
 }
 
-func (obj *ZxdgToplevelDecorationV1) ProtocolError(code ZxdgToplevelDecorationV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZxdgToplevelDecorationV1) ProtocolError(code ZxdgToplevelDecorationV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

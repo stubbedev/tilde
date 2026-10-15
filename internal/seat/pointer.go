@@ -254,7 +254,7 @@ func (r pointerRequests) SetCursor(obj *sw.WlPointer, serial uint32, wl *sw.WlSu
 		}
 		if sf.Role() == nil || sf.Role().RoleName() != cursorRole {
 			if err := sf.SetRole(cursorSurface{s}); err != nil {
-				return obj.ProtocolError(sw.WlPointerErrorRole, err.Error())
+				return obj.ProtocolError(sw.WlPointerErrorRole, "%v", err)
 			}
 		}
 		cur.want = SurfaceCursor{Surface: sf, Hotspot: image.Pt(int(hx), int(hy))}

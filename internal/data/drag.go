@@ -51,7 +51,7 @@ func (m *Manager) startDrag(dev *sw.WlDataDevice, s *dataSource, origin, icon *s
 	d := &Drag{m: m, client: origin.Client(), source: s, origin: origin, serial: serial, icon: icon}
 	if icon != nil {
 		if err := icon.SetRole(dragIcon{d}); err != nil {
-			return dev.ProtocolError(sw.WlDataDeviceErrorRole, err.Error())
+			return dev.ProtocolError(sw.WlDataDeviceErrorRole, "%v", err)
 		}
 		server.OnDestroy(icon.Resource(), func() error {
 			if d.icon == icon {

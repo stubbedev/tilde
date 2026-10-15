@@ -2,7 +2,6 @@ package compositor
 
 import (
 	"errors"
-	"fmt"
 
 	sksi "github.com/stubbedev/tilde/internal/protocol/server/keyboardshortcutsinhibit"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
@@ -42,7 +41,7 @@ func (m shortcutsInhibitors) InhibitShortcuts(obj *sksi.ZwpKeyboardShortcutsInhi
 		return nil, err
 	}
 	if _, ok := m.c.keyInhibitors[s]; ok {
-		return nil, obj.ProtocolError(sksi.ZwpKeyboardShortcutsInhibitManagerV1ErrorAlreadyInhibited, fmt.Sprintf("wl_surface@%d already inhibits shortcuts", wl.Base().ID()))
+		return nil, obj.ProtocolError(sksi.ZwpKeyboardShortcutsInhibitManagerV1ErrorAlreadyInhibited, "wl_surface@%d already inhibits shortcuts", wl.Base().ID())
 	}
 	i := &shortcutsInhibitor{res: res, surface: s}
 	drop := func() error { return m.c.dropShortcutsInhibitor(i) }

@@ -47,7 +47,7 @@ func (r requests) GetTearingControl(obj *stc.WpTearingControlManagerV1, res *stc
 	}
 	v, ok := r.m.async.Attach(s)
 	if !ok {
-		return nil, obj.ProtocolError(stc.WpTearingControlManagerV1ErrorTearingControlExists, fmt.Sprintf("wl_surface@%d already has a tearing control", wl.Base().ID()))
+		return nil, obj.ProtocolError(stc.WpTearingControlManagerV1ErrorTearingControlExists, "wl_surface@%d already has a tearing control", wl.Base().ID())
 	}
 	server.OnDestroy(res, v.Detach)
 	return hint{v}, nil

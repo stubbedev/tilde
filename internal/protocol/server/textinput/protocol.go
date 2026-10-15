@@ -408,8 +408,8 @@ func (obj *ZwpTextInputV3) SendPreeditHint(start uint32, end uint32, hint ZwpTex
 	return nil
 }
 
-func (obj *ZwpTextInputV3) ProtocolError(code ZwpTextInputV3Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZwpTextInputV3) ProtocolError(code ZwpTextInputV3Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ZwpTextInputManagerV3Interface = &wire.Interface{

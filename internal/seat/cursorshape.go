@@ -1,8 +1,6 @@
 package seat
 
 import (
-	"fmt"
-
 	scs "github.com/stubbedev/tilde/internal/protocol/server/cursorshape"
 	"github.com/stubbedev/tilde/internal/protocol/server/tablet"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
@@ -55,7 +53,7 @@ func (shapeDevice) Destroy(*scs.WpCursorShapeDeviceV1) error {
 func (d shapeDevice) SetShape(obj *scs.WpCursorShapeDeviceV1, serial uint32, shape scs.WpCursorShapeDeviceV1Shape) error {
 	name, ok := shapeName(shape)
 	if !ok || !shape.Valid(obj.Base().Version()) {
-		return obj.ProtocolError(scs.WpCursorShapeDeviceV1ErrorInvalidShape, fmt.Sprintf("invalid shape %d", shape))
+		return obj.ProtocolError(scs.WpCursorShapeDeviceV1ErrorInvalidShape, "invalid shape %d", shape)
 	}
 	p := &d.s.pointer
 	if !d.pointer || p.focus == nil || p.focus.Client() != d.c || serial != p.enterSerial {

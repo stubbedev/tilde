@@ -141,8 +141,8 @@ func (obj *XdgWmBase) SendPing(serial uint32) error {
 	return nil
 }
 
-func (obj *XdgWmBase) ProtocolError(code XdgWmBaseError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *XdgWmBase) ProtocolError(code XdgWmBaseError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var XdgPositionerInterface = &wire.Interface{
@@ -372,8 +372,8 @@ func (obj *XdgPositioner) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *XdgPositioner) ProtocolError(code XdgPositionerError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *XdgPositioner) ProtocolError(code XdgPositionerError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var XdgSurfaceInterface = &wire.Interface{
@@ -521,8 +521,8 @@ func (obj *XdgSurface) SendConfigure(serial uint32) error {
 	return nil
 }
 
-func (obj *XdgSurface) ProtocolError(code XdgSurfaceError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *XdgSurface) ProtocolError(code XdgSurfaceError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var XdgToplevelInterface = &wire.Interface{
@@ -841,8 +841,8 @@ func (obj *XdgToplevel) SendWmCapabilities(capabilities []byte) error {
 	return nil
 }
 
-func (obj *XdgToplevel) ProtocolError(code XdgToplevelError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *XdgToplevel) ProtocolError(code XdgToplevelError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var XdgPopupInterface = &wire.Interface{
@@ -985,6 +985,6 @@ func (obj *XdgPopup) SendRepositioned(token uint32) error {
 	return nil
 }
 
-func (obj *XdgPopup) ProtocolError(code XdgPopupError, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *XdgPopup) ProtocolError(code XdgPopupError, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

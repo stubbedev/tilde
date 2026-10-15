@@ -148,8 +148,8 @@ func (g *gen) iface(i *iface) {
 	if g.s == serverSide {
 		for _, e := range i.enums {
 			if e.name == "error" {
-				g.printf("\nfunc (obj *%s) ProtocolError(code %s, message string) error {\n", i.goName, e.goName)
-				g.printf("\treturn &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}\n}\n")
+				g.printf("\nfunc (obj *%s) ProtocolError(code %s, format string, args ...any) error {\n", i.goName, e.goName)
+				g.printf("\treturn wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)\n}\n")
 			}
 		}
 	}

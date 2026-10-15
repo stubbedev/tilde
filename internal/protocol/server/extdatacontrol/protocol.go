@@ -274,8 +274,8 @@ func (obj *ExtDataControlDeviceV1) SendPrimarySelection(id *ExtDataControlOfferV
 	return nil
 }
 
-func (obj *ExtDataControlDeviceV1) ProtocolError(code ExtDataControlDeviceV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ExtDataControlDeviceV1) ProtocolError(code ExtDataControlDeviceV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ExtDataControlSourceV1Interface = &wire.Interface{
@@ -393,8 +393,8 @@ func (obj *ExtDataControlSourceV1) SendCancelled() error {
 	return nil
 }
 
-func (obj *ExtDataControlSourceV1) ProtocolError(code ExtDataControlSourceV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ExtDataControlSourceV1) ProtocolError(code ExtDataControlSourceV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ExtDataControlOfferV1Interface = &wire.Interface{

@@ -104,8 +104,8 @@ func (obj *ZxdgExporterV2) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *ZxdgExporterV2) ProtocolError(code ZxdgExporterV2Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZxdgExporterV2) ProtocolError(code ZxdgExporterV2Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var ZxdgImporterV2Interface = &wire.Interface{
@@ -378,6 +378,6 @@ func (obj *ZxdgImportedV2) SendDestroyed() error {
 	return nil
 }
 
-func (obj *ZxdgImportedV2) ProtocolError(code ZxdgImportedV2Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZxdgImportedV2) ProtocolError(code ZxdgImportedV2Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

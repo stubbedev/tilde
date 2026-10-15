@@ -2,7 +2,6 @@ package compositor
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -146,7 +145,7 @@ func orientationOf(obj *svp.ZwlrVirtualPointerV1, axis sw.WlPointerAxis) (backen
 	case sw.WlPointerAxisHorizontalScroll:
 		return backend.Horizontal, nil
 	}
-	return 0, obj.ProtocolError(svp.ZwlrVirtualPointerV1ErrorInvalidAxis, fmt.Sprintf("axis %d", axis))
+	return 0, obj.ProtocolError(svp.ZwlrVirtualPointerV1ErrorInvalidAxis, "axis %d", axis)
 }
 
 func (v *virtualPointer) axisFor(obj *svp.ZwlrVirtualPointerV1, ms uint32, axis sw.WlPointerAxis) (*backend.PointerAxis, error) {
@@ -192,7 +191,7 @@ var axisSources = map[sw.WlPointerAxisSource]backend.AxisSource{
 func (v *virtualPointer) AxisSource(obj *svp.ZwlrVirtualPointerV1, source sw.WlPointerAxisSource) error {
 	s, ok := axisSources[source]
 	if !ok {
-		return obj.ProtocolError(svp.ZwlrVirtualPointerV1ErrorInvalidAxisSource, fmt.Sprintf("axis source %d", source))
+		return obj.ProtocolError(svp.ZwlrVirtualPointerV1ErrorInvalidAxisSource, "axis source %d", source)
 	}
 	v.source = s
 	return nil

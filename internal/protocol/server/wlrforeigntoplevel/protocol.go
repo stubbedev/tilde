@@ -393,6 +393,6 @@ func (obj *ZwlrForeignToplevelHandleV1) SendParent(parent *ZwlrForeignToplevelHa
 	return nil
 }
 
-func (obj *ZwlrForeignToplevelHandleV1) ProtocolError(code ZwlrForeignToplevelHandleV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *ZwlrForeignToplevelHandleV1) ProtocolError(code ZwlrForeignToplevelHandleV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

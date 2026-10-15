@@ -78,7 +78,7 @@ func (p *power) Destroy(*swop.ZwlrOutputPowerV1) error {
 
 func (p *power) SetMode(obj *swop.ZwlrOutputPowerV1, mode swop.ZwlrOutputPowerV1Mode) error {
 	if mode != swop.ZwlrOutputPowerV1ModeOn && mode != swop.ZwlrOutputPowerV1ModeOff {
-		return obj.ProtocolError(swop.ZwlrOutputPowerV1ErrorInvalidMode, fmt.Sprintf("mode %d is neither on nor off", mode))
+		return obj.ProtocolError(swop.ZwlrOutputPowerV1ErrorInvalidMode, "mode %d is neither on nor off", mode)
 	}
 	if p.out == nil {
 		return nil

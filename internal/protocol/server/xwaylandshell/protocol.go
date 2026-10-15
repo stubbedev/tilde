@@ -104,8 +104,8 @@ func (obj *XwaylandShellV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *XwaylandShellV1) ProtocolError(code XwaylandShellV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *XwaylandShellV1) ProtocolError(code XwaylandShellV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }
 
 var XwaylandSurfaceV1Interface = &wire.Interface{
@@ -203,6 +203,6 @@ func (obj *XwaylandSurfaceV1) Dispatch(msg *wire.Message) error {
 	return msg.Finish()
 }
 
-func (obj *XwaylandSurfaceV1) ProtocolError(code XwaylandSurfaceV1Error, message string) error {
-	return &wire.ProtocolError{Object: obj.object.ID(), Code: uint32(code), Message: message}
+func (obj *XwaylandSurfaceV1) ProtocolError(code XwaylandSurfaceV1Error, format string, args ...any) error {
+	return wire.NewProtocolError(obj.object.ID(), uint32(code), format, args...)
 }

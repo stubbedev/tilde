@@ -68,6 +68,10 @@ type ProtocolError struct {
 	Message string
 }
 
+func NewProtocolError(object ObjectID, code uint32, format string, args ...any) *ProtocolError {
+	return &ProtocolError{Object: object, Code: code, Message: fmt.Sprintf(format, args...)}
+}
+
 func (e *ProtocolError) Error() string {
 	return fmt.Sprintf("protocol error on object %d, code %d: %s", e.Object, e.Code, e.Message)
 }

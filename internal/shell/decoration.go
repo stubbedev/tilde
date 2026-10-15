@@ -62,7 +62,7 @@ func (decoration) Destroy(*sxd.ZxdgToplevelDecorationV1) error {
 
 func (d decoration) SetMode(obj *sxd.ZxdgToplevelDecorationV1, mode sxd.ZxdgToplevelDecorationV1Mode) error {
 	if mode != sxd.ZxdgToplevelDecorationV1ModeClientSide && mode != sxd.ZxdgToplevelDecorationV1ModeServerSide {
-		return obj.ProtocolError(sxd.ZxdgToplevelDecorationV1ErrorInvalidMode, fmt.Sprintf("mode %d", mode))
+		return obj.ProtocolError(sxd.ZxdgToplevelDecorationV1ErrorInvalidMode, "mode %d", mode)
 	}
 	return d.configure()
 }

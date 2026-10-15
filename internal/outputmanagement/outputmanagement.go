@@ -323,7 +323,7 @@ func (cfg *configuration) add(obj *swom.ZwlrOutputConfigurationV1, head *swom.Zw
 		return nil, err
 	}
 	if slices.ContainsFunc(cfg.heads, func(ch *configHead) bool { return ch.head == hb }) {
-		return nil, obj.ProtocolError(swom.ZwlrOutputConfigurationV1ErrorAlreadyConfiguredHead, fmt.Sprintf("head %s is configured twice", hb.out.Name()))
+		return nil, obj.ProtocolError(swom.ZwlrOutputConfigurationV1ErrorAlreadyConfiguredHead, "head %s is configured twice", hb.out.Name())
 	}
 	ch := &configHead{head: hb, enabled: on}
 	cfg.heads = append(cfg.heads, ch)
@@ -362,7 +362,7 @@ func (cfg *configuration) finish(obj *swom.ZwlrOutputConfigurationV1, apply bool
 	}
 	for _, hb := range cfg.b.heads {
 		if !hb.released && !slices.ContainsFunc(cfg.heads, func(ch *configHead) bool { return ch.head == hb }) {
-			return obj.ProtocolError(swom.ZwlrOutputConfigurationV1ErrorUnconfiguredHead, fmt.Sprintf("head %s is neither enabled nor disabled", hb.out.Name()))
+			return obj.ProtocolError(swom.ZwlrOutputConfigurationV1ErrorUnconfiguredHead, "head %s is neither enabled nor disabled", hb.out.Name())
 		}
 	}
 	m.configuring = true
@@ -396,7 +396,7 @@ func (cfg *configuration) configure(apply bool) error {
 
 func (ch *configHead) once(obj *swom.ZwlrOutputConfigurationHeadV1, set bool, what string) error {
 	if set {
-		return obj.ProtocolError(swom.ZwlrOutputConfigurationHeadV1ErrorAlreadySet, fmt.Sprintf("the %s of %s is already set", what, ch.head.out.Name()))
+		return obj.ProtocolError(swom.ZwlrOutputConfigurationHeadV1ErrorAlreadySet, "the %s of %s is already set", what, ch.head.out.Name())
 	}
 	return nil
 }
@@ -407,7 +407,7 @@ func (ch *configHead) SetMode(obj *swom.ZwlrOutputConfigurationHeadV1, mode *swo
 	}
 	mb, ok := mode.Handler().(*modeBinding)
 	if !ok || mb.h != ch.head {
-		return obj.ProtocolError(swom.ZwlrOutputConfigurationHeadV1ErrorInvalidMode, fmt.Sprintf("mode@%d is not a mode of %s", mode.Base().ID(), ch.head.out.Name()))
+		return obj.ProtocolError(swom.ZwlrOutputConfigurationHeadV1ErrorInvalidMode, "mode@%d is not a mode of %s", mode.Base().ID(), ch.head.out.Name())
 	}
 	ch.mode = &ModeRequest{Size: mb.mode.Size, RefreshMHz: mb.mode.RefreshMHz}
 	return nil
@@ -418,7 +418,7 @@ func (ch *configHead) SetCustomMode(obj *swom.ZwlrOutputConfigurationHeadV1, wid
 		return err
 	}
 	if width <= 0 || height <= 0 || refresh < 0 {
-		return obj.ProtocolError(swom.ZwlrOutputConfigurationHeadV1ErrorInvalidCustomMode, fmt.Sprintf("custom mode %dx%d@%dmHz", width, height, refresh))
+		return obj.ProtocolError(swom.ZwlrOutputConfigurationHeadV1ErrorInvalidCustomMode, "custom mode %dx%d@%dmHz", width, height, refresh)
 	}
 	ch.mode = &ModeRequest{Size: image.Pt(int(width), int(height)), RefreshMHz: refresh}
 	return nil
@@ -439,7 +439,7 @@ func (ch *configHead) SetTransform(obj *swom.ZwlrOutputConfigurationHeadV1, tran
 	}
 	ch.transform = true
 	if transform > sw.WlOutputTransformFlipped270 {
-		return obj.ProtocolError(swom.ZwlrOutputConfigurationHeadV1ErrorInvalidTransform, fmt.Sprintf("transform %d", transform))
+		return obj.ProtocolError(swom.ZwlrOutputConfigurationHeadV1ErrorInvalidTransform, "transform %d", transform)
 	}
 	if transform != sw.WlOutputTransformNormal {
 		ch.unsupported = append(ch.unsupported, fmt.Sprintf("transform %d", transform))
@@ -453,7 +453,7 @@ func (ch *configHead) SetScale(obj *swom.ZwlrOutputConfigurationHeadV1, scale wi
 	}
 	f := scale.Float()
 	if f <= 0 {
-		return obj.ProtocolError(swom.ZwlrOutputConfigurationHeadV1ErrorInvalidScale, fmt.Sprintf("scale %g", f))
+		return obj.ProtocolError(swom.ZwlrOutputConfigurationHeadV1ErrorInvalidScale, "scale %g", f)
 	}
 	s, err := output.ParseScale(f)
 	if err != nil {
@@ -475,5 +475,5 @@ func (ch *configHead) SetAdaptiveSync(obj *swom.ZwlrOutputConfigurationHeadV1, s
 		ch.unsupported = append(ch.unsupported, "adaptive sync")
 		return nil
 	}
-	return obj.ProtocolError(swom.ZwlrOutputConfigurationHeadV1ErrorInvalidAdaptiveSyncState, fmt.Sprintf("adaptive sync state %d", state))
+	return obj.ProtocolError(swom.ZwlrOutputConfigurationHeadV1ErrorInvalidAdaptiveSyncState, "adaptive sync state %d", state)
 }
