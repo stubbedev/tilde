@@ -20,6 +20,7 @@ import (
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	cwlr "github.com/stubbedev/tilde/internal/protocol/client/wlrlayershell"
 	cxdg "github.com/stubbedev/tilde/internal/protocol/client/xdgshell"
+	"github.com/stubbedev/tilde/internal/render/gles"
 	"github.com/stubbedev/tilde/internal/wire"
 	"github.com/stubbedev/tilde/internal/wlclient"
 )
@@ -42,6 +43,7 @@ type Client struct {
 	Outputs          []*cw.WlOutput
 	registry         *cw.WlRegistry
 	globals          *registry
+	stack            *gles.Stack
 	sends            int
 }
 

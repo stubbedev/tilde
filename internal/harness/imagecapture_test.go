@@ -1,6 +1,7 @@
 package harness
 
 import (
+	"encoding/binary"
 	"errors"
 	"image"
 	"slices"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/stubbedev/tilde/internal/backend/headless"
 	"github.com/stubbedev/tilde/internal/compositor"
+	"github.com/stubbedev/tilde/internal/fourcc"
 	ccs "github.com/stubbedev/tilde/internal/protocol/client/cursorshape"
 	cel "github.com/stubbedev/tilde/internal/protocol/client/extforeigntoplevellist"
 	ceis "github.com/stubbedev/tilde/internal/protocol/client/extimagecapturesource"
@@ -19,14 +21,15 @@ import (
 )
 
 type captureView struct {
-	size    image.Point
-	formats []cw.WlShmFormat
-	done    bool
-	stopped bool
+	size      image.Point
+	formats   []cw.WlShmFormat
+	modifiers []fourcc.Modifier
+	done      bool
+	stopped   bool
 }
 
 func (v *captureView) BufferSize(_ *ceic.ExtImageCopyCaptureSessionV1, w, h uint32) error {
-	v.size, v.formats, v.done = image.Pt(int(w), int(h)), nil, false
+	v.size, v.formats, v.modifiers, v.done = image.Pt(int(w), int(h)), nil, nil, false
 	return nil
 }
 
@@ -37,7 +40,13 @@ func (v *captureView) ShmFormat(_ *ceic.ExtImageCopyCaptureSessionV1, f cw.WlShm
 
 func (v *captureView) DmabufDevice(*ceic.ExtImageCopyCaptureSessionV1, []byte) error { return nil }
 
-func (v *captureView) DmabufFormat(*ceic.ExtImageCopyCaptureSessionV1, uint32, []byte) error {
+func (v *captureView) DmabufFormat(_ *ceic.ExtImageCopyCaptureSessionV1, format uint32, modifiers []byte) error {
+	if fourcc.Format(format) != fourcc.XRGB8888 {
+		return nil
+	}
+	for at := 0; at+8 <= len(modifiers); at += 8 {
+		v.modifiers = append(v.modifiers, fourcc.Modifier(binary.NativeEndian.Uint64(modifiers[at:])))
+	}
 	return nil
 }
 
@@ -296,7 +305,7 @@ func TestImageCopyCaptureIntoDMABUFs(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.DispatchUntil("the constraints", func() bool { return view.done })
-	target := c.DMABUF(view.size, testclient.Fill(0, 0, 0))
+	target := c.RenderTarget(view.size, view.modifiers)
 	f := &capturedFrame{}
 	frame, err := session.CreateFrame(f)
 	if err != nil {
@@ -306,8 +315,12 @@ func TestImageCopyCaptureIntoDMABUFs(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.DispatchUntil("the dmabuf frame", func() bool { return f.ready || f.failed })
-	if f.failed || rgbAt(target.Pix, 160*4, 20, 20) != [3]byte{0xff, 0, 0} || rgbAt(target.Pix, 160*4, 140, 80) != [3]byte{0xff, 0xff, 0} {
-		t.Fatalf("dmabuf frame %+v: %v and %v", *f, rgbAt(target.Pix, 160*4, 20, 20), rgbAt(target.Pix, 160*4, 140, 80))
+	if f.failed {
+		t.Fatalf("dmabuf frame %+v", *f)
+	}
+	pix, stride := target.Pixels(), view.size.X*4
+	if rgbAt(pix, stride, 20, 20) != [3]byte{0xff, 0, 0} || rgbAt(pix, stride, 140, 80) != [3]byte{0xff, 0xff, 0} {
+		t.Fatalf("dmabuf frame: %v and %v", rgbAt(pix, stride, 20, 20), rgbAt(pix, stride, 140, 80))
 	}
 }
 
