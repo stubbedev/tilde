@@ -436,6 +436,25 @@ func TestBuffersAreCheckedAndCreated(t *testing.T) {
 	}
 }
 
+func TestTightlyPackedNV12IsInBounds(t *testing.T) {
+	e := setup(t, gpu.ErrUnsupported)
+	c := e.connect(3)
+	const w, h = 64, 16
+	fd := memfd(t, w*h*3/2)
+	result := &created{}
+	p, err := c.linux.CreateParams(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := errors.Join(p.Add(fd, 0, 0, w, 0, 0), p.Add(fd, 1, w*h, w, 0, 0), p.Create(w, h, fourcc("NV12"), 0)); err != nil {
+		t.Fatal(err)
+	}
+	c.roundtrip()
+	if result.buffer == nil || result.failed {
+		t.Fatalf("a tightly packed linear NV12 buffer gave %+v", result)
+	}
+}
+
 func TestParamsErrors(t *testing.T) {
 	cases := map[string]struct {
 		code  uint32
