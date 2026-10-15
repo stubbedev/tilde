@@ -106,6 +106,7 @@ type wm struct {
 	selections [2]*selection
 	incoming   []*incoming
 	outgoing   map[outKey]*outgoing
+	reading    int
 }
 
 func (w *Window) Surface() *surface.Surface {
@@ -324,6 +325,7 @@ func (m *wm) created(id xproto.Window, rect image.Rectangle, override bool) erro
 }
 
 func (m *wm) destroyed(id xproto.Window) error {
+	m.dropOutgoingTo(id)
 	w, ok := m.windows[id]
 	if !ok {
 		return nil

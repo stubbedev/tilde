@@ -482,3 +482,73 @@ func TestClipboardAndPrimaryFromXKeepTheirOwnTargets(t *testing.T) {
 		return cb != nil && pr != nil && slices.Equal(cb.Mimes(), []string{"text/plain;charset=utf-8"}) && slices.Equal(pr.Mimes(), []string{"text/html"})
 	})
 }
+
+func TestStalledTransfersToXAreBoundedAndDieWithTheirWindow(t *testing.T) {
+	var mu sync.Mutex
+	var reported []error
+	h := StartXwayland(t, func(err error) {
+		mu.Lock()
+		defer mu.Unlock()
+		reported = append(reported, err)
+	}, small)
+	a := join(t, h, "a")
+	a.seen(t, "a focused", func() bool { return slices.Contains(a.in.Log, "kb_enter a") })
+	big := strings.Repeat("0123456789abcdef", 12<<10)
+	src := a.c.DataSource(map[string]string{"text/plain;charset=utf-8": big})
+	if err := errors.Join(a.cb.Device.SetSelection(src.Data, a.in.Serial), a.c.Display.Roundtrip()); err != nil {
+		t.Fatal(err)
+	}
+	xc := xDial(t, h)
+	xc.intern("CLIPBOARD", "TARGETS", "UTF8_STRING", "INCR", "XSEL_DATA")
+	h.Eventually("the X clipboard owned for Wayland", func(*headless.Backend, *compositor.Compositor) bool {
+		r, err := xproto.GetSelectionOwner(xc.x, xc.atoms["CLIPBOARD"]).Reply()
+		return err == nil && r.Owner != 0
+	})
+	stalled := xc.inputWindow()
+	const tries = 9
+	for i := range tries {
+		name := fmt.Sprintf("STALLED_%d", i)
+		xc.intern(name)
+		if err := xproto.ConvertSelectionChecked(xc.x, stalled, xc.atoms["CLIPBOARD"], xc.atoms["UTF8_STRING"], xc.atoms[name], xproto.TimeCurrentTime).Check(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	refused := 0
+	for answered := 0; answered < tries; {
+		a.c.Sync()
+		ev, ok := xc.event(clientTimeout)
+		if !ok {
+			t.Fatalf("%d of %d conversions answered", answered, tries)
+		}
+		if n, ok := ev.(xproto.SelectionNotifyEvent); ok {
+			answered++
+			if n.Property == 0 {
+				refused++
+			}
+		}
+	}
+	if refused != 1 {
+		t.Fatalf("%d conversions refused, want only the one past the limit", refused)
+	}
+	if err := xproto.DestroyWindowChecked(xc.x, stalled).Check(); err != nil {
+		t.Fatal(err)
+	}
+	typ, got := xc.paste(xc.inputWindow(), "CLIPBOARD", "UTF8_STRING", func(done <-chan struct{}) {
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				a.c.Sync()
+			}
+		}
+	})
+	if typ != xc.atoms["UTF8_STRING"] || string(got) != big {
+		t.Fatalf("after the stalled requestor went away, pasted %d bytes of type %d", len(got), typ)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(reported) != 1 {
+		t.Fatalf("reports %v, want the one refusal", reported)
+	}
+}

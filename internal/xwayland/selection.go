@@ -23,6 +23,7 @@ const (
 	incrChunk    = 64 << 10
 	maxSelection = 64 << 20
 	maxIncoming  = 32
+	maxOutgoing  = 8
 )
 
 func mimeOf(atom string) (string, bool) {
@@ -101,6 +102,16 @@ type outgoing struct {
 	target xproto.Atom
 	data   []byte
 	done   bool
+	since  time.Time
+}
+
+func (m *wm) outgoingBusy() bool {
+	maps.DeleteFunc(m.outgoing, func(_ outKey, o *outgoing) bool { return time.Since(o.since) > m.transfer })
+	return m.reading+len(m.outgoing) >= maxOutgoing
+}
+
+func (m *wm) dropOutgoingTo(requestor xproto.Window) {
+	maps.DeleteFunc(m.outgoing, func(k outKey, _ *outgoing) bool { return k.requestor == requestor })
 }
 
 func (m *wm) selectionOf(atom xproto.Atom) *selection {
@@ -334,6 +345,11 @@ func (m *wm) requested(e xproto.SelectionRequestEvent) error {
 		m.notifySelection(e, 0)
 		return nil
 	}
+	if m.outgoingBusy() {
+		m.notifySelection(e, 0)
+		m.report(fmt.Errorf("xwayland: %d transfers to X are already in flight; refused one for %s", maxOutgoing, mime))
+		return nil
+	}
 	var p [2]int
 	if err := unix.Pipe2(p[:], unix.O_CLOEXEC); err != nil {
 		m.notifySelection(e, 0)
@@ -352,9 +368,13 @@ func (m *wm) requested(e xproto.SelectionRequestEvent) error {
 		m.report(errors.Join(fmt.Errorf("xwayland: ask the Wayland selection for %s: %w", mime, err), in.Close()))
 		return nil
 	}
+	m.reading++
 	go func() {
 		value, err := readSelection(in, m.transfer)
-		m.post(func() error { return m.sent(e, property, value, err) })
+		m.post(func() error {
+			m.reading--
+			return m.sent(e, property, value, err)
+		})
 	}()
 	return nil
 }
@@ -385,7 +405,7 @@ func (m *wm) sent(e xproto.SelectionRequestEvent, property xproto.Atom, value []
 	xproto.ChangeWindowAttributes(m.x, e.Requestor, xproto.CwEventMask, []uint32{xproto.EventMaskPropertyChange})
 	size := binary.LittleEndian.AppendUint32(nil, uint32(len(value))) //nolint:gosec // bounded by maxSelection
 	xproto.ChangeProperty(m.x, xproto.PropModeReplace, e.Requestor, property, m.atoms["INCR"], 32, 1, size)
-	m.outgoing[outKey{e.Requestor, property}] = &outgoing{target: e.Target, data: value}
+	m.outgoing[outKey{e.Requestor, property}] = &outgoing{target: e.Target, data: value, since: time.Now()}
 	m.notifySelection(e, property)
 	return nil
 }
@@ -402,7 +422,6 @@ func (m *wm) propertyDeleted(win xproto.Window, property xproto.Atom) error {
 	}
 	n := min(incrChunk, len(o.data))
 	xproto.ChangeProperty(m.x, xproto.PropModeReplace, win, property, o.target, 8, uint32(n), o.data[:n])
-	o.data = o.data[n:]
-	o.done = n == 0
+	o.data, o.done, o.since = o.data[n:], n == 0, time.Now()
 	return nil
 }
