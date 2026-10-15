@@ -341,3 +341,54 @@ func TestTouchTracksPointsPerOutput(t *testing.T) {
 		t.Errorf("cancel = %+v, want the remaining point 2", c)
 	}
 }
+
+type idleFrames struct {
+	recorder
+	limit  int
+	frames int
+}
+
+func (h *idleFrames) OutputAdded(o backend.Output) error { return o.ScheduleFrame() }
+
+func (h *idleFrames) Frame(o backend.Output) error {
+	if h.frames++; h.frames > h.limit {
+		return nil
+	}
+	return o.ScheduleFrame()
+}
+
+func TestFramesThatPresentNothingWaitForTheHost(t *testing.T) {
+	host := startSway(t)
+	l, err := loop.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	b, err := New(l, host.socket, Options{Renderer: Soft})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	const span = 200 * time.Millisecond
+	h := &idleFrames{limit: int(span/(16*time.Millisecond)) + 3}
+	if err := b.Start(h); err != nil {
+		t.Fatal(err)
+	}
+	stop, err := l.AddTimer(func() error {
+		l.Stop()
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop.Remove()
+	if err := stop.Arm(span); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if h.frames == 0 || h.frames > h.limit {
+		t.Fatalf("%d frames that presented nothing in %v, want between 1 and %d", h.frames, span, h.limit)
+	}
+}

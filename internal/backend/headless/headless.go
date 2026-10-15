@@ -321,19 +321,22 @@ func (o *Output) ScheduleFrame() error {
 }
 
 func (o *Output) maybeFrame() {
-	if !o.frameRequested || o.presentPending || o.inFrame || o.idleQueued {
+	if !o.frameRequested || o.armed || o.inFrame || o.idleQueued {
 		return
 	}
 	o.idleQueued = true
 	o.backend.loop.Idle(func() error {
 		o.idleQueued = false
 		h := o.backend.handler
-		if h == nil || !o.frameRequested || o.presentPending || o.removed || !o.state.Enabled || o.state.Off {
+		if h == nil || !o.frameRequested || o.armed || o.removed || !o.state.Enabled || o.state.Off {
 			return nil
 		}
 		o.frameRequested = false
 		o.frames++
-		return h.Frame(o)
+		if err := h.Frame(o); err != nil {
+			return err
+		}
+		return o.arm()
 	})
 }
 
@@ -436,13 +439,8 @@ func (o *Output) arm() error {
 		return nil
 	}
 	now := backend.Now()
-	interval := o.state.Mode.Interval()
-	base := o.lastVblank
-	if base == 0 {
-		base = now
-	}
-	ticks := uint64((now-base)/interval) + 1                                  //nolint:gosec // now is never before the last vblank
-	o.nextVblank, o.nextSeq = base+time.Duration(ticks)*interval, o.seq+ticks //nolint:gosec // a tick count fits a duration
+	at, ticks := backend.NextVblank(o.lastVblank, now, o.state.Mode.Interval())
+	o.nextVblank, o.nextSeq = at, o.seq+ticks
 	if err := o.timer.Arm(o.nextVblank - now); err != nil {
 		return fmt.Errorf("headless: arm frame timer for %s: %w", o.name, err)
 	}
@@ -453,8 +451,18 @@ func (o *Output) arm() error {
 func (o *Output) vblank() error {
 	o.armed = false
 	o.lastVblank, o.seq = o.nextVblank, o.nextSeq
+	if o.presentPending {
+		if err := o.present(); err != nil {
+			return err
+		}
+	}
+	o.maybeFrame()
+	return nil
+}
+
+func (o *Output) present() error {
 	h := o.backend.handler
-	if h == nil || !o.presentPending {
+	if h == nil {
 		return nil
 	}
 	o.presentPending = false
@@ -467,11 +475,7 @@ func (o *Output) vblank() error {
 	}
 	torn := o.queuedTorn
 	o.queuedTorn = false
-	if err := h.Presented(o, backend.Presentation{Time: o.lastVblank, Refresh: o.state.Mode.Interval(), Seq: o.seq, Torn: torn}); err != nil {
-		return err
-	}
-	o.maybeFrame()
-	return nil
+	return h.Presented(o, backend.Presentation{Time: o.lastVblank, Refresh: o.state.Mode.Interval(), Seq: o.seq, Torn: torn})
 }
 
 type device struct {

@@ -23,6 +23,14 @@ func Now() time.Duration {
 	return time.Duration(ts.Nano())
 }
 
+func NextVblank(last, now, interval time.Duration) (at time.Duration, ticks uint64) {
+	if last == 0 || last > now {
+		last = now
+	}
+	ticks = uint64((now-last)/interval) + 1            //nolint:gosec // last is never after now
+	return last + time.Duration(ticks)*interval, ticks //nolint:gosec // a tick count fits a duration
+}
+
 type Backend interface {
 	Start(h Handler) error
 	Renderer() render.Renderer

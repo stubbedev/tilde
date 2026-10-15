@@ -35,3 +35,23 @@ func TestCapability(t *testing.T) {
 		t.Fatalf("Has is wrong for %b", c)
 	}
 }
+
+func TestNextVblankStaysOnTheGrid(t *testing.T) {
+	const ms = time.Millisecond
+	for _, c := range []struct {
+		last, now time.Duration
+		at        time.Duration
+		ticks     uint64
+	}{
+		{0, 100 * ms, 110 * ms, 1},
+		{100 * ms, 100 * ms, 110 * ms, 1},
+		{100 * ms, 105 * ms, 110 * ms, 1},
+		{100 * ms, 110 * ms, 120 * ms, 2},
+		{100 * ms, 137 * ms, 140 * ms, 4},
+		{150 * ms, 140 * ms, 150 * ms, 1},
+	} {
+		if at, ticks := NextVblank(c.last, c.now, 10*ms); at != c.at || ticks != c.ticks {
+			t.Errorf("NextVblank(%v, %v) = %v, %d; want %v, %d", c.last, c.now, at, ticks, c.at, c.ticks)
+		}
+	}
+}

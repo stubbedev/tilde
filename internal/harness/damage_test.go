@@ -222,3 +222,26 @@ func allocsPerRun(runs uint64, prepare, frame func()) uint64 {
 	}
 	return total / runs
 }
+
+func TestUndamagedFrameCallbacksArePacedByRefresh(t *testing.T) {
+	h := Start(t, small)
+	c := testclient.Connect(t, h.Socket())
+	w := c.Window("idle", quadrants)
+	c.DispatchUntil("the window to map", w.Mapped)
+	quiesce(t, h, c, w)
+	const span = 250 * time.Millisecond
+	callbacks := 0
+	for start := time.Now(); time.Since(start) < span; callbacks++ {
+		var done bool
+		if _, err := w.Surface.Frame(frameDone{&done}); err != nil {
+			t.Fatal(err)
+		}
+		if err := w.Surface.Commit(); err != nil {
+			t.Fatal(err)
+		}
+		c.DispatchUntil("the frame callback", func() bool { return done })
+	}
+	if limit := int(span/small.Interval()) + 2; callbacks > limit {
+		t.Fatalf("%d frame callbacks in %v without damage, want at most %d at %d mHz", callbacks, span, limit, small.RefreshMHz)
+	}
+}

@@ -282,6 +282,7 @@ func (a *fakeAlloc) close() error { return nil }
 
 type recorder struct {
 	during   func(o backend.Output) error
+	idle     bool
 	log      []string
 	outputs  []backend.Output
 	presents []backend.Presentation
@@ -311,6 +312,9 @@ func (r *recorder) Frame(o backend.Output) error {
 		if err := r.during(o); err != nil {
 			return err
 		}
+	}
+	if r.idle {
+		return nil
 	}
 	f, err := o.BeginFrame()
 	if err != nil {
@@ -456,6 +460,30 @@ func TestFramesCommitAndFlip(t *testing.T) {
 	}
 	if _, ok := second.values[[2]uint32{10, propModeID}]; ok {
 		t.Fatal("the second frame repeated the modeset")
+	}
+}
+
+func TestFramesThatPresentNothingWaitForTheNextRefresh(t *testing.T) {
+	r := start(t)
+	o := r.b.Outputs()[0]
+	limit := int(20*time.Millisecond/o.State().Mode.Interval()) + 2
+	frames := 0
+	r.rec.idle = true
+	r.rec.during = func(o backend.Output) error {
+		if frames++; frames > limit {
+			return nil
+		}
+		return o.ScheduleFrame()
+	}
+	if err := o.ScheduleFrame(); err != nil {
+		t.Fatal(err)
+	}
+	r.settle()
+	if frames > limit {
+		t.Fatalf("more than %d frames that presented nothing in 20 ms", limit)
+	}
+	if len(r.dev.commits) != 0 {
+		t.Fatalf("%d commits for frames that drew nothing", len(r.dev.commits))
 	}
 }
 

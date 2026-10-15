@@ -425,8 +425,22 @@ func (o *Output) maybeFrame() {
 			return nil
 		}
 		o.frameRequested = false
-		return o.backend.handler.Frame(o)
+		if err := o.backend.handler.Frame(o); err != nil || o.callbackPending {
+			return err
+		}
+		return o.commitForCallback()
 	})
+}
+
+func (o *Output) commitForCallback() error {
+	if _, err := o.surface.Frame(callbackEvents{o}); err != nil {
+		return err
+	}
+	if err := o.surface.Commit(); err != nil {
+		return err
+	}
+	o.callbackPending = true
+	return nil
 }
 
 func (o *Output) BeginFrame() (backend.Frame, error) {
@@ -471,16 +485,12 @@ func (o *Output) Present(damage render.Region) error {
 			return err
 		}
 	}
-	if _, err := o.surface.Frame(callbackEvents{o}); err != nil {
-		return err
-	}
-	if err := o.surface.Commit(); err != nil {
+	if err := o.commitForCallback(); err != nil {
 		return err
 	}
 	buf.busy = true
 	o.presented++
 	buf.presented = o.presented
-	o.callbackPending = true
 	o.presentPending = true
 	return nil
 }

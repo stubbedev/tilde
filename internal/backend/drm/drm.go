@@ -356,6 +356,9 @@ func (b *Backend) add(c kdrm.Connector) error {
 		cp.taken = true
 		o.cursor = &cursor{o: o, plane: cp}
 	}
+	if o.pacer, err = b.loop.AddTimer(o.paceElapsed); err != nil {
+		return errors.Join(err, o.release())
+	}
 	i := max(slices.IndexFunc(c.Modes, kdrm.Mode.Preferred), 0)
 	if err := o.setMode(c.Modes[i]); err != nil {
 		return errors.Join(err, o.release())
@@ -495,6 +498,9 @@ type Output struct {
 	flipping       bool
 	framing        bool
 	idleQueued     bool
+	pacer          *loop.Timer
+	paced          bool
+	lastFlip       time.Duration
 	presented      uint64
 	gamma          gamma
 	torn           bool
@@ -645,20 +651,39 @@ func (o *Output) ScheduleFrame() error {
 }
 
 func (o *Output) maybeFrame() {
-	if !o.frameRequested || o.flipping || o.idleQueued || o.drawing != nil {
+	if !o.frameRequested || o.flipping || o.paced || o.idleQueued || o.drawing != nil {
 		return
 	}
 	o.idleQueued = true
 	o.b.loop.Idle(func() error {
 		o.idleQueued = false
-		if !o.frameRequested || !o.enabled || o.flipping || o.b.paused || o.b.closed {
+		if !o.frameRequested || !o.enabled || o.flipping || o.paced || o.b.paused || o.b.closed {
 			return nil
 		}
 		o.frameRequested, o.framing = false, true
 		err := o.b.handler.Frame(o)
 		o.framing = false
+		if err == nil && !o.flipping && o.enabled && !o.off {
+			err = o.pace()
+		}
 		return errors.Join(err, o.flushCursor(), o.flushGamma())
 	})
+}
+
+func (o *Output) pace() error {
+	now := backend.Now()
+	at, _ := backend.NextVblank(o.lastFlip, now, modeOf(o.mode).Interval())
+	if err := o.pacer.Arm(at - now); err != nil {
+		return fmt.Errorf("drm: pace the frames of %s: %w", o.Name(), err)
+	}
+	o.paced = true
+	return nil
+}
+
+func (o *Output) paceElapsed() error {
+	o.paced = false
+	o.maybeFrame()
+	return errors.Join(o.flushCursor(), o.flushGamma())
 }
 
 func (o *Output) BeginFrame() (backend.Frame, error) {
@@ -851,6 +876,7 @@ func (o *Output) flipped(e kdrm.FlipEvent) error {
 		return nil
 	}
 	o.flipping = false
+	o.lastFlip = time.Duration(e.Sec)*time.Second + time.Duration(e.Usec)*time.Microsecond
 	if c := o.cursor; c != nil && c.queued != nil {
 		c.front, c.queued = c.queued, nil
 	}
@@ -865,8 +891,7 @@ func (o *Output) flipped(e kdrm.FlipEvent) error {
 	o.front, o.queued = o.queued, nil
 	o.presented++
 	o.front.presented = o.presented
-	t := time.Duration(e.Sec)*time.Second + time.Duration(e.Usec)*time.Microsecond
-	errs = append(errs, o.b.handler.Presented(o, backend.Presentation{Time: t, Refresh: modeOf(o.mode).Interval(), Seq: uint64(e.Sequence), Torn: o.torn}))
+	errs = append(errs, o.b.handler.Presented(o, backend.Presentation{Time: o.lastFlip, Refresh: modeOf(o.mode).Interval(), Seq: uint64(e.Sequence), Torn: o.torn}))
 	o.maybeFrame()
 	return errors.Join(append(errs, o.flushCursor(), o.flushGamma())...)
 }
@@ -900,6 +925,10 @@ func (o *Output) release() error {
 		o.modeBlob = 0
 	}
 	o.crtc.output, o.primary.taken = nil, false
+	if o.pacer != nil {
+		err = errors.Join(err, o.pacer.Remove())
+		o.pacer = nil
+	}
 	if o.cursor != nil {
 		err = errors.Join(err, o.cursor.release())
 		o.cursor = nil
