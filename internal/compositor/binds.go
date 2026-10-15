@@ -83,5 +83,8 @@ func (c *Compositor) repeatFired() error {
 		return nil
 	}
 	c.run(h.action, nil)
+	if c.repeat.held != h {
+		return nil
+	}
 	return c.repeat.timer.Arm(time.Second / time.Duration(c.seatConfig.RepeatRate))
 }

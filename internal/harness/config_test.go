@@ -2,6 +2,7 @@ package harness
 
 import (
 	"errors"
+	"fmt"
 	"image"
 	"os"
 	"path/filepath"
@@ -285,4 +286,43 @@ func TestClosingTheLidDisablesTheInternalPanel(t *testing.T) {
 		}
 		return nil
 	})
+}
+
+func TestARepeatedReloadThatTurnsRepeatOffStopsIt(t *testing.T) {
+	var r reports
+	var comp *compositor.Compositor
+	reloads := 0
+	h := StartWith(t, func(cfg *compositor.Config) {
+		cfg.Report = r.report
+		cfg.Seat.RepeatRate, cfg.Seat.RepeatDelay = 50, 50
+		withBinds(t, bindSpec{chord: "SUPER + Q", action: "reload", flags: binds.Flags{Repeating: true}})(cfg)
+		next := *cfg
+		next.Seat.RepeatRate = 0
+		cfg.Reload = func() error {
+			reloads++
+			if reloads == 2 {
+				return comp.Reconfigure(next)
+			}
+			return nil
+		}
+	}, small)
+	h.Do(func(_ *headless.Backend, c *compositor.Compositor) error {
+		comp = c
+		return nil
+	})
+	h.key(keySuper, true)
+	h.key(keyQ, true)
+	h.Eventually("the repeat to reload", func(*headless.Backend, *compositor.Compositor) bool { return reloads >= 2 })
+	time.Sleep(200 * time.Millisecond)
+	h.key(keyQ, false)
+	h.key(keySuper, false)
+	h.Do(func(*headless.Backend, *compositor.Compositor) error {
+		if reloads != 2 {
+			return fmt.Errorf("the bind fired %d times, want 2: repeat went on after it was turned off", reloads)
+		}
+		return nil
+	})
+	if errs := r.take(); len(errs) != 0 {
+		t.Fatalf("reports %v", errs)
+	}
 }
