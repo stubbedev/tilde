@@ -623,3 +623,38 @@ func TestRunningOutOfFDsRefusesAClientAndKeepsServing(t *testing.T) {
 		t.Fatalf("accept after the shortage = %v with %d clients", err, len(d.clients))
 	}
 }
+
+func TestAClientCannotTakeAServerID(t *testing.T) {
+	h := start(t)
+	d := h.connect()
+	if err := d.Roundtrip(); err != nil {
+		t.Fatal(err)
+	}
+	var freed wire.ObjectID
+	h.on(func() {
+		c := h.disp.clients[0]
+		id, err := c.NewID()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		cb, err := sw.NewWlCallback(c, id, 1)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		freed = cb.Base().ID()
+		if err := c.Remove(freed); err != nil {
+			t.Error(err)
+		}
+	})
+	e := d.Conn().Begin(1, 1)
+	e.Uint(uint32(freed))
+	if err := e.End(); err != nil {
+		t.Fatal(err)
+	}
+	var pe *wire.ProtocolError
+	if err := d.Roundtrip(); !errors.As(err, &pe) || pe.Code != uint32(sw.WlDisplayErrorInvalidObject) {
+		t.Fatalf("a get_registry with the freed server id %#x: %v", freed, err)
+	}
+}

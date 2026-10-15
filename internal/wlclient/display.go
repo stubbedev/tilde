@@ -15,8 +15,7 @@ import (
 )
 
 const (
-	maxClientID   = 0xfeffffff
-	firstServerID = 0xff000000
+	maxClientID = wire.FirstServerID - 1
 )
 
 type Display struct {
@@ -91,7 +90,7 @@ func (d *Display) Add(r wire.Resource) error {
 		return fmt.Errorf("wlclient: add %s@0: %w", r.Base().Interface().Name, wire.ErrInvalidNewID)
 	}
 	if prev, ok := d.objects[id]; ok {
-		if _, dead := prev.(*zombie); !dead || id < firstServerID {
+		if _, dead := prev.(*zombie); !dead || !id.ServerSide() {
 			return fmt.Errorf("wlclient: add %s@%d: id in use: %w", r.Base().Interface().Name, id, wire.ErrInvalidNewID)
 		}
 	}
@@ -115,7 +114,7 @@ func (d *Display) Remove(id wire.ObjectID) error {
 
 func (d *Display) release(id wire.ObjectID) {
 	delete(d.objects, id)
-	if id < firstServerID {
+	if !id.ServerSide() {
 		d.free = append(d.free, id)
 	}
 }

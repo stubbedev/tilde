@@ -10,6 +10,15 @@ import (
 
 type ObjectID uint32
 
+const (
+	FirstServerID ObjectID = 0xff000000
+	LastServerID  ObjectID = 0xffffffff
+)
+
+func (id ObjectID) ServerSide() bool {
+	return id >= FirstServerID
+}
+
 type Opcode uint16
 
 type Fixed int32

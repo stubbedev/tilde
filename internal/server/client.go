@@ -14,11 +14,6 @@ import (
 	"github.com/stubbedev/tilde/internal/wire"
 )
 
-const (
-	firstServerID = 0xff000000
-	lastServerID  = 0xffffffff
-)
-
 type Client struct {
 	display    *Display
 	conn       *wire.Conn
@@ -26,6 +21,7 @@ type Client struct {
 	creds      unix.Ucred
 	objects    map[wire.ObjectID]wire.Resource
 	lastID     wire.ObjectID
+	reserved   map[wire.ObjectID]struct{}
 	wlDisplay  *sw.WlDisplay
 	registries []*sw.WlRegistry
 	hooks      map[wire.ObjectID][]func() error
@@ -53,7 +49,7 @@ func (d *Display) addClient(fd int, context *SecurityContext) (*Client, error) {
 		creds:   *creds,
 		objects: map[wire.ObjectID]wire.Resource{},
 		hooks:   map[wire.ObjectID][]func() error{},
-		lastID:  firstServerID - 1,
+		lastID:  wire.FirstServerID - 1,
 		context: context,
 	}
 	if d.trace != nil {
@@ -125,8 +121,11 @@ func (c *Client) Add(r wire.Resource) error {
 	switch {
 	case id == 0:
 		return fmt.Errorf("server: new %s with id 0: %w", r.Base().Interface().Name, wire.ErrInvalidNewID)
-	case id >= firstServerID && id > c.lastID:
-		return fmt.Errorf("server: new %s with unallocated server id %d: %w", r.Base().Interface().Name, id, wire.ErrInvalidNewID)
+	case id.ServerSide():
+		if _, ok := c.reserved[id]; !ok {
+			return fmt.Errorf("server: new %s with server id %d that tilde did not hand out: %w", r.Base().Interface().Name, id, wire.ErrInvalidNewID)
+		}
+		delete(c.reserved, id)
 	}
 	if _, used := c.objects[id]; used {
 		return fmt.Errorf("server: new %s with id %d already in use: %w", r.Base().Interface().Name, id, wire.ErrInvalidNewID)
@@ -141,17 +140,21 @@ func (c *Client) Remove(id wire.ObjectID) error {
 	}
 	hooks := c.runHooks(id)
 	delete(c.objects, id)
-	if id < firstServerID && !c.gone {
+	if !id.ServerSide() && !c.gone {
 		return errors.Join(hooks, c.Sent(c.wlDisplay.SendDeleteID(uint32(id))))
 	}
 	return hooks
 }
 
 func (c *Client) NewID() (wire.ObjectID, error) {
-	if c.lastID == lastServerID {
+	if c.lastID == wire.LastServerID {
 		return 0, errors.New("server: server object ids exhausted for this client")
 	}
 	c.lastID++
+	if c.reserved == nil {
+		c.reserved = map[wire.ObjectID]struct{}{}
+	}
+	c.reserved[c.lastID] = struct{}{}
 	return c.lastID, nil
 }
 
