@@ -90,7 +90,7 @@ func captureOffer(r render.Renderer) (*dmabufOffer, error) {
 		return nil, fmt.Errorf("image capture: %w", err)
 	}
 	offer := &dmabufOffer{device: binary.NativeEndian.AppendUint64(nil, dev)}
-	for _, format := range []fourcc.Format{fourcc.XRGB8888, fourcc.ARGB8888} {
+	for _, format := range dmabufCaptureFormats {
 		mods, err := cr.RenderableModifiers(format)
 		if err != nil {
 			return nil, fmt.Errorf("image capture: modifiers of format %v: %w", format, err)
@@ -457,6 +457,11 @@ func (f *captureFrame) fail(reason seic.ExtImageCopyCaptureFrameV1FailureReason)
 	return f.res.SendFailed(reason)
 }
 
+func (f *captureFrame) broke(err error) error {
+	f.s.c.report(fmt.Errorf("compositor: image capture: %w", err))
+	return f.fail(seic.ExtImageCopyCaptureFrameV1FailureReasonUnknown)
+}
+
 func (f *captureFrame) Capture(obj *seic.ExtImageCopyCaptureFrameV1) error {
 	s := f.s
 	switch {
@@ -473,8 +478,11 @@ func (f *captureFrame) Capture(obj *seic.ExtImageCopyCaptureFrameV1) error {
 	}
 	size := s.size
 	target, err := f.target(size)
-	if err != nil {
+	if errors.Is(err, errConstraints) {
 		return f.fail(seic.ExtImageCopyCaptureFrameV1FailureReasonBufferConstraints)
+	}
+	if err != nil {
+		return f.broke(err)
 	}
 	clear, draw := s.source.paint(s.c, o, area, s.cursor)
 	k := &capture{output: o, size: size, clear: clear, draw: draw, target: target}
@@ -488,8 +496,7 @@ func (f *captureFrame) Capture(obj *seic.ExtImageCopyCaptureFrameV1) error {
 			return f.fail(seic.ExtImageCopyCaptureFrameV1FailureReasonStopped)
 		}
 		if err != nil {
-			s.c.report(fmt.Errorf("compositor: image capture: %w", err))
-			return f.fail(seic.ExtImageCopyCaptureFrameV1FailureReasonUnknown)
+			return f.broke(err)
 		}
 		err = f.ready(at, size)
 		s.captured = true
@@ -530,7 +537,7 @@ func (f *captureFrame) target(size image.Point) (captureTarget, error) {
 	case *dmabuf.Buffer:
 		return f.s.c.dmabufTarget(b, size)
 	}
-	return nil, errors.New("neither a shared-memory nor a dmabuf buffer")
+	return nil, fmt.Errorf("%w: neither a shared-memory nor a dmabuf buffer", errConstraints)
 }
 
 func (*captureFrame) Destroy(*seic.ExtImageCopyCaptureFrameV1) error {

@@ -33,10 +33,23 @@ type Feedback struct {
 	Tranches []Tranche
 }
 
+func (f Feedback) Modifiers(format fourcc.Format) []fourcc.Modifier {
+	var mods []fourcc.Modifier
+	for _, t := range f.Tranches {
+		if t.Target != f.Main {
+			continue
+		}
+		for _, fm := range t.Formats {
+			if fm.Format == format && !slices.Contains(mods, fm.Modifier) {
+				mods = append(mods, fm.Modifier)
+			}
+		}
+	}
+	return mods
+}
+
 func (f Feedback) Imports(fm gpu.FormatModifier) bool {
-	return slices.ContainsFunc(f.Tranches, func(t Tranche) bool {
-		return t.Target == f.Main && slices.Contains(t.Formats, fm)
-	})
+	return slices.Contains(f.Modifiers(fm.Format), fm.Modifier)
 }
 
 type Listener struct {

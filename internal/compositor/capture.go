@@ -18,7 +18,10 @@ import (
 	"github.com/stubbedev/tilde/internal/surface"
 )
 
-var captureFormats = []render.Format{render.XRGB8888, render.ARGB8888}
+var (
+	captureFormats       = []render.Format{render.XRGB8888, render.ARGB8888}
+	dmabufCaptureFormats = []fourcc.Format{fourcc.XRGB8888, fourcc.ARGB8888}
+)
 
 type captureRenderer interface {
 	ImportTarget(b gpu.DMABUF) (render.ReadTarget, error)
@@ -278,25 +281,35 @@ func (c *Compositor) captureRegion(o *output.Output, logical image.Rectangle) im
 	return o.Scale().Rect(logical).Intersect(bounds)
 }
 
+var errConstraints = errors.New("the buffer breaks the capture's constraints")
+
 func shmTarget(b *shm.Buffer, size image.Point, formats []render.Format) (captureTarget, error) {
-	if b.Size() != size {
-		return nil, fmt.Errorf("the buffer is %v, the capture is %v", b.Size(), size)
+	switch {
+	case b.Size() != size:
+		return nil, fmt.Errorf("%w: the buffer is %v, the capture is %v", errConstraints, b.Size(), size)
+	case !slices.Contains(formats, b.Format()):
+		return nil, fmt.Errorf("%w: format %d cannot hold a capture", errConstraints, b.Format())
 	}
-	for _, f := range formats {
-		if b.Format() == f {
-			return shmCapture{b}, nil
-		}
-	}
-	return nil, fmt.Errorf("format %d cannot hold a capture", b.Format())
+	return shmCapture{b}, nil
 }
 
 func (c *Compositor) dmabufTarget(b *dmabuf.Buffer, size image.Point) (captureTarget, error) {
 	r, ok := c.renderer.(captureRenderer)
+	d := b.DMABUF()
 	switch {
 	case !ok:
-		return nil, errors.New("this renderer cannot draw into dmabufs")
-	case b.Size() != size:
-		return nil, fmt.Errorf("the buffer is %v, the capture is %v", b.Size(), size)
+		return nil, fmt.Errorf("%w: this renderer cannot draw into dmabufs", errConstraints)
+	case d.Size != size:
+		return nil, fmt.Errorf("%w: the buffer is %v, the capture is %v", errConstraints, d.Size, size)
+	case !slices.Contains(dmabufCaptureFormats, d.Format):
+		return nil, fmt.Errorf("%w: format %v cannot hold a capture", errConstraints, d.Format)
+	}
+	mods, err := r.RenderableModifiers(d.Format)
+	if err != nil {
+		return nil, fmt.Errorf("modifiers the renderer draws %v into: %w", d.Format, err)
+	}
+	if !slices.Contains(mods, d.Modifier) {
+		return nil, fmt.Errorf("%w: the renderer cannot draw into format %v with modifier %v", errConstraints, d.Format, d.Modifier)
 	}
 	return dmabufCapture{b, r}, nil
 }

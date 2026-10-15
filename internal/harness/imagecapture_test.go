@@ -91,16 +91,22 @@ func (f *capturedFrame) Failed(_ *ceic.ExtImageCopyCaptureFrameV1, reason ceic.E
 
 func grab(t *testing.T, c *testclient.Client, session *ceic.ExtImageCopyCaptureSessionV1, size image.Point) (*capturedFrame, *ceic.ExtImageCopyCaptureFrameV1, []byte) {
 	t.Helper()
+	wl, pix := c.Target(size)
+	f, frame := captureInto(t, c, session, wl, size)
+	return f, frame, pix
+}
+
+func captureInto(t *testing.T, c *testclient.Client, session *ceic.ExtImageCopyCaptureSessionV1, wl *cw.WlBuffer, size image.Point) (*capturedFrame, *ceic.ExtImageCopyCaptureFrameV1) {
+	t.Helper()
 	f := &capturedFrame{}
 	frame, err := session.CreateFrame(f)
 	if err != nil {
 		t.Fatal(err)
 	}
-	wl, pix := c.Target(size)
 	if err := errors.Join(frame.AttachBuffer(wl), frame.DamageBuffer(0, 0, int32(size.X), int32(size.Y)), frame.Capture(), c.Display.Flush()); err != nil {
 		t.Fatal(err)
 	}
-	return f, frame, pix
+	return f, frame
 }
 
 type captureRig struct {
@@ -279,41 +285,21 @@ func TestImageCopyCaptureFollowsAPlaneCursor(t *testing.T) {
 	}
 }
 
-func TestImageCopyCaptureIntoDMABUFs(t *testing.T) {
+func dmabufCapture(t *testing.T) (*testclient.Client, *ceic.ExtImageCopyCaptureSessionV1, *captureView) {
+	t.Helper()
 	h := StartGLES(t, func(*compositor.Config) {}, small)
 	c := testclient.Connect(t, h.Socket())
 	w := c.Window("captured", quadrants)
 	c.DispatchUntil("the window to map", w.Mapped)
 	settle(t, h)
-	outputs, err := ceis.NewExtOutputImageCaptureSourceManagerV1(c.Display, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mgr, err := ceic.NewExtImageCopyCaptureManagerV1(c.Display, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c.Bind(outputs)
-	c.Bind(mgr)
-	src, err := outputs.CreateSource(c.Outputs[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	view := &captureView{}
-	session, err := mgr.CreateSession(view, src, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c.DispatchUntil("the constraints", func() bool { return view.done })
+	session, view := newCaptureRig(t, h, c).outputSession(0)
+	return c, session, view
+}
+
+func TestImageCopyCaptureIntoDMABUFs(t *testing.T) {
+	c, session, view := dmabufCapture(t)
 	target := c.RenderTarget(view.size, view.modifiers)
-	f := &capturedFrame{}
-	frame, err := session.CreateFrame(f)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := errors.Join(frame.AttachBuffer(target.WL), frame.Capture(), c.Display.Flush()); err != nil {
-		t.Fatal(err)
-	}
+	f, _ := captureInto(t, c, session, target.WL, view.size)
 	c.DispatchUntil("the dmabuf frame", func() bool { return f.ready || f.failed })
 	if f.failed {
 		t.Fatalf("dmabuf frame %+v", *f)
@@ -321,6 +307,15 @@ func TestImageCopyCaptureIntoDMABUFs(t *testing.T) {
 	pix, stride := target.Pixels(), view.size.X*4
 	if rgbAt(pix, stride, 20, 20) != [3]byte{0xff, 0, 0} || rgbAt(pix, stride, 140, 80) != [3]byte{0xff, 0xff, 0} {
 		t.Fatalf("dmabuf frame: %v and %v", rgbAt(pix, stride, 20, 20), rgbAt(pix, stride, 140, 80))
+	}
+}
+
+func TestACaptureIntoADMABUFTheRendererCannotDrawIntoBreaksTheConstraints(t *testing.T) {
+	c, session, view := dmabufCapture(t)
+	f, _ := captureInto(t, c, session, c.DMABUFOutside(view.size, view.modifiers).WL, view.size)
+	c.DispatchUntil("the frame", func() bool { return f.ready || f.failed })
+	if !f.failed || f.reason != ceic.ExtImageCopyCaptureFrameV1FailureReasonBufferConstraints {
+		t.Fatalf("frame %+v, want it failed for its buffer constraints", *f)
 	}
 }
 

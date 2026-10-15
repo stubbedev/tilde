@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"os"
+	"slices"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -268,11 +269,37 @@ func (c *Client) legacyMemory(mods *legacyModifiers, size image.Point) memory {
 	default:
 		c.t.Fatalf("testclient: the compositor takes %v dmabufs neither linear nor with an implicit modifier", dmabufFormat)
 	}
+	return c.udmabuf(size, modifier)
+}
+
+func (c *Client) udmabuf(size image.Point, modifier fourcc.Modifier) memory {
+	c.t.Helper()
 	m, err := udmabuf(size, modifier)
 	if err != nil {
 		c.t.Skipf("testclient: no udmabuf to share memory as a dmabuf: %v", err)
 	}
 	return m
+}
+
+func (c *Client) DMABUFOutside(size image.Point, excluded []fourcc.Modifier) *DMABUF {
+	c.t.Helper()
+	g := c.bindDMABUF()
+	if g.feedback == nil {
+		if !g.legacy.implicit {
+			c.t.Skipf("testclient: the compositor takes no %v dmabufs with an implicit modifier", dmabufFormat)
+		}
+		return c.share(g, c.udmabuf(size, fourcc.Invalid), size)
+	}
+	var mods []fourcc.Modifier
+	for _, m := range g.feedback.Modifiers(dmabufFormat) {
+		if m != fourcc.Invalid && !slices.Contains(excluded, m) {
+			mods = append(mods, m)
+		}
+	}
+	if len(mods) == 0 {
+		c.t.Skipf("testclient: the compositor imports %v only with the modifiers %v", dmabufFormat, excluded)
+	}
+	return c.share(g, c.gbmMemory(*g.feedback, size, mods, 0), size)
 }
 
 func (c *Client) DMABUF(size image.Point, paint Painter) *DMABUF {

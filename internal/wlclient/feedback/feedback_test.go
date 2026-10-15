@@ -91,6 +91,12 @@ func TestOnlyTheMainDevicesTranchesImport(t *testing.T) {
 	if !f.Imports(linear) || f.Imports(tiled) {
 		t.Fatalf("imports linear %t and tiled %t, want only linear", f.Imports(linear), f.Imports(tiled))
 	}
+	if got := f.Modifiers(fourcc.XRGB8888); !slices.Equal(got, []fourcc.Modifier{fourcc.Linear}) {
+		t.Fatalf("modifiers %v, want only linear", got)
+	}
+	if got := f.Modifiers(fourcc.ARGB8888); len(got) != 0 {
+		t.Fatalf("modifiers of an unlisted format %v", got)
+	}
 }
 
 func TestMalformedFeedbackFails(t *testing.T) {
