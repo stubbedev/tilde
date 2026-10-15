@@ -119,6 +119,34 @@ func TestGammaControlSetsAnOutputsRamps(t *testing.T) {
 	}
 }
 
+func TestAGammaTableIsReadFromTheStartOfItsFile(t *testing.T) {
+	h := Start(t, small)
+	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
+		b.Outputs()[0].SetGammaSize(4)
+		return nil
+	})
+	c, g, _ := gammaControl(t, h)
+	table := []uint16{5, 6, 7, 8, 15, 16, 17, 18, 25, 26, 27, 28}
+	fd, err := unix.MemfdCreate("gamma", unix.MFD_CLOEXEC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(fd)
+	b := make([]byte, 0, 2*len(table))
+	for _, v := range table {
+		b = binary.NativeEndian.AppendUint16(b, v)
+	}
+	if _, err := unix.Write(fd, b); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := errors.Join(g.SetGamma(fd), c.Display.Roundtrip()); err != nil {
+			t.Fatalf("a table written with write(2), offset left at its end: %v", err)
+		}
+	}
+	h.Eventually("the ramps on the output", outputGamma(table))
+}
+
 func TestGammaTablesOfTheWrongSizeAreProtocolErrors(t *testing.T) {
 	h := Start(t, small)
 	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {

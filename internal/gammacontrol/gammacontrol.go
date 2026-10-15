@@ -89,23 +89,13 @@ type control struct {
 var errRampSize = errors.New("the gamma table is not three ramps of the gamma size")
 
 func ramps(fd, size int) ([]uint16, error) {
-	if err := unix.SetNonblock(fd, true); err != nil {
-		return nil, fmt.Errorf("make the gamma table fd non-blocking: %w", err)
-	}
 	buf := make([]byte, 3*2*size+1)
-	n := 0
-	for n < len(buf) {
-		k, err := unix.Read(fd, buf[n:])
-		if errors.Is(err, unix.EINTR) {
-			continue
-		}
-		if errors.Is(err, unix.EAGAIN) || err == nil && k == 0 {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("read the gamma table: %w", err)
-		}
-		n += k
+	n, err := readFromStart(fd, buf)
+	if errors.Is(err, unix.ESPIPE) {
+		n, err = readStream(fd, buf)
+	}
+	if err != nil {
+		return nil, err
 	}
 	if n != len(buf)-1 {
 		return nil, errRampSize
@@ -115,6 +105,45 @@ func ramps(fd, size int) ([]uint16, error) {
 		table[i] = binary.NativeEndian.Uint16(buf[2*i:])
 	}
 	return table, nil
+}
+
+func readFromStart(fd int, buf []byte) (int, error) {
+	n := 0
+	for n < len(buf) {
+		k, err := unix.Pread(fd, buf[n:], int64(n))
+		switch {
+		case errors.Is(err, unix.EINTR):
+			continue
+		case errors.Is(err, unix.ESPIPE):
+			return 0, err
+		case err != nil:
+			return n, fmt.Errorf("read the gamma table: %w", err)
+		case k == 0:
+			return n, nil
+		}
+		n += k
+	}
+	return n, nil
+}
+
+func readStream(fd int, buf []byte) (int, error) {
+	if err := unix.SetNonblock(fd, true); err != nil {
+		return 0, fmt.Errorf("make the gamma table fd non-blocking: %w", err)
+	}
+	n := 0
+	for n < len(buf) {
+		k, err := unix.Read(fd, buf[n:])
+		switch {
+		case errors.Is(err, unix.EINTR):
+			continue
+		case errors.Is(err, unix.EAGAIN) || err == nil && k == 0:
+			return n, nil
+		case err != nil:
+			return n, fmt.Errorf("read the gamma table: %w", err)
+		}
+		n += k
+	}
+	return n, nil
 }
 
 func (k *control) SetGamma(obj *swgc.ZwlrGammaControlV1, fd int) error {
