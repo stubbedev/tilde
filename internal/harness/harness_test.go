@@ -1,6 +1,7 @@
 package harness
 
 import (
+	"fmt"
 	"image"
 	"slices"
 	"strings"
@@ -22,7 +23,7 @@ var small = backend.Mode{Size: image.Pt(160, 100), RefreshMHz: 60000, Preferred:
 func presented(i int) func(*headless.Backend, *compositor.Compositor) bool {
 	return func(b *headless.Backend, _ *compositor.Compositor) bool {
 		outputs := b.Outputs()
-		return i < len(outputs) && outputs[i].Snapshot().Pix[3] == 0xff
+		return i < len(outputs) && snapshot(outputs[i]).Pix[3] == 0xff
 	}
 }
 
@@ -74,7 +75,7 @@ func pixel(b *soft.Buffer, x, y int) [3]byte {
 func showing(x, y int, want [3]byte) func(*headless.Backend, *compositor.Compositor) bool {
 	return func(b *headless.Backend, _ *compositor.Compositor) bool {
 		outputs := b.Outputs()
-		return len(outputs) > 0 && pixel(outputs[0].Snapshot(), x, y) == want
+		return len(outputs) > 0 && pixel(snapshot(outputs[0]), x, y) == want
 	}
 }
 
@@ -108,7 +109,7 @@ func TestWindowKeepsAnimating(t *testing.T) {
 	})
 	c.DispatchUntil("five frame callbacks", func() bool { return w.Frames >= 5 })
 	h.Eventually("a later frame on the output", func(b *headless.Backend, _ *compositor.Compositor) bool {
-		return pixel(b.Outputs()[0].Snapshot(), 50, 50)[2] >= 4
+		return pixel(snapshot(b.Outputs()[0]), 50, 50)[2] >= 4
 	})
 }
 
@@ -191,7 +192,7 @@ func TestFractionalScaleRendersCrisp(t *testing.T) {
 		return nil
 	})
 	h.Eventually("the buffer pixel for pixel on the output", func(b *headless.Backend, _ *compositor.Compositor) bool {
-		got := b.Outputs()[0].Snapshot()
+		got := snapshot(b.Outputs()[0])
 		for y := range scaled.Size.Y {
 			for x := range scaled.Size.X {
 				i := y*got.Stride + x*4
@@ -230,4 +231,20 @@ func onEachRenderer(t *testing.T, test func(t *testing.T, start starter)) {
 	} {
 		t.Run(r.name, func(t *testing.T) { test(t, r.start) })
 	}
+}
+
+func snapshot(o *headless.Output) *soft.Buffer {
+	b, err := o.Snapshot()
+	if err != nil {
+		panic(fmt.Sprintf("harness: snapshot of %s: %v", o.Name(), err))
+	}
+	return b
+}
+
+func primary(o *headless.Output) *soft.Buffer {
+	b, err := o.Primary()
+	if err != nil {
+		panic(fmt.Sprintf("harness: primary plane of %s: %v", o.Name(), err))
+	}
+	return b
 }

@@ -20,7 +20,7 @@ import (
 func arrowAt(tip image.Point) func(*headless.Backend, *compositor.Compositor) bool {
 	arrow := xcursor.Builtin(compositor.DefaultCursorSize)
 	return func(b *headless.Backend, _ *compositor.Compositor) bool {
-		snap := b.Outputs()[0].Snapshot()
+		snap := snapshot(b.Outputs()[0])
 		for y := range arrow.Size.Y {
 			for x := range arrow.Size.X {
 				p := arrow.Pixels[(y*arrow.Size.X+x)*4:]
@@ -92,7 +92,7 @@ func TestCursorShapeFromTheThemeAtFractionalScale(t *testing.T) {
 	}
 	c.Sync()
 	h.Eventually("the window under the pointer shape", func(b *headless.Backend, c *compositor.Compositor) bool {
-		return pixel(b.Outputs()[0].Snapshot(), 2, 2) == [3]byte{0x40, 0x40, 0x40} && c.Seat().Cursor() == seat.ShapeCursor{Shape: "pointer"}
+		return pixel(snapshot(b.Outputs()[0]), 2, 2) == [3]byte{0x40, 0x40, 0x40} && c.Seat().Cursor() == seat.ShapeCursor{Shape: "pointer"}
 	})
 	golden.Assert(t, "cursor-shape", h.Rendered(0))
 	if err := device.SetShape(in.Serial, 99); err != nil {
@@ -123,7 +123,7 @@ func TestCursorPlaneMovesWithoutRepainting(t *testing.T) {
 	settle(t, h)
 	h.Rendered(0)
 	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
-		if got := pixel(b.Outputs()[0].Primary(), 81, 58); got != [3]byte{compositor.Background.R, compositor.Background.G, compositor.Background.B} {
+		if got := pixel(primary(b.Outputs()[0]), 81, 58); got != [3]byte{compositor.Background.R, compositor.Background.G, compositor.Background.B} {
 			t.Errorf("the frame itself drew the cursor: %v", got)
 		}
 		return nil
@@ -173,7 +173,7 @@ func TestClientCursorsOnThePlaneAndInTheFrame(t *testing.T) {
 	}
 	attach(image.Pt(100, 80), 0xff, 0, 0)
 	r.h.Eventually("a cursor too big for the plane drawn in the frame", func(b *headless.Backend, c *compositor.Compositor) bool {
-		return !b.Outputs()[0].Cursor().Visible() && pixel(b.Outputs()[0].Snapshot(), 150, 90) == [3]byte{0, 0, 0xff}
+		return !b.Outputs()[0].Cursor().Visible() && pixel(snapshot(b.Outputs()[0]), 150, 90) == [3]byte{0, 0, 0xff}
 	})
 	if err := r.in.Pointer.SetCursor(r.in.Serial, nil, 0, 0); err != nil {
 		t.Fatal(err)

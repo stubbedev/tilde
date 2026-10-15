@@ -116,10 +116,10 @@ func TestOnlyDamageIsRepainted(t *testing.T) {
 		if d := o.LastDamage(); len(d) != 1 || d[0] != image.Rect(100, 50, 110, 70) {
 			t.Errorf("a 10x20 update at (100,50) repainted %v", d)
 		}
-		if got := pixel(o.Snapshot(), 105, 60); got != [3]byte{0x30, 0x20, 0x10} {
+		if got := pixel(snapshot(o), 105, 60); got != [3]byte{0x30, 0x20, 0x10} {
 			t.Errorf("the damaged area shows %v", got)
 		}
-		if got := pixel(o.Snapshot(), 300, 300); got == [3]byte{0x30, 0x20, 0x10} {
+		if got := pixel(snapshot(o), 300, 300); got == [3]byte{0x30, 0x20, 0x10} {
 			t.Error("undamaged pixels changed")
 		}
 		presents = o.Presents()

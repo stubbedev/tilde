@@ -403,7 +403,7 @@ func TestXWindowsRenderUnscaledOnHiDPIOutputs(t *testing.T) {
 		return len(ws) == 1 && ws[0].Rect == ipc.Rect{Width: 160, Height: 100} && xc.geometry(win) == image.Rect(0, 0, 240, 150)
 	})
 	h.Eventually("the X window filling the output pixel for pixel", func(b *headless.Backend, _ *compositor.Compositor) bool {
-		snap := b.Outputs()[0].Primary()
+		snap := primary(b.Outputs()[0])
 		return pixel(snap, 0, 0) == [3]byte{0xff, 0, 0} && pixel(snap, 239, 149) == [3]byte{0xff, 0, 0}
 	})
 	h.Do(func(b *headless.Backend, _ *compositor.Compositor) error {
@@ -441,7 +441,7 @@ func TestXWindowsMapAcrossMixedScales(t *testing.T) {
 	})
 	h.Eventually("each window drawn on its own output", func(b *headless.Backend, _ *compositor.Compositor) bool {
 		outs := b.Outputs()
-		return pixel(outs[0].Primary(), 239, 149) == [3]byte{0xff, 0, 0} && pixel(outs[1].Primary(), 159, 99) == [3]byte{0, 0xff, 0}
+		return pixel(primary(outs[0]), 239, 149) == [3]byte{0xff, 0, 0} && pixel(primary(outs[1]), 159, 99) == [3]byte{0, 0xff, 0}
 	})
 }
 

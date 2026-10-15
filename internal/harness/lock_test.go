@@ -204,8 +204,8 @@ func TestOutputsAddedWhileLockedStayBlank(t *testing.T) {
 	})
 	h.Eventually("the new output blank", func(b *headless.Backend, _ *compositor.Compositor) bool {
 		outs := b.Outputs()
-		return len(outs) == 2 && pixel(outs[1].Snapshot(), 5, 5) == [3]byte{compositor.LockedColour.R, compositor.LockedColour.G, compositor.LockedColour.B} &&
-			pixel(outs[0].Snapshot(), 150, 90) == [3]byte{compositor.LockedColour.R, compositor.LockedColour.G, compositor.LockedColour.B}
+		return len(outs) == 2 && pixel(snapshot(outs[1]), 5, 5) == [3]byte{compositor.LockedColour.R, compositor.LockedColour.G, compositor.LockedColour.B} &&
+			pixel(snapshot(outs[0]), 150, 90) == [3]byte{compositor.LockedColour.R, compositor.LockedColour.G, compositor.LockedColour.B}
 	})
 }
 

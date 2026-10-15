@@ -75,7 +75,7 @@ func (o *Output) resize(size image.Point) error {
 		return err
 	}
 	o.buffer = soft.NewBuffer(size.X, size.Y)
-	o.drawn = false
+	o.drawn, o.unread = false, false
 	if o.backend.gpu == nil {
 		o.target = o.buffer
 		return nil
@@ -230,6 +230,7 @@ type Output struct {
 	buffer         *soft.Buffer
 	target         render.Target
 	drawn          bool
+	unread         bool
 	timer          *loop.Timer
 	latch          *loop.Timer
 	armed          bool
@@ -377,11 +378,7 @@ func (o *Output) Present(damage render.Region) error {
 	o.inFrame = false
 	o.drawn = true
 	o.damage = append(o.damage[:0], damage...)
-	if fb, ok := o.target.(*gles.Framebuffer); ok {
-		if err := fb.Read(o.buffer.Pix, o.buffer.Stride); err != nil {
-			return fmt.Errorf("headless: read back %s: %w", o.name, err)
-		}
-	}
+	_, o.unread = o.target.(*gles.Framebuffer)
 	o.presentPending, o.queuedTorn = true, false
 	o.presents++
 	return o.arm()
@@ -435,16 +432,25 @@ func (o *Output) LastDamage() render.Region {
 	return slices.Clone(o.damage)
 }
 
-func (o *Output) Primary() *soft.Buffer {
-	return &soft.Buffer{Pix: slices.Clone(o.buffer.Pix), Stride: o.buffer.Stride, W: o.buffer.W, H: o.buffer.H}
+func (o *Output) Primary() (*soft.Buffer, error) {
+	if fb, ok := o.target.(*gles.Framebuffer); ok && o.unread {
+		if err := fb.Read(o.buffer.Pix, o.buffer.Stride); err != nil {
+			return nil, fmt.Errorf("headless: read back %s: %w", o.name, err)
+		}
+		o.unread = false
+	}
+	return &soft.Buffer{Pix: slices.Clone(o.buffer.Pix), Stride: o.buffer.Stride, W: o.buffer.W, H: o.buffer.H}, nil
 }
 
-func (o *Output) Snapshot() *soft.Buffer {
-	snap := o.Primary()
+func (o *Output) Snapshot() (*soft.Buffer, error) {
+	snap, err := o.Primary()
+	if err != nil {
+		return nil, err
+	}
 	if o.cursor != nil {
 		o.cursor.composite(snap)
 	}
-	return snap
+	return snap, nil
 }
 
 func (o *Output) arm() error {

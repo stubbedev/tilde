@@ -169,7 +169,10 @@ func TestFramesArePacedByRefresh(t *testing.T) {
 			t.Fatalf("presentation %d = %+v after %+v: want a later vblank at least %v apart", i, cur, prev, interval)
 		}
 	}
-	snap := o.Snapshot()
+	snap, err := o.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if snap.W != 64 || snap.H != 48 || snap.Pix[1] != 6 {
 		t.Fatalf("snapshot %dx%d green %d, want the sixth frame's fill", snap.W, snap.H, snap.Pix[1])
 	}

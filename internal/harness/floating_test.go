@@ -178,7 +178,7 @@ func TestAFloatingWindowOverAnotherOutputTakesTheClicksItCovers(t *testing.T) {
 		return false
 	})
 	h.Eventually("the floating window drawn over the tiled one", func(b *headless.Backend, _ *compositor.Compositor) bool {
-		return pixel(b.Outputs()[1].Snapshot(), 5, 50) == redColor
+		return pixel(snapshot(b.Outputs()[1]), 5, 50) == redColor
 	})
 	h.click(1, 5, 50, btnLeft)
 	h.Eventually("the click went to the window drawn there", func(_ *headless.Backend, comp *compositor.Compositor) bool {

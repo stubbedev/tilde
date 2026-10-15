@@ -42,7 +42,7 @@ func TestAnAlphaModifierFadesASurface(t *testing.T) {
 	h.Eventually("the window fully faded", showing(30, 30, backgroundPixel))
 	set(math.MaxUint32 / 2)
 	h.Eventually("the window half faded", func(b *headless.Backend, _ *compositor.Compositor) bool {
-		p := pixel(b.Outputs()[0].Snapshot(), 30, 30)
+		p := pixel(snapshot(b.Outputs()[0]), 30, 30)
 		return p[0] > backgroundPixel[0]+0x40 && p[0] < 0xff-0x40
 	})
 	if err := errors.Join(fade.Destroy(), w.Surface.Commit(), c.Display.Flush()); err != nil {

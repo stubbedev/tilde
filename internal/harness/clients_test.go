@@ -83,7 +83,7 @@ func TestWestonFlowerMaps(t *testing.T) {
 	h.Eventually("weston-flower to map", mappedToplevels(1))
 	h.expectActive(flower)
 	h.Eventually("the flower on the output", func(b *headless.Backend, _ *compositor.Compositor) bool {
-		return notBackground(b.Outputs()[0].Snapshot(), image.Rect(0, 0, 1280, 800)) > 1000
+		return notBackground(snapshot(b.Outputs()[0]), image.Rect(0, 0, 1280, 800)) > 1000
 	})
 }
 
@@ -93,7 +93,7 @@ func TestFootMapsAndTakesInput(t *testing.T) {
 	foot := h.Run("foot", "--override=main.font=monospace:size=12", "sh", "-c", `printf ready; read -r line; printf %s "$line" > "$0"`, typed)
 	h.Eventually("foot to map", mappedToplevels(1))
 	h.Eventually("foot to draw", func(b *headless.Backend, _ *compositor.Compositor) bool {
-		return notBackground(b.Outputs()[0].Snapshot(), image.Rect(0, 0, 1280, 800)) > 1000
+		return notBackground(snapshot(b.Outputs()[0]), image.Rect(0, 0, 1280, 800)) > 1000
 	})
 	h.Eventually("foot to take the keyboard", func(_ *headless.Backend, c *compositor.Compositor) bool {
 		return c.Seat().Focus() != nil

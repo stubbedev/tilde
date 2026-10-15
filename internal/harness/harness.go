@@ -260,8 +260,9 @@ func (h *Harness) Snapshot(i int) *soft.Buffer {
 		if i >= len(outputs) {
 			return fmt.Errorf("harness: no output %d of %d", i, len(outputs))
 		}
-		snap = outputs[i].Snapshot()
-		return nil
+		var err error
+		snap, err = outputs[i].Snapshot()
+		return err
 	})
 	return snap
 }
