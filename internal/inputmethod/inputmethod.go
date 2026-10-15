@@ -69,7 +69,7 @@ func (p Popup) Placed(cursor image.Rectangle) error {
 }
 
 func (m *Manager) Popups() []Popup {
-	if m.im == nil || !m.im.active || m.active == nil || m.active.focus == nil {
+	if m.im == nil || m.im.phase != imActive || m.active == nil || m.active.focus == nil {
 		return nil
 	}
 	out := make([]Popup, 0, len(m.im.popups))
@@ -106,10 +106,10 @@ func (m *Manager) Focus(s *surface.Surface) error {
 }
 
 func (m *Manager) deactivate() error {
-	if m.im == nil || !m.im.active {
+	if m.im == nil || m.im.phase != imActive {
 		return nil
 	}
-	m.im.active = false
+	m.im.phase = imInactive
 	return errors.Join(m.im.c.Sent(m.im.res.SendDeactivate()), m.im.done(), m.listener.PopupsChanged())
 }
 
@@ -118,7 +118,7 @@ func (m *Manager) activate(ti *textInput) error {
 	if m.im == nil {
 		return nil
 	}
-	m.im.active = true
+	m.im.phase = imActive
 	return errors.Join(m.im.c.Sent(m.im.res.SendActivate()), m.im.state(ti), m.listener.PopupsChanged())
 }
 
@@ -236,7 +236,7 @@ func (ti *textInput) Commit(*stix.ZwpTextInputV3) error {
 	case ti.current.enabled && m.active != ti:
 		return m.activate(ti)
 	case ti.current.enabled:
-		if m.im == nil || !m.im.active {
+		if m.im == nil || m.im.phase != imActive {
 			return nil
 		}
 		return errors.Join(m.im.state(ti), m.listener.PopupsChanged())
@@ -270,13 +270,13 @@ func (inputMethodManager) Destroy(*sim.ZwpInputMethodManagerV2) error { return n
 func (r inputMethodManager) GetInputMethod(_ *sim.ZwpInputMethodManagerV2, _ *sw.WlSeat, res *sim.ZwpInputMethodV2) (sim.ZwpInputMethodV2Handler, error) {
 	im := &inputMethod{m: r.m, c: r.c, res: res}
 	if r.m.im != nil {
-		im.inert = true
+		im.phase = imInert
 		return im, r.c.Sent(res.SendUnavailable())
 	}
 	r.m.im = im
 	server.OnDestroy(res, im.gone)
 	if ti := r.m.active; ti != nil {
-		im.active = true
+		im.phase = imActive
 		return im, errors.Join(r.c.Sent(res.SendActivate()), im.state(ti))
 	}
 	return im, nil
@@ -294,12 +294,19 @@ type imState struct {
 	after   uint32
 }
 
+type imPhase uint8
+
+const (
+	imInactive imPhase = iota
+	imActive
+	imInert
+)
+
 type inputMethod struct {
 	m       *Manager
 	c       *server.Client
 	res     *sim.ZwpInputMethodV2
-	inert   bool
-	active  bool
+	phase   imPhase
 	dones   uint32
 	pending imState
 	popups  []*popup
@@ -365,7 +372,7 @@ func (im *inputMethod) DeleteSurroundingText(_ *sim.ZwpInputMethodV2, before, af
 func (im *inputMethod) Commit(_ *sim.ZwpInputMethodV2, serial uint32) error {
 	st := im.pending
 	im.pending = imState{}
-	if im.inert || !im.active || im.m.active == nil || serial != im.dones {
+	if im.phase != imActive || im.m.active == nil || serial != im.dones {
 		return nil
 	}
 	return im.m.active.relay(st)
@@ -402,7 +409,7 @@ func (im *inputMethod) GetInputPopupSurface(obj *sim.ZwpInputMethodV2, res *sim.
 
 func (im *inputMethod) GrabKeyboard(_ *sim.ZwpInputMethodV2, res *sim.ZwpInputMethodKeyboardGrabV2) (sim.ZwpInputMethodKeyboardGrabV2Handler, error) {
 	g := &keyboardGrab{c: im.c, res: res}
-	if im.inert || im.grab != nil {
+	if im.phase == imInert || im.grab != nil {
 		return g, nil
 	}
 	im.grab = g

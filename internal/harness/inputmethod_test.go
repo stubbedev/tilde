@@ -295,3 +295,29 @@ func TestInputMethodPopupsSitUnderTheTextCursor(t *testing.T) {
 	ty.commit(t, ty.ti.Disable)
 	h.Eventually("the popup hidden with the input method", showing(32, 37, [3]byte{0xff, 0, 0}))
 }
+
+func TestAnUnavailableInputMethodNeitherTypesNorGrabs(t *testing.T) {
+	h := Start(t, small)
+	ty := typing(t, h, "editor")
+	until(t, ty.c, "the focused text input entered", &ty.log.log, "enter")
+	m := inputMethod(t, h)
+	other := inputMethod(t, h)
+	ty.commit(t, ty.ti.Enable)
+	until(t, m.c, "the input method activated", &m.log.log, "activate", "done")
+
+	other.commit(t, func() error { return other.im.CommitString("intruder") })
+	grab := &grabLog{}
+	if _, err := other.im.GrabKeyboard(grab); err != nil {
+		t.Fatal(err)
+	}
+	other.c.Sync()
+	m.commit(t, func() error { return m.im.CommitString("real") })
+	until(t, ty.c, "only the available input method's text", &ty.log.log, `commit "real"`, "done 1")
+	h.key(30, true)
+	h.key(30, false)
+	ty.seen(t, "the editor still got its keys", func() bool { return slices.Contains(ty.in.Log, "key 30 0") })
+	other.c.Sync()
+	if len(grab.log) != 0 || grab.keymap != 0 {
+		t.Fatalf("an unavailable input method grabbed the keyboard: %q", grab.log)
+	}
+}
