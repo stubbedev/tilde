@@ -474,8 +474,10 @@ func run(args []string) (err error) {
 		listening += " and X display " + os.Getenv("DISPLAY")
 	}
 	fmt.Fprintf(os.Stderr, "tilde: listening on %s with the %s backend\n", listening, kind)
-	if err := l.Run(); !errors.Is(err, nested.ErrClosed) {
-		return err
+	unpin := gpu.PinThread()
+	ran := l.Run()
+	if errors.Is(ran, nested.ErrClosed) {
+		ran = nil
 	}
-	return nil
+	return errors.Join(ran, unpin())
 }

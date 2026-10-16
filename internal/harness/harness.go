@@ -146,7 +146,11 @@ func start(t *testing.T, s setup, modes ...backend.Mode) *Harness {
 			t.Fatalf("harness: %v", err)
 		}
 	}
-	go func() { h.done <- h.loop.Run() }()
+	go func() {
+		unpin := gpu.PinThread()
+		err := h.loop.Run()
+		h.done <- errors.Join(err, unpin())
+	}()
 	return h
 }
 

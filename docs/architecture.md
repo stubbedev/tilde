@@ -52,6 +52,14 @@ mapping. Each step hands back to the loop through the mailbox, so the loop
 never waits on the GPU or copies a frame. On close, the compositor waits for
 these goroutines and releases what their posted closures would have.
 
+The loop goroutine is locked to its OS thread for as long as it runs
+(`gpu.PinThread`, #149), so a GL context it makes current stays current
+between renderer calls: `eglMakeCurrent` runs only when another display's
+context is current on that thread. On any other goroutine the renderer makes
+its context current and releases it around every call, as before, since the
+goroutine may move to another thread in between. Unpinning releases the
+context, so whatever closes the renderer afterwards can make it current.
+
 ## Pure core
 
 `internal/wm` (#21) knows nothing about Wayland, X11 or rendering. It is a

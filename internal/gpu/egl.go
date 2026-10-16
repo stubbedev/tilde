@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/ebitengine/purego"
 
@@ -81,6 +82,7 @@ type eglFuncs struct {
 	createContext      func(dpy, config, share uintptr, attribs *int32) uintptr
 	destroyContext     func(dpy, ctx uintptr) uint32
 	makeCurrent        func(dpy, draw, read, ctx uintptr) uint32
+	getCurrentContext  func() uintptr
 	getPlatformDisplay func(platform uint32, native uintptr, attribs *int32) uintptr
 	queryDevices       func(max int32, devices *uintptr, num *int32) uint32
 	queryDeviceString  func(dev uintptr, name int32) string
@@ -102,6 +104,7 @@ var initialized = struct {
 }{count: map[uintptr]int{}}
 
 type Library struct {
+	switches   atomic.Uint64
 	egl        eglFuncs
 	gl         GL
 	clientExts []string
@@ -130,6 +133,7 @@ func Load(paths Paths) (*Library, error) {
 		{&e.createContext, "eglCreateContext"},
 		{&e.destroyContext, "eglDestroyContext"},
 		{&e.makeCurrent, "eglMakeCurrent"},
+		{&e.getCurrentContext, "eglGetCurrentContext"},
 	}); err != nil {
 		return nil, errors.Join(err, l.Close())
 	}
@@ -310,6 +314,7 @@ func (d *Display) GL() *GL {
 }
 
 func (d *Display) MakeCurrent() error {
+	d.lib.switches.Add(1)
 	if d.lib.egl.makeCurrent(d.dpy, 0, 0, d.ctx) != eglTrue {
 		return d.lib.fail("eglMakeCurrent")
 	}
@@ -317,10 +322,15 @@ func (d *Display) MakeCurrent() error {
 }
 
 func (d *Display) Release() error {
+	forget(d)
 	if d.lib.egl.makeCurrent(d.dpy, 0, 0, 0) != eglTrue {
 		return d.lib.fail("eglMakeCurrent(none)")
 	}
 	return nil
+}
+
+func (l *Library) ContextSwitches() uint64 {
+	return l.switches.Load()
 }
 
 func (d *Display) Device() (Device, error) {

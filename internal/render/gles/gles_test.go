@@ -550,3 +550,63 @@ func TestExternalYUVTexturesOnHardware(t *testing.T) {
 		}
 	}
 }
+
+func TestAPinnedThreadKeepsTheContextCurrentBetweenFrames(t *testing.T) {
+	lib := testenv.GPU(t)
+	surfaceless := func(*gpu.Library) (*gpu.Display, error) { return lib.Surfaceless() }
+	r := rendererOn(t, surfaceless)
+	other := rendererOn(t, surfaceless)
+	tx := load(t, r)
+	fb := framebuffer(t, r, target)
+	otherFB := framebuffer(t, other, target)
+	pix := make([]byte, target.X*target.Y*4)
+	frame := func(r *gles.Renderer, fb *gles.Framebuffer) error {
+		if r != other {
+			if err := tx.argb.Update(texSize.X*4, argb(), render.Region{{Max: texSize}}); err != nil {
+				return err
+			}
+		}
+		p, err := r.Begin(fb, render.Region{{Max: target}})
+		if err != nil {
+			return err
+		}
+		p.FillRect(image.Rectangle{Max: target}, render.Color{R: 0xff, A: 0xff})
+		if err := p.End(); err != nil {
+			return err
+		}
+		return fb.Read(pix, target.X*4)
+	}
+	done := make(chan error, 1)
+	var got struct{ first, steady, switched uint64 }
+	go func() {
+		unpin := gpu.PinThread()
+		start := lib.ContextSwitches()
+		err := frame(r, fb)
+		got.first = lib.ContextSwitches() - start
+		start = lib.ContextSwitches()
+		for range 10 {
+			err = errors.Join(err, frame(r, fb))
+		}
+		got.steady = lib.ContextSwitches() - start
+		start = lib.ContextSwitches()
+		err = errors.Join(err, frame(other, otherFB), frame(r, fb))
+		got.switched = lib.ContextSwitches() - start
+		done <- errors.Join(err, unpin())
+	}()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if got.first > 1 || got.steady != 0 || got.switched != 2 {
+		t.Fatalf("eglMakeCurrent calls: %d for the first frame, %d for ten more, %d for a frame on another display and one back; want at most 1, 0 and 2", got.first, got.steady, got.switched)
+	}
+	if err := frame(r, fb); err != nil {
+		t.Fatalf("after the thread was unpinned: %v", err)
+	}
+	before := lib.ContextSwitches()
+	if err := errors.Join(frame(r, fb), frame(r, fb)); err != nil {
+		t.Fatal(err)
+	}
+	if n := lib.ContextSwitches() - before; n < 2 {
+		t.Fatalf("an unpinned thread made the context current %d times in two frames, want once per call", n)
+	}
+}

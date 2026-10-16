@@ -74,18 +74,11 @@ type Renderer struct {
 }
 
 func (r *Renderer) enter() error {
-	runtime.LockOSThread()
-	if err := r.d.MakeCurrent(); err != nil {
-		runtime.UnlockOSThread()
-		return err
-	}
-	return nil
+	return r.d.Enter()
 }
 
 func (r *Renderer) leave(op string) error {
-	err := errors.Join(r.gl.Check(op), r.d.Release())
-	runtime.UnlockOSThread()
-	return err
+	return errors.Join(r.gl.Check(op), r.d.Leave())
 }
 
 func New(d *gpu.Display) (*Renderer, error) {
@@ -152,7 +145,9 @@ func (r *Renderer) Close() error {
 		}
 	}
 	r.gl.DeleteBuffers(1, &r.vbo)
-	return r.leave("gles: close")
+	err := errors.Join(r.gl.Check("gles: close"), r.d.Release())
+	runtime.UnlockOSThread()
+	return err
 }
 
 func (r *Renderer) Finish() error {
