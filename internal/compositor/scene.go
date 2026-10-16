@@ -16,14 +16,30 @@ import (
 )
 
 func (c *Compositor) Frame(b backend.Output) error {
-	o, err := c.knownOutput(b, "frame on")
-	if err != nil {
-		return err
+	o := c.output(b)
+	if o == nil {
+		return backend.Broken("compositor: frame on unknown output %s", b.Name())
 	}
 	if err := c.render(o); err != nil {
-		return fmt.Errorf("compositor: frame on %s: %w", b.Name(), err)
+		return c.dropFrame(o, fmt.Errorf("compositor: frame on %s: %w", b.Name(), err))
+	}
+	if n := c.dropped[o]; n > 0 {
+		delete(c.dropped, o)
+		c.report(fmt.Errorf("compositor: %s draws again after %d dropped frames", b.Name(), n))
 	}
 	return errors.Join(c.updateEntered(o), c.updateInhibition(), c.fifo.Latched(c.shown[o]))
+}
+
+func (c *Compositor) dropFrame(o *output.Output, err error) error {
+	if backend.Fatal(err) {
+		return err
+	}
+	if c.dropped[o] == 0 {
+		c.report(fmt.Errorf("%w; dropping frames until one draws", err))
+	}
+	c.dropped[o]++
+	c.sceneOf(o).invalidate()
+	return c.schedule(o)
 }
 
 func (c *Compositor) updateInhibition() error {
@@ -93,10 +109,12 @@ func (c *Compositor) render(o *output.Output) error {
 	repaint := render.Region(sc.repaintFor(f, bounds).Rects())
 	p, err := f.Renderer.Begin(f.Target, repaint)
 	if err != nil {
+		o.Backend().AbortFrame()
 		return err
 	}
 	sc.cur.replay(p)
 	if err := p.End(); err != nil {
+		o.Backend().AbortFrame()
 		return err
 	}
 	if err := o.Backend().Present(repaint); err != nil {

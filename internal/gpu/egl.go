@@ -40,6 +40,7 @@ const (
 	eglConditionSatisfied      = 0x30F6
 	eglSyncNativeFenceFD       = 0x3145
 	eglNoNativeFenceFD         = -1
+	eglContextLost             = 0x300E
 )
 
 var (
@@ -57,11 +58,18 @@ var (
 	}
 )
 
-var ErrUnsupported = errors.New("gpu: unsupported")
+var (
+	ErrUnsupported = errors.New("gpu: unsupported")
+	ErrContextLost = errors.New("gpu: context lost")
+)
 
 type EGLError struct {
 	Op   string
 	Code int32
+}
+
+func (e *EGLError) Is(target error) bool {
+	return target == ErrContextLost && e.Code == eglContextLost
 }
 
 func (e *EGLError) Error() string {

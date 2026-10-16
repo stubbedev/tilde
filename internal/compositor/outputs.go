@@ -252,6 +252,7 @@ func (c *Compositor) disable(o *output.Output) error {
 	errs := []error{c.fill(o, nil, nil), c.dropCaptures(o), c.closeLayers(o), o.Remove()}
 	delete(c.usable, o)
 	delete(c.scenes, o)
+	delete(c.dropped, o)
 	errs = append(errs, c.dropLabels(o), c.power.Removed(o), c.gamma.Removed(o))
 	for _, e := range c.entered {
 		if slices.Contains(e.outputs, o) {

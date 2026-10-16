@@ -442,7 +442,7 @@ func (o *Output) BeginFrame() (backend.Frame, error) {
 	case !o.configured:
 		return backend.Frame{}, fmt.Errorf("nested: frame on %s before the host configured it", o.name)
 	case o.drawing != nil:
-		return backend.Frame{}, fmt.Errorf("nested: %s already has a frame in progress", o.name)
+		return backend.Frame{}, backend.Broken("nested: %s already has a frame in progress", o.name)
 	}
 	buf := o.freeBuffer()
 	if buf == nil {
@@ -460,15 +460,11 @@ func (o *Output) CursorPlane() (backend.CursorPlane, error) {
 	return nil, backend.ErrNoCursorPlanes
 }
 
-func (o *Output) Present(damage render.Region) error {
-	buf := o.drawing
-	if buf == nil {
-		return fmt.Errorf("nested: present on %s without BeginFrame", o.name)
-	}
+func (o *Output) AbortFrame() {
 	o.drawing = nil
-	if err := o.backend.chain.finish(); err != nil {
-		return err
-	}
+}
+
+func (o *Output) send(buf *buffer, damage render.Region) error {
 	if err := o.surface.Attach(buf.wl, 0, 0); err != nil {
 		return err
 	}
@@ -479,8 +475,20 @@ func (o *Output) Present(damage render.Region) error {
 			return err
 		}
 	}
-	if err := o.commitForCallback(); err != nil {
+	return o.commitForCallback()
+}
+
+func (o *Output) Present(damage render.Region) error {
+	buf := o.drawing
+	if buf == nil {
+		return backend.Broken("nested: present on %s without BeginFrame", o.name)
+	}
+	o.drawing = nil
+	if err := o.backend.chain.finish(); err != nil {
 		return err
+	}
+	if err := o.send(buf, damage); err != nil {
+		return fmt.Errorf("%w: nested: present %s to the host: %w", backend.ErrDeviceLost, o.name, err)
 	}
 	buf.busy = true
 	o.presented++

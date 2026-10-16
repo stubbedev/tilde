@@ -65,6 +65,7 @@ type fakeDevice struct {
 	refuseAsync    bool
 	refusePowerOff bool
 	asyncFlips     bool
+	failCommits    error
 	commits        []commit
 	blobs          uint32
 	blobData       map[uint32][]byte
@@ -274,6 +275,9 @@ func (f *fakeDevice) Commit(r *kdrm.Request, flags uint32, userData uint64) erro
 	active, setsActive := c.values[[2]uint32{10, propActive}]
 	if f.refuseCursor && c.values[[2]uint32{43, propFB}] != 0 || f.refuseGamma && c.values[[2]uint32{10, propGammaLUT}] != 0 || f.refuseAsync && flags&kdrm.AtomicPageFlipAsync != 0 || f.refusePowerOff && setsActive && active == 0 {
 		return unix.EINVAL
+	}
+	if flags&kdrm.AtomicTestOnly == 0 && f.failCommits != nil {
+		return f.failCommits
 	}
 	return nil
 }
@@ -1204,5 +1208,64 @@ func TestACursorRefusedAfterAFlipLetsTheLUTThrough(t *testing.T) {
 	}
 	if err := cp.MoveCursor(image.Pt(40, 30)); err == nil {
 		t.Fatal("the cursor plane kept moving after the kernel refused it")
+	}
+}
+
+func (r *rig) planesAfterAFlip(fail error) error {
+	r.t.Helper()
+	o := r.lit()
+	if err := r.setCursor(o, image.Pt(4, 6)); err != nil {
+		r.t.Fatal(err)
+	}
+	cp, _ := o.CursorPlane()
+	if err := cp.MoveCursor(image.Pt(30, 20)); err != nil {
+		r.t.Fatal(err)
+	}
+	r.dev.failCommits = fail
+	r.dev.flip(r.t, 10, 2)
+	timer, err := r.l.AddTimer(func() error {
+		r.l.Stop()
+		return nil
+	})
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	defer timer.Remove()
+	if err := timer.Arm(20 * time.Millisecond); err != nil {
+		r.t.Fatal(err)
+	}
+	return r.l.Run()
+}
+
+func TestAPlaneCommitTheKernelRejectsIsReportedAndRetried(t *testing.T) {
+	r := start(t)
+	if err := r.planesAfterAFlip(unix.EBUSY); err != nil {
+		t.Fatalf("a busy plane commit ended the session: %v", err)
+	}
+	if len(r.reports) != 1 || !errors.Is(r.reports[0], unix.EBUSY) {
+		t.Fatalf("reported %v, want the busy commit once", r.reports)
+	}
+	o := r.b.Outputs()[0]
+	cp, _ := o.CursorPlane()
+	if err := errors.Join(cp.MoveCursor(image.Pt(31, 20)), cp.MoveCursor(image.Pt(32, 20))); err != nil {
+		t.Fatal(err)
+	}
+	if len(r.reports) != 1 {
+		t.Fatalf("reported %v, want one report while the commits keep failing", r.reports)
+	}
+	r.dev.failCommits = nil
+	if err := cp.MoveCursor(image.Pt(33, 20)); err != nil {
+		t.Fatal(err)
+	}
+	last := r.dev.commits[len(r.dev.commits)-1]
+	if fb, _, touched := cursorAt(last); !touched || fb == 0 || last.flags&kdrm.AtomicTestOnly != 0 {
+		t.Fatalf("the cursor did not go out once the kernel took commits again: %+v", last)
+	}
+}
+
+func TestAPlaneCommitOnAGoneDeviceEndsTheSession(t *testing.T) {
+	r := start(t)
+	if err := r.planesAfterAFlip(unix.ENODEV); !errors.Is(err, unix.ENODEV) {
+		t.Fatalf("the loop ended with %v, want ENODEV", err)
 	}
 }

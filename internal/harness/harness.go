@@ -199,6 +199,18 @@ func (h *Harness) stop() {
 	}
 }
 
+func (h *Harness) Ended() error {
+	h.t.Helper()
+	select {
+	case err := <-h.done:
+		h.done <- nil
+		return err
+	case <-time.After(5 * time.Second):
+		h.t.Fatal("harness: the compositor loop is still running")
+		return nil
+	}
+}
+
 func (h *Harness) Do(f func(b *headless.Backend, c *compositor.Compositor) error) {
 	h.t.Helper()
 	result := make(chan error, 1)

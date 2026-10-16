@@ -512,33 +512,34 @@ func (b *Backend) Close() error {
 }
 
 type Output struct {
-	b         *Backend
-	identity  edid.Info
-	conn      kdrm.Connector
-	connector kmsObject
-	crtc      *crtc
-	primary   *plane
-	cursor    *cursor
-	mode      kdrm.Mode
-	modeBlob  uint32
-	enabled   bool
-	off       bool
-	modeset   bool
-	lit       bool
-	buffers   []*scanout
-	drawing   *scanout
-	queued    *scanout
-	front     *scanout
-	clock     *backend.FrameClock
-	flipping  bool
-	framing   bool
-	pacer     *loop.Timer
-	latch     *loop.Timer
-	paced     bool
-	lastFlip  time.Duration
-	presented uint64
-	gamma     gamma
-	torn      bool
+	b             *Backend
+	identity      edid.Info
+	conn          kdrm.Connector
+	connector     kmsObject
+	crtc          *crtc
+	primary       *plane
+	cursor        *cursor
+	mode          kdrm.Mode
+	modeBlob      uint32
+	enabled       bool
+	off           bool
+	modeset       bool
+	lit           bool
+	buffers       []*scanout
+	drawing       *scanout
+	queued        *scanout
+	front         *scanout
+	clock         *backend.FrameClock
+	flipping      bool
+	framing       bool
+	pacer         *loop.Timer
+	latch         *loop.Timer
+	paced         bool
+	lastFlip      time.Duration
+	presented     uint64
+	gamma         gamma
+	torn          bool
+	planesFailing bool
 }
 
 func (o *Output) Name() string {
@@ -719,7 +720,7 @@ func (o *Output) BeginFrame() (backend.Frame, error) {
 	case !o.enabled:
 		return backend.Frame{}, fmt.Errorf("drm: frame on disabled %s", o.Name())
 	case o.drawing != nil:
-		return backend.Frame{}, fmt.Errorf("drm: %s already has a frame in progress", o.Name())
+		return backend.Frame{}, backend.Broken("drm: %s already has a frame in progress", o.Name())
 	}
 	i := slices.IndexFunc(o.buffers, func(s *scanout) bool { return s != o.front && s != o.queued })
 	if i < 0 {
@@ -734,10 +735,14 @@ func (o *Output) BeginFrame() (backend.Frame, error) {
 	return backend.Frame{Renderer: o.b.alloc.renderer(), Target: s.target, Age: age}, nil
 }
 
+func (o *Output) AbortFrame() {
+	o.drawing = nil
+}
+
 func (o *Output) Present(render.Region) error {
 	s := o.drawing
 	if s == nil {
-		return fmt.Errorf("drm: present on %s without BeginFrame", o.Name())
+		return backend.Broken("drm: present on %s without BeginFrame", o.Name())
 	}
 	o.drawing = nil
 	if o.b.paused {
@@ -902,13 +907,25 @@ func (o *Output) flushPlanes() error {
 	}
 	o.addGamma()
 	if err := o.b.dev.Commit(r, flags, uint64(o.crtc.id)); err != nil {
-		return fmt.Errorf("drm: commit the cursor and gamma of %s: %w", o.Name(), err)
+		return o.planesFailed(fmt.Errorf("drm: commit the cursor and gamma of %s: %w", o.Name(), err))
 	}
+	o.planesFailing = false
 	o.flipping = true
 	if cursor {
 		c.sent()
 	}
 	return o.gammaSent()
+}
+
+func (o *Output) planesFailed(err error) error {
+	if backend.Fatal(err) {
+		return err
+	}
+	if !o.planesFailing {
+		o.planesFailing = true
+		o.b.report(fmt.Errorf("%w; keeping the planes as they are until a commit takes", err))
+	}
+	return nil
 }
 
 func (o *Output) flipped(e kdrm.FlipEvent) error {

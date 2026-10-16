@@ -102,6 +102,19 @@ type Presentation struct {
 
 var ErrNoCursorPlanes = errors.New("backend: this backend draws the cursor in the frame")
 
+var (
+	ErrDeviceLost = errors.New("backend: the device is gone")
+	ErrBroken     = errors.New("backend: broken invariant")
+)
+
+func Fatal(err error) bool {
+	return errors.Is(err, ErrDeviceLost) || errors.Is(err, ErrBroken) || errors.Is(err, unix.ENODEV) || errors.Is(err, gpu.ErrContextLost)
+}
+
+func Broken(format string, args ...any) error {
+	return fmt.Errorf("%w: "+format, append([]any{ErrBroken}, args...)...)
+}
+
 type Scanner interface {
 	Scanout(b gpu.DMABUF, release func() error, tear bool) (bool, error)
 	ScanoutFormats() gpu.ScanoutTarget
@@ -125,6 +138,7 @@ type Output interface {
 	Commit(s OutputState) error
 	ScheduleFrame() error
 	BeginFrame() (Frame, error)
+	AbortFrame()
 	Present(damage render.Region) error
 	CursorPlane() (CursorPlane, error)
 }

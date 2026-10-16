@@ -254,6 +254,7 @@ type Output struct {
 	gamma          []uint16
 	queuedTorn     bool
 	torn           uint64
+	failPresents   error
 }
 
 func (o *Output) SetGammaSize(n int) {
@@ -361,7 +362,7 @@ func (o *Output) BeginFrame() (backend.Frame, error) {
 	case !o.state.Enabled():
 		return backend.Frame{}, fmt.Errorf("headless: frame on disabled output %s", o.name)
 	case o.inFrame:
-		return backend.Frame{}, fmt.Errorf("headless: %s already has a frame in progress", o.name)
+		return backend.Frame{}, backend.Broken("headless: %s already has a frame in progress", o.name)
 	}
 	o.inFrame = true
 	age := 0
@@ -371,11 +372,18 @@ func (o *Output) BeginFrame() (backend.Frame, error) {
 	return backend.Frame{Renderer: o.backend.renderer, Target: o.target, Age: age}, nil
 }
 
+func (o *Output) AbortFrame() {
+	o.inFrame = false
+}
+
 func (o *Output) Present(damage render.Region) error {
 	if !o.inFrame {
-		return fmt.Errorf("headless: present on %s without BeginFrame", o.name)
+		return backend.Broken("headless: present on %s without BeginFrame", o.name)
 	}
 	o.inFrame = false
+	if o.failPresents != nil {
+		return o.failPresents
+	}
 	o.drawn = true
 	o.damage = append(o.damage[:0], damage...)
 	_, o.unread = o.target.(*gles.Framebuffer)
@@ -418,6 +426,10 @@ func (o *Output) Scanout(d gpu.DMABUF, release func() error, tear bool) (bool, e
 
 func (o *Output) Torn() uint64 {
 	return o.torn
+}
+
+func (o *Output) FailPresents(err error) {
+	o.failPresents = err
 }
 
 func (o *Output) Presents() uint64 {

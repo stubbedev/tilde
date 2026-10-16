@@ -60,6 +60,43 @@ its context current and releases it around every call, as before, since the
 goroutine may move to another thread in between. Unpinning releases the
 context, so whatever closes the renderer afterwards can make it current.
 
+## Errors that end the session
+
+`Loop.Run` returns the first error a callback returns, and `tilde` exits
+with it. So only two classes of error may reach the loop (#144):
+
+- **Device lost**: the device is gone and nothing on it can recover.
+  `ENODEV` from any ioctl, `EGL_CONTEXT_LOST` or `GL_CONTEXT_LOST`
+  (`gpu.ErrContextLost`), and `backend.ErrDeviceLost`, which the nested
+  backend wraps around a failed send to its host.
+- **Broken invariant**: a bug, which should crash loudly rather than limp
+  on. `backend.Broken` marks these: a frame on an output the compositor
+  does not know, `BeginFrame` with a frame already in progress, `Present`
+  without one.
+
+`backend.Fatal` decides the class. Everything else is scoped to one frame,
+one output or one client, and is reported through `Config.Report` and
+recovered at the callback boundary:
+
+- **A frame** (`Compositor.Frame`): a render, readback, test or commit
+  failure (`EBUSY`, `EINVAL`, a GL error, `EACCES` from a commit that raced
+  a lost DRM master) drops the frame. The backend's frame is abandoned
+  (`AbortFrame`), the scene is invalidated so the next frame repaints the
+  whole output, and another frame is scheduled; the backend's frame clock
+  paces the retry to one per refresh. The first dropped frame is reported,
+  and so is the first frame that draws after a run of them, so a failure
+  that persists does not flood the log.
+- **Planes between frames** (DRM page-flip, pacing and frame callbacks): a
+  cursor or gamma commit the kernel rejects is reported once and the state
+  stays dirty, so the next callback or cursor move commits it again. A
+  cursor its test commit refuses falls back to the frame (#143).
+- **A client**: a failing request kills that client (`server.Client`),
+  and a failed capture sends `failed`, as before.
+
+The rest of the loop's errors stay fatal: a failed `timerfd` or `epoll`
+call, a read from the DRM device other than `EAGAIN`, and a failed modeset
+on resume, because each means the process can no longer drive its outputs.
+
 ## Pure core
 
 `internal/wm` (#21) knows nothing about Wayland, X11 or rendering. It is a

@@ -60,16 +60,22 @@ const (
 	glInvalidOperation            = 0x0502
 	glOutOfMemory                 = 0x0505
 	glInvalidFramebufferOperation = 0x0506
+	glContextLost                 = 0x0507
 )
 
 var glErrorNames = map[uint32]string{
 	glInvalidEnum: "GL_INVALID_ENUM", glInvalidValue: "GL_INVALID_VALUE", glInvalidOperation: "GL_INVALID_OPERATION",
 	glOutOfMemory: "GL_OUT_OF_MEMORY", glInvalidFramebufferOperation: "GL_INVALID_FRAMEBUFFER_OPERATION",
+	glContextLost: "GL_CONTEXT_LOST",
 }
 
 type GLError struct {
 	Op   string
 	Code uint32
+}
+
+func (e *GLError) Is(target error) bool {
+	return target == ErrContextLost && e.Code == glContextLost
 }
 
 func (e *GLError) Error() string {
