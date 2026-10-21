@@ -13,6 +13,7 @@ import (
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	cwsc2 "github.com/stubbedev/tilde/internal/protocol/client/wlrscreencopy"
 	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/tilde/internal/testenv"
 	"github.com/stubbedev/tilde/internal/wire"
 	"github.com/stubbedev/tilde/internal/wlclient"
 )
@@ -28,7 +29,7 @@ func (globalNames) GlobalRemove(*cw.WlRegistry, uint32) error { return nil }
 
 func listeningSocket(t *testing.T) (string, int) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "sandbox")
+	path := filepath.Join(testenv.SocketDir(t), "sandbox")
 	fd, err := unix.Socket(unix.AF_UNIX, unix.SOCK_STREAM|unix.SOCK_CLOEXEC, 0)
 	if err != nil {
 		t.Fatal(err)

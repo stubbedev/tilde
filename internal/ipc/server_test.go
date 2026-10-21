@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stubbedev/tilde/internal/loop"
+	"github.com/stubbedev/tilde/internal/testenv"
 	"github.com/stubbedev/tilde/internal/wm"
 )
 
@@ -51,7 +52,7 @@ func start(t *testing.T) *rig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &rig{t: t, loop: l, fake: &fake{}, path: filepath.Join(t.TempDir(), "tilde", "wayland-9.sock"), errs: make(chan error, 16)}
+	r := &rig{t: t, loop: l, fake: &fake{}, path: filepath.Join(testenv.SocketDir(t), "tilde", "wayland-9.sock"), errs: make(chan error, 16)}
 	if r.server, err = Listen(l, r.path, r.fake, func(err error) { r.errs <- err }); err != nil {
 		t.Fatal(err)
 	}
@@ -302,7 +303,7 @@ func TestADispatchThatStopsTildeIsAnswered(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		path := filepath.Join(t.TempDir(), "tilde.sock")
+		path := filepath.Join(testenv.SocketDir(t), "tilde.sock")
 		s, err := Listen(l, path, &stopping{loop: l}, func(err error) { t.Error(err) })
 		if err != nil {
 			t.Fatal(err)

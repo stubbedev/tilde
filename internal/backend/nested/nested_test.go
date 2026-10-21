@@ -38,10 +38,7 @@ func startSway(t *testing.T) *sway {
 	bin := testenv.Require(t, "sway")
 	testenv.Require(t, "swaymsg")
 	testenv.Require(t, "grim")
-	dir, err := os.MkdirTemp("", "tilde-host-")
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := testenv.SocketDir(t)
 	cfg := filepath.Join(dir, "config")
 	if err := os.WriteFile(cfg, []byte("output * mode 640x480\ndefault_border none\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -62,7 +59,6 @@ func startSway(t *testing.T) *sway {
 	t.Cleanup(func() {
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
-		_ = os.RemoveAll(dir)
 		if t.Failed() {
 			t.Logf("sway log:\n%s", log.String())
 		}
@@ -137,11 +133,7 @@ func TestNestedInSway(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer b.Close()
-	runtime, err := os.MkdirTemp("", "tilde-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(runtime)
+	runtime := testenv.SocketDir(t)
 	display, err := server.New(l, server.Options{RuntimeDir: runtime, Report: func(err error) { t.Error(err) }})
 	if err != nil {
 		t.Fatal(err)

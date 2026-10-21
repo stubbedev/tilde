@@ -120,7 +120,7 @@ func TestAFailedStartLeavesNoEnvironment(t *testing.T) {
 	if _, err := Start("", env); err == nil {
 		t.Fatal("no bus address was accepted")
 	}
-	if _, err := Start("unix:path="+filepath.Join(t.TempDir(), "none"), env); err == nil {
+	if _, err := Start("unix:path="+filepath.Join(testenv.SocketDir(t), "none"), env); err == nil {
 		t.Fatal("a missing bus was accepted")
 	}
 }

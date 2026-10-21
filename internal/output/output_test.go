@@ -16,6 +16,7 @@ import (
 	cxo "github.com/stubbedev/tilde/internal/protocol/client/xdgoutput"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/server"
+	"github.com/stubbedev/tilde/internal/testenv"
 	"github.com/stubbedev/tilde/internal/wlclient"
 )
 
@@ -140,7 +141,7 @@ type outputRig struct {
 
 func serveOutput(t *testing.T) *outputRig {
 	t.Helper()
-	dir := t.TempDir()
+	dir := testenv.SocketDir(t)
 	l, err := loop.New()
 	if err != nil {
 		t.Fatal(err)
@@ -262,7 +263,7 @@ func TestPhysicalClientsSeeOutputsInXSpace(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Close()
-	disp, err := server.New(l, server.Options{RuntimeDir: t.TempDir(), Report: func(err error) { t.Error(err) }})
+	disp, err := server.New(l, server.Options{RuntimeDir: testenv.SocketDir(t), Report: func(err error) { t.Error(err) }})
 	if err != nil {
 		t.Fatal(err)
 	}

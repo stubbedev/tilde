@@ -2,7 +2,6 @@ package shm
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -15,6 +14,7 @@ import (
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/tilde/internal/testenv"
 	"github.com/stubbedev/tilde/internal/wire"
 	"github.com/stubbedev/tilde/internal/wlclient"
 )
@@ -73,10 +73,7 @@ type client struct {
 
 func setup(t *testing.T) *env {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "tilde-")
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := testenv.SocketDir(t)
 	l, err := loop.New()
 	if err != nil {
 		t.Fatal(err)
@@ -104,7 +101,6 @@ func setup(t *testing.T) *env {
 		}
 		_ = e.disp.Close()
 		_ = l.Close()
-		_ = os.RemoveAll(dir)
 	})
 	return e
 }

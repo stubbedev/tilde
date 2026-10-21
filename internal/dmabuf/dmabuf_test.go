@@ -17,6 +17,7 @@ import (
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/tilde/internal/testenv"
 	"github.com/stubbedev/tilde/internal/wire"
 	"github.com/stubbedev/tilde/internal/wlclient"
 	cfb "github.com/stubbedev/tilde/internal/wlclient/feedback"
@@ -102,7 +103,7 @@ func setup(t *testing.T, device error) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := &env{t: t, dir: t.TempDir(), l: l, imp: &importer{device: device}}
+	e := &env{t: t, dir: testenv.SocketDir(t), l: l, imp: &importer{device: device}}
 	if e.d, err = server.New(l, server.Options{RuntimeDir: e.dir, Report: func(err error) { t.Error(err) }}); err != nil {
 		t.Fatal(err)
 	}

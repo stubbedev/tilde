@@ -9,6 +9,7 @@ import (
 
 	"github.com/stubbedev/tilde/internal/ipc"
 	"github.com/stubbedev/tilde/internal/loop"
+	"github.com/stubbedev/tilde/internal/testenv"
 	"github.com/stubbedev/tilde/internal/wm"
 )
 
@@ -49,7 +50,7 @@ func TestRunAgainstASocket(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := &handler{}
-	path := filepath.Join(t.TempDir(), "tilde", "wayland-1.sock")
+	path := filepath.Join(testenv.SocketDir(t), "tilde", "wayland-1.sock")
 	s, err := ipc.Listen(l, path, h, func(err error) { t.Error(err) })
 	if err != nil {
 		t.Fatal(err)
@@ -90,7 +91,7 @@ func TestRunAgainstASocket(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := run([]string{"--socket", filepath.Join(t.TempDir(), "none.sock"), "windows"}, getenv, &out); err == nil {
+	if err := run([]string{"--socket", filepath.Join(testenv.SocketDir(t), "none.sock"), "windows"}, getenv, &out); err == nil {
 		t.Fatal("a missing socket succeeded")
 	}
 }

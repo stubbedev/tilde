@@ -38,7 +38,7 @@ func startNested(t *testing.T, host *Harness) *nestedTilde {
 
 func startNestedWith(t *testing.T, host *Harness, configure func(*compositor.Config)) *nestedTilde {
 	t.Helper()
-	n := &nestedTilde{t: t, host: host, dir: t.TempDir()}
+	n := &nestedTilde{t: t, host: host, dir: testenv.SocketDir(t)}
 	var err error
 	if n.loop, err = loop.New(); err != nil {
 		t.Fatal(err)

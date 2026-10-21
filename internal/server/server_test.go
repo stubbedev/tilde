@@ -15,6 +15,7 @@ import (
 	"github.com/stubbedev/tilde/internal/loop"
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
+	"github.com/stubbedev/tilde/internal/testenv"
 	"github.com/stubbedev/tilde/internal/wire"
 	"github.com/stubbedev/tilde/internal/wlclient"
 )
@@ -33,7 +34,7 @@ func start(t *testing.T) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{t: t, loop: l, dir: t.TempDir(), trace: &bytes.Buffer{}}
+	h := &harness{t: t, loop: l, dir: testenv.SocketDir(t), trace: &bytes.Buffer{}}
 	if h.disp, err = New(l, Options{RuntimeDir: h.dir, Trace: h.trace, Report: func(err error) { t.Error(err) }}); err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +131,7 @@ func compositorGlobal(bound *[]uint32) BindFunc {
 }
 
 func TestSocketLockAndCleanup(t *testing.T) {
-	dir := t.TempDir()
+	dir := testenv.SocketDir(t)
 	if err := os.WriteFile(filepath.Join(dir, "wayland-0"), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -579,7 +580,7 @@ func TestRunningOutOfFDsRefusesAClientAndKeepsServing(t *testing.T) {
 	}
 	defer l.Close()
 	var reported []error
-	d, err := New(l, Options{RuntimeDir: t.TempDir(), Report: func(err error) { reported = append(reported, err) }})
+	d, err := New(l, Options{RuntimeDir: testenv.SocketDir(t), Report: func(err error) { reported = append(reported, err) }})
 	if err != nil {
 		t.Fatal(err)
 	}

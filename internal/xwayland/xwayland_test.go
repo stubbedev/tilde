@@ -20,6 +20,7 @@ import (
 	cxs "github.com/stubbedev/tilde/internal/protocol/client/xwaylandshell"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/tilde/internal/testenv"
 	"github.com/stubbedev/tilde/internal/wire"
 	"github.com/stubbedev/tilde/internal/wlclient"
 )
@@ -34,7 +35,7 @@ func deadPid(t *testing.T) int {
 }
 
 func TestDisplaysSkipLiveLocksAndReclaimStaleOnes(t *testing.T) {
-	dir := t.TempDir()
+	dir := testenv.SocketDir(t)
 	for n, pid := range []int{os.Getpid(), deadPid(t)} {
 		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf(".X%d-lock", n)), fmt.Appendf(nil, "%10d\n", pid), 0o444); err != nil {
 			t.Fatal(err)
@@ -117,7 +118,7 @@ func startShell(t *testing.T) *shellRig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	disp, err := server.New(l, server.Options{RuntimeDir: t.TempDir(), Report: func(err error) { t.Error(err) }})
+	disp, err := server.New(l, server.Options{RuntimeDir: testenv.SocketDir(t), Report: func(err error) { t.Error(err) }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +274,7 @@ func (quietListener) CurrentSelection(data.Kind) data.Source    { return nil }
 func (quietListener) SetSelection(data.Kind, data.Source) error { return nil }
 
 func TestAnXwaylandThatCannotStartIsTriedAgainNextTime(t *testing.T) {
-	dir := t.TempDir()
+	dir := testenv.SocketDir(t)
 	binary := filepath.Join(dir, "Xwayland")
 	if err := os.WriteFile(binary, []byte("not a program"), 0o755); err != nil {
 		t.Fatal(err)
@@ -283,7 +284,7 @@ func TestAnXwaylandThatCannotStartIsTriedAgainNextTime(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Close()
-	d, err := server.New(l, server.Options{RuntimeDir: t.TempDir(), Report: func(err error) { t.Error(err) }})
+	d, err := server.New(l, server.Options{RuntimeDir: testenv.SocketDir(t), Report: func(err error) { t.Error(err) }})
 	if err != nil {
 		t.Fatal(err)
 	}

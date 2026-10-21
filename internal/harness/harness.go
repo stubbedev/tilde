@@ -96,12 +96,10 @@ func StartXwayland(t *testing.T, report func(error), modes ...backend.Mode) *Har
 
 func start(t *testing.T, s setup, modes ...backend.Mode) *Harness {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "tilde-")
-	if err != nil {
-		t.Fatalf("harness: runtime dir: %v", err)
-	}
+	dir := testenv.SocketDir(t)
 	h := &Harness{t: t, RuntimeDir: dir, trace: &syncBuffer{}, xlog: &syncBuffer{}, done: make(chan error, 1)}
 	t.Cleanup(h.stop)
+	var err error
 	if h.loop, err = loop.New(); err != nil {
 		t.Fatalf("harness: %v", err)
 	}
@@ -183,7 +181,6 @@ func (h *Harness) stop() {
 	if h.loop != nil {
 		errs = append(errs, h.loop.Close())
 	}
-	errs = append(errs, os.RemoveAll(h.RuntimeDir))
 	if err := errors.Join(errs...); err != nil {
 		h.t.Errorf("harness: teardown: %v", err)
 	}

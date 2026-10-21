@@ -19,6 +19,7 @@ import (
 	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
 	"github.com/stubbedev/tilde/internal/server"
 	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/tilde/internal/testenv"
 	"github.com/stubbedev/tilde/internal/wire"
 	"github.com/stubbedev/tilde/internal/wlclient"
 )
@@ -151,7 +152,7 @@ func setup(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := t.TempDir()
+	dir := testenv.SocketDir(t)
 	d, err := server.New(l, server.Options{RuntimeDir: dir, Report: func(err error) { t.Error(err) }})
 	if err != nil {
 		t.Fatal(err)

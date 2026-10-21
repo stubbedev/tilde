@@ -3,7 +3,6 @@ package compositor
 import (
 	"errors"
 	"image"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -89,10 +88,7 @@ type rig struct {
 
 func setup(t *testing.T) *rig {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "tilde-")
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := testenv.SocketDir(t)
 	l, err := loop.New()
 	if err != nil {
 		t.Fatal(err)
@@ -119,7 +115,6 @@ func setup(t *testing.T) *rig {
 		}
 		_ = disp.Close()
 		_ = l.Close()
-		_ = os.RemoveAll(dir)
 	})
 	if r.client, err = wlclient.Connect(filepath.Join(dir, disp.Name())); err != nil {
 		t.Fatal(err)
@@ -292,7 +287,7 @@ func TestAFailedStartReturnsItsError(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer l.Close()
-	disp, err := server.New(l, server.Options{RuntimeDir: t.TempDir(), Report: func(err error) { t.Error(err) }})
+	disp, err := server.New(l, server.Options{RuntimeDir: testenv.SocketDir(t), Report: func(err error) { t.Error(err) }})
 	if err != nil {
 		t.Fatal(err)
 	}

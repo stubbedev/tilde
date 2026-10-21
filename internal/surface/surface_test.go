@@ -3,7 +3,6 @@ package surface
 import (
 	"errors"
 	"image"
-	"os"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -19,6 +18,7 @@ import (
 	"github.com/stubbedev/tilde/internal/region"
 	"github.com/stubbedev/tilde/internal/render"
 	"github.com/stubbedev/tilde/internal/server"
+	"github.com/stubbedev/tilde/internal/testenv"
 	"github.com/stubbedev/tilde/internal/wire"
 	"github.com/stubbedev/tilde/internal/wlclient"
 )
@@ -81,10 +81,7 @@ func (r registry) GlobalRemove(*cw.WlRegistry, uint32) error { return nil }
 
 func setup(t *testing.T, compositorVersion uint32) *env {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "tilde-")
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := testenv.SocketDir(t)
 	l, err := loop.New()
 	if err != nil {
 		t.Fatal(err)
@@ -104,7 +101,6 @@ func setup(t *testing.T, compositorVersion uint32) *env {
 		}
 		_ = e.disp.Close()
 		_ = l.Close()
-		_ = os.RemoveAll(dir)
 	})
 	if e.client, err = wlclient.Connect(filepath.Join(dir, e.disp.Name())); err != nil {
 		t.Fatal(err)

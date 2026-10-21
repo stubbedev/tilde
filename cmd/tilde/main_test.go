@@ -183,7 +183,7 @@ func startSession(t *testing.T, config string) (string, string, <-chan error) {
 	t.Helper()
 	testenv.Font(t)
 	testenv.XKBLibrary(t)
-	dir := t.TempDir()
+	dir := testenv.SocketDir(t)
 	runtime := filepath.Join(dir, "runtime")
 	if err := os.Mkdir(runtime, 0o700); err != nil {
 		t.Fatal(err)

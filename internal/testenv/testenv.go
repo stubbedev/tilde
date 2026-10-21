@@ -1,5 +1,6 @@
 // Package testenv decides whether tests that need tools or libraries from the
-// dev shell skip or fail when they are missing.
+// dev shell skip or fail when they are missing, and gives tests directories
+// short enough to hold Unix sockets.
 package testenv
 
 import (
@@ -116,10 +117,24 @@ const busConfig = `<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Con
 </busconfig>
 `
 
+func SocketDir(t testing.TB) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "tilde-")
+	if err != nil {
+		t.Fatalf("testenv: socket dir: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Errorf("testenv: remove socket dir: %v", err)
+		}
+	})
+	return dir
+}
+
 func DBus(t testing.TB) string {
 	t.Helper()
 	daemon := Require(t, "dbus-daemon")
-	dir := t.TempDir()
+	dir := SocketDir(t)
 	config := filepath.Join(dir, "bus.conf")
 	if err := os.WriteFile(config, fmt.Appendf(nil, busConfig, filepath.Join(dir, "bus")), 0o600); err != nil {
 		t.Fatal(err)
