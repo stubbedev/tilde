@@ -22,7 +22,7 @@
       ];
       imports = [
         ./nix/package.nix
-        ./nix/formatter.nix
+        ./nix/shell.nix
         ./nix/module.nix
         ./nix/checks.nix
       ];

@@ -8,7 +8,7 @@ decisions every change builds on.
 Run before every commit:
 
 ```sh
-devenv test
+nix develop -c just gates
 nix build -L
 ```
 

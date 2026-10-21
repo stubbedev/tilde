@@ -6,7 +6,7 @@ default:
 
 # Every gate a commit must pass: formatting, a tidy go.mod, the release
 # gates, the vulnerability scan, the headless harness and the race detector.
-# `devenv test` and CI run this.
+# CI runs this in the dev shell.
 gates: fmt-check tidy-check check vuln headless race
 
 # The packages whose tests need dev-shell programs: the compositor-in-the-loop

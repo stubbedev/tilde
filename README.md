@@ -81,13 +81,13 @@ criteria in its description.
 ## Development
 
 ```sh
-devenv shell   # Go, gopls, golangci-lint, govulncheck, just
+nix develop    # Go, gopls, golangci-lint, govulncheck, just (or direnv: `use flake`)
 just gates     # every gate CI runs: format, lint, tests, headless harness, race detector
 ```
 
-`devenv.nix` is the whole development environment: Go pinned to the version
-`go.mod` declares, `CGO_ENABLED=0` and `GOTOOLCHAIN=local`. The flake builds
-the package (`nix build`) and provides the NixOS module; `nix flake check`
+The flake's dev shell (`nix/shell.nix`) is the whole development environment:
+the package's Go toolchain, `CGO_ENABLED=0` and `GOTOOLCHAIN=local`. The flake
+also builds the package (`nix build`) and provides the NixOS module; `nix flake check`
 evaluates the module and runs the headless suite (`just headless`) in the
 build sandbox, with the same environment the dev shell sets
 (`nix/test-env.nix`). `checks.vm` boots the NixOS module in a VM with a

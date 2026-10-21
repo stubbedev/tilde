@@ -21,17 +21,12 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: cachix/cachix-action@3ba601ff5bbb07c7220846facfa2cd81eeee15a1 # v16
-        with:
-          name: devenv
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/go/pkg/mod
           key: go-mod-${{ hashFiles('go.sum') }}
-      - name: Install devenv
-        run: nix profile add github:cachix/devenv/v2.4.0
       - name: Gates (formatting, vet, lint, test, build, govulncheck)
-        run: devenv test
+        run: nix develop -c just gates
       - name: Nix package and NixOS module
         run: nix build -L . .#checks.x86_64-linux.module
 
