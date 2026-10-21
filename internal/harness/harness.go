@@ -367,7 +367,7 @@ func (c *Client) kill() {
 		c.exited <- err
 	default:
 		_ = c.cmd.Process.Kill()
-		<-c.exited
+		c.exited <- <-c.exited
 	}
 }
 
