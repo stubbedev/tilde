@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"slices"
 
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	sxf1 "github.com/stubbedev/tilde/internal/protocol/server/xdgforeignv1"
-	sxf2 "github.com/stubbedev/tilde/internal/protocol/server/xdgforeignv2"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/surface"
-	"github.com/stubbedev/tilde/internal/wire"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	sxf1 "github.com/stubbedev/lys-wm/internal/protocol/server/xdgforeignv1"
+	sxf2 "github.com/stubbedev/lys-wm/internal/protocol/server/xdgforeignv2"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/surface"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 const foreignVersion = 1

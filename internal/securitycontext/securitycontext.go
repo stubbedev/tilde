@@ -9,9 +9,9 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	swsc "github.com/stubbedev/tilde/internal/protocol/server/securitycontext"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/wire"
+	swsc "github.com/stubbedev/lys-wm/internal/protocol/server/securitycontext"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 const version = 1

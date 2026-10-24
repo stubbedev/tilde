@@ -5,11 +5,11 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	chgs "github.com/stubbedev/tilde/internal/protocol/client/hyprlandglobalshortcuts"
-	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	chgs "github.com/stubbedev/lys-wm/internal/protocol/client/hyprlandglobalshortcuts"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 type shortcutLog struct{ events testclient.Log }

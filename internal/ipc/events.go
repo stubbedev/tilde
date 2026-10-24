@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 type Event interface {

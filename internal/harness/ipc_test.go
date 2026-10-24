@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	"github.com/stubbedev/tilde/internal/ipc"
-	chgs "github.com/stubbedev/tilde/internal/protocol/client/hyprlandglobalshortcuts"
-	"github.com/stubbedev/tilde/internal/testclient"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	"github.com/stubbedev/lys-wm/internal/ipc"
+	chgs "github.com/stubbedev/lys-wm/internal/protocol/client/hyprlandglobalshortcuts"
+	"github.com/stubbedev/lys-wm/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 func query[T any](h *Harness, kind ipc.Kind) T {

@@ -3,8 +3,8 @@ package harness
 import (
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/binds"
-	cksi "github.com/stubbedev/tilde/internal/protocol/client/keyboardshortcutsinhibit"
+	"github.com/stubbedev/lys-wm/internal/binds"
+	cksi "github.com/stubbedev/lys-wm/internal/protocol/client/keyboardshortcutsinhibit"
 )
 
 func (l *constraintLog) Active(*cksi.ZwpKeyboardShortcutsInhibitorV1) error {

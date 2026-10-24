@@ -9,14 +9,14 @@ import (
 	"iter"
 	"slices"
 
-	sfs "github.com/stubbedev/tilde/internal/protocol/server/fractionalscale"
-	spt "github.com/stubbedev/tilde/internal/protocol/server/presentationtime"
-	svp "github.com/stubbedev/tilde/internal/protocol/server/viewporter"
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	"github.com/stubbedev/tilde/internal/region"
-	"github.com/stubbedev/tilde/internal/render"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/wire"
+	sfs "github.com/stubbedev/lys-wm/internal/protocol/server/fractionalscale"
+	spt "github.com/stubbedev/lys-wm/internal/protocol/server/presentationtime"
+	svp "github.com/stubbedev/lys-wm/internal/protocol/server/viewporter"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	"github.com/stubbedev/lys-wm/internal/region"
+	"github.com/stubbedev/lys-wm/internal/render"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 const (

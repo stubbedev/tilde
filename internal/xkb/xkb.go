@@ -19,7 +19,7 @@ import (
 var defaultLibrary = "libxkbcommon.so.0"
 
 const (
-	LibraryEnv  = "TILDE_LIBXKBCOMMON"
+	LibraryEnv  = "LYS_WM_LIBXKBCOMMON"
 	libc        = "libc.so.6"
 	evdevOffset = 8
 
@@ -202,7 +202,7 @@ func (l *Library) goString(p unsafe.Pointer) string {
 }
 
 func sealedMemfd(content string) (int, error) {
-	fd, err := unix.MemfdCreate("tilde-keymap", unix.MFD_CLOEXEC|unix.MFD_ALLOW_SEALING)
+	fd, err := unix.MemfdCreate("lys-wm-keymap", unix.MFD_CLOEXEC|unix.MFD_ALLOW_SEALING)
 	if err != nil {
 		return -1, fmt.Errorf("xkb: memfd_create: %w", err)
 	}

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"image"
 
-	"github.com/stubbedev/tilde/internal/loop"
-	"github.com/stubbedev/tilde/internal/render"
-	"github.com/stubbedev/tilde/internal/shm"
+	"github.com/stubbedev/lys-wm/internal/loop"
+	"github.com/stubbedev/lys-wm/internal/render"
+	"github.com/stubbedev/lys-wm/internal/shm"
 )
 
 func (c *Compositor) offLoop(work func() error, then func(error) error) {

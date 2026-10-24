@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	cei "github.com/stubbedev/tilde/internal/protocol/client/extidlenotify"
-	cii "github.com/stubbedev/tilde/internal/protocol/client/idleinhibit"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	"github.com/stubbedev/tilde/internal/testclient"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	cei "github.com/stubbedev/lys-wm/internal/protocol/client/extidlenotify"
+	cii "github.com/stubbedev/lys-wm/internal/protocol/client/idleinhibit"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	"github.com/stubbedev/lys-wm/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 type idleLog struct{ log testclient.Log }

@@ -12,13 +12,13 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	kdrm "github.com/stubbedev/tilde/internal/drm"
-	"github.com/stubbedev/tilde/internal/fourcc"
-	"github.com/stubbedev/tilde/internal/gpu"
-	"github.com/stubbedev/tilde/internal/loop"
-	"github.com/stubbedev/tilde/internal/render"
-	"github.com/stubbedev/tilde/internal/render/soft"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	kdrm "github.com/stubbedev/lys-wm/internal/drm"
+	"github.com/stubbedev/lys-wm/internal/fourcc"
+	"github.com/stubbedev/lys-wm/internal/gpu"
+	"github.com/stubbedev/lys-wm/internal/loop"
+	"github.com/stubbedev/lys-wm/internal/render"
+	"github.com/stubbedev/lys-wm/internal/render/soft"
 )
 
 const (

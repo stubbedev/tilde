@@ -8,8 +8,8 @@ import (
 	"os/exec"
 	"syscall"
 
-	"github.com/stubbedev/tilde/internal/binds"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/binds"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 func (c *Compositor) Dispatch(a wm.Action) error {
@@ -73,7 +73,7 @@ func (c *Compositor) spawn(command string) error {
 	if err != nil {
 		return fmt.Errorf("exec %q: %w", command, err)
 	}
-	cmd := exec.CommandContext(context.Background(), sh, "-c", command) //nolint:gosec // binds and tildectl dispatch run the user's own commands
+	cmd := exec.CommandContext(context.Background(), sh, "-c", command) //nolint:gosec // binds and lys-wmctl dispatch run the user's own commands
 	cmd.Env = append(os.Environ(), "WAYLAND_DISPLAY="+c.display.Path())
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {

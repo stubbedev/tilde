@@ -9,12 +9,12 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	cxdg "github.com/stubbedev/tilde/internal/protocol/client/xdgshell"
-	"github.com/stubbedev/tilde/internal/shell"
-	"github.com/stubbedev/tilde/internal/testclient"
-	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	cxdg "github.com/stubbedev/lys-wm/internal/protocol/client/xdgshell"
+	"github.com/stubbedev/lys-wm/internal/shell"
+	"github.com/stubbedev/lys-wm/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 func unresponsive(id int, want bool) func(*headless.Backend, *compositor.Compositor) bool {

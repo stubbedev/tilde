@@ -7,8 +7,8 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/gpu"
-	"github.com/stubbedev/tilde/internal/render/gles"
+	"github.com/stubbedev/lys-wm/internal/gpu"
+	"github.com/stubbedev/lys-wm/internal/render/gles"
 )
 
 func TestAStackOnARenderNodeDraws(t *testing.T) {

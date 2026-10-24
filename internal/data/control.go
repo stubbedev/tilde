@@ -4,11 +4,11 @@ import (
 	"errors"
 	"slices"
 
-	sedc "github.com/stubbedev/tilde/internal/protocol/server/extdatacontrol"
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	swdc "github.com/stubbedev/tilde/internal/protocol/server/wlrdatacontrol"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/wire"
+	sedc "github.com/stubbedev/lys-wm/internal/protocol/server/extdatacontrol"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	swdc "github.com/stubbedev/lys-wm/internal/protocol/server/wlrdatacontrol"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 const (

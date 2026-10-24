@@ -12,12 +12,12 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/loop"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	"github.com/stubbedev/tilde/internal/testenv"
-	"github.com/stubbedev/tilde/internal/wire"
-	"github.com/stubbedev/tilde/internal/wlclient"
+	"github.com/stubbedev/lys-wm/internal/loop"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	"github.com/stubbedev/lys-wm/internal/testenv"
+	"github.com/stubbedev/lys-wm/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/wlclient"
 )
 
 type harness struct {

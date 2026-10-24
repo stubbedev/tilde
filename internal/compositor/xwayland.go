@@ -5,12 +5,12 @@ import (
 	"image"
 	"slices"
 
-	"github.com/stubbedev/tilde/internal/output"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/shell"
-	"github.com/stubbedev/tilde/internal/surface"
-	"github.com/stubbedev/tilde/internal/wm"
-	"github.com/stubbedev/tilde/internal/xwayland"
+	"github.com/stubbedev/lys-wm/internal/output"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/shell"
+	"github.com/stubbedev/lys-wm/internal/surface"
+	"github.com/stubbedev/lys-wm/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/xwayland"
 )
 
 type xToplevel struct {

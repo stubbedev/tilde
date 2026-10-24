@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"slices"
 
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	sxa "github.com/stubbedev/tilde/internal/protocol/server/xdgactivation"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/wire"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	sxa "github.com/stubbedev/lys-wm/internal/protocol/server/xdgactivation"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 const (

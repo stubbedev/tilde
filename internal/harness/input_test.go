@@ -8,12 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	"github.com/stubbedev/tilde/internal/output"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	"github.com/stubbedev/lys-wm/internal/output"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 type inputRig struct {

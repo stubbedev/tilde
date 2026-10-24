@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	"github.com/stubbedev/tilde/internal/output"
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	"github.com/stubbedev/lys-wm/internal/output"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 func (c *Compositor) Owner(res *sw.WlOutput) *output.Output {

@@ -3,7 +3,7 @@
 package securitycontext
 
 import (
-	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 var WpSecurityContextManagerV1Interface = &wire.Interface{

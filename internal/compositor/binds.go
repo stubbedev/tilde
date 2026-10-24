@@ -5,9 +5,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/stubbedev/tilde/internal/binds"
-	"github.com/stubbedev/tilde/internal/loop"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/binds"
+	"github.com/stubbedev/lys-wm/internal/loop"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 type repeat struct {

@@ -1,9 +1,9 @@
 # Config
 
-tilde reads one YAML file: `$XDG_CONFIG_HOME/tilde/config.yaml`, or
-`~/.config/tilde/config.yaml` when `XDG_CONFIG_HOME` is unset. `tilde --config
+lys-wm reads one YAML file: `$XDG_CONFIG_HOME/lys-wm/config.yaml`, or
+`~/.config/lys-wm/config.yaml` when `XDG_CONFIG_HOME` is unset. `lys-wm --config
 <file>` reads another file instead, and that file must exist. With no file at
-the default path, tilde runs the built-in config,
+the default path, lys-wm runs the built-in config,
 [`internal/config/default.yaml`](../internal/config/default.yaml), which is a
 good starting point to copy.
 
@@ -35,9 +35,9 @@ A mode the output does not have is reported, and the output keeps its current
 mode.
 
 Display tools such as wlr-randr, kanshi, wdisplays and nwg-displays change
-outputs while tilde runs, through wlr-output-management. Their changes take the
+outputs while lys-wm runs, through wlr-output-management. Their changes take the
 place of these rules for the outputs they name until the config is reloaded,
-which applies the rules again. tilde refuses a configuration that rotates an
+which applies the rules again. lys-wm refuses a configuration that rotates an
 output, turns on adaptive sync, uses a mode the output does not list, or turns
 every output off.
 
@@ -118,7 +118,7 @@ palette:
 | `padding` | 5, between the tab strip and the windows |
 | `text_height` | 8 |
 | `text_padding` | 3 |
-| `font` | A TrueType file. Default: `TILDE_FONT`, then the DejaVu Sans the package was built with |
+| `font` | A TrueType file. Default: `LYS_WM_FONT`, then the DejaVu Sans the package was built with |
 | `active`, `inactive`, `urgent` | `background` and `text` colours, both required. Defaults `mauve`/`crust`, `surface0`/`text` and `red`/`crust` |
 
 ## autotile
@@ -193,12 +193,12 @@ autostart:
   - waybar
 ```
 
-tilde sets `env` in its own environment at startup, before it starts
-anything, so every program it runs inherits it. `XDG_CURRENT_DESKTOP=tilde`
+lys-wm sets `env` in its own environment at startup, before it starts
+anything, so every program it runs inherits it. `XDG_CURRENT_DESKTOP=lys-wm`
 and `XDG_SESSION_TYPE=wayland` are set unless `env` overrides them.
-`WAYLAND_DISPLAY`, `DISPLAY` and `TILDE_SOCKET` belong to tilde and cannot be
+`WAYLAND_DISPLAY`, `DISPLAY` and `LYS_WM_SOCKET` belong to lys-wm and cannot be
 set here. `XCURSOR_THEME`, `XCURSOR_SIZE` and `XCURSOR_PATH` set here choose the
-pointer for tilde as well as for its clients. Each `autostart` command runs once with `sh -c`, after the display
+pointer for lys-wm as well as for its clients. Each `autostart` command runs once with `sh -c`, after the display
 and the IPC socket are up. A reload changes neither.
 
 ## xwayland
@@ -209,7 +209,7 @@ xwayland:
   zero_scaling: true
 ```
 
-X11 programs run through Xwayland. tilde takes a free X display (`:0` and
+X11 programs run through Xwayland. lys-wm takes a free X display (`:0` and
 up, skipping displays whose lock in `/tmp` belongs to a live process),
 listens on its sockets, and exports `DISPLAY`; Xwayland itself starts only
 when the first X client connects, so a session without X programs never
@@ -220,7 +220,7 @@ With `zero_scaling: true` (the default), X programs see every output at its
 physical resolution with scale 1 and draw at full sharpness; on an output
 scaled to 1.5 they look smaller unless they scale themselves (`GDK_SCALE`,
 `QT_SCALE_FACTOR`, Steam's and JetBrains' own settings). With `false`,
-Xwayland sees the logical layout and tilde stretches X windows, which keeps
+Xwayland sees the logical layout and lys-wm stretches X windows, which keeps
 their size but blurs them on scaled outputs. Both settings are read at
 startup; a reload does not change them.
 
@@ -247,37 +247,37 @@ usual.
 gpu: card1
 ```
 
-The DRM card that renders, as `card1` or `/dev/dri/card1`. Without it tilde
+The DRM card that renders, as `card1` or `/dev/dri/card1`. Without it lys-wm
 picks the boot VGA device if it has a render node, else the first card with
 a render node. Every other card shows its outputs through a copy from this
 one. Read at startup only.
 
 ## Locking
 
-tilde speaks `ext-session-lock-v1`, so lockers such as swaylock, hyprlock or
-wayle's lock screen work. While the session is locked, nothing but the lock
+lys-wm speaks `ext-session-lock-v1`, so lockers such as swaylock, hyprlock or
+lys-shell's lock screen work. While the session is locked, nothing but the lock
 surfaces renders or receives input, and only binds flagged `locked` run.
-tilde tells the locker it is locked only after every output has drawn a
+lys-wm tells the locker it is locked only after every output has drawn a
 blank frame. If the locker dies, the session stays locked on a dark red
 screen until a new locker takes over; outputs added while locked show the
-lock colour until the locker covers them. tilde does not set logind's
-`LockedHint`: the locker does, as wayle does today.
+lock colour until the locker covers them. lys-wm does not set logind's
+`LockedHint`: the locker does, as lys-shell does today.
 
 ## Session
 
-`tilde --systemd` hands `env`, `WAYLAND_DISPLAY`, `DISPLAY` and `TILDE_SOCKET`
+`lys-wm --systemd` hands `env`, `WAYLAND_DISPLAY`, `DISPLAY` and `LYS_WM_SOCKET`
 to D-Bus activation and the systemd user manager. It then starts
-`tilde-session.target`, which binds `graphical-session.target`, so user
-services that want a graphical session start with tilde. On exit tilde stops
+`lys-wm-session.target`, which binds `graphical-session.target`, so user
+services that want a graphical session start with lys-wm. On exit lys-wm stops
 the target and removes those variables from the user manager again. D-Bus
 cannot unset a variable, so the activation environment keeps them.
 
-A display manager session should run `tilde --systemd`. Leave the flag off
-when running tilde nested in another session, which owns
+A display manager session should run `lys-wm --systemd`. Leave the flag off
+when running lys-wm nested in another session, which owns
 `graphical-session.target`.
 
-Portals follow `XDG_CURRENT_DESKTOP=tilde`: the package installs
-`tilde-portals.conf`, which routes every portal to wayle's backend and falls
+Portals follow `XDG_CURRENT_DESKTOP=lys-wm`: the package installs
+`lys-wm-portals.conf`, which routes every portal to lys-shell's backend and falls
 back to xdg-desktop-portal-wlr for screen sharing and screenshots and to
 xdg-desktop-portal-gtk for the rest. Portal backends are started by D-Bus
-activation, so they reach the session only when tilde runs with `--systemd`.
+activation, so they reach the session only when lys-wm runs with `--systemd`.

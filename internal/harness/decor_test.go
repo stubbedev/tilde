@@ -4,10 +4,10 @@ import (
 	"image"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	"github.com/stubbedev/tilde/internal/compositor"
-	"github.com/stubbedev/tilde/internal/golden"
-	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	"github.com/stubbedev/lys-wm/internal/golden"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 func TestBordersAndTabBars(t *testing.T) {

@@ -1,4 +1,4 @@
-# The built-in config, used when ~/.config/tilde/config.yaml does not exist.
+# The built-in config, used when ~/.config/lys-wm/config.yaml does not exist.
 # Copy it there to change it; docs/config.md describes every key.
 
 env:

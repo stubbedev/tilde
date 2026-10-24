@@ -11,11 +11,11 @@ import (
 	"github.com/ebitengine/purego"
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	"github.com/stubbedev/tilde/internal/loop"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	"github.com/stubbedev/lys-wm/internal/loop"
 )
 
-const LibinputEnv = "TILDE_LIBINPUT"
+const LibinputEnv = "LYS_WM_LIBINPUT"
 
 var defaultLibinput = "libinput.so.10"
 

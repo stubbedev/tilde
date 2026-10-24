@@ -9,9 +9,9 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/loop"
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/loop"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 type Client struct {
@@ -126,7 +126,7 @@ func (c *Client) Add(r wire.Resource) error {
 		return fmt.Errorf("server: new %s with id 0: %w", r.Base().Interface().Name, wire.ErrInvalidNewID)
 	case id.ServerSide():
 		if _, ok := c.reserved[id]; !ok {
-			return fmt.Errorf("server: new %s with server id %d that tilde did not hand out: %w", r.Base().Interface().Name, id, wire.ErrInvalidNewID)
+			return fmt.Errorf("server: new %s with server id %d that lys-wm did not hand out: %w", r.Base().Interface().Name, id, wire.ErrInvalidNewID)
 		}
 		delete(c.reserved, id)
 	}

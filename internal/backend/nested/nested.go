@@ -1,5 +1,5 @@
-// Package nested runs tilde as a client of a host Wayland compositor: each
-// output is a host window and the host seat is tilde's input.
+// Package nested runs lys-wm as a client of a host Wayland compositor: each
+// output is a host window and the host seat is lys-wm's input.
 package nested
 
 import (
@@ -8,16 +8,16 @@ import (
 	"image"
 	"slices"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	"github.com/stubbedev/tilde/internal/edid"
-	"github.com/stubbedev/tilde/internal/gpu"
-	"github.com/stubbedev/tilde/internal/loop"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	xdg "github.com/stubbedev/tilde/internal/protocol/client/xdgshell"
-	"github.com/stubbedev/tilde/internal/render"
-	"github.com/stubbedev/tilde/internal/render/soft"
-	"github.com/stubbedev/tilde/internal/wire"
-	"github.com/stubbedev/tilde/internal/wlclient"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	"github.com/stubbedev/lys-wm/internal/edid"
+	"github.com/stubbedev/lys-wm/internal/gpu"
+	"github.com/stubbedev/lys-wm/internal/loop"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	xdg "github.com/stubbedev/lys-wm/internal/protocol/client/xdgshell"
+	"github.com/stubbedev/lys-wm/internal/render"
+	"github.com/stubbedev/lys-wm/internal/render/soft"
+	"github.com/stubbedev/lys-wm/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/wlclient"
 )
 
 var ErrClosed = errors.New("nested: the last host window was closed")
@@ -263,7 +263,7 @@ func (b *Backend) AddOutput() (*Output, error) {
 	if o.toplevel, err = o.xdgSurface.GetToplevel(toplevelEvents{o}); err != nil {
 		return nil, err
 	}
-	if err := errors.Join(o.toplevel.SetTitle("tilde "+o.name), o.toplevel.SetAppID("tilde"), o.surface.Commit()); err != nil {
+	if err := errors.Join(o.toplevel.SetTitle("lys-wm "+o.name), o.toplevel.SetAppID("lys-wm"), o.surface.Commit()); err != nil {
 		return nil, err
 	}
 	b.outputs = append(b.outputs, o)

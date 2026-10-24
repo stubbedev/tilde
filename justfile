@@ -1,4 +1,4 @@
-# tilde dev tasks.
+# lys-wm dev tasks.
 
 # List all recipes with their descriptions.
 default:
@@ -10,44 +10,44 @@ default:
 gates: fmt-check tidy-check check vuln headless race
 
 # The packages whose tests need dev-shell programs: the compositor-in-the-loop
-# harness, which boots tilde on the headless backend and drives real clients
+# harness, which boots lys-wm on the headless backend and drives real clients
 # against it, the session bus and GPU tests, and the end-to-end session in
-# cmd/tilde.
-headless_packages := "./internal/harness/... ./internal/backend/nested/... ./internal/systemd/... ./internal/session/... ./internal/drm/... ./internal/syncobj/... ./internal/gpu/... ./internal/render/gles/... ./internal/xwayland/... ./cmd/tilde/..."
+# cmd/lys-wm.
+headless_packages := "./internal/harness/... ./internal/backend/nested/... ./internal/systemd/... ./internal/session/... ./internal/drm/... ./internal/syncobj/... ./internal/gpu/... ./internal/render/gles/... ./internal/xwayland/... ./cmd/lys-wm/..."
 
-# Run the tests that need dev-shell programs. TILDE_HEADLESS=1 turns a missing
+# Run the tests that need dev-shell programs. LYS_WM_HEADLESS=1 turns a missing
 # program into a failure instead of a skip.
 headless:
-    TILDE_HEADLESS=1 go test -count=1 {{headless_packages}}
+    LYS_WM_HEADLESS=1 go test -count=1 {{headless_packages}}
 
 # The tests that need a real GPU, and the GLES harness tests, which the dev
 # shell otherwise runs on Mesa's llvmpipe.
 hardware_tests := "OnHardware|WithoutMaster|TestAStackOnARenderNode|TestDMABUFClientsOnTheGLESRenderer|TestImageCopyCaptureIntoDMABUFs|TestFullscreenDMABUFsScanOutDirectly|TestDestroyingAReplacedBufferStillOnScreenSendsNoRelease|TestAFullscreenSurfaceIsOfferedThePlaneFormats"
 
 # Run the GPU tests on the host's own EGL vendors instead of the dev shell's
-# Mesa, then check frame pacing: headless GLES tilde in a private runtime dir,
+# Mesa, then check frame pacing: headless GLES lys-wm in a private runtime dir,
 # with Xwayland off, runs es2gears_wayland and fails below min_fps.
 hardware min_fps="57":
     #!/usr/bin/env bash
     set -euo pipefail
     unset __EGL_VENDOR_LIBRARY_DIRS LIBGL_ALWAYS_SOFTWARE
-    TILDE_HEADLESS=1 go test -count=1 -v -run '{{hardware_tests}}' ./internal/render/gles/ ./internal/backend/drm/ ./internal/harness/ | grep -E '^(--- |ok|FAIL)|_test.go'
+    LYS_WM_HEADLESS=1 go test -count=1 -v -run '{{hardware_tests}}' ./internal/render/gles/ ./internal/backend/drm/ ./internal/harness/ | grep -E '^(--- |ok|FAIL)|_test.go'
     dir=$(mktemp -d)
     trap 'rm -rf "$dir"' EXIT
     mkdir -m 0700 "$dir/run"
-    go build -o "$dir/tilde" ./cmd/tilde
+    go build -o "$dir/lys-wm" ./cmd/lys-wm
     printf 'xwayland:\n  enabled: false\n' > "$dir/config.yaml"
-    XDG_RUNTIME_DIR="$dir/run" WAYLAND_DISPLAY= "$dir/tilde" -backend headless -renderer gles -config "$dir/config.yaml" 2> "$dir/tilde.log" &
-    tilde=$!
-    trap 'kill "$tilde" 2>/dev/null || true; wait "$tilde" 2>/dev/null || true; rm -rf "$dir"' EXIT
+    XDG_RUNTIME_DIR="$dir/run" WAYLAND_DISPLAY= "$dir/lys-wm" -backend headless -renderer gles -config "$dir/config.yaml" 2> "$dir/lys-wm.log" &
+    lys-wm=$!
+    trap 'kill "$lys-wm" 2>/dev/null || true; wait "$lys-wm" 2>/dev/null || true; rm -rf "$dir"' EXIT
     for _ in $(seq 50); do
         socket=$(find "$dir/run" -maxdepth 1 -name 'wayland-*' ! -name '*.lock' -printf '%f\n' | head -1)
         [[ -n "$socket" ]] && break
         sleep 0.1
     done
     if [[ -z "$socket" ]]; then
-        echo "hardware: tilde did not start" >&2
-        cat "$dir/tilde.log" >&2
+        echo "hardware: lys-wm did not start" >&2
+        cat "$dir/lys-wm.log" >&2
         exit 1
     fi
     XDG_RUNTIME_DIR="$dir/run" WAYLAND_DISPLAY="$socket" timeout 12 stdbuf -oL es2gears_wayland > "$dir/gears.log" 2>&1 || true
@@ -57,21 +57,21 @@ hardware min_fps="57":
         echo "hardware: es2gears_wayland reported no frame rate" >&2
         exit 1
     fi
-    echo "pacing: $fps fps on headless GLES tilde at 60 Hz"
+    echo "pacing: $fps fps on headless GLES lys-wm at 60 Hz"
     awk -v fps="$fps" -v min="{{min_fps}}" 'BEGIN { exit !(fps >= min) }' || { echo "hardware: $fps fps is below {{min_fps}}" >&2; exit 1; }
 
 # Fuzz the compositor with raw clients that bind every global and send
 # requests with valid headers and arbitrary arguments. The gates run only the
 # seed corpus; this explores for as long as asked.
 fuzz duration="5m":
-    TILDE_HEADLESS=1 go test -run='^$' -fuzz=FuzzRequests -fuzztime={{duration}} ./internal/harness/
+    LYS_WM_HEADLESS=1 go test -run='^$' -fuzz=FuzzRequests -fuzztime={{duration}} ./internal/harness/
 
 # Run every test, headless ones included, and the patched xgb fork's under
-# the race detector, which needs cgo; the binaries tilde ships keep
+# the race detector, which needs cgo; the binaries lys-wm ships keep
 # CGO_ENABLED=0.
 race:
     CGO_ENABLED=1 go test -race -count=1 ./...
-    CGO_ENABLED=1 TILDE_HEADLESS=1 go test -race -count=1 {{headless_packages}}
+    CGO_ENABLED=1 LYS_WM_HEADLESS=1 go test -race -count=1 {{headless_packages}}
     cd third_party/xgb && CGO_ENABLED=1 go test -race -count=1 ./...
 
 # Run every release gate in order: vet, lint, test, build.
@@ -120,7 +120,7 @@ tidy-check:
 vuln:
     govulncheck ./...
 
-# Move an issue to In Progress on the tilde project board.
+# Move an issue to In Progress on the lys-wm project board.
 start issue:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -130,10 +130,10 @@ start issue:
         exit 1
     fi
     item=$(gh api graphql -F number="$issue" \
-        -f query='query($number: Int!) { repository(owner: "stubbedev", name: "tilde") { issue(number: $number) { projectItems(first: 20) { nodes { id project { number } } } } } }' \
+        -f query='query($number: Int!) { repository(owner: "stubbedev", name: "lys-wm") { issue(number: $number) { projectItems(first: 20) { nodes { id project { number } } } } } }' \
         --jq '.data.repository.issue.projectItems.nodes[] | select(.project.number == 3) | .id')
     if [[ -z "$item" ]]; then
-        echo "start: issue #$issue is not on the tilde board; add it with: gh project item-add 3 --owner stubbedev --url https://github.com/stubbedev/tilde/issues/$issue" >&2
+        echo "start: issue #$issue is not on the lys-wm board; add it with: gh project item-add 3 --owner stubbedev --url https://github.com/stubbedev/lys-wm/issues/$issue" >&2
         exit 1
     fi
     gh project item-edit --project-id PVT_kwHOBU6Wkc4Bm521 --id "$item" \

@@ -41,7 +41,7 @@
   others = {
     waybar = "${pkgs.waybar}/bin/waybar --config ${waybarConfig}";
     mako = "${pkgs.mako}/bin/mako";
-    notify = "${pkgs.libnotify}/bin/notify-send tilde hello";
+    notify = "${pkgs.libnotify}/bin/notify-send lys-wm hello";
     fuzzel = "${pkgs.fuzzel}/bin/fuzzel";
     rofi = "${pkgs.rofi}/bin/rofi -show drun";
     swaylock = "${pkgs.swaylock}/bin/swaylock -c 336699";
@@ -50,7 +50,7 @@
 in
   import ./vm.nix {
     inherit pkgs module;
-    name = "tilde-apps";
+    name = "lys-wm-apps";
     devices = ["virtio-gpu-pci"];
     outputs = ["Virtual-1"];
     machineConfig = {

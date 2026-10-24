@@ -13,10 +13,10 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/fourcc"
-	"github.com/stubbedev/tilde/internal/gpu"
-	"github.com/stubbedev/tilde/internal/region"
-	"github.com/stubbedev/tilde/internal/render"
+	"github.com/stubbedev/lys-wm/internal/fourcc"
+	"github.com/stubbedev/lys-wm/internal/gpu"
+	"github.com/stubbedev/lys-wm/internal/region"
+	"github.com/stubbedev/lys-wm/internal/render"
 )
 
 const vertexShader = `attribute vec2 pos;

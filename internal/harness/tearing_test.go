@@ -5,16 +5,16 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	ctc "github.com/stubbedev/tilde/internal/protocol/client/tearingcontrol"
-	"github.com/stubbedev/tilde/internal/testclient"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	ctc "github.com/stubbedev/lys-wm/internal/protocol/client/tearingcontrol"
+	"github.com/stubbedev/lys-wm/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 func TestTearingFollowsTheSwitchTheHintAndTheRules(t *testing.T) {
 	testclientRule := func(tearing wm.RuleTearing) []wm.Rule {
-		return []wm.Rule{{AppID: regexp.MustCompile(`^tilde\.testclient$`), Tearing: tearing}}
+		return []wm.Rule{{AppID: regexp.MustCompile(`^lys-wm\.testclient$`), Tearing: tearing}}
 	}
 	cases := []struct {
 		name    string

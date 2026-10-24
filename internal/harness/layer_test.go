@@ -5,10 +5,10 @@ import (
 	"image"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	cwlr "github.com/stubbedev/tilde/internal/protocol/client/wlrlayershell"
-	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	cwlr "github.com/stubbedev/lys-wm/internal/protocol/client/wlrlayershell"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 var (

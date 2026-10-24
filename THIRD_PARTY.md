@@ -18,7 +18,7 @@ derive from them.
 
 ## Patched dependencies
 
-`third_party/xgb` is a copy of the packages tilde uses from
+`third_party/xgb` is a copy of the packages lys-wm uses from
 [jezek/xgb](https://github.com/jezek/xgb) v1.3.1 (the root package,
 `xproto`, `xfixes`, `composite`, `render` and `shape`), which `go.mod`
 replaces the module with. Upstream extension `Init` functions write the
@@ -33,7 +33,7 @@ which writes them under a lock that the reader takes too, and routes every
 Code ported from Hyprland, aquamarine, hyprwayland-scanner or libwayland is
 listed here with its original copyright notice and licence.
 
-| tilde | Ported from | Licence |
+| lys-wm | Ported from | Licence |
 | --- | --- | --- |
 | `internal/shell/positioner.go` (`Positioner.Place`: flip when it shows more of the popup, slide, resize) | Hyprland [`CXDGPositionerRules::getPosition`](https://github.com/hyprwm/Hyprland/blob/1bd31aaa579a40680ce876e1547e371b60c45522/src/protocols/XDGShell.cpp) | BSD-3-Clause, below |
 | `internal/compositor/arrange.go` (`arrangeLayers`: layer-shell placement and exclusive zones) | Hyprland [`IHyprRenderer::arrangeLayerArray` and `applyExclusive`](https://github.com/hyprwm/Hyprland/blob/1bd31aaa579a40680ce876e1547e371b60c45522/src/render/Renderer.cpp) | BSD-3-Clause, below |

@@ -19,7 +19,7 @@ const (
 	descriptorCount = 4
 	tagSerial       = 0xff
 	tagName         = 0xfc
-	PNPEnv          = "TILDE_PNP_IDS"
+	PNPEnv          = "LYS_WM_PNP_IDS"
 )
 
 var defaultPNP = "/usr/share/hwdata/pnp.ids"

@@ -1,5 +1,5 @@
 {
-  description = "tilde - a pure-Go tiling Wayland compositor";
+  description = "lys-wm - a pure-Go tiling Wayland compositor";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -7,8 +7,8 @@
       url = "github:hercules-ci/flake-parts";
       inputs.nixpkgs-lib.follows = "nixpkgs";
     };
-    gelm = {
-      url = "github:stubbedev/gelm";
+    lys-ui = {
+      url = "github:stubbedev/lys-ui";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };

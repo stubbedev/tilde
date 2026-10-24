@@ -4,7 +4,7 @@ import (
 	"image"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 func TestWindowsTileSideBySide(t *testing.T) {

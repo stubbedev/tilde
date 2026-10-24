@@ -5,7 +5,7 @@ import (
 	"image"
 	"math"
 
-	"github.com/stubbedev/tilde/internal/render"
+	"github.com/stubbedev/lys-wm/internal/render"
 )
 
 var (

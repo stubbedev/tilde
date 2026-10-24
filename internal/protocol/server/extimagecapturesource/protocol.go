@@ -3,9 +3,9 @@
 package extimagecapturesource
 
 import (
-	"github.com/stubbedev/tilde/internal/protocol/server/extforeigntoplevellist"
-	"github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/protocol/server/extforeigntoplevellist"
+	"github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 var ExtImageCaptureSourceV1Interface = &wire.Interface{

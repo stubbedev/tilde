@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/render"
-	"github.com/stubbedev/tilde/internal/render/soft"
+	"github.com/stubbedev/lys-wm/internal/render"
+	"github.com/stubbedev/lys-wm/internal/render/soft"
 )
 
 var transforms = []render.Transform{

@@ -4,11 +4,11 @@ import (
 	"errors"
 	"image"
 
-	"github.com/stubbedev/tilde/internal/output"
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	"github.com/stubbedev/tilde/internal/render"
-	"github.com/stubbedev/tilde/internal/shell"
-	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/lys-wm/internal/output"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	"github.com/stubbedev/lys-wm/internal/render"
+	"github.com/stubbedev/lys-wm/internal/shell"
+	"github.com/stubbedev/lys-wm/internal/surface"
 )
 
 var (

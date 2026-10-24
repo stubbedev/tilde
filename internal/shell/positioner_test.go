@@ -4,7 +4,7 @@ import (
 	"image"
 	"testing"
 
-	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
+	sxdg "github.com/stubbedev/lys-wm/internal/protocol/server/xdgshell"
 )
 
 func TestPlacement(t *testing.T) {

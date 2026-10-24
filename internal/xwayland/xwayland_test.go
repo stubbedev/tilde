@@ -14,15 +14,15 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/data"
-	"github.com/stubbedev/tilde/internal/loop"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	cxs "github.com/stubbedev/tilde/internal/protocol/client/xwaylandshell"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/surface"
-	"github.com/stubbedev/tilde/internal/testenv"
-	"github.com/stubbedev/tilde/internal/wire"
-	"github.com/stubbedev/tilde/internal/wlclient"
+	"github.com/stubbedev/lys-wm/internal/data"
+	"github.com/stubbedev/lys-wm/internal/loop"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	cxs "github.com/stubbedev/lys-wm/internal/protocol/client/xwaylandshell"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/surface"
+	"github.com/stubbedev/lys-wm/internal/testenv"
+	"github.com/stubbedev/lys-wm/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/wlclient"
 )
 
 func deadPid(t *testing.T) int {

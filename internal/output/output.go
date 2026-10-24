@@ -9,11 +9,11 @@ import (
 	"math"
 	"slices"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	sxo "github.com/stubbedev/tilde/internal/protocol/server/xdgoutput"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	sxo "github.com/stubbedev/lys-wm/internal/protocol/server/xdgoutput"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 const (

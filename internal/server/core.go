@@ -1,8 +1,8 @@
 package server
 
 import (
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	"github.com/stubbedev/tilde/internal/wire"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 type displayRequests struct{ c *Client }

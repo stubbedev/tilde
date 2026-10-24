@@ -4,9 +4,9 @@ import (
 	"image"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	"github.com/stubbedev/tilde/internal/region"
-	"github.com/stubbedev/tilde/internal/render"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	"github.com/stubbedev/lys-wm/internal/region"
+	"github.com/stubbedev/lys-wm/internal/render"
 )
 
 func (sc *scene) frameWith(ops ...drawOp) {

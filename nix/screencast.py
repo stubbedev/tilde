@@ -25,7 +25,7 @@ def main(source, cursor_mode, frames, frame_path):
         loop.quit()
 
     def request(name, handler, *args):
-        token = f"tilde{next(tokens)}"
+        token = f"lyswm{next(tokens)}"
         path = f"/org/freedesktop/portal/desktop/request/{sender}/{token}"
 
         def respond(code, results):
@@ -58,7 +58,7 @@ def main(source, cursor_mode, frames, frame_path):
         )
         request("SelectSources", selected, outcome["session"], options)
 
-    request("CreateSession", created, dbus.Dictionary({"session_handle_token": "tilde"}, signature="sv"))
+    request("CreateSession", created, dbus.Dictionary({"session_handle_token": "lyswm"}, signature="sv"))
     GLib.timeout_add_seconds(60, lambda: fail("the portal never answered"))
     loop.run()
     if "error" in outcome:

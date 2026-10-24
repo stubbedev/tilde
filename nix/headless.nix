@@ -1,12 +1,12 @@
 {
   pkgs,
-  tilde,
-  gelm,
+  lys-wm,
+  lys-ui,
 }:
-tilde.overrideAttrs (old: {
-  pname = "tilde-headless";
+lys-wm.overrideAttrs (old: {
+  pname = "lys-wm-headless";
   doCheck = true;
-  nativeCheckInputs = import ./test-programs.nix {inherit pkgs gelm;};
+  nativeCheckInputs = import ./test-programs.nix {inherit pkgs lys-ui;};
   env = old.env // import ./test-env.nix pkgs;
   checkPhase = ''
     runHook preCheck

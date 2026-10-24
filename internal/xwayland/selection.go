@@ -15,8 +15,8 @@ import (
 	"github.com/jezek/xgb/xproto"
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/data"
-	"github.com/stubbedev/tilde/internal/server"
+	"github.com/stubbedev/lys-wm/internal/data"
+	"github.com/stubbedev/lys-wm/internal/server"
 )
 
 const (

@@ -5,14 +5,14 @@ import (
 	"image"
 	"slices"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	"github.com/stubbedev/tilde/internal/dmabuf"
-	"github.com/stubbedev/tilde/internal/fourcc"
-	"github.com/stubbedev/tilde/internal/gpu"
-	"github.com/stubbedev/tilde/internal/output"
-	"github.com/stubbedev/tilde/internal/render"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	"github.com/stubbedev/lys-wm/internal/dmabuf"
+	"github.com/stubbedev/lys-wm/internal/fourcc"
+	"github.com/stubbedev/lys-wm/internal/gpu"
+	"github.com/stubbedev/lys-wm/internal/output"
+	"github.com/stubbedev/lys-wm/internal/render"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/surface"
 )
 
 type scannedOut struct {

@@ -4,8 +4,8 @@ import (
 	"image"
 	"slices"
 
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	"github.com/stubbedev/tilde/internal/server"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	"github.com/stubbedev/lys-wm/internal/server"
 )
 
 const subsurfaceRole = "wl_subsurface"

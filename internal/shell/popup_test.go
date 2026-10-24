@@ -5,9 +5,9 @@ import (
 	"slices"
 	"testing"
 
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	cxdg "github.com/stubbedev/tilde/internal/protocol/client/xdgshell"
-	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	cxdg "github.com/stubbedev/lys-wm/internal/protocol/client/xdgshell"
+	sxdg "github.com/stubbedev/lys-wm/internal/protocol/server/xdgshell"
 )
 
 type popupEvents struct {

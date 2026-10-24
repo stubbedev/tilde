@@ -8,8 +8,8 @@ import (
 	"math"
 	"slices"
 
-	"github.com/stubbedev/tilde/internal/region"
-	"github.com/stubbedev/tilde/internal/render"
+	"github.com/stubbedev/lys-wm/internal/region"
+	"github.com/stubbedev/lys-wm/internal/render"
 )
 
 type Buffer struct {

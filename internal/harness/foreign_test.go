@@ -7,12 +7,12 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	cel "github.com/stubbedev/tilde/internal/protocol/client/extforeigntoplevellist"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	cwft "github.com/stubbedev/tilde/internal/protocol/client/wlrforeigntoplevel"
-	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	cel "github.com/stubbedev/lys-wm/internal/protocol/client/extforeigntoplevellist"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	cwft "github.com/stubbedev/lys-wm/internal/protocol/client/wlrforeigntoplevel"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 type extToplevel struct {
@@ -151,7 +151,7 @@ func TestForeignToplevelsListAndManageWindows(t *testing.T) {
 	watcher.Bind(mgr)
 	watcher.DispatchUntil("the first window listed", func() bool { return len(ext.order) == 1 && len(wlr.order) == 1 })
 	first := ext.toplevels[ext.order[0]]
-	if *first != (extToplevel{id: "tilde-1", title: "first", appID: "tilde.testclient", done: true}) {
+	if *first != (extToplevel{id: "lys-wm-1", title: "first", appID: "lys-wm.testclient", done: true}) {
 		t.Fatalf("ext toplevel %+v", *first)
 	}
 	if w := wlr.toplevels[wlr.order[0]]; w.title != "first" || w.outputs != 1 || !w.activated() {
@@ -192,7 +192,7 @@ func TestForeignToplevelsListAndManageWindows(t *testing.T) {
 	watcher.DispatchUntil("the second window closed in both lists", func() bool {
 		return ext.toplevels[ext.order[1]].closed && wlr.toplevels[wlr.order[1]].closed
 	})
-	if got := ext.toplevels[ext.order[1]].id; got != fmt.Sprintf("tilde-%d", 2) {
+	if got := ext.toplevels[ext.order[1]].id; got != fmt.Sprintf("lys-wm-%d", 2) {
 		t.Fatalf("second identifier %q", got)
 	}
 }

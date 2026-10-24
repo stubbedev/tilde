@@ -3,8 +3,8 @@ package testclient
 import (
 	"fmt"
 
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	"github.com/stubbedev/tilde/internal/wire"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 type Input struct {

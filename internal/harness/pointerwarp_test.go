@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	cpw "github.com/stubbedev/tilde/internal/protocol/client/pointerwarp"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	"github.com/stubbedev/tilde/internal/testclient"
-	"github.com/stubbedev/tilde/internal/wire"
+	cpw "github.com/stubbedev/lys-wm/internal/protocol/client/pointerwarp"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	"github.com/stubbedev/lys-wm/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 func pointerWarp(t *testing.T, c *testclient.Client) *cpw.WpPointerWarpV1 {

@@ -8,9 +8,9 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	cps "github.com/stubbedev/tilde/internal/protocol/client/primaryselection"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	"github.com/stubbedev/tilde/internal/wire"
+	cps "github.com/stubbedev/lys-wm/internal/protocol/client/primaryselection"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 type Offer struct {

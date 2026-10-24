@@ -3,8 +3,8 @@
 package extdatacontrol
 
 import (
-	"github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 var ExtDataControlManagerV1Interface = &wire.Interface{

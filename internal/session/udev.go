@@ -15,7 +15,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/loop"
+	"github.com/stubbedev/lys-wm/internal/loop"
 )
 
 const (

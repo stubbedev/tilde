@@ -1,4 +1,4 @@
-# tilde
+# lys-wm
 
 A tiling Wayland compositor in pure Go (`CGO_ENABLED=0`), built to replace a
 Hyprland + hy3 setup with something smaller.
@@ -36,29 +36,29 @@ On NixOS, add the flake as an input and enable the module:
 
 ```nix
 {
-  inputs.tilde.url = "github:stubbedev/tilde";
-  outputs = {nixpkgs, tilde, ...}: {
+  inputs.lys-wm.url = "github:stubbedev/lys-wm";
+  outputs = {nixpkgs, lys-wm, ...}: {
     nixosConfigurations.host = nixpkgs.lib.nixosSystem {
       modules = [
-        tilde.nixosModules.default
-        {programs.tilde.enable = true;}
+        lys-wm.nixosModules.default
+        {programs.lys-wm.enable = true;}
       ];
     };
   };
 }
 ```
 
-`programs.tilde.enable` installs tilde, offers it as a `tilde` session to
-display managers such as greetd (`tilde --systemd`), enables the portals that
-`tilde-portals.conf` routes to, polkit and the rest of a Wayland session. GPU
+`programs.lys-wm.enable` installs lys-wm, offers it as a `lys-wm` session to
+display managers such as greetd (`lys-wm --systemd`), enables the portals that
+`lys-wm-portals.conf` routes to, polkit and the rest of a Wayland session. GPU
 drivers come from `/run/opengl-driver`, as for every NixOS compositor.
 
 ## Config
 
-One YAML file, `~/.config/tilde/config.yaml`; see
+One YAML file, `~/.config/lys-wm/config.yaml`; see
 [`docs/config.md`](docs/config.md) for every key and
 [`docs/actions.md`](docs/actions.md) for the actions binds can run.
-`tildectl` queries and controls a running tilde; see [`docs/ipc.md`](docs/ipc.md).
+`lys-wmctl` queries and controls a running lys-wm; see [`docs/ipc.md`](docs/ipc.md).
 
 ## Roadmap
 
@@ -70,11 +70,11 @@ criteria in its description.
 | M0 Foundation | Wire codec, scanner, event loop, server core, headless and nested backends, test harness |
 | M1 Core protocols | Ordinary clients run nested on shm buffers |
 | M2 Tiling core | hy3-equivalent tiling, workspaces, floating, rules, binds |
-| M3 Config and IPC | One validated config file; `tildectl` and an event stream |
+| M3 Config and IPC | One validated config file; `lys-wmctl` and an event stream |
 | M4 GPU rendering | GLES via purego, dmabuf, explicit sync, damage tracking |
 | M5 Native session | KMS, libinput, logind, hotplug, lid, suspend/resume |
 | M6 XWayland | Steam and JetBrains IDEs work |
-| M7 Desktop parity | wayle, rofi, cliphist, hypridle, screen sharing |
+| M7 Desktop parity | lys-shell, rofi, cliphist, hypridle, screen sharing |
 | M8 Daily driver | Packaged for NixOS; Hyprland removed |
 | M9 Multi-GPU | Outputs on any GPU, proven in a VM rig |
 
@@ -91,5 +91,5 @@ also builds the package (`nix build`) and provides the NixOS module; `nix flake 
 evaluates the module and runs the headless suite (`just headless`) in the
 build sandbox, with the same environment the dev shell sets
 (`nix/test-env.nix`). `checks.vm` boots the NixOS module in a VM with a
-virtio-gpu card, where greetd starts `tilde --systemd` on the native DRM
+virtio-gpu card, where greetd starts `lys-wm --systemd` on the native DRM
 backend; it needs KVM and runs as its own CI job.

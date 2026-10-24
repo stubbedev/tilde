@@ -23,7 +23,7 @@
     "flake-parts_2": {
       "inputs": {
         "nixpkgs-lib": [
-          "gelm",
+          "lys-ui",
           "nixpkgs"
         ]
       },
@@ -41,7 +41,7 @@
         "type": "github"
       }
     },
-    "gelm": {
+    "lys-ui": {
       "inputs": {
         "flake-parts": "flake-parts_2",
         "nixpkgs": [
@@ -49,16 +49,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1792599928,
-        "narHash": "sha256-ixp/lcnQFuOdlv0eyJ6Iwwrdh8sRxcyNgD/puhlQO7s=",
+        "lastModified": 1792845290,
+        "narHash": "sha256-rfk6arWiB1Hb4sByXBcX7OdYKaoqESagqCUIZOtgMAI=",
         "owner": "stubbedev",
-        "repo": "gelm",
-        "rev": "35df80e580018e3aa0c0a6abe0e0ab3fb8e898b6",
+        "repo": "lys-ui",
+        "rev": "4dd40d388f12969284503860a297e2edd50ee26e",
         "type": "github"
       },
       "original": {
         "owner": "stubbedev",
-        "repo": "gelm",
+        "repo": "lys-ui",
         "type": "github"
       }
     },
@@ -81,7 +81,7 @@
     "root": {
       "inputs": {
         "flake-parts": "flake-parts",
-        "gelm": "gelm",
+        "lys-ui": "lys-ui",
         "nixpkgs": "nixpkgs"
       }
     }

@@ -8,12 +8,12 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	cvk "github.com/stubbedev/tilde/internal/protocol/client/virtualkeyboard"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	cvp "github.com/stubbedev/tilde/internal/protocol/client/wlrvirtualpointer"
-	"github.com/stubbedev/tilde/internal/testclient"
-	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	cvk "github.com/stubbedev/lys-wm/internal/protocol/client/virtualkeyboard"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	cvp "github.com/stubbedev/lys-wm/internal/protocol/client/wlrvirtualpointer"
+	"github.com/stubbedev/lys-wm/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 const typedKeymap = "xkb_keymap { xkb_keycodes \"typed\" {}; };\x00"

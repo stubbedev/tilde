@@ -7,12 +7,12 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	cwlr "github.com/stubbedev/tilde/internal/protocol/client/wlrlayershell"
-	cxdg "github.com/stubbedev/tilde/internal/protocol/client/xdgshell"
-	"github.com/stubbedev/tilde/internal/testclient"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	cwlr "github.com/stubbedev/lys-wm/internal/protocol/client/wlrlayershell"
+	cxdg "github.com/stubbedev/lys-wm/internal/protocol/client/xdgshell"
+	"github.com/stubbedev/lys-wm/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 var (
@@ -122,7 +122,7 @@ func TestMouseDragsMoveAndResize(t *testing.T) {
 }
 
 func TestWindowRulesFloatAndSize(t *testing.T) {
-	steam := regexp.MustCompile(`^tilde\.testclient$`)
+	steam := regexp.MustCompile(`^lys-wm\.testclient$`)
 	h := StartWith(t, func(cfg *compositor.Config) {
 		cfg.Rules = []wm.Rule{
 			{AppID: steam, Mode: wm.RuleFloat},
@@ -222,7 +222,7 @@ func TestAWindowAcrossOutputsPrefersTheHighestScale(t *testing.T) {
 
 func TestAFloatingWindowIsNeverSmallerThanItAsks(t *testing.T) {
 	h := StartWith(t, func(cfg *compositor.Config) {
-		cfg.Rules = []wm.Rule{{AppID: regexp.MustCompile(`^tilde\.testclient$`), Mode: wm.RuleFloat, Size: image.Pt(40, 30)}}
+		cfg.Rules = []wm.Rule{{AppID: regexp.MustCompile(`^lys-wm\.testclient$`), Mode: wm.RuleFloat, Size: image.Pt(40, 30)}}
 	}, desktop)
 	c := testclient.Connect(t, h.Socket())
 	w := c.WindowWith("roomy", testclient.Fill(0, 0, 0xff), func(w *testclient.Window) error { return w.Toplevel.SetMinSize(400, 300) })

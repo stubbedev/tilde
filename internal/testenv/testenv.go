@@ -13,14 +13,14 @@ import (
 	"strings"
 	"testing"
 
-	gtext "github.com/stubbedev/gelm/render"
+	gtext "github.com/stubbedev/lys-ui/render"
 
-	"github.com/stubbedev/tilde/internal/gpu"
-	"github.com/stubbedev/tilde/internal/xcursor"
-	"github.com/stubbedev/tilde/internal/xkb"
+	"github.com/stubbedev/lys-wm/internal/gpu"
+	"github.com/stubbedev/lys-wm/internal/xcursor"
+	"github.com/stubbedev/lys-wm/internal/xkb"
 )
 
-const strictEnv = "TILDE_HEADLESS"
+const strictEnv = "LYS_WM_HEADLESS"
 
 func missing(t testing.TB, format string, args ...any) {
 	t.Helper()
@@ -75,9 +75,9 @@ func Keymap(t testing.TB) *xkb.Keymap {
 
 func CursorTheme(t testing.TB) *xcursor.Theme {
 	t.Helper()
-	path := os.Getenv("TILDE_TEST_XCURSOR_PATH")
+	path := os.Getenv("LYS_WM_TEST_XCURSOR_PATH")
 	if path == "" {
-		missing(t, "TILDE_TEST_XCURSOR_PATH is not set")
+		missing(t, "LYS_WM_TEST_XCURSOR_PATH is not set")
 	}
 	theme, err := xcursor.Open("Vanilla-DMZ", []string{path})
 	if err != nil {
@@ -88,9 +88,9 @@ func CursorTheme(t testing.TB) *xcursor.Theme {
 
 func Font(t testing.TB) *gtext.Typeface {
 	t.Helper()
-	path := os.Getenv("TILDE_FONT")
+	path := os.Getenv("LYS_WM_FONT")
 	if path == "" {
-		missing(t, "TILDE_FONT is not set")
+		missing(t, "LYS_WM_FONT is not set")
 	}
 	data, err := os.ReadFile(path) //nolint:gosec // the test font path comes from the dev shell
 	if err != nil {
@@ -119,7 +119,7 @@ const busConfig = `<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Con
 
 func SocketDir(t testing.TB) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "tilde-")
+	dir, err := os.MkdirTemp("", "lys-wm-")
 	if err != nil {
 		t.Fatalf("testenv: socket dir: %v", err)
 	}

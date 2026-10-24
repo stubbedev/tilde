@@ -3,9 +3,9 @@
 package inputmethod
 
 import (
-	"github.com/stubbedev/tilde/internal/protocol/client/textinput"
-	"github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/protocol/client/textinput"
+	"github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 var ZwpInputMethodV2Interface = &wire.Interface{

@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	cxd "github.com/stubbedev/tilde/internal/protocol/client/xdgdecoration"
-	sxd "github.com/stubbedev/tilde/internal/protocol/server/xdgdecoration"
+	cxd "github.com/stubbedev/lys-wm/internal/protocol/client/xdgdecoration"
+	sxd "github.com/stubbedev/lys-wm/internal/protocol/server/xdgdecoration"
 )
 
 type decorationEvents struct {

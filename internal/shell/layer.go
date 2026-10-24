@@ -6,12 +6,12 @@ import (
 	"image"
 	"math/bits"
 
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	swlr "github.com/stubbedev/tilde/internal/protocol/server/wlrlayershell"
-	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/surface"
-	"github.com/stubbedev/tilde/internal/wire"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	swlr "github.com/stubbedev/lys-wm/internal/protocol/server/wlrlayershell"
+	sxdg "github.com/stubbedev/lys-wm/internal/protocol/server/xdgshell"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/surface"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 const (

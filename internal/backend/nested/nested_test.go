@@ -16,13 +16,13 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	"github.com/stubbedev/tilde/internal/compositor"
-	"github.com/stubbedev/tilde/internal/loop"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/testenv"
-	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	"github.com/stubbedev/lys-wm/internal/loop"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/testenv"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 var _ backend.Backend = (*Backend)(nil)
@@ -115,7 +115,7 @@ func (s *sway) eventuallyShows(t *testing.T, x, y int) {
 	deadline := time.Now().Add(10 * time.Second)
 	for got := s.pixel(t, x, y); got != want; got = s.pixel(t, x, y) {
 		if time.Now().After(deadline) {
-			t.Fatalf("host pixel (%d, %d) is %v, want tilde's background %v", x, y, got, want)
+			t.Fatalf("host pixel (%d, %d) is %v, want lys-wm's background %v", x, y, got, want)
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
@@ -183,14 +183,14 @@ func TestNestedInSway(t *testing.T) {
 	}
 	host.eventuallyShows(t, 790, 590)
 
-	host.run(t, "swaymsg", `[app_id="tilde"]`, "kill")
+	host.run(t, "swaymsg", `[app_id="lys-wm"]`, "kill")
 	select {
 	case err := <-done:
 		if !errors.Is(err, ErrClosed) {
 			t.Fatalf("Run = %v, want ErrClosed after the host closed the window", err)
 		}
 	case <-time.After(10 * time.Second):
-		t.Fatal("tilde kept running after its last host window closed")
+		t.Fatal("lys-wm kept running after its last host window closed")
 	}
 }
 

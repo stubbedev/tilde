@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"image"
 
-	"github.com/stubbedev/tilde/internal/binds"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/binds"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 type interaction struct {

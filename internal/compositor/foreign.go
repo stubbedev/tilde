@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/stubbedev/tilde/internal/output"
-	sel "github.com/stubbedev/tilde/internal/protocol/server/extforeigntoplevellist"
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	swft "github.com/stubbedev/tilde/internal/protocol/server/wlrforeigntoplevel"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/wire"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/output"
+	sel "github.com/stubbedev/lys-wm/internal/protocol/server/extforeigntoplevellist"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	swft "github.com/stubbedev/lys-wm/internal/protocol/server/wlrforeigntoplevel"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 const (
@@ -121,7 +121,7 @@ func (c *Compositor) syncExtList(l *extList) error {
 			}
 			h = &extHandle{resource: res}
 			l.handles[w] = h
-			errs = append(errs, res.SendIdentifier(fmt.Sprintf("tilde-%d", w.id)))
+			errs = append(errs, res.SendIdentifier(fmt.Sprintf("lys-wm-%d", w.id)))
 		} else if h.sent.title == now.title && h.sent.appID == now.appID {
 			continue
 		}

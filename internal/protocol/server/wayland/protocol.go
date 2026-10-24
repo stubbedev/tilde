@@ -3,7 +3,7 @@
 package wayland
 
 import (
-	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 var WlDisplayInterface = &wire.Interface{

@@ -16,11 +16,11 @@ import (
 	"github.com/jezek/xgb"
 	"github.com/jezek/xgb/xproto"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	"github.com/stubbedev/tilde/internal/ipc"
-	"github.com/stubbedev/tilde/internal/shell"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	"github.com/stubbedev/lys-wm/internal/ipc"
+	"github.com/stubbedev/lys-wm/internal/shell"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 func xConnect(t *testing.T, h *Harness) {
@@ -488,7 +488,7 @@ func TestAnXModalDialogKeepsTheFocus(t *testing.T) {
 	h.Eventually("the modal dialog still focused after a click on its parent", dialogFocused)
 }
 
-func TestXModalDialogsTransientForEachOtherDoNotHangTilde(t *testing.T) {
+func TestXModalDialogsTransientForEachOtherDoNotHangLysWM(t *testing.T) {
 	h := StartXwayland(t, func(err error) { t.Errorf("xwayland reported: %v", err) }, small)
 	xc := xDial(t, h)
 	modal := map[string][]byte{"WM_CLASS": []byte("first\x00XTest\x00"), "_NET_WM_STATE": xc.atom("_NET_WM_STATE_MODAL")}

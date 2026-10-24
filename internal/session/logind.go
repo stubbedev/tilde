@@ -1,4 +1,4 @@
-// Package session gives tilde its seat: devices through logind, VT
+// Package session gives lys-wm its seat: devices through logind, VT
 // switching, and device discovery.
 package session
 
@@ -12,7 +12,7 @@ import (
 	"github.com/godbus/dbus/v5"
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/loop"
+	"github.com/stubbedev/lys-wm/internal/loop"
 )
 
 const (

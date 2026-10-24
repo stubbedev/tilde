@@ -6,14 +6,14 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/stubbedev/tilde/internal/dmabuf"
-	"github.com/stubbedev/tilde/internal/gpu"
-	"github.com/stubbedev/tilde/internal/output"
-	"github.com/stubbedev/tilde/internal/render"
-	"github.com/stubbedev/tilde/internal/shm"
-	"github.com/stubbedev/tilde/internal/singlepixel"
-	"github.com/stubbedev/tilde/internal/surface"
-	"github.com/stubbedev/tilde/internal/syncobj"
+	"github.com/stubbedev/lys-wm/internal/dmabuf"
+	"github.com/stubbedev/lys-wm/internal/gpu"
+	"github.com/stubbedev/lys-wm/internal/output"
+	"github.com/stubbedev/lys-wm/internal/render"
+	"github.com/stubbedev/lys-wm/internal/shm"
+	"github.com/stubbedev/lys-wm/internal/singlepixel"
+	"github.com/stubbedev/lys-wm/internal/surface"
+	"github.com/stubbedev/lys-wm/internal/syncobj"
 )
 
 type texture interface {

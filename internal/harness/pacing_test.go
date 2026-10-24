@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	cct "github.com/stubbedev/tilde/internal/protocol/client/committiming"
-	cff "github.com/stubbedev/tilde/internal/protocol/client/fifo"
-	cpt "github.com/stubbedev/tilde/internal/protocol/client/presentationtime"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	cct "github.com/stubbedev/lys-wm/internal/protocol/client/committiming"
+	cff "github.com/stubbedev/lys-wm/internal/protocol/client/fifo"
+	cpt "github.com/stubbedev/lys-wm/internal/protocol/client/presentationtime"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 type paced struct {

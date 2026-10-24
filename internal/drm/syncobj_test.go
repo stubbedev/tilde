@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/drm"
+	"github.com/stubbedev/lys-wm/internal/drm"
 )
 
 func device(t *testing.T) *drm.Device {

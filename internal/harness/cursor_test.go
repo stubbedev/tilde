@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	"github.com/stubbedev/tilde/internal/golden"
-	ccs "github.com/stubbedev/tilde/internal/protocol/client/cursorshape"
-	"github.com/stubbedev/tilde/internal/seat"
-	"github.com/stubbedev/tilde/internal/testclient"
-	"github.com/stubbedev/tilde/internal/testenv"
-	"github.com/stubbedev/tilde/internal/xcursor"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	"github.com/stubbedev/lys-wm/internal/golden"
+	ccs "github.com/stubbedev/lys-wm/internal/protocol/client/cursorshape"
+	"github.com/stubbedev/lys-wm/internal/seat"
+	"github.com/stubbedev/lys-wm/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/testenv"
+	"github.com/stubbedev/lys-wm/internal/xcursor"
 )
 
 func arrowAt(tip image.Point) func(*headless.Backend, *compositor.Compositor) bool {

@@ -7,7 +7,7 @@ import (
 	"image"
 	"math"
 
-	"github.com/stubbedev/tilde/internal/region"
+	"github.com/stubbedev/lys-wm/internal/region"
 )
 
 type Transform uint8

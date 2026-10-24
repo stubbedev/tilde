@@ -1,4 +1,4 @@
-// Command tilde is a pure-Go tiling Wayland compositor.
+// Command lys-wm is a pure-Go tiling Wayland compositor.
 package main
 
 import (
@@ -16,29 +16,29 @@ import (
 	"syscall"
 	"time"
 
-	gtext "github.com/stubbedev/gelm/render"
+	gtext "github.com/stubbedev/lys-ui/render"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/backend/nested"
-	"github.com/stubbedev/tilde/internal/compositor"
-	"github.com/stubbedev/tilde/internal/config"
-	"github.com/stubbedev/tilde/internal/gpu"
-	"github.com/stubbedev/tilde/internal/ipc"
-	"github.com/stubbedev/tilde/internal/loop"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/session"
-	"github.com/stubbedev/tilde/internal/systemd"
-	"github.com/stubbedev/tilde/internal/wlclient"
-	"github.com/stubbedev/tilde/internal/wm"
-	"github.com/stubbedev/tilde/internal/xcursor"
-	"github.com/stubbedev/tilde/internal/xkb"
-	"github.com/stubbedev/tilde/internal/xwayland"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/backend/nested"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	"github.com/stubbedev/lys-wm/internal/config"
+	"github.com/stubbedev/lys-wm/internal/gpu"
+	"github.com/stubbedev/lys-wm/internal/ipc"
+	"github.com/stubbedev/lys-wm/internal/loop"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/session"
+	"github.com/stubbedev/lys-wm/internal/systemd"
+	"github.com/stubbedev/lys-wm/internal/wlclient"
+	"github.com/stubbedev/lys-wm/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/xcursor"
+	"github.com/stubbedev/lys-wm/internal/xkb"
+	"github.com/stubbedev/lys-wm/internal/xwayland"
 )
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, "tilde:", err)
+		fmt.Fprintln(os.Stderr, "lys-wm:", err)
 		os.Exit(1)
 	}
 }
@@ -55,7 +55,7 @@ func parseDebug(s string) (debug, error) {
 		case "wire":
 			d.wire = true
 		default:
-			return debug{}, fmt.Errorf("TILDE_DEBUG: unknown category %q (known: wire)", category)
+			return debug{}, fmt.Errorf("LYS_WM_DEBUG: unknown category %q (known: wire)", category)
 		}
 	}
 	return d, nil
@@ -183,7 +183,7 @@ func fontPath(configured string, getenv func(string) string) string {
 	if configured != "" {
 		return configured
 	}
-	if env := getenv("TILDE_FONT"); env != "" {
+	if env := getenv("LYS_WM_FONT"); env != "" {
 		return env
 	}
 	return defaultFont
@@ -192,7 +192,7 @@ func fontPath(configured string, getenv func(string) string) string {
 func loadFont(path string) (*gtext.Typeface, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // the font path comes from the build, the config or the environment
 	if err != nil {
-		return nil, fmt.Errorf("read the tab font (set tabs.font in the config, or TILDE_FONT): %w", err)
+		return nil, fmt.Errorf("read the tab font (set tabs.font in the config, or LYS_WM_FONT): %w", err)
 	}
 	f, err := gtext.LoadFont(data)
 	if err != nil {
@@ -210,7 +210,7 @@ func configPath(getenv func(string) string) (string, error) {
 		}
 		dir = filepath.Join(home, ".config")
 	}
-	return filepath.Join(dir, "tilde", "config.yaml"), nil
+	return filepath.Join(dir, "lys-wm", "config.yaml"), nil
 }
 
 type source struct {
@@ -226,7 +226,7 @@ func (s source) read() (string, []byte, error) {
 	case err == nil:
 		return s.path, data, nil
 	case errors.Is(err, fs.ErrNotExist) && !s.explicit:
-		fmt.Fprintf(os.Stderr, "tilde: no config at %s; using the built-in one\n", s.path)
+		fmt.Fprintf(os.Stderr, "lys-wm: no config at %s; using the built-in one\n", s.path)
 		return "built-in config", config.Default, nil
 	}
 	return "", nil, fmt.Errorf("read the config: %w", err)
@@ -328,7 +328,7 @@ func cursorConfig(getenv func(string) string) (compositor.CursorConfig, error) {
 	}
 	theme, err := xcursor.Open(name, xcursor.SearchPath(getenv))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "tilde: %v; drawing the built-in arrow\n", err)
+		fmt.Fprintf(os.Stderr, "lys-wm: %v; drawing the built-in arrow\n", err)
 		return cfg, nil
 	}
 	cfg.Theme = theme
@@ -336,9 +336,9 @@ func cursorConfig(getenv func(string) string) (compositor.CursorConfig, error) {
 }
 
 func run(args []string) (err error) {
-	flags := flag.NewFlagSet("tilde", flag.ContinueOnError)
-	path := flags.String("config", "", "config file (default: $XDG_CONFIG_HOME/tilde/config.yaml)")
-	withSystemd := flags.Bool("systemd", false, "export the session environment to D-Bus activation and the systemd user manager, and run "+systemd.Target+" while tilde runs")
+	flags := flag.NewFlagSet("lys-wm", flag.ContinueOnError)
+	path := flags.String("config", "", "config file (default: $XDG_CONFIG_HOME/lys-wm/config.yaml)")
+	withSystemd := flags.Bool("systemd", false, "export the session environment to D-Bus activation and the systemd user manager, and run "+systemd.Target+" while lys-wm runs")
 	rendererName := flags.String("renderer", "", "gles or soft (default: gles for the nested backend, soft for headless)")
 	requested := flags.String("backend", "", "output and input backend: drm, nested or headless (default: nested when WAYLAND_DISPLAY is set, else drm)")
 	if err := flags.Parse(args); err != nil {
@@ -352,7 +352,7 @@ func run(args []string) (err error) {
 	if err != nil {
 		return err
 	}
-	dbg, err := parseDebug(os.Getenv("TILDE_DEBUG"))
+	dbg, err := parseDebug(os.Getenv("LYS_WM_DEBUG"))
 	if err != nil {
 		return err
 	}
@@ -404,7 +404,7 @@ func run(args []string) (err error) {
 			return nil
 		}
 		if err := s.reload(); err != nil {
-			fmt.Fprintln(os.Stderr, "tilde: reload:", err)
+			fmt.Fprintln(os.Stderr, "lys-wm: reload:", err)
 		}
 		return nil
 	}, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP); err != nil {
@@ -473,7 +473,7 @@ func run(args []string) (err error) {
 	if first.xwayland {
 		listening += " and X display " + os.Getenv("DISPLAY")
 	}
-	fmt.Fprintf(os.Stderr, "tilde: listening on %s with the %s backend\n", listening, kind)
+	fmt.Fprintf(os.Stderr, "lys-wm: listening on %s with the %s backend\n", listening, kind)
 	if err := l.Run(); !errors.Is(err, nested.ErrClosed) {
 		return err
 	}

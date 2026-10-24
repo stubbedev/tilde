@@ -19,9 +19,9 @@ import (
 	"github.com/jezek/xgb/xproto"
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	"github.com/stubbedev/tilde/internal/data"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	"github.com/stubbedev/lys-wm/internal/data"
 )
 
 const xchunk = 16 << 10

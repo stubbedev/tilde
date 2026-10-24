@@ -8,9 +8,9 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	"github.com/stubbedev/tilde/internal/render"
-	"github.com/stubbedev/tilde/internal/render/soft"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	"github.com/stubbedev/lys-wm/internal/render"
+	"github.com/stubbedev/lys-wm/internal/render/soft"
 )
 
 const shmBuffers = 2
@@ -38,7 +38,7 @@ func (c *shmChain) allocate(o *Output, size image.Point) ([]*buffer, func() erro
 	if size.X > math.MaxInt16 || size.Y > math.MaxInt16 || shmBuffers*frame > math.MaxInt32 {
 		return nil, nil, fmt.Errorf("nested: host window %v is too large for shm buffers", size)
 	}
-	fd, err := unix.MemfdCreate("tilde-nested", unix.MFD_CLOEXEC)
+	fd, err := unix.MemfdCreate("lys-wm-nested", unix.MFD_CLOEXEC)
 	if err != nil {
 		return nil, nil, fmt.Errorf("nested: memfd_create: %w", err)
 	}

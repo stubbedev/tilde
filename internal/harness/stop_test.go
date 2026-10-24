@@ -4,11 +4,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	cel "github.com/stubbedev/tilde/internal/protocol/client/extforeigntoplevellist"
-	cwft "github.com/stubbedev/tilde/internal/protocol/client/wlrforeigntoplevel"
-	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	cel "github.com/stubbedev/lys-wm/internal/protocol/client/extforeigntoplevellist"
+	cwft "github.com/stubbedev/lys-wm/internal/protocol/client/wlrforeigntoplevel"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 func TestStoppedManagersFinishOnceAndFallSilent(t *testing.T) {

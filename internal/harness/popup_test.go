@@ -5,10 +5,10 @@ import (
 	"image"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	cxdg "github.com/stubbedev/tilde/internal/protocol/client/xdgshell"
-	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	cxdg "github.com/stubbedev/lys-wm/internal/protocol/client/xdgshell"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 var gray = [3]byte{0x80, 0x80, 0x80}

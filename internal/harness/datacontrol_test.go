@@ -9,9 +9,9 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	cedc "github.com/stubbedev/tilde/internal/protocol/client/extdatacontrol"
-	cwdc "github.com/stubbedev/tilde/internal/protocol/client/wlrdatacontrol"
-	"github.com/stubbedev/tilde/internal/testclient"
+	cedc "github.com/stubbedev/lys-wm/internal/protocol/client/extdatacontrol"
+	cwdc "github.com/stubbedev/lys-wm/internal/protocol/client/wlrdatacontrol"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 type controlOffer struct{ mimes []string }

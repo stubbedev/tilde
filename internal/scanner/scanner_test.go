@@ -11,12 +11,12 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	scs "github.com/stubbedev/tilde/internal/protocol/server/cursorshape"
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	swlr "github.com/stubbedev/tilde/internal/protocol/server/wlrlayershell"
-	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
-	"github.com/stubbedev/tilde/internal/wire"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	scs "github.com/stubbedev/lys-wm/internal/protocol/server/cursorshape"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	swlr "github.com/stubbedev/lys-wm/internal/protocol/server/wlrlayershell"
+	sxdg "github.com/stubbedev/lys-wm/internal/protocol/server/xdgshell"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 func TestGeneratedTreeIsCurrent(t *testing.T) {

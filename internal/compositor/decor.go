@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"image"
 
-	gtext "github.com/stubbedev/gelm/render"
+	gtext "github.com/stubbedev/lys-ui/render"
 
-	"github.com/stubbedev/tilde/internal/output"
-	"github.com/stubbedev/tilde/internal/render"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/output"
+	"github.com/stubbedev/lys-wm/internal/render"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 type TabColors struct {
@@ -65,7 +65,7 @@ type label struct {
 	used bool
 }
 
-func gelmColor(c render.Color) gtext.Color {
+func lysUIColor(c render.Color) gtext.Color {
 	return gtext.RGBA(c.R, c.G, c.B, c.A)
 }
 
@@ -82,11 +82,11 @@ func (c *Compositor) label(o *output.Output, key labelKey) (render.Texture, erro
 	stride := key.size.X * 4
 	pix := make([]byte, stride*key.size.Y)
 	cv := gtext.New(pix, stride, key.size.X, key.size.Y)
-	cv.Clear(gtext.Rect{W: key.size.X, H: key.size.Y}, gelmColor(key.colors.Background))
+	cv.Clear(gtext.Rect{W: key.size.X, H: key.size.Y}, lysUIColor(key.colors.Background))
 	pad := o.Scale().ToDevice(c.decor.Tab.TextPadding)
 	box := gtext.Rect{X: pad, W: key.size.X - 2*pad, H: key.size.Y}
 	text := c.font.Ellipsize(key.text, float64(box.W), float64(key.px))
-	c.font.DrawAligned(cv, text, box, float64(key.px), gelmColor(key.colors.Text), gtext.AlignStart)
+	c.font.DrawAligned(cv, text, box, float64(key.px), lysUIColor(key.colors.Text), gtext.AlignStart)
 	tex, err := c.renderer.NewTexture(render.ARGB8888, key.size, stride, pix)
 	if err != nil {
 		return nil, fmt.Errorf("compositor: tab label %q: %w", key.text, err)

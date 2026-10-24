@@ -5,10 +5,10 @@ import (
 	"slices"
 	"testing"
 
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	cwlr "github.com/stubbedev/tilde/internal/protocol/client/wlrlayershell"
-	swlr "github.com/stubbedev/tilde/internal/protocol/server/wlrlayershell"
-	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	cwlr "github.com/stubbedev/lys-wm/internal/protocol/client/wlrlayershell"
+	swlr "github.com/stubbedev/lys-wm/internal/protocol/server/wlrlayershell"
+	sxdg "github.com/stubbedev/lys-wm/internal/protocol/server/xdgshell"
 )
 
 type layerEvents struct {

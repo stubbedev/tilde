@@ -4,11 +4,11 @@ import (
 	"errors"
 	"time"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	"github.com/stubbedev/tilde/internal/data"
-	"github.com/stubbedev/tilde/internal/output"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	"github.com/stubbedev/lys-wm/internal/data"
+	"github.com/stubbedev/lys-wm/internal/output"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/surface"
 )
 
 func (c *Compositor) KeyboardFocusChanged(s *surface.Surface) error {

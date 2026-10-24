@@ -1,5 +1,5 @@
 // Package systemd hands the session's environment to D-Bus activation and
-// the systemd user manager, and runs tilde-session.target while tilde runs.
+// the systemd user manager, and runs lys-wm-session.target while lys-wm runs.
 package systemd
 
 import (
@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	Target      = "tilde-session.target"
+	Target      = "lys-wm-session.target"
 	callTimeout = 5 * time.Second
 	manager     = "org.freedesktop.systemd1.Manager"
 )

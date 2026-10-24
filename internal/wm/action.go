@@ -385,7 +385,7 @@ var Actions = []ActionSpec{
 	},
 	{
 		Name:    "exit",
-		Summary: "End the session: tilde closes its clients, Xwayland and IPC socket and exits, as on SIGTERM.",
+		Summary: "End the session: lys-wm closes its clients, Xwayland and IPC socket and exits, as on SIGTERM.",
 		parse:   bare(ExitAction{}),
 	},
 	{
@@ -502,7 +502,7 @@ func ParseAction(text string) (Action, error) {
 
 func Reference() string {
 	var b strings.Builder
-	b.WriteString("# Actions\n\nEvery keybind and `tildectl dispatch` takes one of these. This file is generated from `wm.Actions`; run `go test ./internal/wm -update` after changing them.\n\n| Action | Arguments | Effect |\n| --- | --- | --- |\n")
+	b.WriteString("# Actions\n\nEvery keybind and `lys-wmctl dispatch` takes one of these. This file is generated from `wm.Actions`; run `go test ./internal/wm -update` after changing them.\n\n| Action | Arguments | Effect |\n| --- | --- | --- |\n")
 	for _, spec := range Actions {
 		args := spec.Args
 		if args != "" {

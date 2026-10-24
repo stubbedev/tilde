@@ -8,14 +8,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/binds"
-	"github.com/stubbedev/tilde/internal/compositor"
-	"github.com/stubbedev/tilde/internal/output"
-	"github.com/stubbedev/tilde/internal/render"
-	"github.com/stubbedev/tilde/internal/seat"
-	"github.com/stubbedev/tilde/internal/session"
-	"github.com/stubbedev/tilde/internal/testenv"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/binds"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	"github.com/stubbedev/lys-wm/internal/output"
+	"github.com/stubbedev/lys-wm/internal/render"
+	"github.com/stubbedev/lys-wm/internal/seat"
+	"github.com/stubbedev/lys-wm/internal/session"
+	"github.com/stubbedev/lys-wm/internal/testenv"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 func TestExampleConfig(t *testing.T) {
@@ -86,7 +86,7 @@ func TestEmptyConfigIsTheDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(cfg.Env, [][2]string{{"XDG_CURRENT_DESKTOP", "tilde"}, {"XDG_SESSION_TYPE", "wayland"}}) {
+	if !slices.Equal(cfg.Env, [][2]string{{"XDG_CURRENT_DESKTOP", "lys-wm"}, {"XDG_SESSION_TYPE", "wayland"}}) {
 		t.Fatalf("session env %v", cfg.Env)
 	}
 	if !cfg.Xwayland || !cfg.ZeroScaling {
@@ -118,7 +118,7 @@ func TestErrorsNameFileLineAndKey(t *testing.T) {
 		"submaps:\n  r:\n    - {chord: Q, action: kill, x: 1}\n":    "t.yaml:3: submaps.r[0].x: unknown key",
 		"tabs:\n  urgent:\n    fg: red\n":                           "t.yaml:3: tabs.urgent.fg: unknown key (known: background, text)",
 		"rules:\n  - {app_id: a, floating: true}\n":                 "t.yaml:2: rules[0].floating: unknown key",
-		"env:\n  TILDE_SOCKET: /x\n":                                "t.yaml:2: env.TILDE_SOCKET: is set by tilde",
+		"env:\n  LYS_WM_SOCKET: /x\n":                               "t.yaml:2: env.LYS_WM_SOCKET: is set by lys-wm",
 		"env:\n  A=B: c\n":                                          "t.yaml:2: env.A=B: is not a valid environment variable",
 		"tabs:\n  height: tall\n":                                   "t.yaml: yaml: unmarshal errors:\n  line 2: cannot unmarshal",
 		"borders:\n  active: chartreuse\n":                          `t.yaml:2: borders.active: "chartreuse" is neither`,

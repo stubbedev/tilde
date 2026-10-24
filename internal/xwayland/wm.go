@@ -14,7 +14,7 @@ import (
 	"github.com/jezek/xgb/xfixes"
 	"github.com/jezek/xgb/xproto"
 
-	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 func init() {
@@ -184,7 +184,7 @@ func (c *xconn) own() error {
 	for _, name := range supported {
 		support = binary.LittleEndian.AppendUint32(support, uint32(c.atoms[name]))
 	}
-	const name = "tilde"
+	const name = "lys-wm"
 	events := uint32(xproto.EventMaskSubstructureRedirect | xproto.EventMaskSubstructureNotify | xproto.EventMaskPropertyChange)
 	checks := []interface{ Check() error }{
 		xproto.ChangeWindowAttributesChecked(x, c.root, xproto.CwEventMask, []uint32{events}),

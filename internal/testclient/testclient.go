@@ -13,16 +13,16 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	ccs "github.com/stubbedev/tilde/internal/protocol/client/cursorshape"
-	cfs "github.com/stubbedev/tilde/internal/protocol/client/fractionalscale"
-	cps "github.com/stubbedev/tilde/internal/protocol/client/primaryselection"
-	cvp "github.com/stubbedev/tilde/internal/protocol/client/viewporter"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	cwlr "github.com/stubbedev/tilde/internal/protocol/client/wlrlayershell"
-	cxdg "github.com/stubbedev/tilde/internal/protocol/client/xdgshell"
-	"github.com/stubbedev/tilde/internal/render/gles"
-	"github.com/stubbedev/tilde/internal/wire"
-	"github.com/stubbedev/tilde/internal/wlclient"
+	ccs "github.com/stubbedev/lys-wm/internal/protocol/client/cursorshape"
+	cfs "github.com/stubbedev/lys-wm/internal/protocol/client/fractionalscale"
+	cps "github.com/stubbedev/lys-wm/internal/protocol/client/primaryselection"
+	cvp "github.com/stubbedev/lys-wm/internal/protocol/client/viewporter"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	cwlr "github.com/stubbedev/lys-wm/internal/protocol/client/wlrlayershell"
+	cxdg "github.com/stubbedev/lys-wm/internal/protocol/client/xdgshell"
+	"github.com/stubbedev/lys-wm/internal/render/gles"
+	"github.com/stubbedev/lys-wm/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/wlclient"
 )
 
 var defaultSize = image.Pt(64, 64)
@@ -332,7 +332,7 @@ func (c *Client) window(title string, scaling Scaling, paint Painter, setup func
 	if setup != nil {
 		c.must(setup(w))
 	}
-	c.must(errors.Join(w.Toplevel.SetTitle(title), w.Toplevel.SetAppID("tilde.testclient"), w.Surface.Commit()))
+	c.must(errors.Join(w.Toplevel.SetTitle(title), w.Toplevel.SetAppID("lys-wm.testclient"), w.Surface.Commit()))
 	return w
 }
 
@@ -399,7 +399,7 @@ func (c *Client) Layer(spec LayerSpec, paint Painter) *Window {
 	var err error
 	w.Surface, err = c.Compositor.CreateSurface(surfaceEvents{w})
 	c.must(err)
-	w.Layer, err = c.LayerShell.GetLayerSurface(layerEvents{w}, w.Surface, nil, spec.Layer, "tilde.testclient")
+	w.Layer, err = c.LayerShell.GetLayerSurface(layerEvents{w}, w.Surface, nil, spec.Layer, "lys-wm.testclient")
 	c.must(err)
 	c.must(errors.Join(
 		w.Layer.SetAnchor(spec.Anchor),

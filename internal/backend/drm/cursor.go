@@ -6,9 +6,9 @@ import (
 	"image"
 	"slices"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	kdrm "github.com/stubbedev/tilde/internal/drm"
-	"github.com/stubbedev/tilde/internal/render"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	kdrm "github.com/stubbedev/lys-wm/internal/drm"
+	"github.com/stubbedev/lys-wm/internal/render"
 )
 
 type cursorBuffer struct {

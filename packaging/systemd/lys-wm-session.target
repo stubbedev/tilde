@@ -1,6 +1,6 @@
 [Unit]
-Description=tilde compositor session
-Documentation=https://github.com/stubbedev/tilde
+Description=lys-wm compositor session
+Documentation=https://github.com/stubbedev/lys-wm
 BindsTo=graphical-session.target
 Wants=graphical-session-pre.target
 After=graphical-session-pre.target

@@ -4,13 +4,13 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	cew "github.com/stubbedev/tilde/internal/protocol/client/extworkspace"
-	csb "github.com/stubbedev/tilde/internal/protocol/client/systembell"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	"github.com/stubbedev/tilde/internal/testclient"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	cew "github.com/stubbedev/lys-wm/internal/protocol/client/extworkspace"
+	csb "github.com/stubbedev/lys-wm/internal/protocol/client/systembell"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	"github.com/stubbedev/lys-wm/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 type wsView struct {

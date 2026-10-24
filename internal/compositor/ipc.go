@@ -1,9 +1,9 @@
 package compositor
 
 import (
-	"github.com/stubbedev/tilde/internal/ipc"
-	"github.com/stubbedev/tilde/internal/output"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/ipc"
+	"github.com/stubbedev/lys-wm/internal/output"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 func (c *Compositor) OnDispatch(f func(wm.Action)) {

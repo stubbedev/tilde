@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-var ErrNoSocket = errors.New("ipc: no tilde socket")
+var ErrNoSocket = errors.New("ipc: no lys-wm socket")
 
 func FindSocket(getenv func(string) string) (string, error) {
 	if path := getenv(SocketEnv); path != "" {
@@ -20,12 +20,12 @@ func FindSocket(getenv func(string) string) (string, error) {
 	if !filepath.IsAbs(dir) {
 		return "", fmt.Errorf("%w: neither %s nor XDG_RUNTIME_DIR is set", ErrNoSocket, SocketEnv)
 	}
-	matches, err := filepath.Glob(filepath.Join(dir, "tilde", "*.sock"))
+	matches, err := filepath.Glob(filepath.Join(dir, "lys-wm", "*.sock"))
 	if err != nil {
 		return "", fmt.Errorf("ipc: look for sockets: %w", err)
 	}
 	if len(matches) != 1 {
-		return "", fmt.Errorf("%w: %s is unset and %s holds %d sockets %v", ErrNoSocket, SocketEnv, filepath.Join(dir, "tilde"), len(matches), matches)
+		return "", fmt.Errorf("%w: %s is unset and %s holds %d sockets %v", ErrNoSocket, SocketEnv, filepath.Join(dir, "lys-wm"), len(matches), matches)
 	}
 	return matches[0], nil
 }
@@ -69,10 +69,10 @@ func (cn *conn) response() (json.RawMessage, error) {
 		return nil, fmt.Errorf("ipc: decode the response %q: %w", line, err)
 	}
 	if resp.Version != Version {
-		return nil, fmt.Errorf("ipc: tilde speaks IPC version %d, this client version %d", resp.Version, Version)
+		return nil, fmt.Errorf("ipc: lys-wm speaks IPC version %d, this client version %d", resp.Version, Version)
 	}
 	if resp.Error != "" {
-		return nil, fmt.Errorf("tilde: %s", resp.Error)
+		return nil, fmt.Errorf("lys-wm: %s", resp.Error)
 	}
 	return resp.Result, nil
 }

@@ -6,7 +6,7 @@
     ...
   }: {
     devShells.default = pkgs.mkShell {
-      inputsFrom = [self'.packages.tilde];
+      inputsFrom = [self'.packages.lys-wm];
 
       packages = with pkgs;
         [
@@ -20,7 +20,7 @@
         ]
         ++ import ./test-programs.nix {
           inherit pkgs;
-          inherit (inputs'.gelm.packages) gelm;
+          inherit (inputs'.lys-ui.packages) lys-ui;
         };
 
       env =

@@ -14,13 +14,13 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/fourcc"
-	"github.com/stubbedev/tilde/internal/gpu"
-	sld "github.com/stubbedev/tilde/internal/protocol/server/linuxdmabuf"
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/surface"
-	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/fourcc"
+	"github.com/stubbedev/lys-wm/internal/gpu"
+	sld "github.com/stubbedev/lys-wm/internal/protocol/server/linuxdmabuf"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/surface"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 const (
@@ -96,7 +96,7 @@ func formatTable(formats []gpu.FormatModifier) (int, error) {
 		table = binary.NativeEndian.AppendUint32(table, 0)
 		table = binary.NativeEndian.AppendUint64(table, uint64(f.Modifier))
 	}
-	fd, err := unix.MemfdCreate("tilde-dmabuf-formats", unix.MFD_CLOEXEC|unix.MFD_ALLOW_SEALING)
+	fd, err := unix.MemfdCreate("lys-wm-dmabuf-formats", unix.MFD_CLOEXEC|unix.MFD_ALLOW_SEALING)
 	if err != nil {
 		return -1, fmt.Errorf("dmabuf: memfd_create: %w", err)
 	}
@@ -412,7 +412,7 @@ func (p *params) CreateImmed(obj *sld.ZwpLinuxBufferParamsV1, res *sw.WlBuffer, 
 }
 
 func (p *params) SetSamplingDevice(obj *sld.ZwpLinuxBufferParamsV1, _ []byte) error {
-	return fail(obj, sld.ZwpLinuxBufferParamsV1ErrorInvalidDevTSize, "set_sampling_device needs version 6; tilde offers %d", p.m.version)
+	return fail(obj, sld.ZwpLinuxBufferParamsV1ErrorInvalidDevTSize, "set_sampling_device needs version 6; lys-wm offers %d", p.m.version)
 }
 
 type Buffer struct {

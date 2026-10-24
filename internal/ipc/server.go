@@ -14,25 +14,25 @@ import (
 	"sync"
 	"time"
 
-	"github.com/stubbedev/tilde/internal/loop"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/loop"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 const (
-	SocketEnv     = "TILDE_SOCKET"
+	SocketEnv     = "LYS_WM_SOCKET"
 	maxRequest    = 64 << 10
 	ioTimeout     = 5 * time.Second
 	acceptBackoff = 100 * time.Millisecond
 	watchBacklog  = 256
 )
 
-var ErrShutdown = errors.New("ipc: tilde is shutting down")
+var ErrShutdown = errors.New("ipc: lys-wm is shutting down")
 
 func SocketPath(runtimeDir, display string) (string, error) {
 	if !filepath.IsAbs(runtimeDir) {
 		return "", fmt.Errorf("ipc: XDG_RUNTIME_DIR %q is not an absolute path", runtimeDir)
 	}
-	return filepath.Join(runtimeDir, "tilde", display+".sock"), nil
+	return filepath.Join(runtimeDir, "lys-wm", display+".sock"), nil
 }
 
 type Handler interface {

@@ -6,7 +6,7 @@
   outputs,
   kernelModules ? [],
   unplug ? null,
-  tildeConfig ? null,
+  lysWMConfig ? null,
   rendersOn ? "card0",
   machineConfig ? {},
   extraTest ? _: "",
@@ -23,20 +23,20 @@ in
       imports = [module machineConfig];
 
       boot.kernelModules = kernelModules;
-      systemd.tmpfiles.settings = pkgs.lib.optionalAttrs (tildeConfig != null) {
-        tilde = {
+      systemd.tmpfiles.settings = pkgs.lib.optionalAttrs (lysWMConfig != null) {
+        lys-wm = {
           "/home/${user}/.config".d = {
             inherit user;
             group = "users";
           };
-          "/home/${user}/.config/tilde".d = {
+          "/home/${user}/.config/lys-wm".d = {
             inherit user;
             group = "users";
           };
-          "/home/${user}/.config/tilde/config.yaml"."f+" = {
+          "/home/${user}/.config/lys-wm/config.yaml"."f+" = {
             inherit user;
             group = "users";
-            argument = tildeConfig;
+            argument = lysWMConfig;
           };
         };
       };
@@ -48,7 +48,7 @@ in
       };
 
       hardware.graphics.enable = true;
-      programs.tilde.enable = true;
+      programs.lys-wm.enable = true;
       users.users.${user} = {
         isNormalUser = true;
         inherit uid;
@@ -57,7 +57,7 @@ in
         enable = true;
         settings = let
           session = {
-            command = "${pkgs.bash}/bin/bash -c '${config.programs.tilde.package}/bin/tilde --systemd 2>&1 | ${pkgs.systemd}/bin/systemd-cat -t tilde'";
+            command = "${pkgs.bash}/bin/bash -c '${config.programs.lys-wm.package}/bin/lys-wm --systemd 2>&1 | ${pkgs.systemd}/bin/systemd-cat -t lys-wm'";
             inherit user;
           };
         in {
@@ -73,14 +73,14 @@ in
         want = ${builtins.toJSON outputs}
         machine.wait_for_unit("greetd.service")
         try:
-            machine.wait_until_succeeds(f"${run "tildectl outputs"} | jq -e 'length == {len(want)}'", timeout=120)
+            machine.wait_until_succeeds(f"${run "lys-wmctl outputs"} | jq -e 'length == {len(want)}'", timeout=120)
         except Exception:
-            print(machine.execute("journalctl -b --no-pager -t tilde -t greetd")[1])
+            print(machine.execute("journalctl -b --no-pager -t lys-wm -t greetd")[1])
             raise
-        print(machine.succeed("journalctl -b --no-pager -t tilde"))
-        machine.fail("journalctl -b --no-pager -t tilde | grep 'drawing the cursor in the frame'")
-        machine.succeed("journalctl -b --no-pager -t tilde | grep 'rendering on ${rendersOn},'")
-        got = sorted(machine.succeed("${run "tildectl outputs"} | jq -r '.[].name'").split())
+        print(machine.succeed("journalctl -b --no-pager -t lys-wm"))
+        machine.fail("journalctl -b --no-pager -t lys-wm | grep 'drawing the cursor in the frame'")
+        machine.succeed("journalctl -b --no-pager -t lys-wm | grep 'rendering on ${rendersOn},'")
+        got = sorted(machine.succeed("${run "lys-wmctl outputs"} | jq -r '.[].name'").split())
         assert got == sorted(want), f"outputs {got}, want {want}"
         display = machine.succeed("ls ${runtime} | grep -m1 '^wayland-[0-9]*$'").strip()
         for output in want:
@@ -96,8 +96,8 @@ in
         import json
         after = json.dumps(${builtins.toJSON unplug.outputs})
         machine.succeed("echo 1 > /sys/class/drm/${unplug.card}/device/remove")
-        machine.wait_until_succeeds(f"${run "tildectl outputs"} | jq -e --argjson want '{after}' 'map(.name) == $want'", timeout=60)
-        machine.succeed("pgrep -x tilde")
-        print(machine.succeed("journalctl -b --no-pager -t tilde | tail -5"))
+        machine.wait_until_succeeds(f"${run "lys-wmctl outputs"} | jq -e --argjson want '{after}' 'map(.name) == $want'", timeout=60)
+        machine.succeed("pgrep -x lys-wm")
+        print(machine.succeed("journalctl -b --no-pager -t lys-wm | tail -5"))
       '';
   }

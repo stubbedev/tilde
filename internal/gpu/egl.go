@@ -10,7 +10,7 @@ import (
 
 	"github.com/ebitengine/purego"
 
-	"github.com/stubbedev/tilde/internal/fourcc"
+	"github.com/stubbedev/lys-wm/internal/fourcc"
 )
 
 const (

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Read `README.md` for what tilde is, and `docs/architecture.md` for the
+Read `README.md` for what lys-wm is, and `docs/architecture.md` for the
 decisions every change builds on.
 
 ## Gates
@@ -18,7 +18,7 @@ is fixed before anything else lands.
 The dev shell runs the GPU tests on Mesa's llvmpipe. On a machine with a GPU,
 run `just hardware` after changes to rendering, DRM, dmabuf, capture or frame
 pacing: it runs the GPU, DRM-without-master and GLES harness tests on the
-host's own EGL driver, then measures es2gears against headless GLES tilde in a
+host's own EGL driver, then measures es2gears against headless GLES lys-wm in a
 private runtime dir (Xwayland off) and fails below `min_fps` (57 by default,
 for the 60 Hz headless output).
 
@@ -28,15 +28,15 @@ GitHub is the only tracker. Nothing is planned in local files or chat.
 
 | Thing | Where | Role |
 | --- | --- | --- |
-| Issues | `stubbedev/tilde` | One unit of work each; the body is the spec |
+| Issues | `stubbedev/lys-wm` | One unit of work each; the body is the spec |
 | Milestones | `M0 Foundation` … `M9 Multi-GPU` | Phases; each description holds the exit criteria |
-| Project | [tilde board](https://github.com/users/stubbedev/projects/3) | Status of every issue: Todo, In Progress, Done |
+| Project | [lys-wm board](https://github.com/users/stubbedev/projects/3) | Status of every issue: Todo, In Progress, Done |
 
 Board automation, as configured:
 
 - An issue added to the board starts as **Todo**.
 - Closing an issue moves it to **Done**, and moving an item to Done closes its issue.
-- Nothing adds new issues to the board automatically: always create them with `--project tilde`.
+- Nothing adds new issues to the board automatically: always create them with `--project lys-wm`.
 - Nothing sets **In Progress**: run `just start <issue>`.
 
 Views: **Roadmap by milestone** (table grouped by milestone) and **Board**
@@ -56,7 +56,7 @@ numeric user ID), passing `group_by` and `vertical_group_by` as field IDs.
 4. `just start <issue>`.
 
 ```sh
-gh issue list -R stubbedev/tilde --milestone "M0 Foundation" --state open \
+gh issue list -R stubbedev/lys-wm --milestone "M0 Foundation" --state open \
   --json number,title,labels --jq '.[] | "#\(.number) \(.title) [\([.labels[].name] | join(", "))]"'
 ```
 
@@ -81,7 +81,7 @@ mentioned. An unrelated find gets its own issue and its own commit; then
 return to the task in progress.
 
 ```sh
-gh issue create -R stubbedev/tilde --project tilde \
+gh issue create -R stubbedev/lys-wm --project lys-wm \
   --milestone "M1 Core protocols" --label "area:protocol,prio:high" \
   --title "protocol: <what>" --body-file - <<'MD'
 ## Goal
@@ -113,7 +113,7 @@ costly to reverse.
 - Close a milestone only when all its issues are closed **and** its exit
   criteria have been exercised. Say how they were verified in the closing
   comment of its last issue, then
-  `gh api -X PATCH repos/stubbedev/tilde/milestones/<number> -f state=closed`.
+  `gh api -X PATCH repos/stubbedev/lys-wm/milestones/<number> -f state=closed`.
 - If exit criteria change, edit the milestone description.
 - To move an issue to another milestone, comment why: usually a dependency
   that was missed.

@@ -3,10 +3,10 @@ package shell
 import (
 	"fmt"
 
-	sxd "github.com/stubbedev/tilde/internal/protocol/server/xdgdecoration"
-	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/wire"
+	sxd "github.com/stubbedev/lys-wm/internal/protocol/server/xdgdecoration"
+	sxdg "github.com/stubbedev/lys-wm/internal/protocol/server/xdgshell"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 const decorationVersion = 1

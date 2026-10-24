@@ -7,11 +7,11 @@ import (
 	"image"
 	"slices"
 
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	sxd "github.com/stubbedev/tilde/internal/protocol/server/xdgdecoration"
-	sxdg "github.com/stubbedev/tilde/internal/protocol/server/xdgshell"
-	"github.com/stubbedev/tilde/internal/surface"
-	"github.com/stubbedev/tilde/internal/wire"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	sxd "github.com/stubbedev/lys-wm/internal/protocol/server/xdgdecoration"
+	sxdg "github.com/stubbedev/lys-wm/internal/protocol/server/xdgshell"
+	"github.com/stubbedev/lys-wm/internal/surface"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 type ToplevelState = sxdg.XdgToplevelState

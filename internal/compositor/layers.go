@@ -6,10 +6,10 @@ import (
 	"iter"
 	"slices"
 
-	"github.com/stubbedev/tilde/internal/output"
-	swlr "github.com/stubbedev/tilde/internal/protocol/server/wlrlayershell"
-	"github.com/stubbedev/tilde/internal/shell"
-	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/lys-wm/internal/output"
+	swlr "github.com/stubbedev/lys-wm/internal/protocol/server/wlrlayershell"
+	"github.com/stubbedev/lys-wm/internal/shell"
+	"github.com/stubbedev/lys-wm/internal/surface"
 )
 
 type layer struct {

@@ -9,12 +9,12 @@ import (
 	"image"
 	"slices"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	"github.com/stubbedev/tilde/internal/output"
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	swom "github.com/stubbedev/tilde/internal/protocol/server/wlroutputmanagement"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	"github.com/stubbedev/lys-wm/internal/output"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	swom "github.com/stubbedev/lys-wm/internal/protocol/server/wlroutputmanagement"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 const version = 4
@@ -387,7 +387,7 @@ func (cfg *configuration) configure(apply bool) error {
 	heads := make([]HeadConfig, 0, len(cfg.heads))
 	for _, ch := range cfg.heads {
 		if len(ch.unsupported) > 0 {
-			return fmt.Errorf("%w: %s asks for %v, which tilde does not support", ErrRefused, ch.head.out.Name(), ch.unsupported)
+			return fmt.Errorf("%w: %s asks for %v, which lys-wm does not support", ErrRefused, ch.head.out.Name(), ch.unsupported)
 		}
 		heads = append(heads, HeadConfig{Output: ch.head.out, Enabled: ch.enabled, Mode: ch.mode, Position: ch.position, Scale: ch.scale})
 	}

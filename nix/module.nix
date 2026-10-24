@@ -6,15 +6,15 @@
     modulesPath,
     ...
   }: let
-    cfg = config.programs.tilde;
+    cfg = config.programs.lys-wm;
   in {
-    options.programs.tilde = {
-      enable = lib.mkEnableOption "tilde, a tiling Wayland compositor, as a display manager session";
+    options.programs.lys-wm = {
+      enable = lib.mkEnableOption "lys-wm, a tiling Wayland compositor, as a display manager session";
       package = lib.mkOption {
         type = lib.types.package;
-        default = self.packages.${pkgs.stdenv.hostPlatform.system}.tilde;
-        defaultText = lib.literalExpression "tilde.packages.\${pkgs.stdenv.hostPlatform.system}.tilde";
-        description = "The tilde package to run.";
+        default = self.packages.${pkgs.stdenv.hostPlatform.system}.lys-wm;
+        defaultText = lib.literalExpression "lys-wm.packages.\${pkgs.stdenv.hostPlatform.system}.lys-wm";
+        description = "The lys-wm package to run.";
       };
     };
 

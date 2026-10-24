@@ -1,4 +1,4 @@
-// Command tildectl queries and controls a running tilde over its IPC socket.
+// Command lys-wmctl queries and controls a running lys-wm over its IPC socket.
 package main
 
 import (
@@ -12,11 +12,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/stubbedev/tilde/internal/ipc"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/ipc"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
-const usage = `usage: tildectl [--socket <path>] <command>
+const usage = `usage: lys-wmctl [--socket <path>] <command>
 
   dispatch <action> [args...]  run an action, as a keybind would (see docs/actions.md)
   reload                       read the config file again
@@ -25,15 +25,15 @@ const usage = `usage: tildectl [--socket <path>] <command>
   windows                      print the mapped windows as JSON
   activewindow                 print the focused window as JSON, or null
   version                      print the IPC protocol version
-  watch                        print events as JSON lines until tilde exits
+  watch                        print events as JSON lines until lys-wm exits
 
-The socket is --socket, else $TILDE_SOCKET, else the only socket in
-$XDG_RUNTIME_DIR/tilde.
+The socket is --socket, else $LYS_WM_SOCKET, else the only socket in
+$XDG_RUNTIME_DIR/lys-wm.
 `
 
 func main() {
 	if err := run(os.Args[1:], os.Getenv, os.Stdout); err != nil {
-		fmt.Fprintln(os.Stderr, "tildectl:", err)
+		fmt.Fprintln(os.Stderr, "lys-wmctl:", err)
 		os.Exit(1)
 	}
 }
@@ -85,7 +85,7 @@ func watch(path string, out io.Writer) (err error) {
 }
 
 func run(args []string, getenv func(string) string, out io.Writer) error {
-	flags := flag.NewFlagSet("tildectl", flag.ContinueOnError)
+	flags := flag.NewFlagSet("lys-wmctl", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	socket := flags.String("socket", "", "")
 	if err := flags.Parse(args); err != nil {

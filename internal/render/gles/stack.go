@@ -3,7 +3,7 @@ package gles
 import (
 	"errors"
 
-	"github.com/stubbedev/tilde/internal/gpu"
+	"github.com/stubbedev/lys-wm/internal/gpu"
 )
 
 type Stack struct {

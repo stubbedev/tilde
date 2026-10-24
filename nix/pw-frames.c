@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
 		perror("pw-frames: connect to the portal's PipeWire remote");
 		return 1;
 	}
-	c.stream = pw_stream_new(core, "tilde-screencast-check",
+	c.stream = pw_stream_new(core, "lys-wm-screencast-check",
 		pw_properties_new(PW_KEY_MEDIA_TYPE, "Video", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Screen", NULL));
 	struct spa_hook listener;
 	pw_stream_add_listener(c.stream, &listener, &events, &c);

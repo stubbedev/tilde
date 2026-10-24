@@ -10,12 +10,12 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	"github.com/stubbedev/tilde/internal/output"
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	swgc "github.com/stubbedev/tilde/internal/protocol/server/wlrgammacontrol"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	"github.com/stubbedev/lys-wm/internal/output"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	swgc "github.com/stubbedev/lys-wm/internal/protocol/server/wlrgammacontrol"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 const version = 1

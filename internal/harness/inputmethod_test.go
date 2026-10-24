@@ -9,10 +9,10 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	cim "github.com/stubbedev/tilde/internal/protocol/client/inputmethod"
-	ctix "github.com/stubbedev/tilde/internal/protocol/client/textinput"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	"github.com/stubbedev/tilde/internal/testclient"
+	cim "github.com/stubbedev/lys-wm/internal/protocol/client/inputmethod"
+	ctix "github.com/stubbedev/lys-wm/internal/protocol/client/textinput"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 type textInputLog struct{ log testclient.Log }

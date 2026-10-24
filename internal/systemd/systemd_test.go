@@ -11,7 +11,7 @@ import (
 
 	"github.com/godbus/dbus/v5"
 
-	"github.com/stubbedev/tilde/internal/testenv"
+	"github.com/stubbedev/lys-wm/internal/testenv"
 )
 
 type fakeManager struct {
@@ -81,7 +81,7 @@ func systemd(t *testing.T, address, fail string) *fakeManager {
 	return m
 }
 
-var env = [][2]string{{"WAYLAND_DISPLAY", "wayland-1"}, {"XDG_CURRENT_DESKTOP", "tilde"}, {"TILDE_SOCKET", "/run/user/1000/tilde/wayland-1.sock"}}
+var env = [][2]string{{"WAYLAND_DISPLAY", "wayland-1"}, {"XDG_CURRENT_DESKTOP", "lys-wm"}, {"LYS_WM_SOCKET", "/run/user/1000/lys-wm/wayland-1.sock"}}
 
 func TestSessionLifecycle(t *testing.T) {
 	address := testenv.DBus(t)
@@ -92,17 +92,17 @@ func TestSessionLifecycle(t *testing.T) {
 	}
 	calls, got := m.state()
 	wantCalls := []string{
-		"SetEnvironment WAYLAND_DISPLAY=wayland-1 XDG_CURRENT_DESKTOP=tilde TILDE_SOCKET=/run/user/1000/tilde/wayland-1.sock",
-		"StartUnit tilde-session.target replace",
+		"SetEnvironment WAYLAND_DISPLAY=wayland-1 XDG_CURRENT_DESKTOP=lys-wm LYS_WM_SOCKET=/run/user/1000/lys-wm/wayland-1.sock",
+		"StartUnit lys-wm-session.target replace",
 	}
-	if !slices.Equal(calls, wantCalls) || got["XDG_CURRENT_DESKTOP"] != "tilde" {
+	if !slices.Equal(calls, wantCalls) || got["XDG_CURRENT_DESKTOP"] != "lys-wm" {
 		t.Fatalf("calls %q, env %v", calls, got)
 	}
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}
 	calls, got = m.state()
-	wantCalls = append(wantCalls, "StopUnit tilde-session.target replace", "UnsetEnvironment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP TILDE_SOCKET")
+	wantCalls = append(wantCalls, "StopUnit lys-wm-session.target replace", "UnsetEnvironment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP LYS_WM_SOCKET")
 	if !slices.Equal(calls, wantCalls) || len(got) != 1 || got["KEEP"] != "1" {
 		t.Fatalf("after close: calls %q, env %v", calls, got)
 	}

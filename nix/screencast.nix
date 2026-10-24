@@ -24,7 +24,7 @@
 in
   import ./vm.nix {
     inherit pkgs module;
-    name = "tilde-screencast";
+    name = "lys-wm-screencast";
     devices = ["virtio-gpu-pci"];
     outputs = ["Virtual-1"];
     machineConfig = {
@@ -47,8 +47,8 @@ in
     extraTest = run: let
       screencast = run "${python}/bin/python3 ${./screencast.py} {source} {cursor} 10 /tmp/{source}-{cursor}";
     in ''
-      machine.succeed("${run "tildectl dispatch exec ${animation}"}")
-      machine.wait_until_succeeds("${run "tildectl windows"} | jq -e 'length == 1'", timeout=30)
+      machine.succeed("${run "lys-wmctl dispatch exec ${animation}"}")
+      machine.wait_until_succeeds("${run "lys-wmctl windows"} | jq -e 'length == 1'", timeout=30)
       for source, cursor in [("monitor", "hidden"), ("monitor", "embedded"), ("window", "hidden")]:
           try:
               print(machine.succeed("${screencast}".format(source=source, cursor=cursor)))
@@ -57,8 +57,8 @@ in
               raise
 
       def share_in_browser(name, launcher, shared):
-          machine.succeed(f"${run "tildectl dispatch exec {launcher}"}")
-          windows = "${run "tildectl windows"}"
+          machine.succeed(f"${run "lys-wmctl dispatch exec {launcher}"}")
+          windows = "${run "lys-wmctl windows"}"
           try:
               machine.wait_until_succeeds(f"{windows} | jq -e 'any(.[]; .title | startswith(\"waiting\"))'", timeout=600)
               machine.sleep(5)

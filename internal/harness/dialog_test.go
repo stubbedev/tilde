@@ -4,10 +4,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	cxdd "github.com/stubbedev/tilde/internal/protocol/client/xdgdialog"
-	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	cxdd "github.com/stubbedev/lys-wm/internal/protocol/client/xdgdialog"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 type modalScene struct {

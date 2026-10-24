@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	"github.com/stubbedev/tilde/internal/render/soft"
-	"github.com/stubbedev/tilde/internal/shell"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	"github.com/stubbedev/lys-wm/internal/render/soft"
+	"github.com/stubbedev/lys-wm/internal/shell"
 )
 
 const clientTimeout = 20 * time.Second
@@ -110,12 +110,12 @@ func TestFootMapsAndTakesInput(t *testing.T) {
 	}
 }
 
-func TestGelmHelloMenu(t *testing.T) {
+func TestLysUIHelloMenu(t *testing.T) {
 	t.Setenv("GOELM_DEBUG", "demo")
 	h := Start(t, desktop, desktop)
-	hello := h.Run("gelm-hello")
+	hello := h.Run("lys-ui-hello")
 	hello.Expect(t, "demo: mapped", clientTimeout)
-	h.Eventually("gelm-hello to map", mappedToplevels(1))
+	h.Eventually("lys-ui-hello to map", mappedToplevels(1))
 	h.click(0, 1024, 560, btnRight)
 	hello.Expect(t, "demo: menu open at (1024,560)", clientTimeout)
 	var menu *shell.Popup
@@ -137,10 +137,10 @@ func TestGelmHelloMenu(t *testing.T) {
 	h.expectActive(hello)
 }
 
-func TestGelmPopoverAndNestedMenu(t *testing.T) {
+func TestLysUIPopoverAndNestedMenu(t *testing.T) {
 	t.Setenv("GOELM_DEBUG", "demo")
 	h := Start(t, desktop)
-	popover := h.Run("gelm-popover")
+	popover := h.Run("lys-ui-popover")
 	center := func(name string) (float64, float64) {
 		var x, y float64
 		if _, err := fmt.Sscanf(popover.Expect(t, "control "+name+" center", clientTimeout), "control "+name+" center (%g,%g)", &x, &y); err != nil {

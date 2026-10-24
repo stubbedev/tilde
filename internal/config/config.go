@@ -1,4 +1,4 @@
-// Package config reads tilde's YAML config into validated types. Every
+// Package config reads lys-wm's YAML config into validated types. Every
 // error names the file, the line and the key.
 package config
 
@@ -19,23 +19,23 @@ import (
 	"strconv"
 	"strings"
 
-	gtext "github.com/stubbedev/gelm/render"
+	gtext "github.com/stubbedev/lys-ui/render"
 	"go.yaml.in/yaml/v3"
 
-	"github.com/stubbedev/tilde/internal/binds"
-	"github.com/stubbedev/tilde/internal/compositor"
-	"github.com/stubbedev/tilde/internal/ipc"
-	"github.com/stubbedev/tilde/internal/output"
-	"github.com/stubbedev/tilde/internal/render"
-	"github.com/stubbedev/tilde/internal/seat"
-	"github.com/stubbedev/tilde/internal/session"
-	"github.com/stubbedev/tilde/internal/wm"
-	"github.com/stubbedev/tilde/internal/xkb"
+	"github.com/stubbedev/lys-wm/internal/binds"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	"github.com/stubbedev/lys-wm/internal/ipc"
+	"github.com/stubbedev/lys-wm/internal/output"
+	"github.com/stubbedev/lys-wm/internal/render"
+	"github.com/stubbedev/lys-wm/internal/seat"
+	"github.com/stubbedev/lys-wm/internal/session"
+	"github.com/stubbedev/lys-wm/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/xkb"
 )
 
 var reservedEnv = []string{"WAYLAND_DISPLAY", "DISPLAY", ipc.SocketEnv}
 
-var sessionEnv = map[string]string{"XDG_CURRENT_DESKTOP": "tilde", "XDG_SESSION_TYPE": "wayland"}
+var sessionEnv = map[string]string{"XDG_CURRENT_DESKTOP": "lys-wm", "XDG_SESSION_TYPE": "wayland"}
 
 //go:embed default.yaml
 var Default []byte
@@ -644,7 +644,7 @@ func Parse(file string, data []byte) (Config, error) {
 			continue
 		}
 		if slices.Contains(reservedEnv, name) {
-			p.fail(value.Line, "env."+name, "is set by tilde")
+			p.fail(value.Line, "env."+name, "is set by lys-wm")
 			continue
 		}
 		env[name] = value.V

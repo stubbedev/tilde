@@ -7,7 +7,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/stubbedev/tilde/internal/backend"
+	"github.com/stubbedev/lys-wm/internal/backend"
 )
 
 type ClickMethod uint32

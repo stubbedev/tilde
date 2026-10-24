@@ -6,7 +6,7 @@ change it here in the same commit and say why in the issue that changed it.
 
 ## Pure Go
 
-tilde builds with `CGO_ENABLED=0`, always. A C library is used only when no
+lys-wm builds with `CGO_ENABLED=0`, always. A C library is used only when no
 reasonable Go alternative exists, and then it is loaded at runtime with
 [purego](https://github.com/ebitengine/purego) (`dlopen`), never linked.
 
@@ -20,8 +20,8 @@ reasonable Go alternative exists, and then it is loaded at runtime with
 | logind | [`github.com/godbus/dbus/v5`](https://github.com/godbus/dbus) |
 | udev | netlink, read directly (#39) |
 | X11 window manager | [`github.com/jezek/xgb`](https://github.com/jezek/xgb) (#45) |
-| Text | [`github.com/go-text/typesetting`](https://github.com/go-text/typesetting), through gelm's `render` |
-| Config file | [`go.yaml.in/yaml/v3`](https://github.com/yaml/go-yaml), strict, as wayle uses (#30) |
+| Text | [`github.com/go-text/typesetting`](https://github.com/go-text/typesetting), through lys-ui's `render` |
+| Config file | [`go.yaml.in/yaml/v3`](https://github.com/yaml/go-yaml), strict, as lys-shell uses (#30) |
 
 Adding a purego library, or a dependency to this table, is a decision issue.
 
@@ -30,11 +30,11 @@ compatibility section, so no key sets a modifier, and serializes keys
 with several groups in a form libxkbcommon refuses to parse. Clients read
 keymaps with libxkbcommon anyway, so the compositor compiles and serves
 them with it too. The purego libraries' paths are baked in at build time
-by the Nix package; `TILDE_LIBXKBCOMMON` overrides libxkbcommon's.
+by the Nix package; `LYS_WM_LIBXKBCOMMON` overrides libxkbcommon's.
 
-Tab titles are drawn with gelm's public `render` package. gelm's font
+Tab titles are drawn with lys-ui's public `render` package. lys-ui's font
 discovery is internal to it, so the tab font is baked in the same way:
-the Nix package sets DejaVu Sans as the default and `TILDE_FONT` overrides
+the Nix package sets DejaVu Sans as the default and `LYS_WM_FONT` overrides
 it, until the config (#30) names one.
 
 ## Threading
@@ -99,7 +99,7 @@ and plugging it back returns them and shows the one it was showing.
 ## Dispatch
 
 One typed `Action` set and one dispatcher, in `wm` (#66). Keybinds,
-`tildectl dispatch`, the IPC socket and protocol requests such as
+`lys-wmctl dispatch`, the IPC socket and protocol requests such as
 foreign-toplevel activate are all callers of it. Nothing else mutates WM
 state.
 
@@ -107,7 +107,7 @@ state.
 
 `internal/gpu` (#33) loads glvnd's `libEGL.so.1` and `libGLESv2.so.2` and
 Mesa's `libgbm.so.1` through purego. The Nix build bakes their store paths
-in, and `TILDE_LIBEGL`, `TILDE_LIBGLESV2` and `TILDE_LIBGBM` override them.
+in, and `LYS_WM_LIBEGL`, `LYS_WM_LIBGLESV2` and `LYS_WM_LIBGBM` override them.
 glvnd picks the vendor driver, NVIDIA or Mesa, from
 `/run/opengl-driver/share/glvnd/egl_vendor.d`. Displays come from the GBM
 platform for KMS, the device platform, or Mesa's surfaceless platform; each
@@ -132,7 +132,7 @@ larger than the plane, or a plane whose test commit refuses it, puts the
 cursor back into the frame; a refusal is logged and lasts for the output's
 lifetime.
 
-tilde drives every DRM card on its seat, one KMS backend each (#62), and
+lys-wm drives every DRM card on its seat, one KMS backend each (#62), and
 renders every output on one primary GPU, because client buffers become
 textures in that GPU's context. The primary is the card named by `gpu` in
 the config, else the boot VGA device (`boot_vga` in sysfs) if it has a
@@ -181,22 +181,22 @@ timer guarantees while the outputs are idle.
 
 ## Xwayland
 
-`internal/xwayland` (#44) starts Xwayland lazily. At startup tilde takes an
+`internal/xwayland` (#44) starts Xwayland lazily. At startup lys-wm takes an
 X display number with a lock file in `/tmp`, binds `/tmp/.X11-unix/X<n>` and
 the abstract socket of the same name, and exports `DISPLAY`. The first
 connection launches Xwayland with both sockets as `-listenfd`, a socketpair
 as its Wayland connection (`WAYLAND_SOCKET`), another as `-wm`, and
 `-displayfd` to learn when it is up; Xwayland then accepts the pending
 connection itself. Sessions without X clients pay nothing, and after a crash
-the sockets stay with tilde, so the next connection restarts it. Starting at
+the sockets stay with lys-wm, so the next connection restarts it. Starting at
 login instead would be a small change on top, which is why the choice was
 cheap to settle.
 
 Xwayland listens on its sockets only once a window manager owns `WM_S0`, so
-tilde's window manager connects over the `-wm` socket as an X client with
+lys-wm's window manager connects over the `-wm` socket as an X client with
 `jezek/xgb`, built from a copy in `third_party/xgb` whose extension
 initialisation cannot race the connection's reader (#120). X requests block until Xwayland answers, and Xwayland makes
-Wayland roundtrips to tilde while answering, so that connection lives in its
+Wayland roundtrips to lys-wm while answering, so that connection lives in its
 own goroutine and reaches compositor state only by posting to the loop.
 `xwayland_shell_v1` is visible to the Xwayland client alone and maps the
 `WL_SURFACE_SERIAL` of each X window to its `wl_surface` on commit.
@@ -221,8 +221,8 @@ second deadline. Drag and drop between X and Wayland is not bridged.
 
 ## IPC
 
-`tildectl`, bars and scripts talk to tilde over a Unix socket at
-`$XDG_RUNTIME_DIR/tilde/<WAYLAND_DISPLAY>.sock`, exported as `TILDE_SOCKET`
+`lys-wmctl`, bars and scripts talk to lys-wm over a Unix socket at
+`$XDG_RUNTIME_DIR/lys-wm/<WAYLAND_DISPLAY>.sock`, exported as `LYS_WM_SOCKET`
 (#31). Each connection sends one JSON request line and gets one JSON response
 line; a `watch` request turns the connection into an event stream of JSON
 lines. Every response carries the protocol version.
@@ -239,23 +239,23 @@ bound. [`docs/ipc.md`](ipc.md) has the protocol.
 
 ## Portals
 
-tilde ships no portal backend of its own (#57). It sets
-`XDG_CURRENT_DESKTOP=tilde`, and the package installs
-`share/xdg-desktop-portal/tilde-portals.conf`, which xdg-desktop-portal reads
+lys-wm ships no portal backend of its own (#57). It sets
+`XDG_CURRENT_DESKTOP=lys-wm`, and the package installs
+`share/xdg-desktop-portal/lys-wm-portals.conf`, which xdg-desktop-portal reads
 for that desktop:
 
 | Interface | Backends, in order |
 | --- | --- |
-| ScreenCast, Screenshot | wayle, then xdg-desktop-portal-wlr |
-| everything else | wayle, then xdg-desktop-portal-gtk |
+| ScreenCast, Screenshot | lys-shell, then xdg-desktop-portal-wlr |
+| everything else | lys-shell, then xdg-desktop-portal-gtk |
 
-wayle's portal is the shell the session runs anyway. It implements every
+lys-shell's portal is the shell the session runs anyway. It implements every
 portal interface without depending on a compositor: it captures through
 ext-image-copy-capture or wlr-screencopy (#53), names windows by their
 ext-foreign-toplevel identifier and outputs by connector name, and drives
 RemoteDesktop through the virtual keyboard and pointer protocols (#52).
 xdg-desktop-portal-wlr speaks wlr-screencopy, so screen sharing still works
-without wayle. GlobalShortcuts needs `hyprland-global-shortcuts-v1` in the
+without lys-shell. GlobalShortcuts needs `hyprland-global-shortcuts-v1` in the
 compositor (#89).
 
 ## Packages
@@ -264,9 +264,9 @@ Everything lives under `internal/` except the commands.
 
 | Package | Owns |
 | --- | --- |
-| `cmd/tilde` | The compositor binary: builds the loop, server and backend, and runs them |
-| `compositor` | Connects backend events to the server, places windows and draws each output's frames; `cmd/tilde` and the harness both build on it |
-| `cmd/tildectl` | The IPC client (#31) |
+| `cmd/lys-wm` | The compositor binary: builds the loop, server and backend, and runs them |
+| `compositor` | Connects backend events to the server, places windows and draws each output's frames; `cmd/lys-wm` and the harness both build on it |
+| `cmd/lys-wmctl` | The IPC client (#31) |
 | `wire` | The message codec and fd passing (#3), and the object runtime generated bindings build on (#4) |
 | `scanner` | Generates `protocol/{server,client}/...` from the XML pinned in `protocol/protocols.json` (#4) |
 | `protocol/...` | Generated bindings, one package per protocol and side; never edited by hand |
@@ -309,11 +309,11 @@ Everything lives under `internal/` except the commands.
 | `testenv` | Whether a test skips or fails when a dev-shell tool or library is missing |
 | `golden` | Golden-image comparison for software-rendered frames |
 
-Dependencies point inward: `wm` imports nothing from tilde; `wire` and
-`loop` import nothing from tilde; `protocol/...` imports only `wire` and
+Dependencies point inward: `wm` imports nothing from lys-wm; `wire` and
+`loop` import nothing from lys-wm; `protocol/...` imports only `wire` and
 other protocol packages of the same side, since extensions name core
 interfaces;
-backends and renderers do not import `server`, `shell` or `wm`. `cmd/tilde`
+backends and renderers do not import `server`, `shell` or `wm`. `cmd/lys-wm`
 is the only place that knows every package.
 
 ## Protocol bindings
@@ -345,9 +345,9 @@ itself lands in M9 (#62), which records the selection rule here.
 - Unit tests for the pure core and every package with logic of its own.
 - Golden images, byte-exact, from the software renderer.
 - The compositor-in-the-loop harness (#10) boots the same compositor
-  `cmd/tilde` runs on the headless backend, in process, with a private
+  `cmd/lys-wm` runs on the headless backend, in process, with a private
   `XDG_RUNTIME_DIR`, and drives real clients from the dev shell against it.
-  `just headless` runs it with `TILDE_HEADLESS=1`, which turns a missing
+  `just headless` runs it with `LYS_WM_HEADLESS=1`, which turns a missing
   client into a failure; it is part of `just gates`, so CI runs it too.
 
 ## Reference implementations

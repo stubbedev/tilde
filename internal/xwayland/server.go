@@ -20,13 +20,13 @@ import (
 	"github.com/jezek/xgb/xproto"
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/data"
-	"github.com/stubbedev/tilde/internal/loop"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/lys-wm/internal/data"
+	"github.com/stubbedev/lys-wm/internal/loop"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/surface"
 )
 
-const Env = "TILDE_XWAYLAND"
+const Env = "LYS_WM_XWAYLAND"
 
 var defaultXwayland = "Xwayland"
 
@@ -211,7 +211,7 @@ func (s *Server) start() error {
 	for i, fd := range child {
 		files[i] = os.NewFile(uintptr(fd), "xwayland")
 	}
-	cmd := exec.Command(s.opts.Binary, s.Display(), "-rootless", "-core", "-listenfd", "3", "-listenfd", "4", "-displayfd", "5", "-wm", "6") //nolint:gosec // the binary comes from the build or TILDE_XWAYLAND
+	cmd := exec.Command(s.opts.Binary, s.Display(), "-rootless", "-core", "-listenfd", "3", "-listenfd", "4", "-displayfd", "5", "-wm", "6") //nolint:gosec // the binary comes from the build or LYS_WM_XWAYLAND
 	cmd.ExtraFiles = files
 	cmd.Env = append(slices.DeleteFunc(slices.Clone(s.opts.Env), func(kv string) bool {
 		name, _, _ := strings.Cut(kv, "=")

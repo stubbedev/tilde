@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	kdrm "github.com/stubbedev/tilde/internal/drm"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	kdrm "github.com/stubbedev/lys-wm/internal/drm"
 )
 
 var _ backend.Gamma = (*Output)(nil)

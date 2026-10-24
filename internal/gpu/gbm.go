@@ -8,7 +8,7 @@ import (
 	"github.com/ebitengine/purego"
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/fourcc"
+	"github.com/stubbedev/lys-wm/internal/fourcc"
 )
 
 type Usage uint32

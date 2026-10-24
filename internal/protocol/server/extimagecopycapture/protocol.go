@@ -3,9 +3,9 @@
 package extimagecopycapture
 
 import (
-	"github.com/stubbedev/tilde/internal/protocol/server/extimagecapturesource"
-	"github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/protocol/server/extimagecapturesource"
+	"github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 var ExtImageCopyCaptureManagerV1Interface = &wire.Interface{

@@ -9,13 +9,13 @@ import (
 
 	"github.com/ebitengine/purego"
 
-	"github.com/stubbedev/tilde/internal/fourcc"
+	"github.com/stubbedev/lys-wm/internal/fourcc"
 )
 
 const (
-	EGLEnv    = "TILDE_LIBEGL"
-	GLESv2Env = "TILDE_LIBGLESV2"
-	GBMEnv    = "TILDE_LIBGBM"
+	EGLEnv    = "LYS_WM_LIBEGL"
+	GLESv2Env = "LYS_WM_LIBGLESV2"
+	GBMEnv    = "LYS_WM_LIBGBM"
 )
 
 var (

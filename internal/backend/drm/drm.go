@@ -11,13 +11,13 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	kdrm "github.com/stubbedev/tilde/internal/drm"
-	"github.com/stubbedev/tilde/internal/edid"
-	"github.com/stubbedev/tilde/internal/fourcc"
-	"github.com/stubbedev/tilde/internal/gpu"
-	"github.com/stubbedev/tilde/internal/loop"
-	"github.com/stubbedev/tilde/internal/render"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	kdrm "github.com/stubbedev/lys-wm/internal/drm"
+	"github.com/stubbedev/lys-wm/internal/edid"
+	"github.com/stubbedev/lys-wm/internal/fourcc"
+	"github.com/stubbedev/lys-wm/internal/gpu"
+	"github.com/stubbedev/lys-wm/internal/loop"
+	"github.com/stubbedev/lys-wm/internal/render"
 )
 
 const (
@@ -376,7 +376,7 @@ func (b *Backend) add(c kdrm.Connector) error {
 			return err
 		}
 		if info, err := edid.Parse(data, b.vendors); err != nil {
-			b.report(fmt.Errorf("drm: %s has an EDID tilde cannot read, so only its connector names it: %w", c.Name(), err))
+			b.report(fmt.Errorf("drm: %s has an EDID lys-wm cannot read, so only its connector names it: %w", c.Name(), err))
 		} else {
 			o.identity = info
 		}

@@ -14,10 +14,10 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/fourcc"
-	"github.com/stubbedev/tilde/internal/gpu"
-	ld "github.com/stubbedev/tilde/internal/protocol/client/linuxdmabuf"
-	"github.com/stubbedev/tilde/internal/wlclient"
+	"github.com/stubbedev/lys-wm/internal/fourcc"
+	"github.com/stubbedev/lys-wm/internal/gpu"
+	ld "github.com/stubbedev/lys-wm/internal/protocol/client/linuxdmabuf"
+	"github.com/stubbedev/lys-wm/internal/wlclient"
 )
 
 const entrySize = 16

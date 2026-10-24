@@ -3,12 +3,12 @@ package compositor
 import (
 	"image"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	spw "github.com/stubbedev/tilde/internal/protocol/server/pointerwarp"
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/surface"
-	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	spw "github.com/stubbedev/lys-wm/internal/protocol/server/pointerwarp"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/surface"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 const pointerWarpVersion = 1

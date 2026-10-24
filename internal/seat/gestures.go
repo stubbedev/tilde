@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	spg "github.com/stubbedev/tilde/internal/protocol/server/pointergestures"
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/surface"
-	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	spg "github.com/stubbedev/lys-wm/internal/protocol/server/pointergestures"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/surface"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 const gesturesVersion = 3

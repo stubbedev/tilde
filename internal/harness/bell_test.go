@@ -4,10 +4,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	csb "github.com/stubbedev/tilde/internal/protocol/client/systembell"
-	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	csb "github.com/stubbedev/lys-wm/internal/protocol/client/systembell"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 func TestTheSystemBellMarksAnUnfocusedWindowUrgent(t *testing.T) {

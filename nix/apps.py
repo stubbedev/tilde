@@ -8,7 +8,7 @@ def as_alice(command):
 
 
 def windows():
-    return {w["id"]: w for w in json.loads(machine.succeed(as_alice("tildectl windows")))}
+    return {w["id"]: w for w in json.loads(machine.succeed(as_alice("lys-wmctl windows")))}
 
 
 def region_command(x, y, w, h):
@@ -25,11 +25,11 @@ def wait_for_region(x, y, w, h, condition, timeout):
 
 
 def launch(name):
-    machine.succeed(as_alice(f"tildectl dispatch exec {params['launchers'][name]}"))
+    machine.succeed(as_alice(f"lys-wmctl dispatch exec {params['launchers'][name]}"))
 
 
 def dispatch(*args):
-    machine.succeed(as_alice("tildectl dispatch " + " ".join(args)))
+    machine.succeed(as_alice("lys-wmctl dispatch " + " ".join(args)))
 
 
 def protocol_errors(name):
@@ -38,8 +38,8 @@ def protocol_errors(name):
 
 def dump():
     print(machine.execute("for f in /tmp/*.log; do echo \"== $f\"; tail -30 \"$f\"; done")[1])
-    print(machine.execute("journalctl -b --no-pager -t tilde | tail -60")[1])
-    print(machine.execute(as_alice("tildectl windows") + " | jq -c '.[] | {id, app_id, title, rect}'")[1])
+    print(machine.execute("journalctl -b --no-pager -t lys-wm | tail -60")[1])
+    print(machine.execute(as_alice("lys-wmctl windows") + " | jq -c '.[] | {id, app_id, title, rect}'")[1])
 
 
 def bar_drawn():
@@ -53,7 +53,7 @@ def check_windows():
         before = set(windows())
         launch(name)
         machine.wait_until_succeeds(
-            as_alice("tildectl windows") + f" | jq -e 'map(.id) - {json.dumps(sorted(before))} | length > 0'",
+            as_alice("lys-wmctl windows") + f" | jq -e 'map(.id) - {json.dumps(sorted(before))} | length > 0'",
             timeout=300,
         )
         machine.sleep(5)
@@ -125,7 +125,7 @@ def check_randr():
     listing = machine.succeed(randr())
     print(listing)
     assert "Virtual-1" in listing, "wlr-randr does not list the output"
-    outputs = as_alice("tildectl outputs")
+    outputs = as_alice("lys-wmctl outputs")
     machine.succeed(randr("--output Virtual-1 --scale 2"))
     machine.wait_until_succeeds(f"{outputs} | jq -e '.[0].scale == 2 and .[0].rect.width == 640'", timeout=30)
     machine.succeed(randr("--output Virtual-1 --mode 1024x768"))

@@ -4,8 +4,8 @@ import (
 	"image"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/compositor"
-	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 func TestDMABUFClientsOnTheGLESRenderer(t *testing.T) {

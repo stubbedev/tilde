@@ -3,10 +3,10 @@ package data
 import (
 	"fmt"
 
-	sps "github.com/stubbedev/tilde/internal/protocol/server/primaryselection"
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/wire"
+	sps "github.com/stubbedev/lys-wm/internal/protocol/server/primaryselection"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 func (m *Manager) bindPrimary(c *server.Client, id wire.ObjectID, version uint32) error {

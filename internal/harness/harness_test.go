@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	"github.com/stubbedev/tilde/internal/golden"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	cxdg "github.com/stubbedev/tilde/internal/protocol/client/xdgshell"
-	"github.com/stubbedev/tilde/internal/render/soft"
-	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	"github.com/stubbedev/lys-wm/internal/golden"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	cxdg "github.com/stubbedev/lys-wm/internal/protocol/client/xdgshell"
+	"github.com/stubbedev/lys-wm/internal/render/soft"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 var small = backend.Mode{Size: image.Pt(160, 100), RefreshMHz: 60000, Preferred: true}

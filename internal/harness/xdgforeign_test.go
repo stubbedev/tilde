@@ -5,10 +5,10 @@ import (
 	"image"
 	"testing"
 
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	cxf1 "github.com/stubbedev/tilde/internal/protocol/client/xdgforeignv1"
-	cxf2 "github.com/stubbedev/tilde/internal/protocol/client/xdgforeignv2"
-	"github.com/stubbedev/tilde/internal/testclient"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	cxf1 "github.com/stubbedev/lys-wm/internal/protocol/client/xdgforeignv1"
+	cxf2 "github.com/stubbedev/lys-wm/internal/protocol/client/xdgforeignv2"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 type exportedHandle struct{ handle string }

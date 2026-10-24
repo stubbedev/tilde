@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stubbedev/tilde/internal/loop"
-	"github.com/stubbedev/tilde/internal/testenv"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/loop"
+	"github.com/stubbedev/lys-wm/internal/testenv"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 type fake struct {
@@ -52,7 +52,7 @@ func start(t *testing.T) *rig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &rig{t: t, loop: l, fake: &fake{}, path: filepath.Join(testenv.SocketDir(t), "tilde", "wayland-9.sock"), errs: make(chan error, 16)}
+	r := &rig{t: t, loop: l, fake: &fake{}, path: filepath.Join(testenv.SocketDir(t), "lys-wm", "wayland-9.sock"), errs: make(chan error, 16)}
 	if r.server, err = Listen(l, r.path, r.fake, func(err error) { r.errs <- err }); err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestQueriesAndDispatch(t *testing.T) {
 	if _, err := Do(r.path, Request{Request: KindDispatch, Action: "workspace 2"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Do(r.path, Request{Request: KindDispatch, Action: "kill"}); err == nil || err.Error() != "tilde: nothing to kill" {
+	if _, err := Do(r.path, Request{Request: KindDispatch, Action: "kill"}); err == nil || err.Error() != "lys-wm: nothing to kill" {
 		t.Fatalf("a failing dispatch: %v", err)
 	}
 	r.do(func(f *fake) {
@@ -282,7 +282,7 @@ func TestFindSocket(t *testing.T) {
 	}
 	env[SocketEnv] = "/elsewhere.sock"
 	if got, err := FindSocket(getenv); err != nil || got != "/elsewhere.sock" {
-		t.Fatalf("TILDE_SOCKET: %q, %v", got, err)
+		t.Fatalf("LYS_WM_SOCKET: %q, %v", got, err)
 	}
 }
 
@@ -296,14 +296,14 @@ func (s *stopping) Dispatch(wm.Action) error {
 	return nil
 }
 
-func TestADispatchThatStopsTildeIsAnswered(t *testing.T) {
+func TestADispatchThatStopsLysWMIsAnswered(t *testing.T) {
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
 	for range 50 {
 		l, err := loop.New()
 		if err != nil {
 			t.Fatal(err)
 		}
-		path := filepath.Join(testenv.SocketDir(t), "tilde.sock")
+		path := filepath.Join(testenv.SocketDir(t), "lys-wm.sock")
 		s, err := Listen(l, path, &stopping{loop: l}, func(err error) { t.Error(err) })
 		if err != nil {
 			t.Fatal(err)
@@ -317,7 +317,7 @@ func TestADispatchThatStopsTildeIsAnswered(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := <-answered; err != nil {
-			t.Fatalf("the exit that stopped tilde was answered with %v", err)
+			t.Fatalf("the exit that stopped lys-wm was answered with %v", err)
 		}
 	}
 }

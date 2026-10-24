@@ -1,5 +1,5 @@
-// Package ipc serves tilde's state, actions and events over a Unix socket as
-// JSON lines, for tildectl, bars and scripts.
+// Package ipc serves lys-wm's state, actions and events over a Unix socket as
+// JSON lines, for lys-wmctl, bars and scripts.
 package ipc
 
 import (
@@ -11,7 +11,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 const Version = 1

@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/ipc"
-	"github.com/stubbedev/tilde/internal/loop"
-	"github.com/stubbedev/tilde/internal/testenv"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/ipc"
+	"github.com/stubbedev/lys-wm/internal/loop"
+	"github.com/stubbedev/lys-wm/internal/testenv"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
 func TestParseArgs(t *testing.T) {
@@ -50,7 +50,7 @@ func TestRunAgainstASocket(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := &handler{}
-	path := filepath.Join(testenv.SocketDir(t), "tilde", "wayland-1.sock")
+	path := filepath.Join(testenv.SocketDir(t), "lys-wm", "wayland-1.sock")
 	s, err := ipc.Listen(l, path, h, func(err error) { t.Error(err) })
 	if err != nil {
 		t.Fatal(err)

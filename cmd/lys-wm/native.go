@@ -11,14 +11,14 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/backend"
-	drmbackend "github.com/stubbedev/tilde/internal/backend/drm"
-	kdrm "github.com/stubbedev/tilde/internal/drm"
-	"github.com/stubbedev/tilde/internal/edid"
-	"github.com/stubbedev/tilde/internal/gpu"
-	"github.com/stubbedev/tilde/internal/loop"
-	"github.com/stubbedev/tilde/internal/render"
-	"github.com/stubbedev/tilde/internal/session"
+	"github.com/stubbedev/lys-wm/internal/backend"
+	drmbackend "github.com/stubbedev/lys-wm/internal/backend/drm"
+	kdrm "github.com/stubbedev/lys-wm/internal/drm"
+	"github.com/stubbedev/lys-wm/internal/edid"
+	"github.com/stubbedev/lys-wm/internal/gpu"
+	"github.com/stubbedev/lys-wm/internal/loop"
+	"github.com/stubbedev/lys-wm/internal/render"
+	"github.com/stubbedev/lys-wm/internal/session"
 )
 
 type card struct {
@@ -116,7 +116,7 @@ func openNative(l *loop.Loop, getenv func(string) string, input session.InputCon
 	if err != nil {
 		return nil, err
 	}
-	fmt.Fprintf(os.Stderr, "tilde: rendering on %s, %s\n", cards[primary].name, why)
+	fmt.Fprintf(os.Stderr, "lys-wm: rendering on %s, %s\n", cards[primary].name, why)
 	if err := n.add(cards[primary]); err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func (n *native) add(g gpuCard) error {
 	} else {
 		var how string
 		if c.backend, how, err = drmbackend.NewSecondary(n.l, c.dev, n.primary().backend, n.drmOptions(), g.render); err == nil {
-			fmt.Fprintf(os.Stderr, "tilde: %s renders the outputs of %s; they reach the screen through %s\n", n.primary().name, g.name, how)
+			fmt.Fprintf(os.Stderr, "lys-wm: %s renders the outputs of %s; they reach the screen through %s\n", n.primary().name, g.name, how)
 		}
 	}
 	if err != nil {
@@ -352,10 +352,10 @@ func (n *native) syncCards() error {
 
 func (n *native) remove(c *card) error {
 	if c == n.primary() {
-		return fmt.Errorf("drm: the primary GPU %s went away; every output renders on it, so tilde cannot go on", c.name)
+		return fmt.Errorf("drm: the primary GPU %s went away; every output renders on it, so lys-wm cannot go on", c.name)
 	}
 	n.cards = slices.DeleteFunc(n.cards, func(x *card) bool { return x == c })
-	fmt.Fprintf(os.Stderr, "tilde: %s went away\n", c.name)
+	fmt.Fprintf(os.Stderr, "lys-wm: %s went away\n", c.name)
 	if err := errors.Join(c.backend.Unplug(), c.dev.Close()); err != nil {
 		n.report(fmt.Errorf("drm: let go of %s: %w", c.name, err))
 	}

@@ -5,9 +5,9 @@ import (
 	"image"
 	"slices"
 
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/shell"
-	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/shell"
+	"github.com/stubbedev/lys-wm/internal/surface"
 )
 
 type placedPopup struct {

@@ -67,7 +67,7 @@ formatters:
       sections:
         - standard
         - default
-        - prefix(github.com/stubbedev/tilde)
+        - prefix(github.com/stubbedev/lys-wm)
   exclusions:
     generated: lax
     paths:

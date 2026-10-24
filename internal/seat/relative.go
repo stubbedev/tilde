@@ -4,10 +4,10 @@ import (
 	"errors"
 	"time"
 
-	srp "github.com/stubbedev/tilde/internal/protocol/server/relativepointer"
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/wire"
+	srp "github.com/stubbedev/lys-wm/internal/protocol/server/relativepointer"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 const relativePointerVersion = 1

@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	cwlr "github.com/stubbedev/tilde/internal/protocol/client/wlrlayershell"
-	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	cwlr "github.com/stubbedev/lys-wm/internal/protocol/client/wlrlayershell"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 type party struct {

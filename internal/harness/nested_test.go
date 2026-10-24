@@ -11,18 +11,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/backend/nested"
-	"github.com/stubbedev/tilde/internal/compositor"
-	"github.com/stubbedev/tilde/internal/data"
-	"github.com/stubbedev/tilde/internal/loop"
-	"github.com/stubbedev/tilde/internal/seat"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/testenv"
-	"github.com/stubbedev/tilde/internal/wm"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/backend/nested"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	"github.com/stubbedev/lys-wm/internal/data"
+	"github.com/stubbedev/lys-wm/internal/loop"
+	"github.com/stubbedev/lys-wm/internal/seat"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/testenv"
+	"github.com/stubbedev/lys-wm/internal/wm"
 )
 
-type nestedTilde struct {
+type nestedLysWM struct {
 	t       *testing.T
 	host    *Harness
 	loop    *loop.Loop
@@ -31,14 +31,14 @@ type nestedTilde struct {
 	display string
 }
 
-func startNested(t *testing.T, host *Harness) *nestedTilde {
+func startNested(t *testing.T, host *Harness) *nestedLysWM {
 	t.Helper()
 	return startNestedWith(t, host, func(*compositor.Config) {})
 }
 
-func startNestedWith(t *testing.T, host *Harness, configure func(*compositor.Config)) *nestedTilde {
+func startNestedWith(t *testing.T, host *Harness, configure func(*compositor.Config)) *nestedLysWM {
 	t.Helper()
-	n := &nestedTilde{t: t, host: host, dir: testenv.SocketDir(t)}
+	n := &nestedLysWM{t: t, host: host, dir: testenv.SocketDir(t)}
 	var err error
 	if n.loop, err = loop.New(); err != nil {
 		t.Fatal(err)
@@ -53,7 +53,7 @@ func startNestedWith(t *testing.T, host *Harness, configure func(*compositor.Con
 	}
 	n.display = display.Name()
 	cfg := compositor.DefaultConfig(testenv.Keymap(t), testenv.Font(t))
-	cfg.Report = func(err error) { t.Errorf("nested tilde reported: %v", err) }
+	cfg.Report = func(err error) { t.Errorf("nested lys-wm reported: %v", err) }
 	configure(&cfg)
 	if n.comp, err = compositor.New(n.loop, display, b, cfg); err != nil {
 		t.Fatal(err)
@@ -74,7 +74,7 @@ func startNestedWith(t *testing.T, host *Harness, configure func(*compositor.Con
 	return n
 }
 
-func (n *nestedTilde) do(f func(c *compositor.Compositor) error) {
+func (n *nestedLysWM) do(f func(c *compositor.Compositor) error) {
 	n.t.Helper()
 	result := make(chan error, 1)
 	if err := n.loop.Post(func() error {
@@ -88,7 +88,7 @@ func (n *nestedTilde) do(f func(c *compositor.Compositor) error) {
 	}
 }
 
-func (n *nestedTilde) eventually(what string, cond func(c *compositor.Compositor) bool) {
+func (n *nestedLysWM) eventually(what string, cond func(c *compositor.Compositor) bool) {
 	n.t.Helper()
 	deadline := time.Now().Add(clientTimeout)
 	for {
@@ -101,13 +101,13 @@ func (n *nestedTilde) eventually(what string, cond func(c *compositor.Compositor
 			return
 		}
 		if time.Now().After(deadline) {
-			n.t.Fatalf("nested tilde: timed out waiting for %s", what)
+			n.t.Fatalf("nested lys-wm: timed out waiting for %s", what)
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
 }
 
-func (n *nestedTilde) run(binary string, args ...string) *Client {
+func (n *nestedLysWM) run(binary string, args ...string) *Client {
 	n.t.Helper()
 	return n.host.RunOn(n.dir, n.display, binary, args...)
 }
@@ -118,7 +118,7 @@ func nestedToplevels(want int) func(c *compositor.Compositor) bool {
 	}
 }
 
-func TestNestedTildeHidesTheHostCursor(t *testing.T) {
+func TestNestedLysWMHidesTheHostCursor(t *testing.T) {
 	host := Start(t, small)
 	startNested(t, host)
 	host.Eventually("the nested window under the pointer with no host cursor", func(_ *headless.Backend, c *compositor.Compositor) bool {
@@ -130,7 +130,7 @@ func TestNestedSessionWithRealClients(t *testing.T) {
 	t.Setenv("GOELM_DEBUG", "demo")
 	host := Start(t, desktop)
 	n := startNested(t, host)
-	host.Eventually("the nested tilde window", mappedToplevels(1))
+	host.Eventually("the nested lys-wm window", mappedToplevels(1))
 	n.do(func(c *compositor.Compositor) error {
 		return c.SetOutputScale(c.Outputs()[0].Backend(), 180)
 	})
@@ -152,9 +152,9 @@ func TestNestedSessionWithRealClients(t *testing.T) {
 	}
 	n.eventually("alacritty gone", func(c *compositor.Compositor) bool { return len(c.Toplevels()) == 0 })
 
-	hello := n.run("gelm-hello")
+	hello := n.run("lys-ui-hello")
 	hello.Expect(t, "demo: mapped", clientTimeout)
-	n.eventually("gelm-hello to map", nestedToplevels(1))
+	n.eventually("lys-ui-hello to map", nestedToplevels(1))
 	host.click(0, 900, 500, btnRight)
 	hello.Expect(t, "demo: menu open", clientTimeout)
 	n.eventually("the menu with the keyboard", func(c *compositor.Compositor) bool {
@@ -174,7 +174,7 @@ func TestNestedSessionWithRealClients(t *testing.T) {
 	}
 }
 
-func (n *nestedTilde) state() wm.State {
+func (n *nestedLysWM) state() wm.State {
 	var s wm.State
 	n.do(func(c *compositor.Compositor) error {
 		s = c.WM()
@@ -226,7 +226,7 @@ func TestNestedTilingSession(t *testing.T) {
 		withBinds(t, specs...)(cfg)
 		cfg.Rules = []wm.Rule{{Title: regexp.MustCompile(`^float-me$`), Mode: wm.RuleFloat, Size: image.Pt(300, 200)}}
 	})
-	host.Eventually("the nested tilde window", mappedToplevels(1))
+	host.Eventually("the nested lys-wm window", mappedToplevels(1))
 	mapped := func(want int) {
 		t.Helper()
 		n.eventually(fmt.Sprintf("%d windows", want), func(c *compositor.Compositor) bool {

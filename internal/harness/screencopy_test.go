@@ -6,11 +6,11 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	cwsc "github.com/stubbedev/tilde/internal/protocol/client/wlrscreencopy"
-	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	cwsc "github.com/stubbedev/lys-wm/internal/protocol/client/wlrscreencopy"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 type copyFrame struct {

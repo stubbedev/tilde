@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/render/soft"
+	"github.com/stubbedev/lys-wm/internal/render/soft"
 )
 
 var update = flag.Bool("update", false, "rewrite golden images instead of comparing against them")

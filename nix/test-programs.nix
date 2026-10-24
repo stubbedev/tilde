@@ -1,6 +1,6 @@
 {
   pkgs,
-  gelm,
+  lys-ui,
 }:
 with pkgs; [
   just
@@ -12,6 +12,6 @@ with pkgs; [
   foot
   wl-clipboard
   dbus
-  (import ./gelm-debug.nix gelm)
+  (import ./lys-ui-debug.nix lys-ui)
   (import ./alacritty-swrast.nix pkgs)
 ]

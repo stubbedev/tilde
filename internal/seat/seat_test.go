@@ -11,15 +11,15 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/loop"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	"github.com/stubbedev/tilde/internal/server"
-	"github.com/stubbedev/tilde/internal/surface"
-	"github.com/stubbedev/tilde/internal/testenv"
-	"github.com/stubbedev/tilde/internal/wire"
-	"github.com/stubbedev/tilde/internal/wlclient"
-	"github.com/stubbedev/tilde/internal/xkb"
+	"github.com/stubbedev/lys-wm/internal/loop"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	"github.com/stubbedev/lys-wm/internal/server"
+	"github.com/stubbedev/lys-wm/internal/surface"
+	"github.com/stubbedev/lys-wm/internal/testenv"
+	"github.com/stubbedev/lys-wm/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/wlclient"
+	"github.com/stubbedev/lys-wm/internal/xkb"
 )
 
 type surfaces struct {
@@ -50,7 +50,7 @@ type env struct {
 
 func setup(t *testing.T) *env {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "tilde-")
+	dir, err := os.MkdirTemp("", "lys-wm-")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stubbedev/tilde/internal/backend/headless"
-	"github.com/stubbedev/tilde/internal/compositor"
-	cpt "github.com/stubbedev/tilde/internal/protocol/client/presentationtime"
-	cspb "github.com/stubbedev/tilde/internal/protocol/client/singlepixelbuffer"
-	cw "github.com/stubbedev/tilde/internal/protocol/client/wayland"
-	cxa "github.com/stubbedev/tilde/internal/protocol/client/xdgactivation"
-	"github.com/stubbedev/tilde/internal/testclient"
+	"github.com/stubbedev/lys-wm/internal/backend/headless"
+	"github.com/stubbedev/lys-wm/internal/compositor"
+	cpt "github.com/stubbedev/lys-wm/internal/protocol/client/presentationtime"
+	cspb "github.com/stubbedev/lys-wm/internal/protocol/client/singlepixelbuffer"
+	cw "github.com/stubbedev/lys-wm/internal/protocol/client/wayland"
+	cxa "github.com/stubbedev/lys-wm/internal/protocol/client/xdgactivation"
+	"github.com/stubbedev/lys-wm/internal/testclient"
 )
 
 type presentationEvents struct{ clock uint32 }
@@ -155,7 +155,7 @@ func requestToken(t *testing.T, c *testclient.Client, act *cxa.XdgActivationV1, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := errors.Join(tok.SetSerial(serial, seat), tok.SetAppID("tilde.testclient"), tok.Commit()); err != nil {
+	if err := errors.Join(tok.SetSerial(serial, seat), tok.SetAppID("lys-wm.testclient"), tok.Commit()); err != nil {
 		t.Fatal(err)
 	}
 	c.DispatchUntil("the activation token", func() bool { return ev.token != "" })

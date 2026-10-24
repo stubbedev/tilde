@@ -3,7 +3,7 @@ package seat
 import (
 	"testing"
 
-	scs "github.com/stubbedev/tilde/internal/protocol/server/cursorshape"
+	scs "github.com/stubbedev/lys-wm/internal/protocol/server/cursorshape"
 )
 
 func TestCursorShapesFollowTheProtocolOrder(t *testing.T) {

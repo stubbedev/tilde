@@ -3,9 +3,9 @@
 package cursorshape
 
 import (
-	"github.com/stubbedev/tilde/internal/protocol/server/tablet"
-	"github.com/stubbedev/tilde/internal/protocol/server/wayland"
-	"github.com/stubbedev/tilde/internal/wire"
+	"github.com/stubbedev/lys-wm/internal/protocol/server/tablet"
+	"github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
+	"github.com/stubbedev/lys-wm/internal/wire"
 )
 
 var WpCursorShapeManagerV1Interface = &wire.Interface{

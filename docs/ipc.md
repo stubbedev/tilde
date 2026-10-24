@@ -1,17 +1,17 @@
 # IPC
 
-tilde listens on `$XDG_RUNTIME_DIR/tilde/<WAYLAND_DISPLAY>.sock` and exports
-the path as `TILDE_SOCKET` to everything it starts. `tildectl` finds it
-through `--socket`, then `TILDE_SOCKET`, then the only socket in
-`$XDG_RUNTIME_DIR/tilde`.
+lys-wm listens on `$XDG_RUNTIME_DIR/lys-wm/<WAYLAND_DISPLAY>.sock` and exports
+the path as `LYS_WM_SOCKET` to everything it starts. `lys-wmctl` finds it
+through `--socket`, then `LYS_WM_SOCKET`, then the only socket in
+`$XDG_RUNTIME_DIR/lys-wm`.
 
-## tildectl
+## lys-wmctl
 
 ```sh
-tildectl dispatch workspace 3     # any action from actions.md
-tildectl reload                   # the same as: tildectl dispatch reload
-tildectl outputs | workspaces | windows | activewindow | version
-tildectl watch                    # events as JSON lines, until tilde exits
+lys-wmctl dispatch workspace 3     # any action from actions.md
+lys-wmctl reload                   # the same as: lys-wmctl dispatch reload
+lys-wmctl outputs | workspaces | windows | activewindow | version
+lys-wmctl watch                    # events as JSON lines, until lys-wm exits
 ```
 
 Queries print JSON. A failed request prints the error and exits 1.
@@ -61,7 +61,7 @@ focused one, or `null`:
  "rect":{"x":0,"y":0,"width":1024,"height":1152},"floating":false,"fullscreen":false,"urgent":false,"unresponsive":false,"focused":true}
 ```
 
-Window IDs are never reused while tilde runs. For an X11 window, `app_id` is
+Window IDs are never reused while lys-wm runs. For an X11 window, `app_id` is
 the class half of `WM_CLASS`, `title` is `_NET_WM_NAME` or else `WM_NAME`, and
 `pid` is `_NET_WM_PID`, or 0 when the client does not set it.
 
@@ -85,7 +85,7 @@ shows, the focused output, windows, focus, submap and layout.
 | `move` | `window`, `workspace` | A window moved to another workspace |
 | `title` | `window`, `title` | A window changed its title |
 | `urgent` | `window`, `urgent` | A window asked for attention, or got it |
-| `unresponsive` | `window`, `unresponsive` | A window's client stopped answering pings, or answered again. tilde pings a window's client when the window gains focus (xdg clients, and X clients that list `_NET_WM_PING`) and marks it after 5 seconds without an answer |
+| `unresponsive` | `window`, `unresponsive` | A window's client stopped answering pings, or answered again. lys-wm pings a window's client when the window gains focus (xdg clients, and X clients that list `_NET_WM_PING`) and marks it after 5 seconds without an answer |
 | `focus` | `window` (ID or `null`) | Keyboard focus moved to another window, or to none |
 | `submap` | `submap` (`""` for the default binds) | The bind submap changed |
 | `layout` | `layout` (`index`, `name`) | The keyboard layout group changed |

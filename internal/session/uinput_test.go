@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/stubbedev/tilde/internal/backend"
+	"github.com/stubbedev/lys-wm/internal/backend"
 )
 
 const (
@@ -35,7 +35,7 @@ const (
 	busVirtual   = 6
 )
 
-const virtualMouse = "tilde virtual mouse"
+const virtualMouse = "lys-wm virtual mouse"
 
 type uinputSetup struct {
 	bustype, vendor, product, version uint16

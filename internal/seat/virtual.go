@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	sw "github.com/stubbedev/tilde/internal/protocol/server/wayland"
+	sw "github.com/stubbedev/lys-wm/internal/protocol/server/wayland"
 )
 
 type VirtualKeyboard struct {

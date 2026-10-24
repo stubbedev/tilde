@@ -5,9 +5,9 @@ import (
 	"image"
 	"slices"
 
-	"github.com/stubbedev/tilde/internal/inputmethod"
-	"github.com/stubbedev/tilde/internal/output"
-	"github.com/stubbedev/tilde/internal/surface"
+	"github.com/stubbedev/lys-wm/internal/inputmethod"
+	"github.com/stubbedev/lys-wm/internal/output"
+	"github.com/stubbedev/lys-wm/internal/surface"
 )
 
 func (c *Compositor) PopupsChanged() error {

@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stubbedev/tilde/internal/ipc"
-	"github.com/stubbedev/tilde/internal/testenv"
+	"github.com/stubbedev/lys-wm/internal/ipc"
+	"github.com/stubbedev/lys-wm/internal/testenv"
 )
 
 func TestParseDebug(t *testing.T) {
@@ -77,9 +77,9 @@ func TestConfigPath(t *testing.T) {
 		env  map[string]string
 		want string
 	}{
-		{map[string]string{"XDG_CONFIG_HOME": "/cfg", "HOME": "/home/u"}, "/cfg/tilde/config.yaml"},
-		{map[string]string{"XDG_CONFIG_HOME": "relative", "HOME": "/home/u"}, "/home/u/.config/tilde/config.yaml"},
-		{map[string]string{"HOME": "/home/u"}, "/home/u/.config/tilde/config.yaml"},
+		{map[string]string{"XDG_CONFIG_HOME": "/cfg", "HOME": "/home/u"}, "/cfg/lys-wm/config.yaml"},
+		{map[string]string{"XDG_CONFIG_HOME": "relative", "HOME": "/home/u"}, "/home/u/.config/lys-wm/config.yaml"},
+		{map[string]string{"HOME": "/home/u"}, "/home/u/.config/lys-wm/config.yaml"},
 	}
 	for _, c := range cases {
 		if got, err := configPath(func(k string) string { return c.env[k] }); err != nil || got != c.want {
@@ -97,7 +97,7 @@ func TestFontPath(t *testing.T) {
 		t.Errorf("the config font lost to %q", got)
 	}
 	if got := fontPath("", env("/b.ttf")); got != "/b.ttf" {
-		t.Errorf("TILDE_FONT lost to %q", got)
+		t.Errorf("LYS_WM_FONT lost to %q", got)
 	}
 	if got := fontPath("", env("")); got != defaultFont {
 		t.Errorf("the built-in font lost to %q", got)
@@ -156,9 +156,9 @@ func TestTheConfigEnvChoosesTheCursor(t *testing.T) {
 }
 
 func TestSessionVars(t *testing.T) {
-	env := map[string]string{"WAYLAND_DISPLAY": "wayland-1", "TILDE_SOCKET": "/run/t.sock"}
-	got := sessionVars([][2]string{{"XDG_CURRENT_DESKTOP", "tilde"}}, func(k string) string { return env[k] })
-	want := [][2]string{{"XDG_CURRENT_DESKTOP", "tilde"}, {"WAYLAND_DISPLAY", "wayland-1"}, {"TILDE_SOCKET", "/run/t.sock"}}
+	env := map[string]string{"WAYLAND_DISPLAY": "wayland-1", "LYS_WM_SOCKET": "/run/t.sock"}
+	got := sessionVars([][2]string{{"XDG_CURRENT_DESKTOP", "lys-wm"}}, func(k string) string { return env[k] })
+	want := [][2]string{{"XDG_CURRENT_DESKTOP", "lys-wm"}, {"WAYLAND_DISPLAY", "wayland-1"}, {"LYS_WM_SOCKET", "/run/t.sock"}}
 	if !slices.Equal(got, want) {
 		t.Fatalf("%v, want %v", got, want)
 	}
@@ -213,7 +213,7 @@ func startSession(t *testing.T, config string) (string, string, <-chan error) {
 		}
 		select {
 		case err := <-done:
-			t.Fatalf("tilde exited: %v", err)
+			t.Fatalf("lys-wm exited: %v", err)
 		default:
 		}
 		if time.Now().After(deadline) {
@@ -231,10 +231,10 @@ func expectCleanExit(t *testing.T, socket string, done <-chan error, how string)
 			t.Fatal(err)
 		}
 	case <-time.After(10 * time.Second):
-		t.Fatalf("tilde ignored %s", how)
+		t.Fatalf("lys-wm ignored %s", how)
 	}
 	if _, err := os.Stat(socket); !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("the socket outlived tilde: %v", err)
+		t.Fatalf("the socket outlived lys-wm: %v", err)
 	}
 }
 

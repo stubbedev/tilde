@@ -8,7 +8,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/stubbedev/tilde/internal/drm"
+	"github.com/stubbedev/lys-wm/internal/drm"
 )
 
 func card(t *testing.T) *drm.Device {
