@@ -192,7 +192,13 @@ func TestFramesRequestedBetweenVblanksMakeTheNextOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Remove()
+	const want = 8
+	var renderedAt []time.Duration
 	r.onFrame = func(out backend.Output) {
+		if len(r.presented) >= want {
+			l.Stop()
+			return
+		}
 		f, err := out.BeginFrame()
 		if err != nil {
 			t.Fatal(err)
@@ -201,6 +207,7 @@ func TestFramesRequestedBetweenVblanksMakeTheNextOne(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		renderedAt = append(renderedAt, backend.Now())
 		if err := errors.Join(p.End(), out.Present(nil), client.Arm(2*time.Millisecond)); err != nil {
 			t.Fatal(err)
 		}
@@ -208,16 +215,32 @@ func TestFramesRequestedBetweenVblanksMakeTheNextOne(t *testing.T) {
 	if err := o.ScheduleFrame(); err != nil {
 		t.Fatal(err)
 	}
-	runFor(t, l, 105*time.Millisecond)
-	if len(r.presented) < 8 {
-		t.Fatalf("%d presentations in 105 ms at 100 Hz", len(r.presented))
+	runFor(t, l, 5*time.Second)
+	if len(r.presented) < want {
+		t.Fatalf("%d presentations in 5 s at 100 Hz, want %d", len(r.presented), want)
 	}
+	// The wall clock decides when a frame renders: under load the
+	// client's request can land after the next vblank, and skipping it
+	// is then correct. What must hold whatever the load: a frame
+	// rendered before the next vblank is presented at exactly that one.
 	interval := mode100.Interval()
+	onTime := 0
 	for i := 1; i < len(r.presented); i++ {
 		prev, cur := r.presented[i-1], r.presented[i]
-		if cur.Seq != prev.Seq+1 || cur.Time-prev.Time != interval {
-			t.Fatalf("presentation %d = %+v after %+v: want the next vblank, %v later", i, cur, prev, interval)
+		if renderedAt[i] >= prev.Time+interval {
+			if cur.Seq <= prev.Seq || cur.Time < renderedAt[i] {
+				t.Fatalf("presentation %d = %+v after %+v: a late frame went backwards", i, cur, prev)
+			}
+			continue
 		}
+		onTime++
+		if cur.Seq != prev.Seq+1 || cur.Time-prev.Time != interval {
+			t.Fatalf("presentation %d = %+v after %+v, rendered %v after it: want the next vblank, %v later",
+				i, cur, prev, renderedAt[i]-prev.Time, interval)
+		}
+	}
+	if onTime == 0 {
+		t.Fatal("no frame rendered between vblanks: the request never reached the frame clock in time")
 	}
 }
 
